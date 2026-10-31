@@ -4,7 +4,7 @@ import { Switch } from "@/components/ui/switch";
 import { GuidanceTip, PageHeader } from "@/components/AppShell";
 import { log, resolveSuggestion, setState, trackUse, useJackboy } from "@/lib/jackboy-store";
 
-export const Route = createFileRoute("/")({
+export const Route = createFileRoute("/_authenticated/")({
   head: () => ({
     meta: [
       { title: "Dashboard — Jackboy" },

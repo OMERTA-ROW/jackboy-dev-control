@@ -7,7 +7,7 @@ import {
   type Handoff, type OwnerAction, type Revenue,
 } from "@/lib/omni-handoff";
 
-export const Route = createFileRoute("/omni")({
+export const Route = createFileRoute("/_authenticated/omni")({
   head: () => ({
     meta: [
       { title: "OMNI Handoffs — Jackboy" },

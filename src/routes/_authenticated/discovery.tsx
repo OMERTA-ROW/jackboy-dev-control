@@ -10,7 +10,7 @@ import { SendToOmni } from "@/components/SendToOmni";
 import { CREATOR_LABEL, DEMO_FINDINGS, SOURCES, dedupe, frontierScore, gemReasons, meta, mixTracks, rankScore, setDiscovery, useDiscovery, type Finding, type Maturity } from "@/lib/discovery";
 import { Gem, Scale } from "lucide-react";
 
-export const Route = createFileRoute("/discovery")({
+export const Route = createFileRoute("/_authenticated/discovery")({
   head: () => ({
     meta: [
       { title: "Technology Discovery — Jackboy" },

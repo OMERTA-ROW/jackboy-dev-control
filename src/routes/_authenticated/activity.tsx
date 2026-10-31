@@ -3,7 +3,7 @@ import { useState } from "react";
 import { PageHeader } from "@/components/AppShell";
 import { resolveSuggestion, setState, useJackboy, type LogLevel } from "@/lib/jackboy-store";
 
-export const Route = createFileRoute("/activity")({
+export const Route = createFileRoute("/_authenticated/activity")({
   head: () => ({
     meta: [
       { title: "Logs & Approvals — Jackboy" },

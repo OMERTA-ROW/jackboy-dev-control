@@ -9,91 +9,91 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as IndexRouteImport } from './routes/index'
-import { Route as AccessRouteImport } from './routes/access'
-import { Route as ActivityRouteImport } from './routes/activity'
-import { Route as DiscoveryRouteImport } from './routes/discovery'
-import { Route as IntegrationsRouteImport } from './routes/integrations'
-import { Route as JaxRouteImport } from './routes/jax'
-import { Route as OmniRouteImport } from './routes/omni'
-import { Route as WorkspaceRouteImport } from './routes/workspace'
+import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
+import { Route as AuthenticatedAccessRouteImport } from './routes/_authenticated/access'
+import { Route as AuthenticatedActivityRouteImport } from './routes/_authenticated/activity'
+import { Route as AuthenticatedDiscoveryRouteImport } from './routes/_authenticated/discovery'
+import { Route as AuthenticatedIntegrationsRouteImport } from './routes/_authenticated/integrations'
+import { Route as AuthenticatedJaxRouteImport } from './routes/_authenticated/jax'
+import { Route as AuthenticatedOmniRouteImport } from './routes/_authenticated/omni'
+import { Route as AuthenticatedWorkspaceRouteImport } from './routes/_authenticated/workspace'
 
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
+const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
+  id: '/_authenticated/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AccessRoute = AccessRouteImport.update({
-  id: '/access',
+const AuthenticatedAccessRoute = AuthenticatedAccessRouteImport.update({
+  id: '/_authenticated/access',
   path: '/access',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ActivityRoute = ActivityRouteImport.update({
-  id: '/activity',
+const AuthenticatedActivityRoute = AuthenticatedActivityRouteImport.update({
+  id: '/_authenticated/activity',
   path: '/activity',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DiscoveryRoute = DiscoveryRouteImport.update({
-  id: '/discovery',
+const AuthenticatedDiscoveryRoute = AuthenticatedDiscoveryRouteImport.update({
+  id: '/_authenticated/discovery',
   path: '/discovery',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IntegrationsRoute = IntegrationsRouteImport.update({
-  id: '/integrations',
-  path: '/integrations',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const JaxRoute = JaxRouteImport.update({
-  id: '/jax',
+const AuthenticatedIntegrationsRoute =
+  AuthenticatedIntegrationsRouteImport.update({
+    id: '/_authenticated/integrations',
+    path: '/integrations',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const AuthenticatedJaxRoute = AuthenticatedJaxRouteImport.update({
+  id: '/_authenticated/jax',
   path: '/jax',
   getParentRoute: () => rootRouteImport,
 } as any)
-const OmniRoute = OmniRouteImport.update({
-  id: '/omni',
+const AuthenticatedOmniRoute = AuthenticatedOmniRouteImport.update({
+  id: '/_authenticated/omni',
   path: '/omni',
   getParentRoute: () => rootRouteImport,
 } as any)
-const WorkspaceRoute = WorkspaceRouteImport.update({
-  id: '/workspace',
+const AuthenticatedWorkspaceRoute = AuthenticatedWorkspaceRouteImport.update({
+  id: '/_authenticated/workspace',
   path: '/workspace',
   getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
-  '/access': typeof AccessRoute
-  '/activity': typeof ActivityRoute
-  '/discovery': typeof DiscoveryRoute
-  '/integrations': typeof IntegrationsRoute
-  '/jax': typeof JaxRoute
-  '/omni': typeof OmniRoute
-  '/workspace': typeof WorkspaceRoute
+  '/access': typeof AuthenticatedAccessRoute
+  '/activity': typeof AuthenticatedActivityRoute
+  '/discovery': typeof AuthenticatedDiscoveryRoute
+  '/integrations': typeof AuthenticatedIntegrationsRoute
+  '/jax': typeof AuthenticatedJaxRoute
+  '/omni': typeof AuthenticatedOmniRoute
+  '/workspace': typeof AuthenticatedWorkspaceRoute
+  '/': typeof AuthenticatedIndexRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
-  '/access': typeof AccessRoute
-  '/activity': typeof ActivityRoute
-  '/discovery': typeof DiscoveryRoute
-  '/integrations': typeof IntegrationsRoute
-  '/jax': typeof JaxRoute
-  '/omni': typeof OmniRoute
-  '/workspace': typeof WorkspaceRoute
+  '/access': typeof AuthenticatedAccessRoute
+  '/activity': typeof AuthenticatedActivityRoute
+  '/discovery': typeof AuthenticatedDiscoveryRoute
+  '/integrations': typeof AuthenticatedIntegrationsRoute
+  '/jax': typeof AuthenticatedJaxRoute
+  '/omni': typeof AuthenticatedOmniRoute
+  '/workspace': typeof AuthenticatedWorkspaceRoute
+  '/': typeof AuthenticatedIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
-  '/access': typeof AccessRoute
-  '/activity': typeof ActivityRoute
-  '/discovery': typeof DiscoveryRoute
-  '/integrations': typeof IntegrationsRoute
-  '/jax': typeof JaxRoute
-  '/omni': typeof OmniRoute
-  '/workspace': typeof WorkspaceRoute
+  '/_authenticated/access': typeof AuthenticatedAccessRoute
+  '/_authenticated/activity': typeof AuthenticatedActivityRoute
+  '/_authenticated/discovery': typeof AuthenticatedDiscoveryRoute
+  '/_authenticated/integrations': typeof AuthenticatedIntegrationsRoute
+  '/_authenticated/jax': typeof AuthenticatedJaxRoute
+  '/_authenticated/omni': typeof AuthenticatedOmniRoute
+  '/_authenticated/workspace': typeof AuthenticatedWorkspaceRoute
+  '/_authenticated/': typeof AuthenticatedIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    | '/'
     | '/access'
     | '/activity'
     | '/discovery'
@@ -101,9 +101,9 @@ export interface FileRouteTypes {
     | '/jax'
     | '/omni'
     | '/workspace'
+    | '/'
   fileRoutesByTo: FileRoutesByTo
   to:
-    | '/'
     | '/access'
     | '/activity'
     | '/discovery'
@@ -111,99 +111,100 @@ export interface FileRouteTypes {
     | '/jax'
     | '/omni'
     | '/workspace'
+    | '/'
   id:
     | '__root__'
-    | '/'
-    | '/access'
-    | '/activity'
-    | '/discovery'
-    | '/integrations'
-    | '/jax'
-    | '/omni'
-    | '/workspace'
+    | '/_authenticated/access'
+    | '/_authenticated/activity'
+    | '/_authenticated/discovery'
+    | '/_authenticated/integrations'
+    | '/_authenticated/jax'
+    | '/_authenticated/omni'
+    | '/_authenticated/workspace'
+    | '/_authenticated/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
-  AccessRoute: typeof AccessRoute
-  ActivityRoute: typeof ActivityRoute
-  DiscoveryRoute: typeof DiscoveryRoute
-  IntegrationsRoute: typeof IntegrationsRoute
-  JaxRoute: typeof JaxRoute
-  OmniRoute: typeof OmniRoute
-  WorkspaceRoute: typeof WorkspaceRoute
+  AuthenticatedAccessRoute: typeof AuthenticatedAccessRoute
+  AuthenticatedActivityRoute: typeof AuthenticatedActivityRoute
+  AuthenticatedDiscoveryRoute: typeof AuthenticatedDiscoveryRoute
+  AuthenticatedIntegrationsRoute: typeof AuthenticatedIntegrationsRoute
+  AuthenticatedJaxRoute: typeof AuthenticatedJaxRoute
+  AuthenticatedOmniRoute: typeof AuthenticatedOmniRoute
+  AuthenticatedWorkspaceRoute: typeof AuthenticatedWorkspaceRoute
+  AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/': {
-      id: '/'
+    '/_authenticated/': {
+      id: '/_authenticated/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+      preLoaderRoute: typeof AuthenticatedIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/access': {
-      id: '/access'
+    '/_authenticated/access': {
+      id: '/_authenticated/access'
       path: '/access'
       fullPath: '/access'
-      preLoaderRoute: typeof AccessRouteImport
+      preLoaderRoute: typeof AuthenticatedAccessRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/activity': {
-      id: '/activity'
+    '/_authenticated/activity': {
+      id: '/_authenticated/activity'
       path: '/activity'
       fullPath: '/activity'
-      preLoaderRoute: typeof ActivityRouteImport
+      preLoaderRoute: typeof AuthenticatedActivityRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/discovery': {
-      id: '/discovery'
+    '/_authenticated/discovery': {
+      id: '/_authenticated/discovery'
       path: '/discovery'
       fullPath: '/discovery'
-      preLoaderRoute: typeof DiscoveryRouteImport
+      preLoaderRoute: typeof AuthenticatedDiscoveryRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/integrations': {
-      id: '/integrations'
+    '/_authenticated/integrations': {
+      id: '/_authenticated/integrations'
       path: '/integrations'
       fullPath: '/integrations'
-      preLoaderRoute: typeof IntegrationsRouteImport
+      preLoaderRoute: typeof AuthenticatedIntegrationsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/jax': {
-      id: '/jax'
+    '/_authenticated/jax': {
+      id: '/_authenticated/jax'
       path: '/jax'
       fullPath: '/jax'
-      preLoaderRoute: typeof JaxRouteImport
+      preLoaderRoute: typeof AuthenticatedJaxRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/omni': {
-      id: '/omni'
+    '/_authenticated/omni': {
+      id: '/_authenticated/omni'
       path: '/omni'
       fullPath: '/omni'
-      preLoaderRoute: typeof OmniRouteImport
+      preLoaderRoute: typeof AuthenticatedOmniRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/workspace': {
-      id: '/workspace'
+    '/_authenticated/workspace': {
+      id: '/_authenticated/workspace'
       path: '/workspace'
       fullPath: '/workspace'
-      preLoaderRoute: typeof WorkspaceRouteImport
+      preLoaderRoute: typeof AuthenticatedWorkspaceRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
-  AccessRoute: AccessRoute,
-  ActivityRoute: ActivityRoute,
-  DiscoveryRoute: DiscoveryRoute,
-  IntegrationsRoute: IntegrationsRoute,
-  JaxRoute: JaxRoute,
-  OmniRoute: OmniRoute,
-  WorkspaceRoute: WorkspaceRoute,
+  AuthenticatedAccessRoute: AuthenticatedAccessRoute,
+  AuthenticatedActivityRoute: AuthenticatedActivityRoute,
+  AuthenticatedDiscoveryRoute: AuthenticatedDiscoveryRoute,
+  AuthenticatedIntegrationsRoute: AuthenticatedIntegrationsRoute,
+  AuthenticatedJaxRoute: AuthenticatedJaxRoute,
+  AuthenticatedOmniRoute: AuthenticatedOmniRoute,
+  AuthenticatedWorkspaceRoute: AuthenticatedWorkspaceRoute,
+  AuthenticatedIndexRoute: AuthenticatedIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

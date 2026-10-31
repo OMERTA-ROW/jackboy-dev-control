@@ -4,7 +4,7 @@ import { GuidanceTip, PageHeader } from "@/components/AppShell";
 import { inspect, type Finding } from "@/lib/diagnostics";
 import { log } from "@/lib/jackboy-store";
 
-export const Route = createFileRoute("/workspace")({
+export const Route = createFileRoute("/_authenticated/workspace")({
   head: () => ({
     meta: [
       { title: "Inspect & Diagnose — Jackboy" },

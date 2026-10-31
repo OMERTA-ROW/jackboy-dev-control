@@ -9,7 +9,7 @@ import {
   potentialRevenue, removeManifest, updateManifest, useManifests, type DataGovernance, type ReleaseManifest,
 } from "@/lib/jax";
 
-export const Route = createFileRoute("/jax")({
+export const Route = createFileRoute("/_authenticated/jax")({
   head: () => ({
     meta: [
       { title: "JAX Release Hub — Jackboy" },

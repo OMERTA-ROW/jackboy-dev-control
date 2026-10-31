@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Github, Code2, Hexagon, Terminal, Circle } from "lucide-react";
 import { PageHeader } from "@/components/AppShell";
 
-export const Route = createFileRoute("/integrations")({
+export const Route = createFileRoute("/_authenticated/integrations")({
   head: () => ({
     meta: [
       { title: "Integrations — Jackboy" },

@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Lock, UserPlus, ShieldCheck, Eye } from "lucide-react";
 import { PageHeader } from "@/components/AppShell";
 
-export const Route = createFileRoute("/access")({
+export const Route = createFileRoute("/_authenticated/access")({
   head: () => ({
     meta: [
       { title: "Access & Security — Jackboy" },
