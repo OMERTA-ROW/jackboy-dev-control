@@ -82,7 +82,7 @@ export const simulateGuardian = createServerFn({ method: "POST" })
     ]);
     if (!a) throw new Error("Agent not found.");
     const v = guardianCheck({
-      agent: { category: a.category as "angeltech" | "demontech", autonomy: a.autonomy as "observe" | "propose" | "experiment", paused: a.paused, installedVerified: a.installed_verified, projectId: a.project_id },
+      agent: { category: a.category as "angeltech" | "demontech", autonomy: a.autonomy as "observe" | "propose" | "experiment", paused: a.paused, installedVerified: a.installed_verified, passportApproved: a.passport_approved, projectId: a.project_id },
       action: data.action as never, targetProjectId: data.targetProjectId, globalPaused: Boolean(p?.paused), integrations: INTEGRATIONS,
     });
     await audit(context, "guardian.check", { agent: a.name, action: data.action, reason: v.reason }, v.allow ? "allow" : "deny");

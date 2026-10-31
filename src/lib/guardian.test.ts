@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { guardianCheck, type GuardianInput } from "./guardian";
 
 const base: GuardianInput = {
-  agent: { category: "angeltech", autonomy: "experiment", paused: false, installedVerified: true, projectId: "p1" },
+  agent: { category: "angeltech", autonomy: "experiment", paused: false, installedVerified: true, passportApproved: true, projectId: "p1" },
   action: "propose", targetProjectId: "p1", globalPaused: false,
   integrations: { sandbox: true, search: true, omni: true, repo: true },
 };
@@ -15,6 +15,7 @@ describe("Guardian", () => {
     expect(guardianCheck({ ...base, globalPaused: true }).allow).toBe(false);
     expect(guardianCheck({ ...base, agent: { ...base.agent, paused: true } }).allow).toBe(false);
   });
+  it("unapproved passports can't act", () => expect(guardianCheck({ ...base, agent: { ...base.agent, passportApproved: false } }).allow).toBe(false));
   it("unverified agents can't act", () => expect(guardianCheck({ ...base, agent: { ...base.agent, installedVerified: false } }).allow).toBe(false));
   it("high-impact actions need the owner", () => {
     for (const a of ["deploy_production", "transfer_private_data", "change_credentials", "publish_external", "high_impact"] as const) {
