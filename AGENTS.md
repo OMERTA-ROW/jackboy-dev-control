@@ -8,3 +8,8 @@
 > Commits you push to the connected branch sync back to Lovable and show up in
 > the editor, so keep the branch in a working state.
 <!-- LOVABLE:END -->
+
+## Jackboy rules
+- App state (mode, opt-ins, suggestions, logs) lives in `src/lib/jackboy-store.ts` (localStorage) until accounts exist — no backend is enabled yet.
+- Layout/code changes are only proposed as suggestions and applied via `resolveSuggestion` after explicit approval, which writes to the log.
+- Shared shell/navigation is `src/components/AppShell.tsx`, rendered from `__root.tsx`.
