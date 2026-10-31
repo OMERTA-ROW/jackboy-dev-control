@@ -19,6 +19,7 @@ import { Route as AuthenticatedDiscoveryRouteImport } from './routes/_authentica
 import { Route as AuthenticatedIntegrationsRouteImport } from './routes/_authenticated/integrations'
 import { Route as AuthenticatedJaxRouteImport } from './routes/_authenticated/jax'
 import { Route as AuthenticatedOmniRouteImport } from './routes/_authenticated/omni'
+import { Route as AuthenticatedResearchRouteImport } from './routes/_authenticated/research'
 import { Route as AuthenticatedWorkspaceRouteImport } from './routes/_authenticated/workspace'
 
 const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
@@ -71,6 +72,11 @@ const AuthenticatedOmniRoute = AuthenticatedOmniRouteImport.update({
   path: '/omni',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedResearchRoute = AuthenticatedResearchRouteImport.update({
+  id: '/research',
+  path: '/research',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedWorkspaceRoute = AuthenticatedWorkspaceRouteImport.update({
   id: '/workspace',
   path: '/workspace',
@@ -87,6 +93,7 @@ export interface FileRoutesByFullPath {
   '/integrations': typeof AuthenticatedIntegrationsRoute
   '/jax': typeof AuthenticatedJaxRoute
   '/omni': typeof AuthenticatedOmniRoute
+  '/research': typeof AuthenticatedResearchRoute
   '/workspace': typeof AuthenticatedWorkspaceRoute
 }
 export interface FileRoutesByTo {
@@ -98,6 +105,7 @@ export interface FileRoutesByTo {
   '/integrations': typeof AuthenticatedIntegrationsRoute
   '/jax': typeof AuthenticatedJaxRoute
   '/omni': typeof AuthenticatedOmniRoute
+  '/research': typeof AuthenticatedResearchRoute
   '/workspace': typeof AuthenticatedWorkspaceRoute
   '/': typeof AuthenticatedIndexRoute
 }
@@ -112,6 +120,7 @@ export interface FileRoutesById {
   '/_authenticated/integrations': typeof AuthenticatedIntegrationsRoute
   '/_authenticated/jax': typeof AuthenticatedJaxRoute
   '/_authenticated/omni': typeof AuthenticatedOmniRoute
+  '/_authenticated/research': typeof AuthenticatedResearchRoute
   '/_authenticated/workspace': typeof AuthenticatedWorkspaceRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
 }
@@ -127,6 +136,7 @@ export interface FileRouteTypes {
     | '/integrations'
     | '/jax'
     | '/omni'
+    | '/research'
     | '/workspace'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -138,6 +148,7 @@ export interface FileRouteTypes {
     | '/integrations'
     | '/jax'
     | '/omni'
+    | '/research'
     | '/workspace'
     | '/'
   id:
@@ -151,6 +162,7 @@ export interface FileRouteTypes {
     | '/_authenticated/integrations'
     | '/_authenticated/jax'
     | '/_authenticated/omni'
+    | '/_authenticated/research'
     | '/_authenticated/workspace'
     | '/_authenticated/'
   fileRoutesById: FileRoutesById
@@ -233,6 +245,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedOmniRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/research': {
+      id: '/_authenticated/research'
+      path: '/research'
+      fullPath: '/research'
+      preLoaderRoute: typeof AuthenticatedResearchRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/workspace': {
       id: '/_authenticated/workspace'
       path: '/workspace'
@@ -250,6 +269,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedIntegrationsRoute: typeof AuthenticatedIntegrationsRoute
   AuthenticatedJaxRoute: typeof AuthenticatedJaxRoute
   AuthenticatedOmniRoute: typeof AuthenticatedOmniRoute
+  AuthenticatedResearchRoute: typeof AuthenticatedResearchRoute
   AuthenticatedWorkspaceRoute: typeof AuthenticatedWorkspaceRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
 }
@@ -261,6 +281,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedIntegrationsRoute: AuthenticatedIntegrationsRoute,
   AuthenticatedJaxRoute: AuthenticatedJaxRoute,
   AuthenticatedOmniRoute: AuthenticatedOmniRoute,
+  AuthenticatedResearchRoute: AuthenticatedResearchRoute,
   AuthenticatedWorkspaceRoute: AuthenticatedWorkspaceRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
 }
