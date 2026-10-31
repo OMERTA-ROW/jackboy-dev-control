@@ -15,6 +15,13 @@
       "when": 1793451002272,
       "tag": "0001_invite_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793452075127,
+      "tag": "0002_agent_hub",
+      "breakpoints": true
     }
   ]
 }

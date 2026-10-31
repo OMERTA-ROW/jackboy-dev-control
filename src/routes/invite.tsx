@@ -5,7 +5,7 @@ import { inspectInvite, redeemInvite } from "@/lib/account.functions";
 
 export const Route = createFileRoute("/invite")({
   ssr: false,
-  validateSearch: (s: Record<string, unknown>) => ({ token: typeof s.token === "string" ? s.token : "" }),
+  validateSearch: (s: Record<string, unknown>) => ({ token: typeof s["token"] === "string" ? s["token"] : "" }),
   head: () => ({
     meta: [
       { title: "Accept invitation — Jackboy" },

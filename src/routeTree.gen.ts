@@ -17,12 +17,14 @@ import { Route as SetPasswordRouteImport } from './routes/set-password'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as AuthenticatedAccessRouteImport } from './routes/_authenticated/access'
 import { Route as AuthenticatedActivityRouteImport } from './routes/_authenticated/activity'
+import { Route as AuthenticatedAgentsRouteImport } from './routes/_authenticated/agents'
 import { Route as AuthenticatedDiscoveryRouteImport } from './routes/_authenticated/discovery'
 import { Route as AuthenticatedIntegrationsRouteImport } from './routes/_authenticated/integrations'
 import { Route as AuthenticatedJaxRouteImport } from './routes/_authenticated/jax'
 import { Route as AuthenticatedOmniRouteImport } from './routes/_authenticated/omni'
 import { Route as AuthenticatedResearchRouteImport } from './routes/_authenticated/research'
 import { Route as AuthenticatedWorkspaceRouteImport } from './routes/_authenticated/workspace'
+import { Route as ApiPublicAgentIngestRouteImport } from './routes/api/public/agent-ingest'
 
 const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
   id: '/_authenticated',
@@ -63,6 +65,11 @@ const AuthenticatedActivityRoute = AuthenticatedActivityRouteImport.update({
   path: '/activity',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedAgentsRoute = AuthenticatedAgentsRouteImport.update({
+  id: '/agents',
+  path: '/agents',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedDiscoveryRoute = AuthenticatedDiscoveryRouteImport.update({
   id: '/discovery',
   path: '/discovery',
@@ -94,6 +101,11 @@ const AuthenticatedWorkspaceRoute = AuthenticatedWorkspaceRouteImport.update({
   path: '/workspace',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const ApiPublicAgentIngestRoute = ApiPublicAgentIngestRouteImport.update({
+  id: '/api/public/agent-ingest',
+  path: '/api/public/agent-ingest',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
@@ -103,12 +115,14 @@ export interface FileRoutesByFullPath {
   '/set-password': typeof SetPasswordRoute
   '/access': typeof AuthenticatedAccessRoute
   '/activity': typeof AuthenticatedActivityRoute
+  '/agents': typeof AuthenticatedAgentsRoute
   '/discovery': typeof AuthenticatedDiscoveryRoute
   '/integrations': typeof AuthenticatedIntegrationsRoute
   '/jax': typeof AuthenticatedJaxRoute
   '/omni': typeof AuthenticatedOmniRoute
   '/research': typeof AuthenticatedResearchRoute
   '/workspace': typeof AuthenticatedWorkspaceRoute
+  '/api/public/agent-ingest': typeof ApiPublicAgentIngestRoute
 }
 export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
@@ -117,6 +131,7 @@ export interface FileRoutesByTo {
   '/set-password': typeof SetPasswordRoute
   '/access': typeof AuthenticatedAccessRoute
   '/activity': typeof AuthenticatedActivityRoute
+  '/agents': typeof AuthenticatedAgentsRoute
   '/discovery': typeof AuthenticatedDiscoveryRoute
   '/integrations': typeof AuthenticatedIntegrationsRoute
   '/jax': typeof AuthenticatedJaxRoute
@@ -124,6 +139,7 @@ export interface FileRoutesByTo {
   '/research': typeof AuthenticatedResearchRoute
   '/workspace': typeof AuthenticatedWorkspaceRoute
   '/': typeof AuthenticatedIndexRoute
+  '/api/public/agent-ingest': typeof ApiPublicAgentIngestRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -134,6 +150,7 @@ export interface FileRoutesById {
   '/set-password': typeof SetPasswordRoute
   '/_authenticated/access': typeof AuthenticatedAccessRoute
   '/_authenticated/activity': typeof AuthenticatedActivityRoute
+  '/_authenticated/agents': typeof AuthenticatedAgentsRoute
   '/_authenticated/discovery': typeof AuthenticatedDiscoveryRoute
   '/_authenticated/integrations': typeof AuthenticatedIntegrationsRoute
   '/_authenticated/jax': typeof AuthenticatedJaxRoute
@@ -141,6 +158,7 @@ export interface FileRoutesById {
   '/_authenticated/research': typeof AuthenticatedResearchRoute
   '/_authenticated/workspace': typeof AuthenticatedWorkspaceRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
+  '/api/public/agent-ingest': typeof ApiPublicAgentIngestRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -152,12 +170,14 @@ export interface FileRouteTypes {
     | '/set-password'
     | '/access'
     | '/activity'
+    | '/agents'
     | '/discovery'
     | '/integrations'
     | '/jax'
     | '/omni'
     | '/research'
     | '/workspace'
+    | '/api/public/agent-ingest'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/auth'
@@ -166,6 +186,7 @@ export interface FileRouteTypes {
     | '/set-password'
     | '/access'
     | '/activity'
+    | '/agents'
     | '/discovery'
     | '/integrations'
     | '/jax'
@@ -173,6 +194,7 @@ export interface FileRouteTypes {
     | '/research'
     | '/workspace'
     | '/'
+    | '/api/public/agent-ingest'
   id:
     | '__root__'
     | '/_authenticated'
@@ -182,6 +204,7 @@ export interface FileRouteTypes {
     | '/set-password'
     | '/_authenticated/access'
     | '/_authenticated/activity'
+    | '/_authenticated/agents'
     | '/_authenticated/discovery'
     | '/_authenticated/integrations'
     | '/_authenticated/jax'
@@ -189,6 +212,7 @@ export interface FileRouteTypes {
     | '/_authenticated/research'
     | '/_authenticated/workspace'
     | '/_authenticated/'
+    | '/api/public/agent-ingest'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -197,6 +221,7 @@ export interface RootRouteChildren {
   InviteRoute: typeof InviteRoute
   OnboardingRoute: typeof OnboardingRoute
   SetPasswordRoute: typeof SetPasswordRoute
+  ApiPublicAgentIngestRoute: typeof ApiPublicAgentIngestRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -257,6 +282,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedActivityRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/agents': {
+      id: '/_authenticated/agents'
+      path: '/agents'
+      fullPath: '/agents'
+      preLoaderRoute: typeof AuthenticatedAgentsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/discovery': {
       id: '/_authenticated/discovery'
       path: '/discovery'
@@ -299,12 +331,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedWorkspaceRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/public/agent-ingest': {
+      id: '/api/public/agent-ingest'
+      path: '/api/public/agent-ingest'
+      fullPath: '/api/public/agent-ingest'
+      preLoaderRoute: typeof ApiPublicAgentIngestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAccessRoute: typeof AuthenticatedAccessRoute
   AuthenticatedActivityRoute: typeof AuthenticatedActivityRoute
+  AuthenticatedAgentsRoute: typeof AuthenticatedAgentsRoute
   AuthenticatedDiscoveryRoute: typeof AuthenticatedDiscoveryRoute
   AuthenticatedIntegrationsRoute: typeof AuthenticatedIntegrationsRoute
   AuthenticatedJaxRoute: typeof AuthenticatedJaxRoute
@@ -317,6 +357,7 @@ interface AuthenticatedRouteRouteChildren {
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAccessRoute: AuthenticatedAccessRoute,
   AuthenticatedActivityRoute: AuthenticatedActivityRoute,
+  AuthenticatedAgentsRoute: AuthenticatedAgentsRoute,
   AuthenticatedDiscoveryRoute: AuthenticatedDiscoveryRoute,
   AuthenticatedIntegrationsRoute: AuthenticatedIntegrationsRoute,
   AuthenticatedJaxRoute: AuthenticatedJaxRoute,
@@ -335,6 +376,7 @@ const rootRouteChildren: RootRouteChildren = {
   InviteRoute: InviteRoute,
   OnboardingRoute: OnboardingRoute,
   SetPasswordRoute: SetPasswordRoute,
+  ApiPublicAgentIngestRoute: ApiPublicAgentIngestRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

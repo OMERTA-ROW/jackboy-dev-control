@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { LayoutGrid, Radar, Send, Hexagon, Code2, ScrollText, Plug, ShieldCheck, Eye, Globe } from "lucide-react";
+import { LayoutGrid, Radar, Send, Hexagon, Code2, ScrollText, Plug, ShieldCheck, Eye, Globe, Bot } from "lucide-react";
 import type { ReactNode } from "react";
 import { setState, useJackboy, log } from "@/lib/jackboy-store";
 
@@ -8,6 +8,7 @@ const NAV = [
   { to: "/workspace", label: "Inspect", icon: Code2 },
   { to: "/discovery", label: "Discovery", icon: Radar },
   { to: "/research", label: "Research", icon: Globe },
+  { to: "/agents", label: "Agent Hub", icon: Bot },
   { to: "/omni", label: "OMNI", icon: Send },
   { to: "/jax", label: "JAX", icon: Hexagon },
   { to: "/activity", label: "Logs & Approvals", icon: ScrollText },

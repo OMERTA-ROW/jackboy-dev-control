@@ -13,4 +13,6 @@
 - [ ] Real JAX ingest + verified payment revenue — queued after Jackboy acceptance and OMNI; then needs JAX endpoint/credentials, payment provider
 - [x] Little-guy rule: two research tracks, frontier share setting, overlooked-gem flags (demo data)
 - [ ] Commercial track live feedback — blocked: authorized aggregated JAX feedback feed
+- [x] Agent Hub: registry, opt-in enrollment, ingest API, scoped keys, issue queue, owner-approved proposals
+- [ ] Agent Hub live rollout — blocked: owner account, per-project enrollment + key install, GitHub + sandbox runner for PRs, OMNI API credentials
 - [ ] GitHub / VS Code / OMNI / Honeycomb integrations — blocked: user credentials & details
