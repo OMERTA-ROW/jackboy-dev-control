@@ -15,4 +15,6 @@
 - [ ] Commercial track live feedback — blocked: authorized aggregated JAX feedback feed
 - [x] Agent Hub: registry, opt-in enrollment, ingest API, scoped keys, issue queue, owner-approved proposals
 - [ ] Agent Hub live rollout — blocked: owner account, per-project enrollment + key install, GitHub + sandbox runner for PRs, OMNI API credentials
+- [x] Automation policy: learning history, checked playbooks, approval tiers, pause/revoke, decision log
+- [ ] Guardian + OMNI live dispatch — blocked: authenticated Guardian and OMNI APIs and verification checks
 - [ ] GitHub / VS Code / OMNI / Honeycomb integrations — blocked: user credentials & details
