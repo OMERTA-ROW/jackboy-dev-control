@@ -17,4 +17,6 @@
 - [ ] Agent Hub live rollout — blocked: owner account, per-project enrollment + key install, GitHub + sandbox runner for PRs, OMNI API credentials
 - [x] Automation policy: learning history, checked playbooks, approval tiers, pause/revoke, decision log
 - [ ] Guardian + OMNI live dispatch — blocked: authenticated Guardian and OMNI APIs and verification checks
+- [x] Agent Fleet: capabilities, autonomy tiers, Guardian deny-by-default checks, emergency pause, owner dashboard
+- [ ] Agent install verification (agent check-in) + sandbox/repo integrations — blocked: per-project agent runtime + credentials
 - [ ] GitHub / VS Code / OMNI / Honeycomb integrations — blocked: user credentials & details
