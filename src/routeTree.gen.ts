@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AccessRouteImport } from './routes/access'
 import { Route as ActivityRouteImport } from './routes/activity'
+import { Route as DiscoveryRouteImport } from './routes/discovery'
 import { Route as IntegrationsRouteImport } from './routes/integrations'
 import { Route as WorkspaceRouteImport } from './routes/workspace'
 
@@ -30,6 +31,11 @@ const ActivityRoute = ActivityRouteImport.update({
   path: '/activity',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DiscoveryRoute = DiscoveryRouteImport.update({
+  id: '/discovery',
+  path: '/discovery',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IntegrationsRoute = IntegrationsRouteImport.update({
   id: '/integrations',
   path: '/integrations',
@@ -45,6 +51,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/access': typeof AccessRoute
   '/activity': typeof ActivityRoute
+  '/discovery': typeof DiscoveryRoute
   '/integrations': typeof IntegrationsRoute
   '/workspace': typeof WorkspaceRoute
 }
@@ -52,6 +59,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/access': typeof AccessRoute
   '/activity': typeof ActivityRoute
+  '/discovery': typeof DiscoveryRoute
   '/integrations': typeof IntegrationsRoute
   '/workspace': typeof WorkspaceRoute
 }
@@ -60,22 +68,42 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/access': typeof AccessRoute
   '/activity': typeof ActivityRoute
+  '/discovery': typeof DiscoveryRoute
   '/integrations': typeof IntegrationsRoute
   '/workspace': typeof WorkspaceRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/access' | '/activity' | '/integrations' | '/workspace'
+  fullPaths:
+    | '/'
+    | '/access'
+    | '/activity'
+    | '/discovery'
+    | '/integrations'
+    | '/workspace'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/access' | '/activity' | '/integrations' | '/workspace'
+  to:
+    | '/'
+    | '/access'
+    | '/activity'
+    | '/discovery'
+    | '/integrations'
+    | '/workspace'
   id:
-    '__root__' | '/' | '/access' | '/activity' | '/integrations' | '/workspace'
+    | '__root__'
+    | '/'
+    | '/access'
+    | '/activity'
+    | '/discovery'
+    | '/integrations'
+    | '/workspace'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AccessRoute: typeof AccessRoute
   ActivityRoute: typeof ActivityRoute
+  DiscoveryRoute: typeof DiscoveryRoute
   IntegrationsRoute: typeof IntegrationsRoute
   WorkspaceRoute: typeof WorkspaceRoute
 }
@@ -103,6 +131,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ActivityRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/discovery': {
+      id: '/discovery'
+      path: '/discovery'
+      fullPath: '/discovery'
+      preLoaderRoute: typeof DiscoveryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/integrations': {
       id: '/integrations'
       path: '/integrations'
@@ -124,6 +159,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AccessRoute: AccessRoute,
   ActivityRoute: ActivityRoute,
+  DiscoveryRoute: DiscoveryRoute,
   IntegrationsRoute: IntegrationsRoute,
   WorkspaceRoute: WorkspaceRoute,
 }

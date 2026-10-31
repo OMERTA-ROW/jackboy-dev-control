@@ -13,3 +13,4 @@
 - App state (mode, opt-ins, suggestions, logs) lives in `src/lib/jackboy-store.ts` (localStorage) until accounts exist — no backend is enabled yet.
 - Layout/code changes are only proposed as suggestions and applied via `resolveSuggestion` after explicit approval, which writes to the log.
 - Shared shell/navigation is `src/components/AppShell.tsx`, rendered from `__root.tsx`.
+- Technology Discovery lives in `src/lib/discovery.ts` (source registry, dedupe, ranking, local state) and `src/routes/discovery.tsx`; it is opt-in and uses demo data until a backend can fetch public APIs/RSS on a schedule. Facts and AI hypotheses must stay visually separated.
