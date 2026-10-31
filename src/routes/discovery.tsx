@@ -7,7 +7,8 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { GuidanceTip, PageHeader } from "@/components/AppShell";
 import { SendToOmni } from "@/components/SendToOmni";
-import { DEMO_FINDINGS, SOURCES, dedupe, rankScore, setDiscovery, useDiscovery, type Finding, type Maturity } from "@/lib/discovery";
+import { CREATOR_LABEL, DEMO_FINDINGS, SOURCES, dedupe, frontierScore, gemReasons, meta, mixTracks, rankScore, setDiscovery, useDiscovery, type Finding, type Maturity } from "@/lib/discovery";
+import { Gem, Scale } from "lucide-react";
 
 export const Route = createFileRoute("/discovery")({
   head: () => ({
@@ -46,17 +47,22 @@ function Discovery() {
   const [q, setQ] = useState("");
   const [sector, setSector] = useState("all");
   const [maturity, setMaturity] = useState("all");
+  const [track, setTrack] = useState("all");
   const [open, setOpen] = useState<Finding | null>(null);
   const [alertSector, setAlertSector] = useState("all");
   const [alertMin, setAlertMin] = useState(60);
 
   const findings = useMemo(() => {
     const active = dedupe(DEMO_FINDINGS).filter((f) => s.sources[f.sourceId]);
-    return active
+    const filtered = active
       .filter((f) => (sector === "all" || f.sector === sector) && (maturity === "all" || f.maturity === maturity))
-      .filter((f) => !q || `${f.title} ${f.evidence} ${f.idea}`.toLowerCase().includes(q.toLowerCase()))
-      .sort((a, b) => rankScore(b.scores) - rankScore(a.scores));
-  }, [s.sources, q, sector, maturity]);
+      .filter((f) => track === "all" || meta(f).track === track)
+      .filter((f) => !s.gemsOnly || gemReasons(f).length > 0)
+      .filter((f) => !q || `${f.title} ${f.evidence} ${f.idea}`.toLowerCase().includes(q.toLowerCase()));
+    const com = filtered.filter((f) => meta(f).track === "commercial").sort((a, b) => rankScore(b.scores) - rankScore(a.scores));
+    const fro = filtered.filter((f) => meta(f).track === "frontier").sort((a, b) => frontierScore(b) - frontierScore(a));
+    return mixTracks(com, fro, s.frontierShare);
+  }, [s.sources, q, sector, maturity, track, s.gemsOnly, s.frontierShare]);
   const sectors = [...new Set(DEMO_FINDINGS.map((f) => f.sector))];
   const alertHits = (sec: string, min: number) => findings.filter((f) => (sec === "all" || f.sector === sec) && rankScore(f.scores) >= min).length;
 
@@ -98,13 +104,17 @@ function Discovery() {
         </TabsList>
 
         <TabsContent value="opps">
-          <div className="mb-4 grid gap-2 sm:grid-cols-3">
+          <RuleBanner />
+          <div className="mb-4 grid gap-2 sm:grid-cols-4">
             <input aria-label="Search" placeholder="Search…" value={q} onChange={(e) => setQ(e.target.value)} className={input} />
             <select aria-label="Sector" value={sector} onChange={(e) => setSector(e.target.value)} className={input}>
               <option value="all">All sectors</option>{sectors.map((x) => <option key={x}>{x}</option>)}
             </select>
             <select aria-label="Maturity" value={maturity} onChange={(e) => setMaturity(e.target.value)} className={input}>
               <option value="all">All maturity</option>{MATURITY.map((x) => <option key={x}>{x}</option>)}
+            </select>
+            <select aria-label="Research track" value={track} onChange={(e) => setTrack(e.target.value)} className={input}>
+              <option value="all">Both tracks</option><option value="frontier">Frontier / underdog</option><option value="commercial">Commercial optimization</option>
             </select>
           </div>
           <FindingList items={findings} onBrief={setOpen} />
@@ -137,6 +147,15 @@ function Discovery() {
         </TabsContent>
 
         <TabsContent value="settings">
+          <section className="panel mb-4 p-4" aria-labelledby="rule-set">
+            <h2 id="rule-set" className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-silver"><Scale className="h-4 w-4" />Research tracks</h2>
+            <label className="mt-3 block text-sm">Attention reserved for frontier / underdog track: <strong className="text-electric">{s.frontierShare}%</strong>
+              <input type="range" min={20} max={80} step={5} value={s.frontierShare} onChange={(e) => setDiscovery((x) => ({ ...x, frontierShare: Number(e.target.value) }), `frontier share set to ${e.target.value}%`)} className="mt-2 w-full accent-[var(--electric)]" aria-label="Frontier attention share" />
+            </label>
+            <p className="text-xs text-muted-foreground">Minimum 20% — the little-guy rule can't be switched off, only tuned. At least this share of ranked slots goes to frontier items when available.</p>
+            <label className="mt-3 flex items-center gap-2 text-sm"><Switch checked={s.gemsOnly} onCheckedChange={(v) => setDiscovery((x) => ({ ...x, gemsOnly: v }), `overlooked-gems-only ${v ? "on" : "off"}`)} />Show only overlooked gems</label>
+            <p className="mt-3 text-xs text-warning">Commercial track: authorized aggregated JAX feedback is not connected — commercial items use demo data only.</p>
+          </section>
           <div className="grid gap-4 md:grid-cols-2">
             <section className="panel p-4">
               <h2 className="text-sm font-semibold uppercase tracking-wider text-silver">Scheduled scans</h2>
@@ -188,20 +207,35 @@ function FindingList({ items, onBrief, empty = "No findings match these filters.
       {items.map((f) => {
         const saved = s.saved.includes(f.id);
         const src = SOURCES.find((x) => x.id === f.sourceId);
+        const m = meta(f);
+        const gem = gemReasons(f);
+        const score = m.track === "frontier" ? frontierScore(f) : rankScore(f.scores);
         return (
           <li key={f.id} className="panel p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
                 <h3 className="font-semibold text-silver">{f.title}</h3>
+                <div className="mt-1 flex flex-wrap gap-1.5 text-[10px] uppercase tracking-wider">
+                  <span className={`rounded border px-1.5 py-0.5 ${m.track === "frontier" ? "border-electric/50 text-electric" : "border-border text-silver-dim"}`}>{m.track === "frontier" ? "Frontier / underdog" : "Commercial"}</span>
+                  <span className="rounded border border-border px-1.5 py-0.5 text-silver-dim">{CREATOR_LABEL[m.creator]}</span>
+                  <span className={`rounded border px-1.5 py-0.5 ${m.claimStatus === "validated" ? "border-success/50 text-success" : m.claimStatus === "reported" ? "border-warning/50 text-warning" : "border-destructive/50 text-destructive"}`}>{m.claimStatus === "validated" ? "Validated result" : m.claimStatus === "reported" ? "Reported, unverified" : "Speculative"}</span>
+                </div>
                 <div className="mt-1 flex flex-wrap gap-2 text-xs text-muted-foreground">
                   <span>{f.sector}</span><span>· {f.maturity}</span><span>· {src?.name}</span>
                   <span>· published {new Date(f.publishedAt).toLocaleDateString()}</span><span>· fetched {new Date(f.fetchedAt).toLocaleDateString()}</span>
                 </div>
               </div>
-              <div className="hex-clip flex h-12 w-14 flex-col items-center justify-center bg-secondary" aria-label={`Opportunity score ${rankScore(f.scores)} of 100`}>
-                <span className="font-display text-lg font-bold text-electric">{rankScore(f.scores)}</span>
+              <div className="hex-clip flex h-12 w-14 flex-col items-center justify-center bg-secondary" aria-label={`${m.track === "frontier" ? "Frontier" : "Opportunity"} score ${score} of 100`}>
+                <span className="font-display text-lg font-bold text-electric">{score}</span>
               </div>
             </div>
+            {gem.length > 0 && (
+              <div className="mt-3 rounded-md border border-electric/40 bg-accent/30 p-2 text-xs">
+                <div className="flex items-center gap-1 font-semibold text-electric"><Gem className="h-3.5 w-3.5" />Overlooked gem — why</div>
+                <ul className="mt-1 list-disc pl-5 text-accent-foreground">{gem.map((r) => <li key={r}>{r}</li>)}</ul>
+                <p className="mt-1 text-muted-foreground">Ideas and IP belong to their creators. Contact and consent required before any collaboration or use.</p>
+              </div>
+            )}
             <div className="mt-3 space-y-2 text-sm">
               <p><Tag kind="fact">Source evidence</Tag> <span className="ml-1">{f.evidence}</span></p>
               <p><Tag kind="ai">AI gap</Tag> <span className="ml-1 text-muted-foreground">{f.gap}</span></p>
@@ -225,5 +259,19 @@ function FindingList({ items, onBrief, empty = "No findings match these filters.
         );
       })}
     </ul>
+  );
+}
+
+function RuleBanner() {
+  return (
+    <section aria-labelledby="rule" className="panel mb-4 border-electric/40 p-4">
+      <h2 id="rule" className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-electric"><Gem className="h-4 w-4" />Owner rule: “Never overlook the little guy.”</h2>
+      <ul className="mt-2 grid gap-1 text-xs text-muted-foreground md:grid-cols-2">
+        <li>Includes independent inventors, small labs, OSS maintainers, startups, students and pre-revenue prototypes.</li>
+        <li>Funding, publicity, citations, team size and sales are never score inputs.</li>
+        <li>Frontier score = novelty, feasibility, societal benefit, evidence confidence.</li>
+        <li>Claims cited to original sources; speculation labelled. Creators keep their IP — no ownership claims.</li>
+      </ul>
+    </section>
   );
 }

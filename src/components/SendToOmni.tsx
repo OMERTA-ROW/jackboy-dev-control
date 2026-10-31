@@ -3,7 +3,7 @@ import { Send } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { addHandoff } from "@/lib/omni-handoff";
-import type { Finding } from "@/lib/discovery";
+import { CREATOR_LABEL, meta, type Finding } from "@/lib/discovery";
 
 const field = "mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm";
 
@@ -18,7 +18,7 @@ export function SendToOmni({ finding }: { finding: Finding }) {
   }));
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    addHandoff({ findingId: finding.id, title: finding.idea || finding.title, sources: [finding.url], ...f });
+    addHandoff({ findingId: finding.id, title: finding.idea || finding.title, sources: [finding.url, `Creator: ${CREATOR_LABEL[meta(finding).creator]} — IP remains with the original creator; consent required before use`], ...f });
     toast("Added to OMNI pending queue — awaiting your approval.");
     setOpen(false);
   };

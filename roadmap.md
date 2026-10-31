@@ -7,4 +7,6 @@
 - [ ] Real OMNI handoff delivery — blocked: OMNI API endpoint + credentials
 - [x] JAX release manifests (simulated), integration contract export, governance + distribution approval
 - [ ] Real JAX ingest + verified payment revenue — blocked: JAX endpoint/credentials, payment provider
+- [x] Little-guy rule: two research tracks, frontier share setting, overlooked-gem flags (demo data)
+- [ ] Commercial track live feedback — blocked: authorized aggregated JAX feedback feed
 - [ ] GitHub / VS Code / OMNI / Honeycomb integrations — blocked: user credentials & details
