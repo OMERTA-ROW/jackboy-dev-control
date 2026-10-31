@@ -27,7 +27,7 @@ const input = "rounded-md border border-input bg-background px-3 py-2 text-sm";
 function EvidenceBadge({ e }: { e: Evidence }) {
   return <span className={`rounded border px-1.5 py-0.5 text-[10px] uppercase ${isSpeculative(e) ? "border-destructive/50 text-destructive" : "border-success/50 text-success"}`}>{e.replace("_", " ")}{isSpeculative(e) ? " · unverified" : ""}</span>;
 }
-function Sources({ s }: { s: { url: string; title?: string }[] }) {
+function Sources({ s }: { s: { url: string; title?: string | undefined }[] }) {
   return <ul className="mt-1 text-xs">{s.map((x) => <li key={x.url}><a className="text-electric underline break-all" href={x.url} target="_blank" rel="noopener noreferrer">{x.title || x.url}</a></li>)}</ul>;
 }
 

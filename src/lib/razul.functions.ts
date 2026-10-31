@@ -16,8 +16,8 @@ const audit = (ctx: Ctx, action: string, detail: Record<string, unknown>, outcom
   ctx.supabase.rpc("write_audit", { _action: action, _detail: detail, _outcome: outcome });
 
 function config() {
-  const url = process.env.RAZUL_API_URL?.replace(/\/+$/, "");
-  const key = process.env.RAZUL_API_KEY;
+  const url = process.env["RAZUL_API_URL"]?.replace(/\/+$/, "");
+  const key = process.env["RAZUL_API_KEY"];
   return url && key && /^https:\/\//.test(url) ? { url, key } : null;
 }
 async function razul(path: string, init: RequestInit = {}) {
