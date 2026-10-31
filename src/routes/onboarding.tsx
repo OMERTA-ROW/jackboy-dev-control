@@ -60,11 +60,7 @@ function Onboarding() {
                 <button disabled={busy} onClick={() => act(() => claimFn())} className="mt-2 rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground disabled:opacity-50">Claim owner access</button>
               </div>
             )}
-            <div>
-              <h2 className="text-sm font-semibold text-silver">Accept invitation</h2>
-              <p className="text-xs text-muted-foreground">If the owner or an admin invited this email, accept to join.</p>
-              <button disabled={busy} onClick={() => act(async () => { const { error } = await supabase.rpc("accept_invitation"); if (error) throw new Error(error.message); })} className="mt-2 rounded-md border border-border px-3 py-2 text-sm disabled:opacity-50">Accept invitation</button>
-            </div>
+            <p className="text-xs text-muted-foreground">Invited? Use the invitation link you were given. If you already redeemed it, your access appears here after you verify your email.</p>
           </div>
         )}
         {msg && <p role="alert" className="mt-3 text-sm text-destructive">{msg}</p>}
