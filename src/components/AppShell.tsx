@@ -1,11 +1,12 @@
 import { Link } from "@tanstack/react-router";
-import { LayoutGrid, Code2, ScrollText, Plug, ShieldCheck, Eye } from "lucide-react";
+import { LayoutGrid, Radar, Code2, ScrollText, Plug, ShieldCheck, Eye } from "lucide-react";
 import type { ReactNode } from "react";
 import { setState, useJackboy, log } from "@/lib/jackboy-store";
 
 const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutGrid },
   { to: "/workspace", label: "Inspect", icon: Code2 },
+  { to: "/discovery", label: "Discovery", icon: Radar },
   { to: "/activity", label: "Logs & Approvals", icon: ScrollText },
   { to: "/integrations", label: "Integrations", icon: Plug },
   { to: "/access", label: "Access", icon: ShieldCheck },
@@ -85,7 +86,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <main className="flex-1 px-4 py-6 md:px-8">{children}</main>
       </div>
 
-      <nav aria-label="Main mobile" className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-5 border-t border-border bg-sidebar md:hidden">
+      <nav aria-label="Main mobile" className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-6 border-t border-border bg-sidebar md:hidden">
         {NAV.map(({ to, label, icon: Icon }) => (
           <Link
             key={to}
