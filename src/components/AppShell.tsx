@@ -1,5 +1,5 @@
-import { Link } from "@tanstack/react-router";
-import { LayoutGrid, Radar, Send, Hexagon, Code2, ScrollText, Plug, ShieldCheck, Eye } from "lucide-react";
+import { Link, useRouterState } from "@tanstack/react-router";
+import { LayoutGrid, Radar, Send, Hexagon, Code2, ScrollText, Plug, ShieldCheck, Eye, Globe } from "lucide-react";
 import type { ReactNode } from "react";
 import { setState, useJackboy, log } from "@/lib/jackboy-store";
 
@@ -7,6 +7,7 @@ const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutGrid },
   { to: "/workspace", label: "Inspect", icon: Code2 },
   { to: "/discovery", label: "Discovery", icon: Radar },
+  { to: "/research", label: "Research", icon: Globe },
   { to: "/omni", label: "OMNI", icon: Send },
   { to: "/jax", label: "JAX", icon: Hexagon },
   { to: "/activity", label: "Logs & Approvals", icon: ScrollText },
@@ -47,6 +48,15 @@ export function ModeToggle() {
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
+  const path = useRouterState({ select: (r) => r.location.pathname });
+  if (path === "/auth" || path === "/onboarding") {
+    return (
+      <div className="min-h-screen px-4 py-6">
+        <div className="flex items-center justify-center gap-2"><Hex className="h-7 w-7 text-silver" /><span className="text-metal font-display text-xl font-bold tracking-wider">JACKBOY</span></div>
+        {children}
+      </div>
+    );
+  }
   return (
     <div className="min-h-screen md:flex">
       <aside className="hidden w-60 shrink-0 border-r border-sidebar-border bg-sidebar md:flex md:flex-col">
@@ -72,7 +82,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </nav>
         <div className="mt-auto m-3 rounded-md border border-border p-3 text-xs text-muted-foreground">
           <div className="flex items-center gap-2 text-silver"><Eye className="h-3.5 w-3.5" /> Read-only mode</div>
-          <p className="mt-1">No integrations connected. All data shown is local demo data.</p>
+          <p className="mt-1">Signed-in, invitation-only. GitHub, VS Code, OMNI and Honeycomb are not connected. Dashboard panels use demo data.</p>
         </div>
       </aside>
 

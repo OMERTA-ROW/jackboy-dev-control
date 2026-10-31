@@ -1,7 +1,10 @@
 # Jackboy roadmap
 - [x] Foundation: dashboard, Classic/Assist, inspect, logs/approvals, integrations, access
 - [x] Technology Discovery UI (opt-in, source registry, ranking, filters, saved ideas, alerts, prototype briefs) — demo data
-- [ ] Jackboy acceptance first: secure private owner/admin/member accounts, invite acceptance/revocation, sessions and access checks — Cloud enabled; awaiting owner email and profile decision
+- [x] Secure accounts: owner/admin/member roles, invitations (create/revoke/accept), protected pages, sign out / all devices, server audit log
+- [ ] Owner bootstrap — blocked: owner must add OWNER_EMAIL secret, sign up, confirm email, claim owner
+- [x] Phase 1 server-side research connector + connection test panel
+- [ ] Live search results — blocked: owner must add BRAVE_SEARCH_API_KEY secret
 - [ ] Jackboy account acceptance: automated permission tests and signed-in invitation/revocation checks; remain unpublished with no sensitive integrations
 - [ ] Live discovery scans + schedule + alert delivery — blocked: needs Lovable Cloud; patent APIs (USPTO/EPO) need user API keys; AI summaries need Lovable AI
 - [x] OMNI handoff queue, exportable briefs, monetization estimates, provenance + owner approvals (local only)

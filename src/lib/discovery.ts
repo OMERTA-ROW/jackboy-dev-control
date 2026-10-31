@@ -68,7 +68,7 @@ export function mixTracks(commercial: Finding[], frontier: Finding[], frontierSh
   const share = Math.min(100, Math.max(0, frontierShare)) / 100;
   while (c < commercial.length || fr < frontier.length) {
     const needFrontier = fr < frontier.length && (c >= commercial.length || fr < Math.ceil((out.length + 1) * share));
-    out.push(needFrontier ? frontier[fr++] : commercial[c++]);
+    out.push((needFrontier ? frontier[fr++] : commercial[c++])!);
   }
   return out;
 }
