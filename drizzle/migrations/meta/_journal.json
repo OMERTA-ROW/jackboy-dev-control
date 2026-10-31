@@ -43,6 +43,13 @@
       "when": 1793452520570,
       "tag": "0005_agent_passport",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793452649830,
+      "tag": "0006_razul",
+      "breakpoints": true
     }
   ]
 }
