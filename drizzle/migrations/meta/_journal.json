@@ -22,6 +22,13 @@
       "when": 1793452075127,
       "tag": "0002_agent_hub",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793452239332,
+      "tag": "0003_automation_policy",
+      "breakpoints": true
     }
   ]
 }
