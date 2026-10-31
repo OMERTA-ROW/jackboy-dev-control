@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { GuidanceTip, PageHeader } from "@/components/AppShell";
+import { SendToOmni } from "@/components/SendToOmni";
 import { DEMO_FINDINGS, SOURCES, dedupe, rankScore, setDiscovery, useDiscovery, type Finding, type Maturity } from "@/lib/discovery";
 
 export const Route = createFileRoute("/discovery")({
@@ -218,6 +219,7 @@ function FindingList({ items, onBrief, empty = "No findings match these filters.
                 {saved ? <BookmarkCheck className="h-3.5 w-3.5 text-success" /> : <Bookmark className="h-3.5 w-3.5" />}{saved ? "Saved" : "Save idea"}
               </button>
               <button onClick={() => onBrief(f)} className="inline-flex items-center gap-1 rounded-md border border-electric/50 px-3 py-1.5 text-xs text-electric"><FlaskConical className="h-3.5 w-3.5" />Prototype brief</button>
+              <SendToOmni finding={f} />
             </div>
           </li>
         );

@@ -17,7 +17,7 @@ export const Route = createFileRoute("/integrations")({
 const ITEMS = [
   { name: "GitHub", icon: Github, scope: "Read-only repo access, CI status, pull-request diagnostics.", needs: ["A GitHub App or OAuth app owned by you", "Repository selection (least privilege)", "Lovable Cloud for secure token storage"] },
   { name: "VS Code", icon: Code2, scope: "Send diagnostics from your editor to Jackboy.", needs: ["A VS Code extension (not yet built)", "Per-device pairing token"] },
-  { name: "OMNI", icon: Hexagon, scope: "Shared identity and metrics across the OMNI ecosystem.", needs: ["OMNI API endpoint & API credentials", "Confirmation of which OMNI service this refers to"] },
+  { name: "OMNI", icon: Hexagon, scope: "Authorized build/test/deploy engine. Receives approved handoffs from Jackboy.", needs: ["OMNI API endpoint & API credentials", "Confirmation of which OMNI service this refers to"] },
   { name: "Honeycomb Terminal", icon: Terminal, scope: "Read-only status from your Honeycomb Terminal project.", needs: ["A documented read-only API from that project", "Jackboy will not modify Honeycomb Terminal"] },
 ];
 
