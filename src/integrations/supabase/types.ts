@@ -213,6 +213,59 @@ export type Database = {
           },
         ]
       }
+      agents: {
+        Row: {
+          autonomy: string
+          category: string
+          created_at: string
+          created_by: string
+          health: string
+          id: string
+          installed_verified: boolean
+          last_seen_at: string | null
+          name: string
+          paused: boolean
+          project_id: string
+          specialty: string
+        }
+        Insert: {
+          autonomy?: string
+          category: string
+          created_at?: string
+          created_by: string
+          health?: string
+          id?: string
+          installed_verified?: boolean
+          last_seen_at?: string | null
+          name: string
+          paused?: boolean
+          project_id: string
+          specialty?: string
+        }
+        Update: {
+          autonomy?: string
+          category?: string
+          created_at?: string
+          created_by?: string
+          health?: string
+          id?: string
+          installed_verified?: boolean
+          last_seen_at?: string | null
+          name?: string
+          paused?: boolean
+          project_id?: string
+          specialty?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agents_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "agent_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_logs: {
         Row: {
           action: string
