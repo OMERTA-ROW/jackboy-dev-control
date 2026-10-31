@@ -1,12 +1,13 @@
 # Jackboy roadmap
 - [x] Foundation: dashboard, Classic/Assist, inspect, logs/approvals, integrations, access
 - [x] Technology Discovery UI (opt-in, source registry, ranking, filters, saved ideas, alerts, prototype briefs) — demo data
-- [ ] Owner login/invites — blocked: needs Lovable Cloud enabled (user decision)
+- [ ] Jackboy acceptance first: secure private owner/admin/member accounts, invite acceptance/revocation, sessions and access checks — Cloud enabled; awaiting owner email and profile decision
+- [ ] Jackboy account acceptance: automated permission tests and signed-in invitation/revocation checks; remain unpublished with no sensitive integrations
 - [ ] Live discovery scans + schedule + alert delivery — blocked: needs Lovable Cloud; patent APIs (USPTO/EPO) need user API keys; AI summaries need Lovable AI
 - [x] OMNI handoff queue, exportable briefs, monetization estimates, provenance + owner approvals (local only)
-- [ ] Real OMNI handoff delivery — blocked: OMNI API endpoint + credentials
+- [ ] Real OMNI handoff delivery — queued until Jackboy passes acceptance; then needs OMNI API endpoint + credentials
 - [x] JAX release manifests (simulated), integration contract export, governance + distribution approval
-- [ ] Real JAX ingest + verified payment revenue — blocked: JAX endpoint/credentials, payment provider
+- [ ] Real JAX ingest + verified payment revenue — queued after Jackboy acceptance and OMNI; then needs JAX endpoint/credentials, payment provider
 - [x] Little-guy rule: two research tracks, frontier share setting, overlooked-gem flags (demo data)
 - [ ] Commercial track live feedback — blocked: authorized aggregated JAX feedback feed
 - [ ] GitHub / VS Code / OMNI / Honeycomb integrations — blocked: user credentials & details
