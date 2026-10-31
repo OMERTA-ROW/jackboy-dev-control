@@ -47,7 +47,8 @@ export const updateProject = createServerFn({ method: "POST" })
     const r = await requireManager(context);
     // Enabling security agents is a sensitive change: owner only.
     if (data.demontech_enabled === true && r !== "owner") throw new Error("Only the owner can authorize DemonTech checks.");
-    const { id, ...patch } = data;
+    const { id, ...rest } = data;
+    const patch = Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined)) as { enrolled?: boolean; angeltech_enabled?: boolean; demontech_enabled?: boolean };
     const { error } = await context.supabase.from("agent_projects").update(patch).eq("id", id);
     if (error) throw new Error(error.message);
     await audit(context, "hub.project.update", { id, ...patch });
