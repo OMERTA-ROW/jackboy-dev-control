@@ -36,6 +36,13 @@
       "when": 1793452375977,
       "tag": "0004_agent_fleet",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793452520570,
+      "tag": "0005_agent_passport",
+      "breakpoints": true
     }
   ]
 }

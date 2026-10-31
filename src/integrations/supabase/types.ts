@@ -166,6 +166,7 @@ export type Database = {
       agent_reports: {
         Row: {
           agent: string
+          agent_id: string | null
           created_at: string
           detail: string
           id: string
@@ -179,6 +180,7 @@ export type Database = {
         }
         Insert: {
           agent: string
+          agent_id?: string | null
           created_at?: string
           detail?: string
           id?: string
@@ -192,6 +194,7 @@ export type Database = {
         }
         Update: {
           agent?: string
+          agent_id?: string | null
           created_at?: string
           detail?: string
           id?: string
@@ -205,6 +208,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "agent_reports_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "agents"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "agent_reports_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
@@ -215,6 +225,7 @@ export type Database = {
       }
       agents: {
         Row: {
+          adapter: string
           autonomy: string
           category: string
           created_at: string
@@ -222,13 +233,22 @@ export type Database = {
           health: string
           id: string
           installed_verified: boolean
+          jax_consent_at: string | null
+          jax_consent_purpose: string | null
+          jax_enrolled: boolean
           last_seen_at: string | null
+          model_name: string
+          model_provider: string
           name: string
+          passport_approved: boolean
+          passport_approved_at: string | null
+          passport_approved_by: string | null
           paused: boolean
           project_id: string
           specialty: string
         }
         Insert: {
+          adapter?: string
           autonomy?: string
           category: string
           created_at?: string
@@ -236,13 +256,22 @@ export type Database = {
           health?: string
           id?: string
           installed_verified?: boolean
+          jax_consent_at?: string | null
+          jax_consent_purpose?: string | null
+          jax_enrolled?: boolean
           last_seen_at?: string | null
+          model_name?: string
+          model_provider?: string
           name: string
+          passport_approved?: boolean
+          passport_approved_at?: string | null
+          passport_approved_by?: string | null
           paused?: boolean
           project_id: string
           specialty?: string
         }
         Update: {
+          adapter?: string
           autonomy?: string
           category?: string
           created_at?: string
@@ -250,8 +279,16 @@ export type Database = {
           health?: string
           id?: string
           installed_verified?: boolean
+          jax_consent_at?: string | null
+          jax_consent_purpose?: string | null
+          jax_enrolled?: boolean
           last_seen_at?: string | null
+          model_name?: string
+          model_provider?: string
           name?: string
+          passport_approved?: boolean
+          passport_approved_at?: string | null
+          passport_approved_by?: string | null
           paused?: boolean
           project_id?: string
           specialty?: string
@@ -406,6 +443,60 @@ export type Database = {
           },
         ]
       }
+      omni_jobs: {
+        Row: {
+          created_at: string
+          created_by: string
+          guardian_verdict: string
+          id: string
+          instructions: string
+          kind: string
+          project_id: string
+          report_id: string | null
+          sent_at: string | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          guardian_verdict?: string
+          id?: string
+          instructions?: string
+          kind: string
+          project_id: string
+          report_id?: string | null
+          sent_at?: string | null
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          guardian_verdict?: string
+          id?: string
+          instructions?: string
+          kind?: string
+          project_id?: string
+          report_id?: string | null
+          sent_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "omni_jobs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "agent_projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "omni_jobs_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "agent_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       playbooks: {
         Row: {
           created_at: string
@@ -469,6 +560,10 @@ export type Database = {
         Args: never
         Returns: Database["public"]["Enums"]["app_role"]
       }
+      approve_passport: {
+        Args: { _approve: boolean; _id: string }
+        Returns: undefined
+      }
       create_invitation: {
         Args: { _email: string; _role: Database["public"]["Enums"]["app_role"] }
         Returns: string
@@ -495,6 +590,10 @@ export type Database = {
           _paused: boolean
           _tier: number
         }
+        Returns: undefined
+      }
+      set_jax_enrollment: {
+        Args: { _enroll: boolean; _id: string; _purpose: string }
         Returns: undefined
       }
       write_audit: {
