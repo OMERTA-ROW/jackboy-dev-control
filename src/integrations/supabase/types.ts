@@ -14,6 +14,205 @@ export type Database = {
   }
   public: {
     Tables: {
+      agent_project_tokens: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          last_used_at: string | null
+          project_id: string
+          revoked_at: string | null
+          scope: string
+          token_hash: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          last_used_at?: string | null
+          project_id: string
+          revoked_at?: string | null
+          scope?: string
+          token_hash: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          last_used_at?: string | null
+          project_id?: string
+          revoked_at?: string | null
+          scope?: string
+          token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_project_tokens_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "agent_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_projects: {
+        Row: {
+          angeltech_enabled: boolean
+          created_at: string
+          created_by: string
+          demontech_enabled: boolean
+          enrolled: boolean
+          health: string
+          id: string
+          last_report_at: string | null
+          lovable_project_ref: string | null
+          name: string
+          repo_url: string | null
+        }
+        Insert: {
+          angeltech_enabled?: boolean
+          created_at?: string
+          created_by: string
+          demontech_enabled?: boolean
+          enrolled?: boolean
+          health?: string
+          id?: string
+          last_report_at?: string | null
+          lovable_project_ref?: string | null
+          name: string
+          repo_url?: string | null
+        }
+        Update: {
+          angeltech_enabled?: boolean
+          created_at?: string
+          created_by?: string
+          demontech_enabled?: boolean
+          enrolled?: boolean
+          health?: string
+          id?: string
+          last_report_at?: string | null
+          lovable_project_ref?: string | null
+          name?: string
+          repo_url?: string | null
+        }
+        Relationships: []
+      }
+      agent_proposals: {
+        Row: {
+          action: string
+          created_at: string
+          created_by: string
+          decided_at: string | null
+          decided_by: string | null
+          id: string
+          pr_url: string | null
+          project_id: string
+          report_id: string | null
+          sensitive: boolean
+          status: string
+          summary: string
+          tests_passed: boolean
+          title: string
+        }
+        Insert: {
+          action?: string
+          created_at?: string
+          created_by: string
+          decided_at?: string | null
+          decided_by?: string | null
+          id?: string
+          pr_url?: string | null
+          project_id: string
+          report_id?: string | null
+          sensitive?: boolean
+          status?: string
+          summary?: string
+          tests_passed?: boolean
+          title: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          created_by?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          id?: string
+          pr_url?: string | null
+          project_id?: string
+          report_id?: string | null
+          sensitive?: boolean
+          status?: string
+          summary?: string
+          tests_passed?: boolean
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_proposals_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "agent_projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_proposals_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "agent_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_reports: {
+        Row: {
+          agent: string
+          created_at: string
+          detail: string
+          id: string
+          kind: string
+          priority: number
+          project_id: string
+          severity: string
+          source_url: string | null
+          status: string
+          title: string
+        }
+        Insert: {
+          agent: string
+          created_at?: string
+          detail?: string
+          id?: string
+          kind: string
+          priority?: number
+          project_id: string
+          severity: string
+          source_url?: string | null
+          status?: string
+          title: string
+        }
+        Update: {
+          agent?: string
+          created_at?: string
+          detail?: string
+          id?: string
+          kind?: string
+          priority?: number
+          project_id?: string
+          severity?: string
+          source_url?: string | null
+          status?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_reports_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "agent_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_logs: {
         Row: {
           action: string
@@ -113,6 +312,10 @@ export type Database = {
       create_invitation: {
         Args: { _email: string; _role: Database["public"]["Enums"]["app_role"] }
         Returns: string
+      }
+      decide_proposal: {
+        Args: { _approve: boolean; _id: string }
+        Returns: undefined
       }
       has_role: {
         Args: {
