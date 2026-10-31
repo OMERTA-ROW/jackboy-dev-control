@@ -10,3 +10,20 @@ describe("discovery", () => {
     expect(rankScore({ novelty: 0, feasibility: 0, impact: 0, confidence: 5 })).toBe(30);
   });
 });
+
+import { frontierScore, gemReasons, mixTracks, type Finding } from "./discovery";
+describe("Never overlook the little guy", () => {
+  const f = DEMO_FINDINGS.find((x) => x.id === "f5")! as Finding;
+  it("does not lower the frontier score for low visibility", () => {
+    expect(frontierScore({ ...f, visibility: "low" })).toBe(frontierScore({ ...f, visibility: "high" }));
+  });
+  it("flags an independent, low-visibility, high-benefit prototype as an overlooked gem", () => {
+    expect(gemReasons(f).length).toBeGreaterThanOrEqual(3);
+  });
+  it("reserves the configured share of top slots for frontier items", () => {
+    const c = Array.from({ length: 6 }, (_, i) => ({ ...f, id: `c${i}`, track: "commercial" as const }));
+    const fr = Array.from({ length: 6 }, (_, i) => ({ ...f, id: `f${i}` }));
+    const top5 = mixTracks(c, fr, 40).slice(0, 5);
+    expect(top5.filter((x) => x.id.startsWith("f")).length).toBe(2);
+  });
+});
