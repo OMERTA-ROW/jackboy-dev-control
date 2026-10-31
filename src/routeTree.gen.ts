@@ -24,6 +24,7 @@ import { Route as AuthenticatedFleetRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedIntegrationsRouteImport } from './routes/_authenticated/integrations'
 import { Route as AuthenticatedJaxRouteImport } from './routes/_authenticated/jax'
 import { Route as AuthenticatedOmniRouteImport } from './routes/_authenticated/omni'
+import { Route as AuthenticatedRazulRouteImport } from './routes/_authenticated/razul'
 import { Route as AuthenticatedResearchRouteImport } from './routes/_authenticated/research'
 import { Route as AuthenticatedWorkspaceRouteImport } from './routes/_authenticated/workspace'
 import { Route as AuthenticatedPassportAgentIdRouteImport } from './routes/_authenticated/passport.$agentId'
@@ -104,6 +105,11 @@ const AuthenticatedOmniRoute = AuthenticatedOmniRouteImport.update({
   path: '/omni',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedRazulRoute = AuthenticatedRazulRouteImport.update({
+  id: '/razul',
+  path: '/razul',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedResearchRoute = AuthenticatedResearchRouteImport.update({
   id: '/research',
   path: '/research',
@@ -141,6 +147,7 @@ export interface FileRoutesByFullPath {
   '/integrations': typeof AuthenticatedIntegrationsRoute
   '/jax': typeof AuthenticatedJaxRoute
   '/omni': typeof AuthenticatedOmniRoute
+  '/razul': typeof AuthenticatedRazulRoute
   '/research': typeof AuthenticatedResearchRoute
   '/workspace': typeof AuthenticatedWorkspaceRoute
   '/passport/$agentId': typeof AuthenticatedPassportAgentIdRoute
@@ -160,6 +167,7 @@ export interface FileRoutesByTo {
   '/integrations': typeof AuthenticatedIntegrationsRoute
   '/jax': typeof AuthenticatedJaxRoute
   '/omni': typeof AuthenticatedOmniRoute
+  '/razul': typeof AuthenticatedRazulRoute
   '/research': typeof AuthenticatedResearchRoute
   '/workspace': typeof AuthenticatedWorkspaceRoute
   '/': typeof AuthenticatedIndexRoute
@@ -182,6 +190,7 @@ export interface FileRoutesById {
   '/_authenticated/integrations': typeof AuthenticatedIntegrationsRoute
   '/_authenticated/jax': typeof AuthenticatedJaxRoute
   '/_authenticated/omni': typeof AuthenticatedOmniRoute
+  '/_authenticated/razul': typeof AuthenticatedRazulRoute
   '/_authenticated/research': typeof AuthenticatedResearchRoute
   '/_authenticated/workspace': typeof AuthenticatedWorkspaceRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
@@ -205,6 +214,7 @@ export interface FileRouteTypes {
     | '/integrations'
     | '/jax'
     | '/omni'
+    | '/razul'
     | '/research'
     | '/workspace'
     | '/passport/$agentId'
@@ -224,6 +234,7 @@ export interface FileRouteTypes {
     | '/integrations'
     | '/jax'
     | '/omni'
+    | '/razul'
     | '/research'
     | '/workspace'
     | '/'
@@ -245,6 +256,7 @@ export interface FileRouteTypes {
     | '/_authenticated/integrations'
     | '/_authenticated/jax'
     | '/_authenticated/omni'
+    | '/_authenticated/razul'
     | '/_authenticated/research'
     | '/_authenticated/workspace'
     | '/_authenticated/'
@@ -368,6 +380,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedOmniRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/razul': {
+      id: '/_authenticated/razul'
+      path: '/razul'
+      fullPath: '/razul'
+      preLoaderRoute: typeof AuthenticatedRazulRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/research': {
       id: '/_authenticated/research'
       path: '/research'
@@ -409,6 +428,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedIntegrationsRoute: typeof AuthenticatedIntegrationsRoute
   AuthenticatedJaxRoute: typeof AuthenticatedJaxRoute
   AuthenticatedOmniRoute: typeof AuthenticatedOmniRoute
+  AuthenticatedRazulRoute: typeof AuthenticatedRazulRoute
   AuthenticatedResearchRoute: typeof AuthenticatedResearchRoute
   AuthenticatedWorkspaceRoute: typeof AuthenticatedWorkspaceRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
@@ -425,6 +445,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedIntegrationsRoute: AuthenticatedIntegrationsRoute,
   AuthenticatedJaxRoute: AuthenticatedJaxRoute,
   AuthenticatedOmniRoute: AuthenticatedOmniRoute,
+  AuthenticatedRazulRoute: AuthenticatedRazulRoute,
   AuthenticatedResearchRoute: AuthenticatedResearchRoute,
   AuthenticatedWorkspaceRoute: AuthenticatedWorkspaceRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
