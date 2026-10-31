@@ -77,7 +77,7 @@ export function trackUse(panel: string) {
     const suggestions = [...s.suggestions];
     const id = `pin-${panel}`;
     const idx = s.pinned.indexOf(panel);
-    if (usage[panel] >= 3 && idx > 0 && !suggestions.some((x) => x.id === id)) {
+    if ((usage[panel] ?? 0) >= 3 && idx > 0 && !suggestions.some((x) => x.id === id)) {
       suggestions.push({
         id,
         title: `Move “${panel}” to the top?`,
