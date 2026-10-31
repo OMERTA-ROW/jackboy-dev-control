@@ -26,6 +26,7 @@ import { Route as AuthenticatedJaxRouteImport } from './routes/_authenticated/ja
 import { Route as AuthenticatedOmniRouteImport } from './routes/_authenticated/omni'
 import { Route as AuthenticatedResearchRouteImport } from './routes/_authenticated/research'
 import { Route as AuthenticatedWorkspaceRouteImport } from './routes/_authenticated/workspace'
+import { Route as AuthenticatedPassportAgentIdRouteImport } from './routes/_authenticated/passport.$agentId'
 import { Route as ApiPublicAgentIngestRouteImport } from './routes/api/public/agent-ingest'
 
 const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
@@ -113,6 +114,12 @@ const AuthenticatedWorkspaceRoute = AuthenticatedWorkspaceRouteImport.update({
   path: '/workspace',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedPassportAgentIdRoute =
+  AuthenticatedPassportAgentIdRouteImport.update({
+    id: '/passport/$agentId',
+    path: '/passport/$agentId',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const ApiPublicAgentIngestRoute = ApiPublicAgentIngestRouteImport.update({
   id: '/api/public/agent-ingest',
   path: '/api/public/agent-ingest',
@@ -136,6 +143,7 @@ export interface FileRoutesByFullPath {
   '/omni': typeof AuthenticatedOmniRoute
   '/research': typeof AuthenticatedResearchRoute
   '/workspace': typeof AuthenticatedWorkspaceRoute
+  '/passport/$agentId': typeof AuthenticatedPassportAgentIdRoute
   '/api/public/agent-ingest': typeof ApiPublicAgentIngestRoute
 }
 export interface FileRoutesByTo {
@@ -155,6 +163,7 @@ export interface FileRoutesByTo {
   '/research': typeof AuthenticatedResearchRoute
   '/workspace': typeof AuthenticatedWorkspaceRoute
   '/': typeof AuthenticatedIndexRoute
+  '/passport/$agentId': typeof AuthenticatedPassportAgentIdRoute
   '/api/public/agent-ingest': typeof ApiPublicAgentIngestRoute
 }
 export interface FileRoutesById {
@@ -176,6 +185,7 @@ export interface FileRoutesById {
   '/_authenticated/research': typeof AuthenticatedResearchRoute
   '/_authenticated/workspace': typeof AuthenticatedWorkspaceRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
+  '/_authenticated/passport/$agentId': typeof AuthenticatedPassportAgentIdRoute
   '/api/public/agent-ingest': typeof ApiPublicAgentIngestRoute
 }
 export interface FileRouteTypes {
@@ -197,6 +207,7 @@ export interface FileRouteTypes {
     | '/omni'
     | '/research'
     | '/workspace'
+    | '/passport/$agentId'
     | '/api/public/agent-ingest'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -216,6 +227,7 @@ export interface FileRouteTypes {
     | '/research'
     | '/workspace'
     | '/'
+    | '/passport/$agentId'
     | '/api/public/agent-ingest'
   id:
     | '__root__'
@@ -236,6 +248,7 @@ export interface FileRouteTypes {
     | '/_authenticated/research'
     | '/_authenticated/workspace'
     | '/_authenticated/'
+    | '/_authenticated/passport/$agentId'
     | '/api/public/agent-ingest'
   fileRoutesById: FileRoutesById
 }
@@ -369,6 +382,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedWorkspaceRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/passport/$agentId': {
+      id: '/_authenticated/passport/$agentId'
+      path: '/passport/$agentId'
+      fullPath: '/passport/$agentId'
+      preLoaderRoute: typeof AuthenticatedPassportAgentIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/api/public/agent-ingest': {
       id: '/api/public/agent-ingest'
       path: '/api/public/agent-ingest'
@@ -392,6 +412,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedResearchRoute: typeof AuthenticatedResearchRoute
   AuthenticatedWorkspaceRoute: typeof AuthenticatedWorkspaceRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
+  AuthenticatedPassportAgentIdRoute: typeof AuthenticatedPassportAgentIdRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -407,6 +428,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedResearchRoute: AuthenticatedResearchRoute,
   AuthenticatedWorkspaceRoute: AuthenticatedWorkspaceRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
+  AuthenticatedPassportAgentIdRoute: AuthenticatedPassportAgentIdRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =

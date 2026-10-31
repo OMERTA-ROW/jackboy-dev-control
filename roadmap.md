@@ -19,4 +19,6 @@
 - [ ] Guardian + OMNI live dispatch — blocked: authenticated Guardian and OMNI APIs and verification checks
 - [x] Agent Fleet: capabilities, autonomy tiers, Guardian deny-by-default checks, emergency pause, owner dashboard
 - [ ] Agent install verification (agent check-in) + sandbox/repo integrations — blocked: per-project agent runtime + credentials
+- [x] Agent Passport, per-agent feedback history, OMNI job queue (local), JAX consent enrollment
+- [ ] OMNI job dispatch + model adapters + Guardian verdicts — blocked: verified OMNI/Guardian APIs and model credentials
 - [ ] GitHub / VS Code / OMNI / Honeycomb integrations — blocked: user credentials & details

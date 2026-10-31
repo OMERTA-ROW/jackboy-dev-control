@@ -55,7 +55,7 @@ export const updateAgent = createServerFn({ method: "POST" })
     if (data.paused !== undefined) patch.paused = data.paused;
     const { error } = await context.supabase.from("agents").update(patch).eq("id", data.id);
     if (error) throw new Error(error.message);
-    await audit(context, "agent.update", { id: data.id, ...patch });
+    await audit(context, "agent.update", { agent: data.id, ...patch });
     return { ok: true };
   });
 
@@ -82,9 +82,9 @@ export const simulateGuardian = createServerFn({ method: "POST" })
     ]);
     if (!a) throw new Error("Agent not found.");
     const v = guardianCheck({
-      agent: { category: a.category as "angeltech" | "demontech", autonomy: a.autonomy as "observe" | "propose" | "experiment", paused: a.paused, installedVerified: a.installed_verified, projectId: a.project_id },
+      agent: { category: a.category as "angeltech" | "demontech", autonomy: a.autonomy as "observe" | "propose" | "experiment", paused: a.paused, installedVerified: a.installed_verified, passportApproved: a.passport_approved, projectId: a.project_id },
       action: data.action as never, targetProjectId: data.targetProjectId, globalPaused: Boolean(p?.paused), integrations: INTEGRATIONS,
     });
-    await audit(context, "guardian.check", { agent: a.name, action: data.action, reason: v.reason }, v.allow ? "allow" : "deny");
+    await audit(context, "guardian.check", { agent: a.id, name: a.name, action: data.action, reason: v.reason }, v.allow ? "allow" : "deny");
     return v;
   });

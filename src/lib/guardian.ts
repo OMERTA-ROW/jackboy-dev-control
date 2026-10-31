@@ -42,7 +42,7 @@ const NEEDS: Partial<Record<Capability, "sandbox" | "search" | "omni" | "repo">>
 };
 
 export type GuardianInput = {
-  agent: { category: AgentCategory; autonomy: Autonomy; paused: boolean; installedVerified: boolean; projectId: string };
+  agent: { category: AgentCategory; autonomy: Autonomy; paused: boolean; installedVerified: boolean; passportApproved: boolean; projectId: string };
   action: Capability;
   targetProjectId: string;
   globalPaused: boolean;
@@ -57,6 +57,7 @@ export function guardianCheck(i: GuardianInput): GuardianVerdict {
   if (!CAPABILITIES.some((c) => c.id === i.action)) return deny("Unknown action.");
   if (i.globalPaused) return deny("Emergency pause is on.");
   if (i.agent.paused) return deny("This agent is paused.");
+  if (!i.agent.passportApproved) return deny("Agent passport not approved by the owner.");
   if (!i.agent.installedVerified) return deny("Agent not verified as installed.");
   if (i.targetProjectId !== i.agent.projectId) return deny("Project isolation: agents may only act on their own project.");
   const need = NEEDS[i.action];
@@ -65,3 +66,9 @@ export function guardianCheck(i: GuardianInput): GuardianVerdict {
   if (!autonomousCapabilities(i.agent.category, i.agent.autonomy).includes(i.action)) return deny(`Not allowed at "${i.agent.autonomy}" autonomy.`);
   return { allow: true, needsOwner: false, reason: "Within scope." };
 }
+
+export const ADAPTERS = [
+  { id: "owner_agent", label: "Owner's existing agent (via OMNI)" },
+  { id: "third_party", label: "Authorized third-party model" },
+  { id: "local", label: "Local model" },
+] as const;

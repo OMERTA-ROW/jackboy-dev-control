@@ -17,6 +17,7 @@ export const ingestSchema = z.object({
   detail: z.string().max(4000).default(""),
   source_url: z.string().url().max(500).optional(),
   health: z.enum(["ok", "degraded", "failing"]).optional(),
+  agent_id: z.string().uuid().optional(),
 });
 export type IngestPayload = z.infer<typeof ingestSchema>;
 

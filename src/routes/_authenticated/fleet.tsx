@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useState } from "react";
 import { PageHeader, GuidanceTip } from "@/components/AppShell";
@@ -83,8 +83,8 @@ function Fleet() {
           return (
             <article key={a.id} className="panel p-4 text-sm">
               <div className="flex items-center justify-between">
-                <span className="font-medium">{a.name} <span className={`ml-1 text-xs ${a.category === "demontech" ? "text-destructive" : "text-electric"}`}>{a.category === "demontech" ? "DemonTech" : "AngelTech"}</span></span>
-                <span className="text-xs text-muted-foreground">{a.paused ? "paused" : a.installed_verified ? `installed · ${a.health}` : "not installed"}</span>
+                <span className="font-medium"><Link to="/passport/$agentId" params={{ agentId: a.id }} className="hover:text-electric underline-offset-2 hover:underline">{a.name}</Link> <span className={`ml-1 text-xs ${a.category === "demontech" ? "text-destructive" : "text-electric"}`}>{a.category === "demontech" ? "DemonTech" : "AngelTech"}</span></span>
+                <span className="text-xs text-muted-foreground">{!a.passport_approved ? "passport pending · " : ""}{a.paused ? "paused" : a.installed_verified ? `installed · ${a.health}` : "not installed"}</span>
               </div>
               <p className="text-xs text-muted-foreground">{pname(a.project_id)} · {a.specialty || "no specialty"} · {a.last_seen_at ? `seen ${new Date(a.last_seen_at).toLocaleString()}` : "never seen"}</p>
               <div className="mt-2 flex flex-wrap gap-1">{caps.map((c) => <span key={c} className="rounded bg-muted px-1.5 py-0.5 text-[10px]">{CAPABILITIES.find((x) => x.id === c)?.label}</span>)}</div>
