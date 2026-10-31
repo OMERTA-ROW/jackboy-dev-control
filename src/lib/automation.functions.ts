@@ -82,7 +82,7 @@ export const evaluateChange = createServerFn({ method: "POST" })
     await role(context);
     const { data: p } = await context.supabase.from("automation_policy").select("*").eq("id", 1).single();
     if (!p) throw new Error("Automation policy not found.");
-    const decision = routeApproval(data, { tier: p.tier, paused: p.paused, guardianVerified: p.guardian_verified, maxFiles: p.max_files, maxLines: p.max_lines });
+    const decision = routeApproval(data, { tier: p.tier as 0 | 1 | 2, paused: p.paused, guardianVerified: p.guardian_verified, maxFiles: p.max_files, maxLines: p.max_lines });
     const dispatch = canDispatch({ paused: p.paused }, OMNI_VERIFIED);
     await audit(context, "automation.decision", { change: data, route: decision.route, reasons: decision.reasons, dispatch: dispatch.reason }, decision.route);
     return { decision, dispatch };
