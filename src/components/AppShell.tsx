@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { LayoutGrid, Radar, Send, Code2, ScrollText, Plug, ShieldCheck, Eye } from "lucide-react";
+import { LayoutGrid, Radar, Send, Hexagon, Code2, ScrollText, Plug, ShieldCheck, Eye } from "lucide-react";
 import type { ReactNode } from "react";
 import { setState, useJackboy, log } from "@/lib/jackboy-store";
 
@@ -8,6 +8,7 @@ const NAV = [
   { to: "/workspace", label: "Inspect", icon: Code2 },
   { to: "/discovery", label: "Discovery", icon: Radar },
   { to: "/omni", label: "OMNI", icon: Send },
+  { to: "/jax", label: "JAX", icon: Hexagon },
   { to: "/activity", label: "Logs & Approvals", icon: ScrollText },
   { to: "/integrations", label: "Integrations", icon: Plug },
   { to: "/access", label: "Access", icon: ShieldCheck },
@@ -87,13 +88,13 @@ export function AppShell({ children }: { children: ReactNode }) {
         <main className="flex-1 px-4 py-6 md:px-8">{children}</main>
       </div>
 
-      <nav aria-label="Main mobile" className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-7 border-t border-border bg-sidebar md:hidden">
+      <nav aria-label="Main mobile" className="fixed inset-x-0 bottom-0 z-20 flex overflow-x-auto border-t border-border bg-sidebar md:hidden">
         {NAV.map(({ to, label, icon: Icon }) => (
           <Link
             key={to}
             to={to}
             activeOptions={{ exact: to === "/" }}
-            className="flex flex-col items-center gap-1 py-2.5 text-[10px] text-muted-foreground"
+            className="flex min-w-16 flex-1 flex-col items-center gap-1 py-2.5 text-[10px] text-muted-foreground"
             activeProps={{ className: "text-electric" }}
           >
             <Icon className="h-5 w-5" aria-hidden />

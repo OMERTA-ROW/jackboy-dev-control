@@ -14,6 +14,7 @@ import { Route as AccessRouteImport } from './routes/access'
 import { Route as ActivityRouteImport } from './routes/activity'
 import { Route as DiscoveryRouteImport } from './routes/discovery'
 import { Route as IntegrationsRouteImport } from './routes/integrations'
+import { Route as JaxRouteImport } from './routes/jax'
 import { Route as OmniRouteImport } from './routes/omni'
 import { Route as WorkspaceRouteImport } from './routes/workspace'
 
@@ -42,6 +43,11 @@ const IntegrationsRoute = IntegrationsRouteImport.update({
   path: '/integrations',
   getParentRoute: () => rootRouteImport,
 } as any)
+const JaxRoute = JaxRouteImport.update({
+  id: '/jax',
+  path: '/jax',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OmniRoute = OmniRouteImport.update({
   id: '/omni',
   path: '/omni',
@@ -59,6 +65,7 @@ export interface FileRoutesByFullPath {
   '/activity': typeof ActivityRoute
   '/discovery': typeof DiscoveryRoute
   '/integrations': typeof IntegrationsRoute
+  '/jax': typeof JaxRoute
   '/omni': typeof OmniRoute
   '/workspace': typeof WorkspaceRoute
 }
@@ -68,6 +75,7 @@ export interface FileRoutesByTo {
   '/activity': typeof ActivityRoute
   '/discovery': typeof DiscoveryRoute
   '/integrations': typeof IntegrationsRoute
+  '/jax': typeof JaxRoute
   '/omni': typeof OmniRoute
   '/workspace': typeof WorkspaceRoute
 }
@@ -78,6 +86,7 @@ export interface FileRoutesById {
   '/activity': typeof ActivityRoute
   '/discovery': typeof DiscoveryRoute
   '/integrations': typeof IntegrationsRoute
+  '/jax': typeof JaxRoute
   '/omni': typeof OmniRoute
   '/workspace': typeof WorkspaceRoute
 }
@@ -89,6 +98,7 @@ export interface FileRouteTypes {
     | '/activity'
     | '/discovery'
     | '/integrations'
+    | '/jax'
     | '/omni'
     | '/workspace'
   fileRoutesByTo: FileRoutesByTo
@@ -98,6 +108,7 @@ export interface FileRouteTypes {
     | '/activity'
     | '/discovery'
     | '/integrations'
+    | '/jax'
     | '/omni'
     | '/workspace'
   id:
@@ -107,6 +118,7 @@ export interface FileRouteTypes {
     | '/activity'
     | '/discovery'
     | '/integrations'
+    | '/jax'
     | '/omni'
     | '/workspace'
   fileRoutesById: FileRoutesById
@@ -117,6 +129,7 @@ export interface RootRouteChildren {
   ActivityRoute: typeof ActivityRoute
   DiscoveryRoute: typeof DiscoveryRoute
   IntegrationsRoute: typeof IntegrationsRoute
+  JaxRoute: typeof JaxRoute
   OmniRoute: typeof OmniRoute
   WorkspaceRoute: typeof WorkspaceRoute
 }
@@ -158,6 +171,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IntegrationsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/jax': {
+      id: '/jax'
+      path: '/jax'
+      fullPath: '/jax'
+      preLoaderRoute: typeof JaxRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/omni': {
       id: '/omni'
       path: '/omni'
@@ -181,6 +201,7 @@ const rootRouteChildren: RootRouteChildren = {
   ActivityRoute: ActivityRoute,
   DiscoveryRoute: DiscoveryRoute,
   IntegrationsRoute: IntegrationsRoute,
+  JaxRoute: JaxRoute,
   OmniRoute: OmniRoute,
   WorkspaceRoute: WorkspaceRoute,
 }
