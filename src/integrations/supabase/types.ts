@@ -530,6 +530,103 @@ export type Database = {
         }
         Relationships: []
       }
+      razul_feedback: {
+        Row: {
+          created_at: string
+          created_by: string
+          finding_id: string
+          id: string
+          note: string
+          outcome: string
+          sent_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          finding_id: string
+          id?: string
+          note?: string
+          outcome: string
+          sent_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          finding_id?: string
+          id?: string
+          note?: string
+          outcome?: string
+          sent_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "razul_feedback_finding_id_fkey"
+            columns: ["finding_id"]
+            isOneToOne: false
+            referencedRelation: "razul_findings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      razul_findings: {
+        Row: {
+          confidence: number | null
+          evidence: string
+          field: string
+          id: string
+          imported_at: string
+          imported_by: string
+          observed_at: string
+          priority: number
+          project_id: string | null
+          razul_id: string
+          sources: Json
+          status: string
+          summary: string
+          title: string
+        }
+        Insert: {
+          confidence?: number | null
+          evidence: string
+          field?: string
+          id?: string
+          imported_at?: string
+          imported_by: string
+          observed_at: string
+          priority?: number
+          project_id?: string | null
+          razul_id: string
+          sources: Json
+          status?: string
+          summary?: string
+          title: string
+        }
+        Update: {
+          confidence?: number | null
+          evidence?: string
+          field?: string
+          id?: string
+          imported_at?: string
+          imported_by?: string
+          observed_at?: string
+          priority?: number
+          project_id?: string | null
+          razul_id?: string
+          sources?: Json
+          status?: string
+          summary?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "razul_findings_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "agent_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string
