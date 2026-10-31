@@ -96,7 +96,7 @@ function Fleet() {
                       className={`rounded px-2 py-1 disabled:opacity-40 ${a.autonomy === t.id ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>{t.label}</button>
                   ))}
                 </div>
-                {manager && <button className={btn} disabled={!a.paused && false} onClick={() => act(f.upd({ data: { id: a.id, paused: !a.paused } }))}>{a.paused ? "Unpause" : "Pause"}</button>}
+                {manager && <button className={btn} disabled={a.paused && !owner} onClick={() => act(f.upd({ data: { id: a.id, paused: !a.paused } }))}>{a.paused ? "Unpause" : "Pause"}</button>}
               </div>
             </article>
           );
