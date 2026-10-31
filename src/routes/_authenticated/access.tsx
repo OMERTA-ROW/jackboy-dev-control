@@ -4,6 +4,8 @@ import { useState } from "react";
 import { Lock, UserPlus, ShieldCheck, Eye, LogOut } from "lucide-react";
 import { PageHeader } from "@/components/AppShell";
 import { supabase } from "@/integrations/supabase/client";
+import { useServerFn } from "@tanstack/react-start";
+import { createInvite } from "@/lib/account.functions";
 
 export const Route = createFileRoute("/_authenticated/access")({
   head: () => ({
@@ -18,7 +20,7 @@ export const Route = createFileRoute("/_authenticated/access")({
 });
 
 const BOUNDARIES = [
-  { icon: Eye, t: "Invitation-only", d: "Signing up grants nothing. Access needs the owner setup or a pending invitation for your confirmed email." },
+  { icon: Eye, t: "Invitation-only", d: "Open registration is disabled. Accounts come only from single-use, expiring invitation links plus email verification." },
   { icon: Lock, t: "Server-side checks", d: "Roles are verified by the database and server functions, not just by the page." },
   { icon: ShieldCheck, t: "Secrets stay on the server", d: "Search API keys live in server secrets and are never sent to the browser." },
 ];
@@ -31,6 +33,8 @@ function Access() {
   const [email, setEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"member" | "admin">("member");
   const [msg, setMsg] = useState<{ ok: boolean; t: string } | null>(null);
+  const inviteFn = useServerFn(createInvite);
+  const [link, setLink] = useState<string | null>(null);
 
   const members = useQuery({ queryKey: ["members"], enabled: manager, queryFn: async () => (await supabase.from("user_roles").select("user_id, role, created_at").order("created_at")).data ?? [] });
   const invites = useQuery({ queryKey: ["invites"], enabled: manager, queryFn: async () => (await supabase.from("invitations").select("*").order("created_at", { ascending: false }).limit(50)).data ?? [] });
@@ -64,7 +68,7 @@ function Access() {
         <div className="grid gap-4 md:grid-cols-2">
           <section className="panel p-5" aria-labelledby="inv">
             <h2 id="inv" className="flex items-center gap-2 text-lg font-semibold text-silver"><UserPlus className="h-4 w-4" />Invite</h2>
-            <form className="mt-3 space-y-3" onSubmit={(e) => { e.preventDefault(); void rpc(() => supabase.rpc("create_invitation", { _email: email, _role: inviteRole }), `Invitation created for ${email}. Share the sign-in link with them; it expires in 7 days.`).then(() => setEmail("")); }}>
+            <form className="mt-3 space-y-3" onSubmit={(e) => { e.preventDefault(); setMsg(null); setLink(null); inviteFn({ data: { email, role: inviteRole } }).then((r) => { setLink(r.link); setMsg({ ok: true, t: `Single-use invitation created for ${email}; expires in ${r.expiresInDays} days. Copy the link now — it is shown only once.` }); setEmail(""); void qc.invalidateQueries(); }).catch((err) => setMsg({ ok: false, t: (err as Error).message })); }}>
               <label className="block text-sm">Email<input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" /></label>
               <label className="block text-sm">Role
                 <select value={inviteRole} onChange={(e) => setInviteRole(e.target.value as "member" | "admin")} className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
@@ -74,7 +78,8 @@ function Access() {
               </label>
               <button className="w-full rounded-md bg-primary py-2 text-sm text-primary-foreground">Create invitation</button>
             </form>
-            <p className="mt-2 text-xs text-muted-foreground">No invitation email is sent automatically yet; tell the person to create an account with this email.</p>
+            {link && <div className="mt-3 rounded border border-electric/50 p-2 text-xs"><div className="break-all font-mono">{link}</div><button type="button" onClick={() => navigator.clipboard.writeText(link)} className="mt-1 text-electric underline">Copy link</button></div>}
+            <p className="mt-2 text-xs text-muted-foreground">Send the link privately to the invitee. Opening it emails a verification link to the invited address only.</p>
             <ul className="mt-4 space-y-2 text-sm">
               {(invites.data ?? []).map((i) => (
                 <li key={i.id} className="flex items-center justify-between gap-2 rounded border border-border px-3 py-2">
