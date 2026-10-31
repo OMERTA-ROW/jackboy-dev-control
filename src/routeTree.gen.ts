@@ -14,6 +14,7 @@ import { Route as AccessRouteImport } from './routes/access'
 import { Route as ActivityRouteImport } from './routes/activity'
 import { Route as DiscoveryRouteImport } from './routes/discovery'
 import { Route as IntegrationsRouteImport } from './routes/integrations'
+import { Route as OmniRouteImport } from './routes/omni'
 import { Route as WorkspaceRouteImport } from './routes/workspace'
 
 const IndexRoute = IndexRouteImport.update({
@@ -41,6 +42,11 @@ const IntegrationsRoute = IntegrationsRouteImport.update({
   path: '/integrations',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OmniRoute = OmniRouteImport.update({
+  id: '/omni',
+  path: '/omni',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const WorkspaceRoute = WorkspaceRouteImport.update({
   id: '/workspace',
   path: '/workspace',
@@ -53,6 +59,7 @@ export interface FileRoutesByFullPath {
   '/activity': typeof ActivityRoute
   '/discovery': typeof DiscoveryRoute
   '/integrations': typeof IntegrationsRoute
+  '/omni': typeof OmniRoute
   '/workspace': typeof WorkspaceRoute
 }
 export interface FileRoutesByTo {
@@ -61,6 +68,7 @@ export interface FileRoutesByTo {
   '/activity': typeof ActivityRoute
   '/discovery': typeof DiscoveryRoute
   '/integrations': typeof IntegrationsRoute
+  '/omni': typeof OmniRoute
   '/workspace': typeof WorkspaceRoute
 }
 export interface FileRoutesById {
@@ -70,6 +78,7 @@ export interface FileRoutesById {
   '/activity': typeof ActivityRoute
   '/discovery': typeof DiscoveryRoute
   '/integrations': typeof IntegrationsRoute
+  '/omni': typeof OmniRoute
   '/workspace': typeof WorkspaceRoute
 }
 export interface FileRouteTypes {
@@ -80,6 +89,7 @@ export interface FileRouteTypes {
     | '/activity'
     | '/discovery'
     | '/integrations'
+    | '/omni'
     | '/workspace'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -88,6 +98,7 @@ export interface FileRouteTypes {
     | '/activity'
     | '/discovery'
     | '/integrations'
+    | '/omni'
     | '/workspace'
   id:
     | '__root__'
@@ -96,6 +107,7 @@ export interface FileRouteTypes {
     | '/activity'
     | '/discovery'
     | '/integrations'
+    | '/omni'
     | '/workspace'
   fileRoutesById: FileRoutesById
 }
@@ -105,6 +117,7 @@ export interface RootRouteChildren {
   ActivityRoute: typeof ActivityRoute
   DiscoveryRoute: typeof DiscoveryRoute
   IntegrationsRoute: typeof IntegrationsRoute
+  OmniRoute: typeof OmniRoute
   WorkspaceRoute: typeof WorkspaceRoute
 }
 
@@ -145,6 +158,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IntegrationsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/omni': {
+      id: '/omni'
+      path: '/omni'
+      fullPath: '/omni'
+      preLoaderRoute: typeof OmniRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/workspace': {
       id: '/workspace'
       path: '/workspace'
@@ -161,6 +181,7 @@ const rootRouteChildren: RootRouteChildren = {
   ActivityRoute: ActivityRoute,
   DiscoveryRoute: DiscoveryRoute,
   IntegrationsRoute: IntegrationsRoute,
+  OmniRoute: OmniRoute,
   WorkspaceRoute: WorkspaceRoute,
 }
 export const routeTree = rootRouteImport

@@ -14,3 +14,4 @@
 - Layout/code changes are only proposed as suggestions and applied via `resolveSuggestion` after explicit approval, which writes to the log.
 - Shared shell/navigation is `src/components/AppShell.tsx`, rendered from `__root.tsx`.
 - Technology Discovery lives in `src/lib/discovery.ts` (source registry, dedupe, ranking, local state) and `src/routes/discovery.tsx`; it is opt-in and uses demo data until a backend can fetch public APIs/RSS on a schedule. Facts and AI hypotheses must stay visually separated.
+- Jackboy is the research/evaluation/idea-routing agent; OMNI is the build/test/deploy engine. Handoffs, monetization estimates and provenance live in `src/lib/omni-handoff.ts` + `src/routes/omni.tsx`; publish/pricing/sell stay locked by `canApprove` until the handoff is approved and provenance is cleared. Never show OMNI as connected without verification.
