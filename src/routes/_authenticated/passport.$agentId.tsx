@@ -30,7 +30,7 @@ function Passport() {
   const [model, setModel] = useState({ adapter: "owner_agent" as "owner_agent" | "third_party" | "local", model_provider: "", model_name: "" });
   const [purpose, setPurpose] = useState("");
 
-  const refresh = useCallback(() => load({ data: { id: agentId } }).then((x) => { setD(x); setModel({ adapter: x.agent.adapter, model_provider: x.agent.model_provider, model_name: x.agent.model_name }); }).catch((e) => setErr((e as Error).message)), [load, agentId]);
+  const refresh = useCallback(() => load({ data: { id: agentId } }).then((x) => { setD(x); setModel({ adapter: x.agent.adapter as "owner_agent" | "third_party" | "local", model_provider: x.agent.model_provider, model_name: x.agent.model_name }); }).catch((e) => setErr((e as Error).message)), [load, agentId]);
   useEffect(() => { refresh(); }, [refresh]);
   const act = async (p: Promise<unknown>) => { setErr(null); try { await p; await refresh(); } catch (e) { setErr((e as Error).message); } };
 
