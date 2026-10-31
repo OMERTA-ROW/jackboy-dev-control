@@ -39,10 +39,17 @@ export const Route = createFileRoute("/api/public/agent-ingest")({
         if (d.agent === "angeltech" && !project.angeltech_enabled) return deny(403, "AngelTech not enabled for this project");
         if (d.agent === "demontech" && !project.demontech_enabled) { await audit("rejected", { reason: "demontech not authorized" }); return deny(403, "DemonTech not authorized by owner for this project"); }
 
-        await supabaseAdmin.from("agent_reports").insert({ project_id: project.id, agent: d.agent, kind: d.kind, severity: d.severity, title: d.title, detail: d.detail, source_url: d.source_url ?? null, priority: priorityScore(d.severity, d.agent) });
+        if (d.agent_id) {
+          // Agent must belong to this project, match the category, and hold an owner-approved passport.
+          const { data: ag } = await supabaseAdmin.from("agents").select("id, project_id, category, passport_approved, paused").eq("id", d.agent_id).maybeSingle();
+          if (!ag || ag.project_id !== project.id || ag.category !== d.agent) { await audit("rejected", { reason: "agent scope mismatch" }); return deny(403, "Agent not registered to this project/category"); }
+          if (!ag.passport_approved || ag.paused) { await audit("rejected", { reason: "passport not approved or agent paused", agent: ag.id }); return deny(403, "Agent passport not approved or agent paused"); }
+          await supabaseAdmin.from("agents").update({ last_seen_at: new Date().toISOString(), ...(d.health ? { health: d.health } : {}) }).eq("id", ag.id);
+        }
+        await supabaseAdmin.from("agent_reports").insert({ agent_id: d.agent_id ?? null, project_id: project.id, agent: d.agent, kind: d.kind, severity: d.severity, title: d.title, detail: d.detail, source_url: d.source_url ?? null, priority: priorityScore(d.severity, d.agent) });
         await supabaseAdmin.from("agent_projects").update({ last_report_at: new Date().toISOString(), ...(d.health ? { health: d.health } : {}) }).eq("id", project.id);
         await supabaseAdmin.from("agent_project_tokens").update({ last_used_at: new Date().toISOString() }).eq("id", tok.id);
-        await audit("ok", { agent: d.agent, kind: d.kind, severity: d.severity });
+        await audit("ok", { agent: d.agent_id ?? null, category: d.agent, kind: d.kind, severity: d.severity });
         return Response.json({ ok: true }, { status: 202 });
       },
     },
