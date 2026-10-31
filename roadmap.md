@@ -5,4 +5,6 @@
 - [ ] Live discovery scans + schedule + alert delivery — blocked: needs Lovable Cloud; patent APIs (USPTO/EPO) need user API keys; AI summaries need Lovable AI
 - [x] OMNI handoff queue, exportable briefs, monetization estimates, provenance + owner approvals (local only)
 - [ ] Real OMNI handoff delivery — blocked: OMNI API endpoint + credentials
+- [x] JAX release manifests (simulated), integration contract export, governance + distribution approval
+- [ ] Real JAX ingest + verified payment revenue — blocked: JAX endpoint/credentials, payment provider
 - [ ] GitHub / VS Code / OMNI / Honeycomb integrations — blocked: user credentials & details
