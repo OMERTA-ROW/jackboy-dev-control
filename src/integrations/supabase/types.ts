@@ -240,6 +240,39 @@ export type Database = {
         }
         Relationships: []
       }
+      automation_policy: {
+        Row: {
+          guardian_verified: boolean
+          id: number
+          max_files: number
+          max_lines: number
+          paused: boolean
+          tier: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          guardian_verified?: boolean
+          id?: number
+          max_files?: number
+          max_lines?: number
+          paused?: boolean
+          tier?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          guardian_verified?: boolean
+          id?: number
+          max_files?: number
+          max_lines?: number
+          paused?: boolean
+          tier?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       invitations: {
         Row: {
           accepted_by: string | null
@@ -276,6 +309,80 @@ export type Database = {
           status?: string
           token_hash?: string | null
           used_at?: string | null
+        }
+        Relationships: []
+      }
+      learning_events: {
+        Row: {
+          created_at: string
+          created_by: string
+          detail: Json
+          id: string
+          kind: string
+          outcome: string
+          project_id: string
+          summary: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          detail?: Json
+          id?: string
+          kind: string
+          outcome?: string
+          project_id: string
+          summary: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          detail?: Json
+          id?: string
+          kind?: string
+          outcome?: string
+          project_id?: string
+          summary?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "learning_events_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "agent_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      playbooks: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          steps: string
+          title: string
+          trigger: string
+          verified: boolean
+          verified_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          steps: string
+          title: string
+          trigger: string
+          verified?: boolean
+          verified_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          steps?: string
+          title?: string
+          trigger?: string
+          verified?: boolean
+          verified_by?: string | null
         }
         Relationships: []
       }
@@ -328,6 +435,15 @@ export type Database = {
       my_role: { Args: never; Returns: Database["public"]["Enums"]["app_role"] }
       remove_member: { Args: { _user_id: string }; Returns: undefined }
       revoke_invitation: { Args: { _id: string }; Returns: undefined }
+      set_automation_policy: {
+        Args: {
+          _max_files: number
+          _max_lines: number
+          _paused: boolean
+          _tier: number
+        }
+        Returns: undefined
+      }
       write_audit: {
         Args: { _action: string; _detail: Json; _outcome: string }
         Returns: undefined

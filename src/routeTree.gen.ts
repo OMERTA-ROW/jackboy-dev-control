@@ -18,6 +18,7 @@ import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedAccessRouteImport } from './routes/_authenticated/access'
 import { Route as AuthenticatedActivityRouteImport } from './routes/_authenticated/activity'
 import { Route as AuthenticatedAgentsRouteImport } from './routes/_authenticated/agents'
+import { Route as AuthenticatedAutomationRouteImport } from './routes/_authenticated/automation'
 import { Route as AuthenticatedDiscoveryRouteImport } from './routes/_authenticated/discovery'
 import { Route as AuthenticatedIntegrationsRouteImport } from './routes/_authenticated/integrations'
 import { Route as AuthenticatedJaxRouteImport } from './routes/_authenticated/jax'
@@ -70,6 +71,11 @@ const AuthenticatedAgentsRoute = AuthenticatedAgentsRouteImport.update({
   path: '/agents',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedAutomationRoute = AuthenticatedAutomationRouteImport.update({
+  id: '/automation',
+  path: '/automation',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedDiscoveryRoute = AuthenticatedDiscoveryRouteImport.update({
   id: '/discovery',
   path: '/discovery',
@@ -116,6 +122,7 @@ export interface FileRoutesByFullPath {
   '/access': typeof AuthenticatedAccessRoute
   '/activity': typeof AuthenticatedActivityRoute
   '/agents': typeof AuthenticatedAgentsRoute
+  '/automation': typeof AuthenticatedAutomationRoute
   '/discovery': typeof AuthenticatedDiscoveryRoute
   '/integrations': typeof AuthenticatedIntegrationsRoute
   '/jax': typeof AuthenticatedJaxRoute
@@ -132,6 +139,7 @@ export interface FileRoutesByTo {
   '/access': typeof AuthenticatedAccessRoute
   '/activity': typeof AuthenticatedActivityRoute
   '/agents': typeof AuthenticatedAgentsRoute
+  '/automation': typeof AuthenticatedAutomationRoute
   '/discovery': typeof AuthenticatedDiscoveryRoute
   '/integrations': typeof AuthenticatedIntegrationsRoute
   '/jax': typeof AuthenticatedJaxRoute
@@ -151,6 +159,7 @@ export interface FileRoutesById {
   '/_authenticated/access': typeof AuthenticatedAccessRoute
   '/_authenticated/activity': typeof AuthenticatedActivityRoute
   '/_authenticated/agents': typeof AuthenticatedAgentsRoute
+  '/_authenticated/automation': typeof AuthenticatedAutomationRoute
   '/_authenticated/discovery': typeof AuthenticatedDiscoveryRoute
   '/_authenticated/integrations': typeof AuthenticatedIntegrationsRoute
   '/_authenticated/jax': typeof AuthenticatedJaxRoute
@@ -171,6 +180,7 @@ export interface FileRouteTypes {
     | '/access'
     | '/activity'
     | '/agents'
+    | '/automation'
     | '/discovery'
     | '/integrations'
     | '/jax'
@@ -187,6 +197,7 @@ export interface FileRouteTypes {
     | '/access'
     | '/activity'
     | '/agents'
+    | '/automation'
     | '/discovery'
     | '/integrations'
     | '/jax'
@@ -205,6 +216,7 @@ export interface FileRouteTypes {
     | '/_authenticated/access'
     | '/_authenticated/activity'
     | '/_authenticated/agents'
+    | '/_authenticated/automation'
     | '/_authenticated/discovery'
     | '/_authenticated/integrations'
     | '/_authenticated/jax'
@@ -289,6 +301,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAgentsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/automation': {
+      id: '/_authenticated/automation'
+      path: '/automation'
+      fullPath: '/automation'
+      preLoaderRoute: typeof AuthenticatedAutomationRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/discovery': {
       id: '/_authenticated/discovery'
       path: '/discovery'
@@ -345,6 +364,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAccessRoute: typeof AuthenticatedAccessRoute
   AuthenticatedActivityRoute: typeof AuthenticatedActivityRoute
   AuthenticatedAgentsRoute: typeof AuthenticatedAgentsRoute
+  AuthenticatedAutomationRoute: typeof AuthenticatedAutomationRoute
   AuthenticatedDiscoveryRoute: typeof AuthenticatedDiscoveryRoute
   AuthenticatedIntegrationsRoute: typeof AuthenticatedIntegrationsRoute
   AuthenticatedJaxRoute: typeof AuthenticatedJaxRoute
@@ -358,6 +378,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAccessRoute: AuthenticatedAccessRoute,
   AuthenticatedActivityRoute: AuthenticatedActivityRoute,
   AuthenticatedAgentsRoute: AuthenticatedAgentsRoute,
+  AuthenticatedAutomationRoute: AuthenticatedAutomationRoute,
   AuthenticatedDiscoveryRoute: AuthenticatedDiscoveryRoute,
   AuthenticatedIntegrationsRoute: AuthenticatedIntegrationsRoute,
   AuthenticatedJaxRoute: AuthenticatedJaxRoute,
