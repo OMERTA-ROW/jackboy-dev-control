@@ -59,6 +59,7 @@ function ChatPage() {
     setMessages((cur) => [...cur, ...rows.filter((r) => r.text.trim()).map((r, i) => ({ id: `voice-${Date.now()}-${i}`, role: r.role, parts: [{ type: "text" as const, text: r.role === "user" ? `🎙 ${r.text.trim()}` : r.text.trim() }] }))]);
   const [orbOpen, setOrbOpen] = useState(true);
   const drag = useRef<number | null>(null);
+  const dragged = useRef(false);
   const dock = () => setOrbOpen(false);
   const send = (t: string) => { if (!t.trim() || busy) return; setError(null); sendMessage(fromVoice ? { text: t, metadata: { voice: true } } : { text: t }); setText(""); setFromVoice(false); };
 
@@ -94,9 +95,10 @@ function ChatPage() {
           {error && <p role="alert" className="border-t border-destructive/40 px-4 py-2 text-xs text-destructive">{error}</p>}
           <div
             className={orbOpen ? "absolute inset-x-0 top-0 bottom-[9.5rem] z-10 flex touch-none flex-col items-center justify-center bg-background/75 backdrop-blur-sm" : "border-t border-border"}
-            onPointerDown={orbOpen ? (e) => { if ((e.target as HTMLElement).closest("button")) return; drag.current = e.clientY; } : undefined}
-            onPointerMove={orbOpen ? (e) => { if (drag.current !== null && e.clientY - drag.current > 48) { drag.current = null; dock(); } } : undefined}
+            onPointerDown={orbOpen ? (e) => { dragged.current = false; drag.current = e.clientY; } : undefined}
+            onPointerMove={orbOpen ? (e) => { if (drag.current !== null && e.clientY - drag.current > 48) { drag.current = null; dragged.current = true; dock(); } } : undefined}
             onPointerUp={() => { drag.current = null; }}
+            onClickCapture={(e) => { if (dragged.current) { dragged.current = false; e.stopPropagation(); e.preventDefault(); } }}
             onWheel={orbOpen ? (e) => { if (Math.abs(e.deltaY) > 12) dock(); } : undefined}
             onKeyDown={(e) => { if (orbOpen && (e.key === "ArrowDown" || e.key === "Escape")) dock(); else if (!orbOpen && e.key === "ArrowUp" && e.altKey) setOrbOpen(true); }}
           >
