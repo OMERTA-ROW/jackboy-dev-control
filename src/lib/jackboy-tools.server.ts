@@ -228,6 +228,19 @@ export function buildJackboyTools(userId: string) {
         return { taskId, result: after ?? r };
       },
     }),
+    authorizationHelp: tool({
+      description: "When anything is blocked by GitHub 403 / 'Resource not accessible' / missing permission or repo access, call this. Returns the real official authorization destination (GitHub App install link or app-registration page), the exact missing permissions, what Jackboy does automatically, and what the owner must approve. The chat shows the links as buttons; never invent links yourself.",
+      inputSchema: z.object({ project: z.string() }),
+      execute: async ({ project }) => {
+        const p = await findProject(project);
+        const [{ data: proj }, { data: g }] = await Promise.all([
+          supabaseAdmin.from("owner_projects").select("github_repo").eq("id", p.id).single(),
+          supabaseAdmin.from("capability_grants").select("last_error").eq("project_id", p.id).eq("capability", "github_repo").maybeSingle(),
+        ]);
+        const auth = await (await import("./github-app.server")).githubAuthorization(proj?.github_repo ?? null, userId, p.id, g?.last_error ?? null);
+        return { project: p.name, authorizations: [auth] };
+      },
+    }),
     checkSite: tool({
       description: "Re-check a project's site address now: DNS + HTTPS reachability (same as Check now). Public reachability is not code access.",
       inputSchema: z.object({ project: z.string() }),
