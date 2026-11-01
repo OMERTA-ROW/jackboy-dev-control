@@ -21,3 +21,4 @@
 
 - Subdirectories have their own `AGENTS.md` (feature rules in `src/lib/AGENTS.md`); read it before changing files there.
 - Live voice runs through `src/lib/live-relay.server.ts` at `/api/live` (dispatched in `src/server.ts`, dev via `live-vite-plugin.ts`): owner session verified before any paid voice session, and voice tools stay read-only so sensitive actions keep their passkey path.
+- Site monitoring lives in `src/lib/site-monitor*.ts` (DNS-over-HTTPS + one HTTPS GET, stored on owner_projects with backoff, 15-min cron at /api/public/jobs/site-monitor); reachability never implies coding access.

@@ -51,6 +51,7 @@ import { Route as ApiPublicAgentIngestRouteImport } from './routes/api/public/ag
 import { Route as ApiPublicFeedsSourceIdRouteImport } from './routes/api/public/feeds.$sourceId'
 import { Route as ApiPublicFoundryWebhookRouteImport } from './routes/api/public/foundry/webhook'
 import { Route as ApiPublicJobsReleasesRouteImport } from './routes/api/public/jobs/releases'
+import { Route as ApiPublicJobsSiteMonitorRouteImport } from './routes/api/public/jobs/site-monitor'
 import { Route as ApiPublicJobsUpdateWriterRouteImport } from './routes/api/public/jobs/update-writer'
 import { Route as ApiPublicUpdatesCheckRouteImport } from './routes/api/public/updates/check'
 import { Route as ApiPublicUpdatesFlagsRouteImport } from './routes/api/public/updates/flags'
@@ -271,6 +272,12 @@ const ApiPublicJobsReleasesRoute = ApiPublicJobsReleasesRouteImport.update({
   path: '/api/public/jobs/releases',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicJobsSiteMonitorRoute =
+  ApiPublicJobsSiteMonitorRouteImport.update({
+    id: '/api/public/jobs/site-monitor',
+    path: '/api/public/jobs/site-monitor',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicJobsUpdateWriterRoute =
   ApiPublicJobsUpdateWriterRouteImport.update({
     id: '/api/public/jobs/update-writer',
@@ -353,6 +360,7 @@ export interface FileRoutesByFullPath {
   '/api/public/feeds/$sourceId': typeof ApiPublicFeedsSourceIdRoute
   '/api/public/foundry/webhook': typeof ApiPublicFoundryWebhookRoute
   '/api/public/jobs/releases': typeof ApiPublicJobsReleasesRoute
+  '/api/public/jobs/site-monitor': typeof ApiPublicJobsSiteMonitorRoute
   '/api/public/jobs/update-writer': typeof ApiPublicJobsUpdateWriterRoute
   '/api/public/updates/check': typeof ApiPublicUpdatesCheckRoute
   '/api/public/updates/flags': typeof ApiPublicUpdatesFlagsRoute
@@ -403,6 +411,7 @@ export interface FileRoutesByTo {
   '/api/public/feeds/$sourceId': typeof ApiPublicFeedsSourceIdRoute
   '/api/public/foundry/webhook': typeof ApiPublicFoundryWebhookRoute
   '/api/public/jobs/releases': typeof ApiPublicJobsReleasesRoute
+  '/api/public/jobs/site-monitor': typeof ApiPublicJobsSiteMonitorRoute
   '/api/public/jobs/update-writer': typeof ApiPublicJobsUpdateWriterRoute
   '/api/public/updates/check': typeof ApiPublicUpdatesCheckRoute
   '/api/public/updates/flags': typeof ApiPublicUpdatesFlagsRoute
@@ -455,6 +464,7 @@ export interface FileRoutesById {
   '/api/public/feeds/$sourceId': typeof ApiPublicFeedsSourceIdRoute
   '/api/public/foundry/webhook': typeof ApiPublicFoundryWebhookRoute
   '/api/public/jobs/releases': typeof ApiPublicJobsReleasesRoute
+  '/api/public/jobs/site-monitor': typeof ApiPublicJobsSiteMonitorRoute
   '/api/public/jobs/update-writer': typeof ApiPublicJobsUpdateWriterRoute
   '/api/public/updates/check': typeof ApiPublicUpdatesCheckRoute
   '/api/public/updates/flags': typeof ApiPublicUpdatesFlagsRoute
@@ -507,6 +517,7 @@ export interface FileRouteTypes {
     | '/api/public/feeds/$sourceId'
     | '/api/public/foundry/webhook'
     | '/api/public/jobs/releases'
+    | '/api/public/jobs/site-monitor'
     | '/api/public/jobs/update-writer'
     | '/api/public/updates/check'
     | '/api/public/updates/flags'
@@ -557,6 +568,7 @@ export interface FileRouteTypes {
     | '/api/public/feeds/$sourceId'
     | '/api/public/foundry/webhook'
     | '/api/public/jobs/releases'
+    | '/api/public/jobs/site-monitor'
     | '/api/public/jobs/update-writer'
     | '/api/public/updates/check'
     | '/api/public/updates/flags'
@@ -608,6 +620,7 @@ export interface FileRouteTypes {
     | '/api/public/feeds/$sourceId'
     | '/api/public/foundry/webhook'
     | '/api/public/jobs/releases'
+    | '/api/public/jobs/site-monitor'
     | '/api/public/jobs/update-writer'
     | '/api/public/updates/check'
     | '/api/public/updates/flags'
@@ -630,6 +643,7 @@ export interface RootRouteChildren {
   ApiPublicFeedsSourceIdRoute: typeof ApiPublicFeedsSourceIdRoute
   ApiPublicFoundryWebhookRoute: typeof ApiPublicFoundryWebhookRoute
   ApiPublicJobsReleasesRoute: typeof ApiPublicJobsReleasesRoute
+  ApiPublicJobsSiteMonitorRoute: typeof ApiPublicJobsSiteMonitorRoute
   ApiPublicJobsUpdateWriterRoute: typeof ApiPublicJobsUpdateWriterRoute
   ApiPublicUpdatesCheckRoute: typeof ApiPublicUpdatesCheckRoute
   ApiPublicUpdatesFlagsRoute: typeof ApiPublicUpdatesFlagsRoute
@@ -935,6 +949,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicJobsReleasesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/jobs/site-monitor': {
+      id: '/api/public/jobs/site-monitor'
+      path: '/api/public/jobs/site-monitor'
+      fullPath: '/api/public/jobs/site-monitor'
+      preLoaderRoute: typeof ApiPublicJobsSiteMonitorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/jobs/update-writer': {
       id: '/api/public/jobs/update-writer'
       path: '/api/public/jobs/update-writer'
@@ -1069,6 +1090,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicFeedsSourceIdRoute: ApiPublicFeedsSourceIdRoute,
   ApiPublicFoundryWebhookRoute: ApiPublicFoundryWebhookRoute,
   ApiPublicJobsReleasesRoute: ApiPublicJobsReleasesRoute,
+  ApiPublicJobsSiteMonitorRoute: ApiPublicJobsSiteMonitorRoute,
   ApiPublicJobsUpdateWriterRoute: ApiPublicJobsUpdateWriterRoute,
   ApiPublicUpdatesCheckRoute: ApiPublicUpdatesCheckRoute,
   ApiPublicUpdatesFlagsRoute: ApiPublicUpdatesFlagsRoute,

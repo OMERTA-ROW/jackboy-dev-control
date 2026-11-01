@@ -46,7 +46,11 @@ export const saveProject = createServerFn({ method: "POST" }).middleware([requir
       : await context.supabase.from("owner_projects").insert({ ...row, created_by: context.userId }).select("id").single();
     if (res.error) throw new Error(res.error.message);
     await audit(context, data.id ? "projects.update" : "projects.create", { name: data.name, repo: data.github_repo || null });
-    return { ok: true, id: (data.id ?? (res.data as { id: string }).id) as string, created: !data.id };
+    const id = (data.id ?? (res.data as { id: string }).id) as string;
+    // Re-check the site address on every save so a stale status never survives an address change.
+    const { data: cur } = await context.supabase.from("owner_projects").select("id,site_url,site_fail_count,site_status").eq("id", id).single();
+    if (cur) { const { checkAndStore } = await import("./site-monitor.server"); await checkAndStore(context.supabase, { ...cur, site_fail_count: 0 }, context.userId); }
+    return { ok: true, id, created: !data.id };
   });
 
 export const deleteProject = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])

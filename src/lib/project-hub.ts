@@ -1,6 +1,7 @@
+import { SITE_LABEL, SITE_TONE, type SiteStatus } from "./site-monitor";
 // Pure rules for the simple owner project flow (Home, Projects, Connect, Project detail).
 
-export type HubProject = { id: string; name: string; site_url: string | null; lovable_url: string | null; github_repo: string | null };
+export type HubProject = { id: string; name: string; site_url: string | null; lovable_url: string | null; github_repo: string | null; site_status?: string | null };
 export type HubScan = { project_id: string; status: string; findings: unknown; created_at: string; error: string | null };
 export type InventoryItem = { id: string; name: string; lovable_project_ref: string | null };
 
@@ -9,6 +10,8 @@ export type ProjectStatus = { label: string; tone: "ok" | "warn" | "error" | "mu
 /** Status comes only from stored records: a project is never "healthy" without a finished scan. */
 export function projectStatus(p: HubProject, lastScan: HubScan | undefined): ProjectStatus {
   if (!p.site_url) return { label: "Needs site address", tone: "muted" };
+  const ss = p.site_status as SiteStatus | undefined;
+  if (ss && ss !== "connected" && ss !== "needs_address" && SITE_LABEL[ss]) return { label: SITE_LABEL[ss], tone: SITE_TONE[ss] };
   if (!lastScan) return { label: "Not scanned yet", tone: "muted" };
   if (lastScan.status === "running") return { label: "Scanning…", tone: "muted" };
   if (lastScan.status === "failed" || lastScan.error) return { label: "Scan failed", tone: "error" };

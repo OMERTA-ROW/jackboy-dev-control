@@ -176,6 +176,13 @@
       "when": 1793569381167,
       "tag": "0024_project_dev_activation",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1793571176459,
+      "tag": "0025_site_monitoring",
+      "breakpoints": true
     }
   ]
 }

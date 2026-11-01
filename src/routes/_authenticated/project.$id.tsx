@@ -7,6 +7,7 @@ import { getProjectDetail } from "@/lib/project-hub.functions";
 import { projectStatus } from "@/lib/project-hub";
 import { fixScan, scanNow, setProjectAutopilot } from "@/lib/autopilot.functions";
 import { deleteProject, runNow, saveProject } from "@/lib/update-writer.functions";
+import { SiteConnection } from "@/components/SiteConnection";
 import { FindingsReview, Steps } from "@/components/FindingsReview";
 import { FREQUENCIES, STATUS_LABEL, type ProposalStatus } from "@/lib/update-writer";
 
@@ -78,6 +79,8 @@ function Detail() {
             <button className={btn} onClick={() => setEdit((v) => !v)}>{edit ? "Close edit" : "Edit details"}</button>
           </div>
         </section>
+
+        <SiteConnection p={p} onChanged={() => void refresh()} onEdit={() => setEdit(true)} />
 
         <section className="panel p-5 lg:col-span-2" aria-labelledby="scan">
           <h2 id="scan" className="font-semibold">Review last scan</h2>
