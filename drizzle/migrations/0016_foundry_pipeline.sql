@@ -1,0 +1,10 @@
+ALTER TABLE public.foundry_tasks ADD COLUMN IF NOT EXISTS priority int NOT NULL DEFAULT 50 CHECK (priority BETWEEN 0 AND 100);
+ALTER TABLE public.foundry_tasks ADD COLUMN IF NOT EXISTS next_attempt_at timestamptz;
+ALTER TABLE public.foundry_schedule ADD COLUMN IF NOT EXISTS paused boolean NOT NULL DEFAULT false;
+ALTER TABLE public.foundry_schedule ADD COLUMN IF NOT EXISTS max_in_flight int NOT NULL DEFAULT 2 CHECK (max_in_flight BETWEEN 1 AND 10);
+ALTER TABLE public.foundry_schedule ADD COLUMN IF NOT EXISTS max_runs_per_day int NOT NULL DEFAULT 24 CHECK (max_runs_per_day BETWEEN 1 AND 200);
+ALTER TABLE public.foundry_schedule ADD COLUMN IF NOT EXISTS runs_today int NOT NULL DEFAULT 0;
+ALTER TABLE public.foundry_schedule ADD COLUMN IF NOT EXISTS runs_day date;
+ALTER TABLE public.foundry_schedule ADD COLUMN IF NOT EXISTS last_tick_at timestamptz;
+ALTER TABLE public.foundry_schedule ADD COLUMN IF NOT EXISTS last_tick_result jsonb NOT NULL DEFAULT '{}'::jsonb;
+CREATE INDEX IF NOT EXISTS foundry_tasks_priority_idx ON public.foundry_tasks(state, priority DESC, created_at);
