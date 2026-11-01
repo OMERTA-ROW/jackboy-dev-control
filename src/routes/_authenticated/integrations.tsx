@@ -18,10 +18,11 @@ const ITEMS = [
   {
     name: "Lovable project inventory",
     icon: Blocks,
-    scope: "Read owner-approved project IDs and revisions, then queue diagnostics without changing projects.",
+    scope:
+      "The current project list was registered once through the owner's Codex connection. Automatic revision sync is not connected.",
     needs: [
-      "A server-side Lovable API connection scoped to the owner's workspace",
-      "An owner-approved project scope and exclusions",
+      "Lovable API connector requires Business or Enterprise; this workspace is currently Pro",
+      "A server-side key limited to workspace and project reads, created by the owner",
       "A verified sync that deduplicates project ID and revision",
     ],
   },
