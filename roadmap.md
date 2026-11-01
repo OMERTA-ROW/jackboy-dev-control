@@ -59,3 +59,6 @@ The spoken acronym “NLOA” is unconfirmed in Notion. Do not infer a technical
 - [ ] Deployment target / distribution step — no deploy connection authorized
 - [x] Permanent site log (append-only, redacted, searchable, CSV/JSON export), report outbox for RA'SUL/OMNI/JAX with retries, GitHub code research with license checks and pattern library
 - [ ] RA'SUL/OMNI/JAX report delivery — blocked: real endpoints and keys (RAZUL_API_URL/KEY, OMNI_API_URL/KEY, JAX_API_URL/KEY) and agreed receiving contract
+- [x] AutoConnect slice: per-project capabilities, Approve & Connect with exact permissions, real verification (GitHub repo, GitHub Actions read, AI model), pause/revoke, auto-resume of waiting Foundry tests
+- [ ] GitHub Actions read — owner must add "Actions: Read-only" to the GitHub token, then press Verify now
+- [ ] GitHub App / OAuth sign-in flow for GitHub, Google, Notion — needs owner-created provider app credentials; browser runner and deploy adapters not available
