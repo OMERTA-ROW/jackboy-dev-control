@@ -220,13 +220,13 @@ export const getVoiceChatStatus = createServerFn({ method: "POST" })
     return {
       available:
         currentRole !== "member" &&
-        Boolean(process.env.OPENAI_API_KEY) &&
-        process.env.JACKBOY_VOICE_AI_ENABLED === "true",
+        Boolean(process.env["OPENAI_API_KEY"]) &&
+        process.env["JACKBOY_VOICE_AI_ENABLED"] === "true",
       voiceAvailable:
         currentRole !== "member" &&
-        Boolean(process.env.ELEVENLABS_API_KEY) &&
-        Boolean(process.env.JACKBOY_ELEVEN_VOICE_ID) &&
-        process.env.JACKBOY_ELEVEN_ENABLED === "true",
+        Boolean(process.env["ELEVENLABS_API_KEY"]) &&
+        Boolean(process.env["JACKBOY_ELEVEN_VOICE_ID"]) &&
+        process.env["JACKBOY_ELEVEN_ENABLED"] === "true",
       model: "gpt-6-luna",
     };
   });
@@ -237,9 +237,9 @@ export const synthesizeJackboy = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ text: z.string().trim().min(1).max(900) }).parse(d))
   .handler(async ({ data, context }) => {
     if ((await role(context)) === "member") throw new Error("Owner or admin only.");
-    const key = process.env.ELEVENLABS_API_KEY;
-    const voiceId = process.env.JACKBOY_ELEVEN_VOICE_ID;
-    if (!key || !voiceId || process.env.JACKBOY_ELEVEN_ENABLED !== "true")
+    const key = process.env["ELEVENLABS_API_KEY"];
+    const voiceId = process.env["JACKBOY_ELEVEN_VOICE_ID"];
+    if (!key || !voiceId || process.env["JACKBOY_ELEVEN_ENABLED"] !== "true")
       throw new Error("ElevenLabs voice is not enabled.");
     if (!/^[a-zA-Z0-9_-]{10,80}$/.test(voiceId)) throw new Error("ElevenLabs voice ID is invalid.");
     const since = new Date(Date.now() - 60_000).toISOString();
@@ -286,7 +286,7 @@ export const chatWithJackboy = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     if ((await role(context)) === "member") throw new Error("Owner or admin only.");
-    if (!process.env.OPENAI_API_KEY || process.env.JACKBOY_VOICE_AI_ENABLED !== "true")
+    if (!process.env["OPENAI_API_KEY"] || process.env["JACKBOY_VOICE_AI_ENABLED"] !== "true")
       throw new Error("AI chat is not enabled.");
     if (data.messages.at(-1)?.role !== "user") throw new Error("The latest message must be from the user.");
 
@@ -317,7 +317,7 @@ export const chatWithJackboy = createServerFn({ method: "POST" })
     try {
       response = await fetch("https://api.openai.com/v1/responses", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env["OPENAI_API_KEY"]}` },
         body: JSON.stringify({
           model: "gpt-6-luna",
           reasoning: { effort: "none" },

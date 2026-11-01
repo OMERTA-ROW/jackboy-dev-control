@@ -141,7 +141,7 @@ function InternalTaskQueue() {
           {error}
         </p>
       )}
-      {data && data.role !== "member" && (
+      {data && (
         <form
           className="mt-4 space-y-3"
           onSubmit={async (e) => {

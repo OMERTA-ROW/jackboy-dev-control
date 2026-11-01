@@ -211,7 +211,7 @@ function Dashboard() {
     </>
   );
 }
-function Metric({ name, value, to }: { name: string; value?: number; to: "/agents" | "/omni" }) {
+function Metric({ name, value, to }: { name: string; value: number | undefined; to: "/agents" | "/omni" }) {
   return (
     <Link to={to} className={card + " block hover:border-electric"}>
       <div className={label}>{name}</div>
