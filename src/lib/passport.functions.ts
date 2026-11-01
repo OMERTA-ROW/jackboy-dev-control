@@ -211,3 +211,89 @@ export const getDashboardFacts = createServerFn({ method: "POST" })
       omniVerified: OMNI_VERIFIED,
     };
   });
+
+/** Voice chat uses a server-held key. Configuration is reported without exposing the key. */
+export const getVoiceChatStatus = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const currentRole = await role(context);
+    return {
+      available:
+        currentRole !== "member" &&
+        Boolean(process.env.OPENAI_API_KEY) &&
+        process.env.JACKBOY_VOICE_AI_ENABLED === "true",
+      model: "gpt-6-luna",
+    };
+  });
+
+const voiceMessage = z.object({ role: z.enum(["user", "assistant"]), content: z.string().trim().min(1).max(1000) });
+
+/** Bounded, owner-authenticated text conversation; browser audio is never sent to this function. */
+export const chatWithJackboy = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({ messages: z.array(voiceMessage).min(1).max(12), tone: z.enum(["direct", "balanced", "witty"]) })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    if ((await role(context)) === "member") throw new Error("Owner or admin only.");
+    if (!process.env.OPENAI_API_KEY || process.env.JACKBOY_VOICE_AI_ENABLED !== "true")
+      throw new Error("AI chat is not enabled.");
+    if (data.messages.at(-1)?.role !== "user") throw new Error("The latest message must be from the user.");
+
+    const since = new Date(Date.now() - 60_000).toISOString();
+    const recent = await context.supabase
+      .from("audit_logs")
+      .select("id", { count: "exact", head: true })
+      .eq("actor", context.userId)
+      .eq("action", "voice.chat.request")
+      .gte("at", since);
+    if (recent.error) throw new Error("Could not check chat rate limit.");
+    if ((recent.count ?? 0) >= 8) throw new Error("Voice chat limit reached. Wait a minute and try again.");
+    const recorded = await audit(context, "voice.chat.request", {
+      model: "gpt-6-luna",
+      turns: data.messages.length,
+      characters: data.messages.at(-1)?.content.length,
+    });
+    if (recorded.error) throw new Error("Could not record the chat request.");
+
+    const tone =
+      data.tone === "direct"
+        ? "Be direct and concise."
+        : data.tone === "witty"
+          ? "Use a little natural wit when appropriate."
+          : "Be conversational and clear.";
+    const instructions = `You are Jackboy, a trustworthy software maintenance assistant in the owner's private workspace. Speak naturally, with confidence and warmth. ${tone} Never imitate a racial dialect, force slang, or caricature a person. Be serious about security, failures, payments, and approvals. You have no tools in this chat and cannot inspect live systems, browse, edit code, run agents, or change settings. Do not claim you did those things. If asked to take an action, explain the relevant screen or next step; consequential actions require explicit approval in the normal app workflow. The OMNI dispatcher and Mac connection are not verified through this chat. Do not ask for passwords or secrets.`;
+    let response: Response;
+    try {
+      response = await fetch("https://api.openai.com/v1/responses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+        body: JSON.stringify({
+          model: "gpt-6-luna",
+          reasoning: { effort: "none" },
+          instructions,
+          input: data.messages,
+          max_output_tokens: 400,
+          store: false,
+        }),
+        signal: AbortSignal.timeout(20_000),
+      });
+    } catch {
+      throw new Error("AI chat could not reach the model. Try again.");
+    }
+    if (!response.ok) throw new Error(`AI chat is unavailable (${response.status}).`);
+    const payload = (await response.json()) as {
+      output?: Array<{ type?: string; content?: Array<{ type?: string; text?: string }> }>;
+    };
+    const answer = (payload.output ?? [])
+      .filter((item) => item.type === "message")
+      .flatMap((item) => item.content ?? [])
+      .filter((item) => item.type === "output_text")
+      .map((item) => item.text ?? "")
+      .join("\n")
+      .trim();
+    if (!answer) throw new Error("AI chat returned no reply. Try again.");
+    return { answer: answer.slice(0, 3000) };
+  });
