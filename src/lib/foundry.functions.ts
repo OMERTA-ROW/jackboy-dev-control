@@ -166,7 +166,12 @@ export const decideAction = createServerFn({ method: "POST" }).middleware([requi
     let outcome = "denied";
     try {
       if (!allowed) { await s.decide(r!.task_id!, actor, "reject"); }
-      else { await s.decide(r!.task_id!, actor, "approve", r!.action as "open_draft_pr" | "read_checks"); outcome = "completed"; }
+      else {
+        await s.decide(r!.task_id!, actor, "approve", r!.action as "open_draft_pr" | "read_checks");
+        // Report what actually happened to the task, never assume success.
+        const { data: after } = await supabaseAdmin.from("foundry_tasks").select("state, blocked_reason").eq("id", r!.task_id!).single();
+        outcome = after?.state === "completed" ? "completed" : `action_required: ${after?.state ?? "unknown"}${after?.blocked_reason ? ` (${after.blocked_reason})` : ""}`;
+      }
     } catch (e) { outcome = `action_required: ${(e as Error).message}`.slice(0, 500); }
     await supabaseAdmin.from("action_requests").update({ outcome }).eq("id", data.id);
     return { status: allowed ? "allowed" : "denied", outcome };
