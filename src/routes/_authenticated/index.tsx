@@ -126,7 +126,7 @@ function Home() {
   );
 }
 
-function WorkList({ title, rows, empty, action }: { title: string; rows: { id: string; title: string; reason: string; pr_url: string | null }[]; empty: string; action?: (r: never) => React.ReactNode }) {
+function WorkList({ title, rows, empty, action }: { title: string; rows: { id: string; title: string; status: string; reason: string; pr_url: string | null }[]; empty: string; action?: (r: { id: string; title: string; status: string }) => React.ReactNode }) {
   return (
     <div className="panel p-4">
       <h2 className="mb-2 text-sm font-semibold">{title}</h2>
@@ -134,7 +134,7 @@ function WorkList({ title, rows, empty, action }: { title: string; rows: { id: s
         <ul className="space-y-2">{rows.map((r) => (
           <li key={r.id} className="flex items-start justify-between gap-2 text-sm">
             <div className="min-w-0"><p className="truncate">{r.title}</p><p className="text-xs text-muted-foreground">{r.reason}{r.pr_url && <> · <a href={r.pr_url} target="_blank" rel="noreferrer" className="text-electric">PR</a></>}</p></div>
-            {action?.(r as never)}
+            {action?.(r)}
           </li>))}</ul>
       )}
     </div>
