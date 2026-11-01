@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 import { PageHeader } from "@/components/AppShell";
 import { StatusPill, btn, primaryBtn } from "@/components/ProjectBits";
@@ -30,19 +31,20 @@ function Home() {
   const [err, setErr] = useState("");
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
+  const navigate = useNavigate();
   const refresh = useCallback(() => load().then(setHub).catch((e) => setErr((e as Error).message)), [load]);
   useEffect(() => { void refresh(); }, [refresh]);
   const last = hub ? latestScans(hub.scans) : new Map();
 
   const runScan = async (id: string, name: string) => {
     setBusy(id); setErr(""); setMsg("");
-    try { const r = await scan({ data: { id } }); setMsg(`${name}: checked ${r.pages} page(s), ${r.findings} finding(s).`); await refresh(); }
+    try { const r = await scan({ data: { id } }); setMsg(`${name}: checked ${r.pages} page(s), ${r.findings} finding(s).`); navigate({ to: "/project/$id", params: { id } }); }
     catch (e) { setErr((e as Error).message); } finally { setBusy(null); }
   };
 
   return (
     <>
-      <PageHeader title="Home" subtitle="Connect a project, check its status, and scan it." />
+      <PageHeader title="Home" subtitle="Select project → Scan → Review demo items and errors → Repair → Verify." />
       <section className="panel mb-6 flex flex-col items-start gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="font-semibold">Add a project to Jackboy</h2>
@@ -73,7 +75,7 @@ function Home() {
                   </div>
                   <p className="truncate text-xs text-muted-foreground">{p.site_url ?? "No site address"}{waiting ? ` · ${waiting} waiting for approval` : ""}</p>
                   <div className="mt-auto flex gap-2">
-                    <button className={btn} disabled={!p.site_url || busy !== null} onClick={() => runScan(p.id, p.name)}>{busy === p.id ? "Scanning…" : "Scan"}</button>
+                    <button className={btn} disabled={!p.site_url || busy !== null} onClick={() => runScan(p.id, p.name)}>{busy === p.id ? "Scanning…" : "Scan & Review"}</button>
                     <Link to="/project/$id" params={{ id: p.id }} className={btn}>Manage</Link>
                   </div>
                 </li>

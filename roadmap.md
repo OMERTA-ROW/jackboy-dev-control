@@ -47,3 +47,5 @@ Source: [Jackboy Updates — Competitive Advantage, Architecture & Business Foun
 The spoken acronym “NLOA” is unconfirmed in Notion. Do not infer a technical architecture from it.
 - [x] Simple owner flow: Home with Connect Project, searchable Projects, connect wizard with saved-inventory picker, project detail, advanced tools under Settings
 - [ ] Live Lovable project list — blocked: needs Lovable account connection (Business/Enterprise plan)
+- [x] Scan & Review: demo/placeholder detection, per-finding Remove Demo/Repair/Ignore with undo, per-project automation settings, chat microphone + spoken replies (browser)
+- [ ] Demo removal / repair delivered as code — blocked: GITHUB_TOKEN secret and a project with a private repo

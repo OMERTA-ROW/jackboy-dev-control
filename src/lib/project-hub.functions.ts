@@ -44,3 +44,59 @@ export const getProjectDetail = createServerFn({ method: "POST" }).middleware([r
     for (const r of [p, s, q]) if (r.error) throw new Error(r.error.message);
     return { project: (p.data ?? null) as HubRow | null, scans: (s.data ?? []) as HubScanRow[], proposals: (q.data ?? []) as HubProposal[], githubConfigured: Boolean(process.env["GITHUB_TOKEN"]) };
   });
+
+export type Decision = { finding_key: string; decision: "ignored" | "remove_demo" | "repair"; proposal_id: string | null; created_at: string };
+
+export const getDecisions = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    await owner(context);
+    const [d, p] = await Promise.all([
+      context.supabase.from("finding_decisions").select("finding_key,decision,proposal_id,created_at").eq("project_id", data.id),
+      context.supabase.from("owner_projects").select("demo_detection,repair_policy").eq("id", data.id).maybeSingle(),
+    ]);
+    if (d.error) throw new Error(d.error.message);
+    return { decisions: (d.data ?? []) as Decision[], demoDetection: p.data?.demo_detection !== false, repairPolicy: (p.data?.repair_policy ?? "autopilot") as "autopilot" | "approve" };
+  });
+
+/** Ignore / Remove Demo / Repair one finding. Remove Demo always goes to the approval queue (never auto-shipped). */
+export const actOnFinding = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ scanId: z.string().uuid(), index: z.number().int().min(0).max(199), action: z.enum(["ignored", "remove_demo", "repair"]) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await owner(context);
+    const { findingKey } = await import("./autopilot");
+    const { data: scan } = await context.supabase.from("site_scans").select("project_id, findings").eq("id", data.scanId).single();
+    const f = (scan?.findings as HubScanRow["findings"] | undefined)?.[data.index];
+    if (!scan || !f) throw new Error("Finding not found.");
+    if (data.action === "remove_demo" && f.kind !== "demo") throw new Error("Only demo findings can be removed as demo.");
+    let proposalId: string | null = null; let note = "Ignored. You can undo this.";
+    if (data.action !== "ignored") {
+      const s = await import("./autopilot.server");
+      const r = await s.writeFix(scan.project_id, `- [${f.severity}] ${f.kind} ${f.url}: ${f.message}`, data.action === "remove_demo" ? "demo" : "scan", context.userId, undefined, { forceApproval: data.action === "remove_demo" });
+      proposalId = r.id; note = r.note;
+    }
+    const { error } = await context.supabase.from("finding_decisions").upsert({ project_id: scan.project_id, finding_key: findingKey(f), decision: data.action, proposal_id: proposalId, message: f.message.slice(0, 500), decided_by: context.userId }, { onConflict: "project_id,finding_key" });
+    if (error) throw new Error(error.message);
+    await context.supabase.rpc("write_audit", { _action: `findings.${data.action}`, _detail: { project: scan.project_id, kind: f.kind, url: f.url, proposal: proposalId }, _outcome: "ok" });
+    return { note };
+  });
+
+export const undoDecision = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ projectId: z.string().uuid(), key: z.string().max(500) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await owner(context);
+    const { error } = await context.supabase.from("finding_decisions").delete().eq("project_id", data.projectId).eq("finding_key", data.key).eq("decision", "ignored");
+    if (error) throw new Error(error.message);
+    await context.supabase.rpc("write_audit", { _action: "findings.unignore", _detail: { project: data.projectId }, _outcome: "ok" });
+    return { ok: true };
+  });
+
+export const setProjectPrefs = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), demo_detection: z.boolean(), repair_policy: z.enum(["autopilot", "approve"]) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await owner(context);
+    const { error } = await context.supabase.from("owner_projects").update({ demo_detection: data.demo_detection, repair_policy: data.repair_policy }).eq("id", data.id);
+    if (error) throw new Error(error.message);
+    await context.supabase.rpc("write_audit", { _action: "projects.prefs", _detail: data, _outcome: "ok" });
+    return { ok: true };
+  });

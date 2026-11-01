@@ -27,7 +27,7 @@ async function timedFetch(url: string, method = "GET") {
 
 /** Crawls same-origin pages (static HTML only; no JavaScript is run) and stores a findings report. */
 export async function scanSite(projectId: string, trigger: string, actor: string | null) {
-  const { data: p } = await supabaseAdmin.from("owner_projects").select("id, name, site_url").eq("id", projectId).single();
+  const { data: p } = await supabaseAdmin.from("owner_projects").select("id, name, site_url, demo_detection").eq("id", projectId).single();
   if (!p?.site_url) throw new Error("This project has no site URL.");
   if (!safeFetchUrl(p.site_url)) throw new Error("Site URL must be a public http(s) address.");
   const { data: scan } = await supabaseAdmin.from("site_scans").insert({ project_id: projectId, trigger }).select("id").single();
@@ -43,7 +43,7 @@ export async function scanSite(projectId: string, trigger: string, actor: string
       if (ms > 3000) findings.push({ severity: "medium", kind: "performance", url, message: `Slow response: ${ms} ms.` });
       if (!(res.headers.get("content-type") ?? "").includes("html")) continue;
       const html = (await res.text()).slice(0, 2_000_000);
-      findings.push(...analyzeHtml(html, url));
+      findings.push(...analyzeHtml(html, url).filter((x) => x.kind !== "demo" || (p as { demo_detection?: boolean }).demo_detection !== false));
       for (const l of extractLinks(html, url)) {
         if (l.startsWith(origin)) { if (!seen.has(l) && !queue.includes(l)) queue.push(l); }
         else links.add(l);
@@ -70,7 +70,7 @@ export async function scanSite(projectId: string, trigger: string, actor: string
 }
 
 /** Writes a fix from findings or error reports. Autopilot on → opens a PR; off → waits in the Update Queue. */
-export async function writeFix(projectId: string, problem: string, source: "scan" | "health" | "chat", actor: string | null, scanId?: string) {
+export async function writeFix(projectId: string, problem: string, source: "scan" | "health" | "chat" | "demo", actor: string | null, scanId?: string, opts: { forceApproval?: boolean } = {}) {
   const s = await settings();
   const cap = await capCheck("ai", s.monthly_ai_cap);
   if (cap) throw new Error(cap);
@@ -81,6 +81,7 @@ export async function writeFix(projectId: string, problem: string, source: "scan
   const input = [
     `Project: ${p.name}`, p.site_url ? `Live site: ${p.site_url}` : "", `Goals:\n${p.goals || "(none)"}`,
     `TASK: Fix the most important problems below with the smallest safe change. Focus on bugs, broken pages/links, errors, forms and performance, not new features.`,
+    source === "demo" ? `DEMO CLEANUP RULES: Hide or remove ONLY the demo/placeholder UI listed (banners, "demo mode" badges, demo-only buttons/pages, mock controls). Never remove real features, data handling, auth, payments, routes backing real functionality, or user data. Prefer hiding behind a production check over deleting. If you cannot confirm a control is demo-only, leave it and say so in "why". Never relabel an unconnected integration as working.` : "",
     `Problems found (${source}):\n${problem.slice(0, 12000)}`,
     ctx ? `Repository file list (${ctx.paths.length}):\n${ctx.paths.join("\n")}\n\nKey files:\n${ctx.files.join("\n\n")}` : "No repository access: return files as [].",
   ].filter(Boolean).join("\n\n");
@@ -92,10 +93,10 @@ export async function writeFix(projectId: string, problem: string, source: "scan
     throw e;
   }
   const files = ctx ? d.files : [];
-  const auto = s.autopilot_enabled && p.autopilot;
+  const auto = !opts.forceApproval && s.autopilot_enabled && p.autopilot && (p as { repair_policy?: string }).repair_policy !== "approve";
   const { data: row, error } = await supabaseAdmin.from("update_proposals").insert({
     project_id: projectId, title: d.title, what_to_change: d.what_to_change, why: d.why, build_prompt: d.build_prompt,
-    files: files as never, model: MODEL, trigger: source === "chat" ? "manual" : "scheduled", source, delivery_error: note || null,
+    files: files as never, model: MODEL, trigger: source === "chat" || source === "demo" ? "manual" : "scheduled", source, delivery_error: note || null,
     autopilot_note: auto ? "Autopilot: will ship after checks pass" : "Autopilot off: waiting for your approval",
   }).select("id").single();
   if (error || !row) throw new Error(error?.message ?? "Could not save the fix.");
