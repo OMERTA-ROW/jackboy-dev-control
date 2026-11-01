@@ -84,7 +84,7 @@ function Updates() {
       <h2 className="mb-2 mt-8 text-sm font-semibold uppercase tracking-wider text-silver">Audit log</h2>
       <ul className="panel space-y-1 p-4 font-mono text-xs">
         {q.log.length === 0 && <li className="text-muted-foreground">Nothing yet.</li>}
-        {q.log.map((l) => <li key={l.id}>{new Date(l.at).toLocaleString()} · {l.action} · <span className={l.outcome === "ok" ? "" : "text-destructive"}>{l.outcome}</span>{typeof l.detail["name"] === "string" ? ` · ${l.detail["name"]}` : typeof l.detail["title"] === "string" ? ` · ${l.detail["title"]}` : ""}</li>)}
+        {q.log.map((l) => <li key={l.id}>{new Date(l.at).toLocaleString()} · {l.action} · <span className={l.outcome === "ok" ? "" : "text-destructive"}>{l.outcome}</span>{l.detail?.name ? ` · ${l.detail.name}` : l.detail?.title ? ` · ${l.detail.title}` : ""}</li>)}
       </ul>
     </>
   );

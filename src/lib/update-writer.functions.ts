@@ -61,7 +61,7 @@ export const getQueue = createServerFn({ method: "POST" }).middleware([requireSu
   return {
     proposals: (p.data ?? []) as Array<{ id: string; project_id: string; status: ProposalStatus; title: string; what_to_change: string; why: string; build_prompt: string; model: string | null; trigger: string; edited: boolean; created_at: string; decided_at: string | null; owner_projects: { name: string; lovable_url: string | null } | null }>,
     settings: s.data as { frequency_hours: number; last_run_at: string | null; paused_reason: string | null; lock_until: string | null } | null,
-    log: (l.data ?? []) as Array<{ id: string; at: string; action: string; outcome: string; detail: Record<string, unknown> }>,
+    log: (l.data ?? []) as Array<{ id: string; at: string; action: string; outcome: string; detail: { name?: string; title?: string } }>,
   };
 });
 
@@ -82,7 +82,7 @@ export const setProposalStatus = createServerFn({ method: "POST" }).middleware([
     await owner(context);
     const { data: cur } = await context.supabase.from("update_proposals").select("status, title").eq("id", data.id).single();
     if (!cur) throw new Error("Proposal not found.");
-    if (!canTransition(cur.status, data.status)) throw new Error(`Can't move from ${cur.status} to ${data.status}.`);
+    if (!canTransition(cur.status as ProposalStatus, data.status)) throw new Error(`Can't move from ${cur.status} to ${data.status}.`);
     const { error } = await context.supabase.from("update_proposals").update({ status: data.status, decided_by: context.userId, decided_at: new Date().toISOString() }).eq("id", data.id);
     if (error) throw new Error(error.message);
     await audit(context, `updates.${data.status}`, { id: data.id, title: cur.title, from: cur.status });
@@ -93,8 +93,8 @@ export const setFrequency = createServerFn({ method: "POST" }).middleware([requi
   .inputValidator((d: unknown) => z.object({ hours: z.union([z.literal(0), z.literal(6), z.literal(12), z.literal(24), z.literal(72), z.literal(168)]), clearPause: z.boolean().optional() }).parse(d))
   .handler(async ({ data, context }) => {
     await owner(context);
-    const patch: Record<string, unknown> = { frequency_hours: data.hours, updated_at: new Date().toISOString() };
-    if (data.clearPause) patch["paused_reason"] = null;
+    const patch: { frequency_hours: number; updated_at: string; paused_reason?: null } = { frequency_hours: data.hours, updated_at: new Date().toISOString() };
+    if (data.clearPause) patch.paused_reason = null;
     const { error } = await context.supabase.from("update_writer_settings").update(patch).eq("id", 1);
     if (error) throw new Error(error.message);
     await audit(context, "updates.schedule", { hours: data.hours, resumed: Boolean(data.clearPause) });
