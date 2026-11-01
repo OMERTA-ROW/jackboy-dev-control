@@ -25,7 +25,7 @@ export function ProjectConnection({ projectId, onChanged }: { projectId: string;
     try {
       const grantId = await stepUp("approve_integration", `github_repo:${projectId}`);
       const r = await connect({ data: { projectId, repo, grantId } });
-      setMsg(r.connected ? `Connected. ${r.detail} First scan: ${JSON.stringify(r.scan)}` : `Not connected: ${r.detail}`);
+      setMsg(r.connected ? `Connected. ${r.detail} First scan: ${r.scan}` : `Not connected: ${r.detail}`);
       await refresh(); onChanged();
     } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
   };

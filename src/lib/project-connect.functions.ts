@@ -54,11 +54,11 @@ export const connectProject = createServerFn({ method: "POST" }).middleware([req
     const { logSite } = await import("./site-log.server");
     if (v.status !== "connected") {
       await logSite({ actor, action: "project_connect", category: "config", status: "blocked", project_id: data.projectId, repo: usable.repo, summary: `Connect ${usable.repo} blocked: ${v.detail}` });
-      return { connected: false, detail: v.detail, scan: null };
+      return { connected: false, detail: v.detail, scan: "not run" };
     }
     await context.supabase.from("owner_projects").update({ dev_enabled: true }).eq("id", data.projectId);
-    let scan: unknown = null;
-    try { scan = await (await import("./foundry.server")).inspectProject(data.projectId, actor, "manual", 1); } catch (e) { scan = { error: (e as Error).message }; }
-    await logSite({ actor, action: "project_connect", category: "config", status: "ok", project_id: data.projectId, repo: usable.repo, summary: `Connected ${usable.repo} (${v.detail}). Background work enabled; first scan: ${JSON.stringify(scan).slice(0, 200)}` });
+    let scan: string = "not run";
+    try { scan = JSON.stringify(await (await import("./foundry.server")).inspectProject(data.projectId, actor, "manual", 1)); } catch (e) { scan = `error: ${(e as Error).message}`; }
+    await logSite({ actor, action: "project_connect", category: "config", status: "ok", project_id: data.projectId, repo: usable.repo, summary: `Connected ${usable.repo} (${v.detail}). Background work enabled; first scan: ${scan.slice(0, 200)}` });
     return { connected: true, detail: v.detail, scan };
   });
