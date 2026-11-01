@@ -8,6 +8,7 @@ import { projectStatus } from "@/lib/project-hub";
 import { fixScan, scanNow, setProjectAutopilot } from "@/lib/autopilot.functions";
 import { deleteProject, runNow, saveProject } from "@/lib/update-writer.functions";
 import { SiteConnection } from "@/components/SiteConnection";
+import { ProjectConnection } from "@/components/ProjectConnection";
 import { FindingsReview, Steps } from "@/components/FindingsReview";
 import { FREQUENCIES, STATUS_LABEL, type ProposalStatus } from "@/lib/update-writer";
 
@@ -80,6 +81,7 @@ function Detail() {
           </div>
         </section>
 
+        <ProjectConnection projectId={p.id} onChanged={() => void refresh()} />
         <SiteConnection p={p} onChanged={() => void refresh()} onEdit={() => setEdit(true)} />
 
         <section className="panel p-5 lg:col-span-2" aria-labelledby="scan">
@@ -136,7 +138,7 @@ function EditForm({ p, onSave, onDelete }: { p: D["project"] & {}; onSave: (v: E
   return (
     <form onSubmit={(e) => { e.preventDefault(); onSave(v); }} className="panel mt-4 grid gap-3 p-5 sm:grid-cols-2">
       <h2 className="font-semibold sm:col-span-2">Edit details</h2>
-      {t("name", "Name")}{t("site_url", "Live site address")}{t("lovable_url", "Lovable link")}{t("github_repo", "Private repo (owner/repo)")}{t("github_branch", "Branch")}
+      {t("name", "Name")}{t("site_url", "Live site address")}{t("lovable_url", "Lovable link")}{t("github_repo", "GitHub repo (owner/repo)")}{t("github_branch", "Branch")}
       <label className="text-xs">Update schedule<select value={v.frequency_hours} onChange={(e) => setV({ ...v, frequency_hours: Number(e.target.value) })} className={`${field} mt-1`}>{FREQUENCIES.map((f) => <option key={f.hours} value={f.hours}>{f.label}</option>)}</select></label>
       {t("description", "Description", true)}{t("goals", "Goals", true)}{t("notes", "Recent notes", true)}
       <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={v.active} onChange={(e) => setV({ ...v, active: e.target.checked })} /> Include in scheduled updates</label>
