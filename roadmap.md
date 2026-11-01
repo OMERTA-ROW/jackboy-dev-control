@@ -23,6 +23,8 @@
 - [ ] Agent install verification (agent check-in) + sandbox/repo integrations — blocked: per-project agent runtime + credentials
 - [x] Agent Passport, per-agent feedback history, OMNI job queue (local), JAX consent enrollment
 - [ ] OMNI job dispatch + model adapters + Guardian verdicts — blocked: verified OMNI/Guardian APIs and model credentials
+- [x] Autopilot (master + per-project), auto-connect PR, site scans, auto-fix, staged auto-ship, Jackboy chat + activity feed
+- [ ] Autopilot PRs/shipping live — blocked: owner must add GITHUB_TOKEN secret and register a project with a private repo
 - [ ] GitHub / VS Code / OMNI / Honeycomb integrations — blocked: user credentials & details
 
 ## November 1 Notion build update

@@ -70,7 +70,7 @@ function AutopilotPage() {
       </div>
 
       <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-silver">Projects</h2>
-      {d.projects.length === 0 ? <p className="text-sm text-muted-foreground">No projects yet. <Link to="/projects" className="text-electric underline">Add one</Link>.</p> : (
+      {d.projects.length === 0 ? <p className="mb-8 text-sm text-muted-foreground">No projects yet. <Link to="/projects" className="text-electric underline">Add one</Link>.</p> : (
         <ul className="mb-8 grid gap-3 md:grid-cols-2">
           {d.projects.map((p) => {
             const last = d.scans.find((s) => s.project_id === p.id);
