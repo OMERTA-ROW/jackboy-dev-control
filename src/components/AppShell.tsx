@@ -29,6 +29,8 @@ const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutGrid },
   { to: "/projects", label: "Projects", icon: LayoutGrid },
   { to: "/updates", label: "Update Queue", icon: ScrollText },
+  { to: "/releases", label: "Releases", icon: Send },
+  { to: "/update-docs", label: "Update Docs", icon: Code2 },
   { to: "/feeds", label: "Live Feeds", icon: Radar },
   { to: "/workspace", label: "Inspect", icon: Code2 },
   { to: "/discovery", label: "Discovery", icon: Radar },
