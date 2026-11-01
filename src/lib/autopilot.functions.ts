@@ -23,8 +23,8 @@ export const getAutopilot = createServerFn({ method: "POST" }).middleware([requi
   return {
     master: Boolean(s.data?.autopilot_enabled), paused: (s.data?.paused_reason ?? null) as string | null,
     projects: (p.data ?? []) as Array<{ id: string; name: string; site_url: string | null; github_repo: string | null; autopilot: boolean; connect_state: string; connect_pr_url: string | null; connect_error: string | null }>,
-    scans: (sc.data ?? []) as ScanRow[],
-    activity: (a.data ?? []) as Array<{ id: string; at: string; action: string; outcome: string; detail: Record<string, unknown> }>,
+    scans: (sc.data ?? []) as unknown as ScanRow[],
+    activity: (a.data ?? []) as Array<{ id: string; at: string; action: string; outcome: string; detail: { name?: string; title?: string; error?: string; command?: string; project?: string; on?: boolean } }>,
     githubConfigured: Boolean(process.env["GITHUB_TOKEN"]),
   };
 });

@@ -113,7 +113,7 @@ export function ActivityFeed({ refreshKey = 0 }: { refreshKey?: number }) {
       {!items ? <p className="text-xs text-muted-foreground">Loading…</p> : items.length === 0 ? <p className="text-xs text-muted-foreground">No actions yet.</p> : (
         <ol className="space-y-2 text-xs">
           {items.map((a) => {
-            const d = a.detail as { name?: string; title?: string; error?: string; command?: string; project?: string; on?: boolean };
+            const d = a.detail;
             return (
               <li key={a.id} className="border-l-2 border-border pl-2">
                 <div className={a.outcome === "error" ? "text-destructive" : a.outcome === "ok" ? "" : "text-electric"}>{ACTION_LABEL[a.action] ?? a.action}{d.on !== undefined ? ` → ${d.on ? "on" : "off"}` : ""}</div>
