@@ -52,7 +52,7 @@ function ActivityPage() {
               <button key={f} aria-pressed={filter === f} onClick={() => setFilter(f)}
                 className={`rounded px-2 py-1 text-xs capitalize ${filter === f ? "bg-secondary text-silver" : "text-muted-foreground"}`}>{f}</button>
             ))}
-            <button onClick={() => setState((x) => ({ ...x, logs: [] }))} className="ml-2 rounded border border-destructive/40 px-2 py-1 text-xs text-destructive">Clear</button>
+            <button onClick={() => setState((x) => ({ ...x, logs: [] }))} className="ml-2 rounded border border-destructive/40 px-2 py-1 text-xs text-destructive">Clear log</button>
           </div>
         </div>
         {logs.length === 0 ? <p className="text-sm text-muted-foreground">No entries.</p> : (
