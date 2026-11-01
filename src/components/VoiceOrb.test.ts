@@ -8,6 +8,7 @@ describe("orb state follows real session events", () => {
     expect(orbMode("idle", true, true)).toBe("thinking");
     expect(orbMode("idle", false, false)).toBe("muted");
     expect(orbMode("idle", false, true)).toBe("idle");
-    expect(orbMode("error", true, true)).toBe("error");
+    expect(orbMode("error", false, true)).toBe("error");
+    expect(orbMode("error", true, true)).toBe("thinking");
   });
 });

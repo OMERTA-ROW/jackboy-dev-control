@@ -6,10 +6,10 @@ const LABEL: Record<OrbMode, string> = { idle: "Ready", muted: "Spoken replies m
 
 /** Orb state comes only from real session events: mic state, transcription, chat request in flight, speech engine. */
 export function orbMode(voice: VoiceState, chatBusy: boolean, speakReplies: boolean): OrbMode {
-  if (voice === "error") return "error";
   if (voice === "listening") return "listening";
   if (voice === "speaking") return "speaking";
   if (voice === "processing" || chatBusy) return "thinking";
+  if (voice === "error") return "error";
   return speakReplies ? "idle" : "muted";
 }
 
