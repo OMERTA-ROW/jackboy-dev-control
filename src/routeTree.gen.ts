@@ -36,6 +36,7 @@ import { Route as AuthenticatedRazulRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedReleasesRouteImport } from './routes/_authenticated/releases'
 import { Route as AuthenticatedResearchRouteImport } from './routes/_authenticated/research'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
+import { Route as AuthenticatedSiteLogRouteImport } from './routes/_authenticated/site-log'
 import { Route as AuthenticatedUpdateDocsRouteImport } from './routes/_authenticated/update-docs'
 import { Route as AuthenticatedUpdatesRouteImport } from './routes/_authenticated/updates'
 import { Route as AuthenticatedWorkspaceRouteImport } from './routes/_authenticated/workspace'
@@ -187,6 +188,11 @@ const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedSiteLogRoute = AuthenticatedSiteLogRouteImport.update({
+  id: '/site-log',
+  path: '/site-log',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedUpdateDocsRoute = AuthenticatedUpdateDocsRouteImport.update({
   id: '/update-docs',
   path: '/update-docs',
@@ -293,6 +299,7 @@ export interface FileRoutesByFullPath {
   '/releases': typeof AuthenticatedReleasesRoute
   '/research': typeof AuthenticatedResearchRoute
   '/settings': typeof AuthenticatedSettingsRoute
+  '/site-log': typeof AuthenticatedSiteLogRoute
   '/update-docs': typeof AuthenticatedUpdateDocsRoute
   '/updates': typeof AuthenticatedUpdatesRoute
   '/workspace': typeof AuthenticatedWorkspaceRoute
@@ -335,6 +342,7 @@ export interface FileRoutesByTo {
   '/releases': typeof AuthenticatedReleasesRoute
   '/research': typeof AuthenticatedResearchRoute
   '/settings': typeof AuthenticatedSettingsRoute
+  '/site-log': typeof AuthenticatedSiteLogRoute
   '/update-docs': typeof AuthenticatedUpdateDocsRoute
   '/updates': typeof AuthenticatedUpdatesRoute
   '/workspace': typeof AuthenticatedWorkspaceRoute
@@ -380,6 +388,7 @@ export interface FileRoutesById {
   '/_authenticated/releases': typeof AuthenticatedReleasesRoute
   '/_authenticated/research': typeof AuthenticatedResearchRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
+  '/_authenticated/site-log': typeof AuthenticatedSiteLogRoute
   '/_authenticated/update-docs': typeof AuthenticatedUpdateDocsRoute
   '/_authenticated/updates': typeof AuthenticatedUpdatesRoute
   '/_authenticated/workspace': typeof AuthenticatedWorkspaceRoute
@@ -426,6 +435,7 @@ export interface FileRouteTypes {
     | '/releases'
     | '/research'
     | '/settings'
+    | '/site-log'
     | '/update-docs'
     | '/updates'
     | '/workspace'
@@ -468,6 +478,7 @@ export interface FileRouteTypes {
     | '/releases'
     | '/research'
     | '/settings'
+    | '/site-log'
     | '/update-docs'
     | '/updates'
     | '/workspace'
@@ -512,6 +523,7 @@ export interface FileRouteTypes {
     | '/_authenticated/releases'
     | '/_authenticated/research'
     | '/_authenticated/settings'
+    | '/_authenticated/site-log'
     | '/_authenticated/update-docs'
     | '/_authenticated/updates'
     | '/_authenticated/workspace'
@@ -739,6 +751,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/site-log': {
+      id: '/_authenticated/site-log'
+      path: '/site-log'
+      fullPath: '/site-log'
+      preLoaderRoute: typeof AuthenticatedSiteLogRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/update-docs': {
       id: '/_authenticated/update-docs'
       path: '/update-docs'
@@ -869,6 +888,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedReleasesRoute: typeof AuthenticatedReleasesRoute
   AuthenticatedResearchRoute: typeof AuthenticatedResearchRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
+  AuthenticatedSiteLogRoute: typeof AuthenticatedSiteLogRoute
   AuthenticatedUpdateDocsRoute: typeof AuthenticatedUpdateDocsRoute
   AuthenticatedUpdatesRoute: typeof AuthenticatedUpdatesRoute
   AuthenticatedWorkspaceRoute: typeof AuthenticatedWorkspaceRoute
@@ -899,6 +919,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedReleasesRoute: AuthenticatedReleasesRoute,
   AuthenticatedResearchRoute: AuthenticatedResearchRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
+  AuthenticatedSiteLogRoute: AuthenticatedSiteLogRoute,
   AuthenticatedUpdateDocsRoute: AuthenticatedUpdateDocsRoute,
   AuthenticatedUpdatesRoute: AuthenticatedUpdatesRoute,
   AuthenticatedWorkspaceRoute: AuthenticatedWorkspaceRoute,

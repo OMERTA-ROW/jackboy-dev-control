@@ -57,3 +57,5 @@ The spoken acronym “NLOA” is unconfirmed in Notion. Do not infer a technical
 - [ ] Hourly scheduler running the new Foundry code — needs publishing (schedule hits the published app)
 - [ ] Push-webhook scans — owner must add FOUNDRY_WEBHOOK_SECRET and set the repo webhook
 - [ ] Deployment target / distribution step — no deploy connection authorized
+- [x] Permanent site log (append-only, redacted, searchable, CSV/JSON export), report outbox for RA'SUL/OMNI/JAX with retries, GitHub code research with license checks and pattern library
+- [ ] RA'SUL/OMNI/JAX report delivery — blocked: real endpoints and keys (RAZUL_API_URL/KEY, OMNI_API_URL/KEY, JAX_API_URL/KEY) and agreed receiving contract

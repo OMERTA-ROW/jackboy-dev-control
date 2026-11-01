@@ -16,7 +16,10 @@ export const Route = createFileRoute("/api/public/jobs/releases")({
         const { foundryTick } = await import("@/lib/foundry.server");
         let foundry: unknown;
         try { foundry = await foundryTick(); } catch (e) { foundry = { error: (e as Error).message }; }
-        return Response.json({ releases, autopilot, foundry });
+        const { deliverOutbox } = await import("@/lib/site-log.server");
+        let outbox: unknown;
+        try { outbox = await deliverOutbox(); } catch (e) { outbox = { error: (e as Error).message }; }
+        return Response.json({ releases, autopilot, foundry, outbox });
       },
     },
   },

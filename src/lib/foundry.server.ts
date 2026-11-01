@@ -11,6 +11,11 @@ type Task = {
 
 async function event(task: Pick<Task, "id" | "project_id"> | null, action: string, actor: string, from: State | null, to: State | null, note = "", detail: Record<string, unknown> = {}) {
   await supabaseAdmin.from("foundry_events").insert({ task_id: task?.id ?? null, project_id: task?.project_id ?? null, action, actor, from_state: from, to_state: to, note: note.slice(0, 2000), detail: detail as never });
+  const cat = to === "patch_prepared" ? "patch" : to === "testing" || to === "awaiting_approval" ? "test" : to === "approved" || to === "rejected" ? "approval" : to === "failed" ? "error" : to === "rolled_back" ? "rollback" : action.includes("inspect") || to === "discovered" ? "inspection" : action.includes("schedule") || action.includes("pause") ? "config" : "activity";
+  const st = to === "completed" ? "ok" : to === "failed" ? "failed" : to === "blocked" ? "blocked" : to === "rolled_back" ? "rolled_back" : to === "awaiting_approval" ? "pending" : "info";
+  const d = detail as { branch?: string; commit_sha?: string; pr_url?: string; test_evidence?: { status?: string } };
+  const { logSite } = await import("./site-log.server");
+  await logSite({ actor, action: `foundry.${action}${to ? `:${to}` : ""}`, category: cat, status: st, summary: note || `${action}${to ? ` → ${to}` : ""}`, project_id: task?.project_id ?? null, task_id: task?.id ?? null, branch: d.branch ?? null, commit_sha: d.commit_sha ?? null, pr_url: d.pr_url ?? null, tests: d.test_evidence?.status ?? null });
 }
 
 async function move(t: Task, to: State, actor: string, note = "", patch: Record<string, unknown> = {}) {

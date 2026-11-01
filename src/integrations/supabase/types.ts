@@ -641,6 +641,12 @@ export type Database = {
           id: string
           key: string
           last_task_id: string | null
+          license: string | null
+          license_ok: boolean
+          origin: string
+          score: number
+          source_url: string | null
+          tags: string[]
           title: string
           updated_at: string
           verified_count: number
@@ -651,6 +657,12 @@ export type Database = {
           id?: string
           key: string
           last_task_id?: string | null
+          license?: string | null
+          license_ok?: boolean
+          origin?: string
+          score?: number
+          source_url?: string | null
+          tags?: string[]
           title: string
           updated_at?: string
           verified_count?: number
@@ -661,6 +673,12 @@ export type Database = {
           id?: string
           key?: string
           last_task_id?: string | null
+          license?: string | null
+          license_ok?: boolean
+          origin?: string
+          score?: number
+          source_url?: string | null
+          tags?: string[]
           title?: string
           updated_at?: string
           verified_count?: number
@@ -946,6 +964,71 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      log_outbox: {
+        Row: {
+          attempts: number
+          created_at: string
+          id: string
+          last_error: string | null
+          log_id: string
+          next_attempt_at: string
+          sent_at: string | null
+          status: string
+          target: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          log_id: string
+          next_attempt_at?: string
+          sent_at?: string | null
+          status?: string
+          target: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          log_id?: string
+          next_attempt_at?: string
+          sent_at?: string | null
+          status?: string
+          target?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "log_outbox_log_id_fkey"
+            columns: ["log_id"]
+            isOneToOne: false
+            referencedRelation: "site_log"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      log_subscriptions: {
+        Row: {
+          categories: string[]
+          enabled: boolean
+          target: string
+          updated_at: string
+        }
+        Insert: {
+          categories?: string[]
+          enabled?: boolean
+          target: string
+          updated_at?: string
+        }
+        Update: {
+          categories?: string[]
+          enabled?: boolean
+          target?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       omni_jobs: {
         Row: {
@@ -1321,6 +1404,69 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      site_log: {
+        Row: {
+          action: string
+          actor: string
+          at: string
+          branch: string | null
+          category: string
+          commit_sha: string | null
+          detail: Json
+          id: string
+          issue: string | null
+          license: string | null
+          pr_url: string | null
+          project_id: string | null
+          repo: string | null
+          source_url: string | null
+          status: string
+          summary: string
+          task_id: string | null
+          tests: string | null
+        }
+        Insert: {
+          action: string
+          actor: string
+          at?: string
+          branch?: string | null
+          category?: string
+          commit_sha?: string | null
+          detail?: Json
+          id?: string
+          issue?: string | null
+          license?: string | null
+          pr_url?: string | null
+          project_id?: string | null
+          repo?: string | null
+          source_url?: string | null
+          status?: string
+          summary: string
+          task_id?: string | null
+          tests?: string | null
+        }
+        Update: {
+          action?: string
+          actor?: string
+          at?: string
+          branch?: string | null
+          category?: string
+          commit_sha?: string | null
+          detail?: Json
+          id?: string
+          issue?: string | null
+          license?: string | null
+          pr_url?: string | null
+          project_id?: string | null
+          repo?: string | null
+          source_url?: string | null
+          status?: string
+          summary?: string
+          task_id?: string | null
+          tests?: string | null
+        }
+        Relationships: []
       }
       site_scans: {
         Row: {
