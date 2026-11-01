@@ -1,6 +1,7 @@
 // Server-only updater controller: authenticates enrolled targets by hashed token, applies policy, records install phases, triggers rollback.
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { checkForUpdate, evaluateRelease } from "./update-server.server";
+import { evaluateRelease } from "./update-server.server";
+import { compareVersions, pickRelease } from "./update-server";
 import { compatFromConfig, policyCheck, stateAfter, type InstallPhase } from "./update-policy";
 import { logSite } from "./site-log.server";
 
@@ -16,19 +17,27 @@ export async function targetFromRequest(request: Request) {
 }
 type Target = NonNullable<Awaited<ReturnType<typeof targetFromRequest>>>;
 
+/** Picks the newest serving release that passes policy for this target (so an incompatible newer release never blocks a compatible one or a rollback). */
 export async function targetCheck(t: Target, version: string) {
   await supabaseAdmin.from("update_targets").update({ current_version: version, last_seen_at: new Date().toISOString() }).eq("id", t.id);
-  const res = await checkForUpdate(t.project_id, t.channel, version, t.id);
-  if (!res.update) return { update: false };
-  const manifest = res.manifest as { release_id: string; version: string; channel: string; config?: unknown; compatibility?: unknown };
-  const { data: rel } = await supabaseAdmin.from("releases").select("status").eq("id", manifest.release_id).single();
-  const policy = policyCheck({ status: rel?.status ?? "unknown", channel: manifest.channel, version: manifest.version, compatibility: compatFromConfig(manifest.config) },
-    { channel: t.channel, platform: t.platform, current_version: version, revoked: false });
-  if (!policy.allow) {
-    await record(t, manifest.release_id, manifest.version, "policy_denied", policy.reasons.join("; "), `deny:${t.id}:${manifest.release_id}:${version}`);
-    return { update: false, policy };
+  const { data } = await supabaseAdmin.from("releases").select("id, version, status, rollout_percent, manifest, signature, artifact_path, config")
+    .eq("project_id", t.project_id).eq("channel", t.channel).in("status", ["rolling", "complete"]);
+  const rows = (data ?? []) as any[];
+  const denied: string[] = [];
+  const ok = rows.filter((r) => {
+    const p = policyCheck({ status: r.status, channel: t.channel, version: r.version, compatibility: compatFromConfig(r.config) }, { channel: t.channel, platform: t.platform, current_version: version, revoked: false });
+    if (!p.allow && compareVersions(r.version, version) > 0) denied.push(`${r.version}: ${p.reasons.join("; ")}`);
+    return p.allow;
+  });
+  const target = pickRelease(ok, t.id);
+  for (const d of denied) {
+    const rel = rows.find((r) => d.startsWith(r.version + ":"));
+    await record(t, rel?.id ?? null, rel?.version ?? version, "policy_denied", d, `deny:${t.id}:${rel?.id}:${version}`);
   }
-  return { update: true, rollback: policy.rollback, policy, manifest: res.manifest, signature: res.signature, download_url: res.download_url };
+  if (!target || !target.manifest || !target.signature || compareVersions(target.version, version) === 0) return { update: false, policy_denied: denied };
+  let download_url: string | null = null;
+  if (target.artifact_path) download_url = (await supabaseAdmin.storage.from("release-artifacts").createSignedUrl(target.artifact_path, 3600)).data?.signedUrl ?? null;
+  return { update: true, rollback: compareVersions(target.version, version) < 0, manifest: target.manifest, signature: target.signature, download_url, policy_denied: denied };
 }
 
 async function record(t: Target, releaseId: string | null, version: string, phase: InstallPhase, detail: string, key: string) {
