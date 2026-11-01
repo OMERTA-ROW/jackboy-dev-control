@@ -14,6 +14,59 @@ export type Database = {
   }
   public: {
     Tables: {
+      agent_memory: {
+        Row: {
+          branch: string | null
+          commit_sha: string | null
+          created_at: string
+          created_by: string | null
+          detail: Json
+          id: string
+          kind: string
+          notion_synced_at: string | null
+          project_id: string | null
+          repo: string | null
+          summary: string
+          url: string | null
+        }
+        Insert: {
+          branch?: string | null
+          commit_sha?: string | null
+          created_at?: string
+          created_by?: string | null
+          detail?: Json
+          id?: string
+          kind: string
+          notion_synced_at?: string | null
+          project_id?: string | null
+          repo?: string | null
+          summary: string
+          url?: string | null
+        }
+        Update: {
+          branch?: string | null
+          commit_sha?: string | null
+          created_at?: string
+          created_by?: string | null
+          detail?: Json
+          id?: string
+          kind?: string
+          notion_synced_at?: string | null
+          project_id?: string | null
+          repo?: string | null
+          summary?: string
+          url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_memory_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "owner_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       agent_project_tokens: {
         Row: {
           created_at: string
