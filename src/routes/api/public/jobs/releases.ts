@@ -9,7 +9,11 @@ export const Route = createFileRoute("/api/public/jobs/releases")({
         const authFailure = await authenticateCronRequest(request);
         if (authFailure) return authFailure;
         const { runReleaseJob } = await import("@/lib/update-server.server");
-        return Response.json(await runReleaseJob());
+        const releases = await runReleaseJob();
+        const { autopilotTick } = await import("@/lib/autopilot.server");
+        let autopilot: unknown;
+        try { autopilot = await autopilotTick(); } catch (e) { autopilot = { error: (e as Error).message }; }
+        return Response.json({ releases, autopilot });
       },
     },
   },
