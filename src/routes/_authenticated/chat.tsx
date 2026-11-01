@@ -94,7 +94,7 @@ function ChatPage() {
           {voice.error && <p role="alert" className="border-t border-destructive/40 px-4 py-2 text-xs text-destructive">{voice.error}</p>}
           {error && <p role="alert" className="border-t border-destructive/40 px-4 py-2 text-xs text-destructive">{error}</p>}
           <div
-            className={orbOpen ? "absolute inset-x-0 top-0 bottom-[9.5rem] z-10 flex touch-none select-none flex-col items-center justify-center bg-background/75 backdrop-blur-sm" : "relative border-t border-border pr-24"}
+            className={orbOpen ? "absolute inset-x-0 top-0 bottom-[9.5rem] z-10 flex touch-none select-none flex-col items-center justify-center bg-background/75 backdrop-blur-sm" : "flex items-center gap-1 border-t border-border pr-2 [&>div:first-child]:flex-1"}
             onPointerDown={orbOpen ? (e) => { dragged.current = false; drag.current = e.clientY; } : undefined}
             onPointerMove={orbOpen ? (e) => { if (drag.current !== null && e.clientY - drag.current > 48) { drag.current = null; dragged.current = true; setTimeout(() => { dragged.current = false; }, 400); dock(); } } : undefined}
             onPointerUp={() => { drag.current = null; }}
@@ -105,7 +105,7 @@ function ChatPage() {
             <LiveVoiceCall chatContext={chatContext} onTranscript={addVoiceTranscript} variant={orbOpen ? "expanded" : "docked"} />
             {orbOpen
               ? <button type="button" onClick={dock} className="mt-1 inline-flex min-h-11 items-center gap-1 rounded-full border border-border bg-background/80 px-4 text-xs text-silver hover:border-electric" aria-label="Dock voice orb above the message box and show the conversation"><ChevronDown className="h-4 w-4" />Drag down or tap to show chat</button>
-              : <button type="button" onClick={() => setOrbOpen(true)} className="absolute right-3 top-2 inline-flex min-h-9 items-center gap-1 rounded-full border border-border px-3 text-[11px] text-silver hover:border-electric" aria-label="Expand voice orb"><ChevronUp className="h-3.5 w-3.5" />Expand</button>}
+              : <button type="button" onClick={() => setOrbOpen(true)} className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-full border border-border px-3 text-[11px] text-silver hover:border-electric" aria-label="Expand voice orb"><ChevronUp className="h-3.5 w-3.5" />Expand</button>}
           </div>
           <div className="relative border-t border-border p-3">
             <PromptInput onSubmit={(msg) => send(msg.text)}>
