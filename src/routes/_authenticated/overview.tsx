@@ -8,10 +8,10 @@ import { MasterSwitch } from "./autopilot";
 import { log, resolveSuggestion, setState, useJackboy } from "@/lib/jackboy-store";
 import { getDashboardFacts } from "@/lib/passport.functions";
 
-export const Route = createFileRoute("/_authenticated/")({
+export const Route = createFileRoute("/_authenticated/overview")({
   head: () => ({
     meta: [
-      { title: "Dashboard — Jackboy" },
+      { title: "Advanced overview — Jackboy" },
       { name: "description", content: "Owner project and task status from authenticated Jackboy records." },
     ],
   }),
