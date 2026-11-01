@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/AppShell";
 import { actOnBlocker, getBlockers } from "@/lib/blockers.functions";
 import { approvalTarget, type Blocker } from "@/lib/blockers";
 import { useStepUp } from "@/lib/step-up-client";
+import { providerAuthFor } from "@/lib/provider-auth";
 
 export const Route = createFileRoute("/_authenticated/blockers")({
   head: () => ({
@@ -38,6 +39,25 @@ function Blockers() {
   const [busy, setBusy] = useState<string | null>(null);
   const refresh = useCallback(() => load().then(setD).catch((e) => setErr((e as Error).message)), [load]);
   useEffect(() => { void refresh(); }, [refresh]);
+  // After the owner returns from the provider's own page, re-run the real verification (never assume success).
+  const [waiting, setWaiting] = useState<string | null>(null);
+  const openAuth = (b: Blocker, url: string) => {
+    window.open(url, "jackboy-provider-auth", "popup,width=980,height=820,noopener");
+    setWaiting(b.id);
+  };
+  useEffect(() => {
+    if (!waiting || !d) return;
+    const onFocus = () => {
+      const b = d.blockers.find((x) => x.id === waiting);
+      setWaiting(null);
+      if (!b?.action || b.action.kind === "link_repo") return;
+      void act({ data: { cap: b.action.cap, projectId: b.projectId, op: "verify" } })
+        .then((r) => r.status === "connected" ? toast.success(`Verified on GitHub. ${r.resumed} waiting task(s) resumed.`) : toast.error(`Still not connected: ${r.detail}`))
+        .catch((e) => toast.error((e as Error).message)).finally(() => void refresh());
+    };
+    window.addEventListener("focus", onFocus, { once: true });
+    return () => window.removeEventListener("focus", onFocus);
+  }, [waiting, d, act, refresh]);
 
   const run = async (b: Blocker) => {
     if (!b.action || b.action.kind === "link_repo") return;
@@ -73,7 +93,21 @@ function Blockers() {
                 <dt className="text-muted-foreground">Fix</dt><dd>{b.remedy}</dd>
                 {b.waitingTasks.length > 0 && <><dt className="text-muted-foreground">Waiting work</dt><dd>{b.waitingTasks.join(" · ")}</dd></>}
               </dl>
-              <div className="mt-3 flex gap-2">
+              {b.action && b.action.kind !== "link_repo" && (() => {
+                const auth = providerAuthFor(b.action.cap, d.repos[b.projectId]);
+                if (!auth) return null;
+                return (
+                  <div className="mt-3 rounded-md border border-electric/40 p-3 text-xs">
+                    <p><span className="text-muted-foreground">Missing on {auth.provider}:</span> <strong>{auth.permission}</strong></p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {auth.links.map((l) => <button key={l.url} type="button" className={btn} onClick={() => openAuth(b, l.url)}>{l.label} ↗</button>)}
+                    </div>
+                    <p className="mt-2 text-muted-foreground">{auth.note}</p>
+                    {waiting === b.id && <p className="mt-1 text-electric" aria-live="polite">Waiting for you on GitHub — Jackboy will check when you return.</p>}
+                  </div>
+                );
+              })()}
+              <div className="mt-3 flex flex-wrap gap-2">
                 {b.action?.kind === "approve" && <button className={btn} disabled={busy !== null} onClick={() => run(b)}>{busy === b.id ? "Working…" : b.action.passkey ? "Approve with passkey & check" : "Approve & check"}</button>}
                 {b.action?.kind === "verify" && <button className={btn} disabled={busy !== null} onClick={() => run(b)}>{busy === b.id ? "Checking…" : "Check again"}</button>}
                 {b.action?.kind === "link_repo" && <Link to="/project/$id" params={{ id: b.projectId }} className={btn}>Link repo</Link>}

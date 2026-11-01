@@ -21,7 +21,8 @@ export const getBlockers = createServerFn({ method: "GET" })
       context.supabase.from("foundry_tasks").select("id, project_id, title, state, needs_capability, blocked_reason").in("state", ["blocked", "awaiting_approval", "testing"]),
       context.supabase.from("site_log").select("id, at, action, status, summary, project_id").in("action", ["capability_approved", "capability_verified", "blocker_resolved", "foundry.resumed_tests"]).order("at", { ascending: false }).limit(30),
     ]);
-    return { blockers: deriveBlockers((p.data ?? []) as never, (g.data ?? []) as never, (t.data ?? []) as never), history: h.data ?? [] };
+    const repos: Record<string, string | null> = Object.fromEntries((p.data ?? []).map((x) => [x.id, x.github_repo]));
+    return { blockers: deriveBlockers((p.data ?? []) as never, (g.data ?? []) as never, (t.data ?? []) as never), history: h.data ?? [], repos };
   });
 
 export const actOnBlocker = createServerFn({ method: "POST" })
