@@ -1,0 +1,3 @@
+CREATE POLICY "owner reads artifacts" ON storage.objects FOR SELECT TO authenticated USING (bucket_id = 'release-artifacts' AND public.has_role(auth.uid(),'owner'));
+CREATE POLICY "owner uploads artifacts" ON storage.objects FOR INSERT TO authenticated WITH CHECK (bucket_id = 'release-artifacts' AND public.has_role(auth.uid(),'owner'));
+CREATE POLICY "owner deletes artifacts" ON storage.objects FOR DELETE TO authenticated USING (bucket_id = 'release-artifacts' AND public.has_role(auth.uid(),'owner'));

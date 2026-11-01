@@ -71,6 +71,13 @@
       "when": 1793547377567,
       "tag": "0009_update_server",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793547395219,
+      "tag": "0010_release_artifacts_policies",
+      "breakpoints": true
     }
   ]
 }
