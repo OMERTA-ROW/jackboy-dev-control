@@ -52,8 +52,8 @@ export async function search(x: Repo, query: string) {
 }
 
 export async function read(x: Repo, path: string, ref: string) {
-  const bad = checkPath(path.replace(/^\.env.*/, "x")); // reading .env is still refused below
-  if (/(^|\/)\.env/i.test(path)) throw new Error("Refused: environment files are never read.");
+  if (/(^|\/)\.env|\.pem$|\.key$/i.test(path)) throw new Error("Refused: secret/environment files are never read.");
+  const bad = checkPath(path); // generated backend files may be read but not written
   if (bad && !bad.startsWith("Refused")) throw new Error(bad);
   const f = await gh<{ content?: string; encoding?: string; size: number; sha: string }>(`${R(x)}/contents/${enc(path)}?ref=${encodeURIComponent(ref)}`);
   if (!f.content || f.encoding !== "base64") throw new Error("Not a readable file.");
