@@ -52,8 +52,8 @@ export async function targetReport(t: Target, r: { release_id: string; version: 
   if (!rel || rel.project_id !== t.project_id) return { error: "unknown_release" as const };
   const fresh = await record(t, rel.id, r.version, r.phase, r.detail, `${t.id}:${r.key}`);
   if (!fresh) return { ok: true, duplicate: true };
-  const patch: Record<string, unknown> = { state: stateAfter(r.phase), last_seen_at: new Date().toISOString(), last_release_id: rel.id };
-  if (r.phase === "healthy" || r.phase === "rolled_back") patch["current_version"] = r.version;
+  const patch: { state: string; last_seen_at: string; last_release_id: string; current_version?: string } = { state: stateAfter(r.phase), last_seen_at: new Date().toISOString(), last_release_id: rel.id };
+  if (r.phase === "healthy" || r.phase === "rolled_back") patch.current_version = r.version;
   await supabaseAdmin.from("update_targets").update(patch).eq("id", t.id);
   let rolledBack = false;
   if (r.phase === "healthy" || r.phase === "failed") {
