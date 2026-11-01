@@ -8,7 +8,7 @@ const REPO_RE = /^([A-Za-z0-9-]{1,39})\/([A-Za-z0-9._-]{1,100})$/;
 
 export function parseRepo(repo: string | null | undefined): { owner: string; name: string } | null {
   const m = (repo ?? "").trim().match(REPO_RE);
-  return m ? { owner: m[1], name: m[2] } : null;
+  return m && m[1] && m[2] ? { owner: m[1], name: m[2] } : null;
 }
 
 /** Fine-grained token template URL; GitHub pre-fills the form, the owner still reviews and approves it. */
