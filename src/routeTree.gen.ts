@@ -22,6 +22,7 @@ import { Route as AuthenticatedAgentsRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedAutoconnectRouteImport } from './routes/_authenticated/autoconnect'
 import { Route as AuthenticatedAutomationRouteImport } from './routes/_authenticated/automation'
 import { Route as AuthenticatedAutopilotRouteImport } from './routes/_authenticated/autopilot'
+import { Route as AuthenticatedBlockersRouteImport } from './routes/_authenticated/blockers'
 import { Route as AuthenticatedChatRouteImport } from './routes/_authenticated/chat'
 import { Route as AuthenticatedConnectRouteImport } from './routes/_authenticated/connect'
 import { Route as AuthenticatedDiscoveryRouteImport } from './routes/_authenticated/discovery'
@@ -121,6 +122,11 @@ const AuthenticatedAutomationRoute = AuthenticatedAutomationRouteImport.update({
 const AuthenticatedAutopilotRoute = AuthenticatedAutopilotRouteImport.update({
   id: '/autopilot',
   path: '/autopilot',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedBlockersRoute = AuthenticatedBlockersRouteImport.update({
+  id: '/blockers',
+  path: '/blockers',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedChatRoute = AuthenticatedChatRouteImport.update({
@@ -318,6 +324,7 @@ export interface FileRoutesByFullPath {
   '/autoconnect': typeof AuthenticatedAutoconnectRoute
   '/automation': typeof AuthenticatedAutomationRoute
   '/autopilot': typeof AuthenticatedAutopilotRoute
+  '/blockers': typeof AuthenticatedBlockersRoute
   '/chat': typeof AuthenticatedChatRoute
   '/connect': typeof AuthenticatedConnectRoute
   '/discovery': typeof AuthenticatedDiscoveryRoute
@@ -366,6 +373,7 @@ export interface FileRoutesByTo {
   '/autoconnect': typeof AuthenticatedAutoconnectRoute
   '/automation': typeof AuthenticatedAutomationRoute
   '/autopilot': typeof AuthenticatedAutopilotRoute
+  '/blockers': typeof AuthenticatedBlockersRoute
   '/chat': typeof AuthenticatedChatRoute
   '/connect': typeof AuthenticatedConnectRoute
   '/discovery': typeof AuthenticatedDiscoveryRoute
@@ -417,6 +425,7 @@ export interface FileRoutesById {
   '/_authenticated/autoconnect': typeof AuthenticatedAutoconnectRoute
   '/_authenticated/automation': typeof AuthenticatedAutomationRoute
   '/_authenticated/autopilot': typeof AuthenticatedAutopilotRoute
+  '/_authenticated/blockers': typeof AuthenticatedBlockersRoute
   '/_authenticated/chat': typeof AuthenticatedChatRoute
   '/_authenticated/connect': typeof AuthenticatedConnectRoute
   '/_authenticated/discovery': typeof AuthenticatedDiscoveryRoute
@@ -469,6 +478,7 @@ export interface FileRouteTypes {
     | '/autoconnect'
     | '/automation'
     | '/autopilot'
+    | '/blockers'
     | '/chat'
     | '/connect'
     | '/discovery'
@@ -517,6 +527,7 @@ export interface FileRouteTypes {
     | '/autoconnect'
     | '/automation'
     | '/autopilot'
+    | '/blockers'
     | '/chat'
     | '/connect'
     | '/discovery'
@@ -567,6 +578,7 @@ export interface FileRouteTypes {
     | '/_authenticated/autoconnect'
     | '/_authenticated/automation'
     | '/_authenticated/autopilot'
+    | '/_authenticated/blockers'
     | '/_authenticated/chat'
     | '/_authenticated/connect'
     | '/_authenticated/discovery'
@@ -718,6 +730,13 @@ declare module '@tanstack/react-router' {
       path: '/autopilot'
       fullPath: '/autopilot'
       preLoaderRoute: typeof AuthenticatedAutopilotRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/blockers': {
+      id: '/_authenticated/blockers'
+      path: '/blockers'
+      fullPath: '/blockers'
+      preLoaderRoute: typeof AuthenticatedBlockersRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/chat': {
@@ -976,6 +995,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAutoconnectRoute: typeof AuthenticatedAutoconnectRoute
   AuthenticatedAutomationRoute: typeof AuthenticatedAutomationRoute
   AuthenticatedAutopilotRoute: typeof AuthenticatedAutopilotRoute
+  AuthenticatedBlockersRoute: typeof AuthenticatedBlockersRoute
   AuthenticatedChatRoute: typeof AuthenticatedChatRoute
   AuthenticatedConnectRoute: typeof AuthenticatedConnectRoute
   AuthenticatedDiscoveryRoute: typeof AuthenticatedDiscoveryRoute
@@ -1008,6 +1028,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAutoconnectRoute: AuthenticatedAutoconnectRoute,
   AuthenticatedAutomationRoute: AuthenticatedAutomationRoute,
   AuthenticatedAutopilotRoute: AuthenticatedAutopilotRoute,
+  AuthenticatedBlockersRoute: AuthenticatedBlockersRoute,
   AuthenticatedChatRoute: AuthenticatedChatRoute,
   AuthenticatedConnectRoute: AuthenticatedConnectRoute,
   AuthenticatedDiscoveryRoute: AuthenticatedDiscoveryRoute,

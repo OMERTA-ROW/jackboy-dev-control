@@ -19,6 +19,7 @@ export const Route = createFileRoute("/_authenticated/settings")({
 export const ADVANCED = [
   { group: "Automation", items: [
     { to: "/foundry", label: "Code Foundry", note: "Inspect → patch → test → approve → draft PR, with full history" },
+    { to: "/blockers", label: "Blocker Queue", note: "What's stopping each connected project, and the fix" },
     { to: "/autopilot", label: "Autopilot", note: "Main switch, per-project switches, scan reports" },
     { to: "/releases", label: "Releases", note: "Versions, staged rollouts, feature switches" },
     { to: "/update-docs", label: "Update Docs", note: "Code projects use to check for updates" },
@@ -29,11 +30,11 @@ export const ADVANCED = [
     { to: "/agents", label: "Agent Hub", note: "Registered Lovable projects, reports, keys" },
     { to: "/fleet", label: "Agent Fleet", note: "Capabilities and emergency pause" },
     { to: "/omni", label: "OMNI", note: "Build task queue (not connected)" },
-    { to: "/jax", label: "JAX", note: "Release manifests (simulated)" },
+    { to: "/jax", label: "JAX", note: "Not connected" },
     { to: "/razul", label: "RA'SUL", note: "Intelligence feed (not connected unless configured)" },
   ] },
   { group: "Research", items: [
-    { to: "/discovery", label: "Discovery", note: "Technology discovery (demo data)" },
+    { to: "/discovery", label: "Discovery", note: "No sources connected" },
     { to: "/research", label: "Research", note: "Web search (needs search key)" },
     { to: "/workspace", label: "Inspect", note: "Local code diagnostics" },
   ] },

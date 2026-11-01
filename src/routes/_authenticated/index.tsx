@@ -76,7 +76,7 @@ function Home() {
 
   return (
     <>
-      <PageHeader title="Home" subtitle="Select project → Scan → Review demo items and errors → Repair → Verify." />
+      <PageHeader title="Home" subtitle="Select project → Scan → Review findings → Repair → Verify." />
       <section className="panel mb-6 flex flex-col items-start gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="font-semibold">Add a project to Jackboy</h2>

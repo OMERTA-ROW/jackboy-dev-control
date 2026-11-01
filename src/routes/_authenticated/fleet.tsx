@@ -103,7 +103,7 @@ function Fleet() {
         })}
       </div>
 
-      <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-silver">Ask Guardian (test, logged)</h2>
+      <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-silver">Check a Guardian policy decision (logged)</h2>
       <form className="panel mb-6 grid gap-2 p-4 text-sm md:grid-cols-4" onSubmit={(e) => { e.preventDefault(); setErr(null); f.sim({ data: sim }).then((v) => { setVerdict(v); refresh(); }).catch((x) => setErr(x.message)); }}>
         <select required aria-label="Agent" value={sim.agentId} onChange={(e) => setSim({ ...sim, agentId: e.target.value })} className={input}><option value="">Agent…</option>{d.agents.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select>
         <select aria-label="Action" value={sim.action} onChange={(e) => setSim({ ...sim, action: e.target.value })} className={input}>{CAPABILITIES.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}</select>

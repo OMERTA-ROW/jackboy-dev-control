@@ -4,6 +4,7 @@ export const STEP_UP_ACTIONS = {
   merge_update: { label: "Merge an update into the main branch", roles: ["owner"] },
   revert_update: { label: "Revert a merged update", roles: ["owner"] },
   critical_change: { label: "Critical Code Foundry change (security/config/destructive files)", roles: ["owner"] },
+  approve_integration: { label: "Approve a provider permission for one project", roles: ["owner"] },
   production_deploy: { label: "Production deployment", roles: ["owner"], unavailable: "Not built: Jackboy has no deploy integration" },
   privilege_escalation: { label: "Grant or raise a permission", roles: ["owner"], unavailable: "Not built yet" },
   building_control: { label: "Physical building controls", roles: ["owner"], unavailable: "Future integration; not authorized or connected" },
