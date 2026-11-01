@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useState } from "react";
 import { PageHeader } from "@/components/AppShell";
 import { FREQUENCIES } from "@/lib/update-writer";
+import { connectAndScan } from "@/lib/autopilot.functions";
 import { deleteProject, getProjects, runNow, saveProject, testRepo, type ProjectRow } from "@/lib/update-writer.functions";
 
 export const Route = createFileRoute("/_authenticated/projects")({
@@ -19,12 +20,12 @@ export const Route = createFileRoute("/_authenticated/projects")({
   component: Projects,
 });
 
-const empty = { name: "", lovable_url: "", description: "", goals: "", notes: "", github_repo: "", github_branch: "main", frequency_hours: 24, active: true };
+const empty = { name: "", lovable_url: "", site_url: "", description: "", goals: "", notes: "", github_repo: "", github_branch: "main", frequency_hours: 24, active: true };
 const input = "rounded-md border border-input bg-background px-3 py-2 text-sm";
 const btn = "rounded-md border border-border px-3 py-1.5 text-xs hover:border-electric disabled:opacity-40";
 
 function Projects() {
-  const load = useServerFn(getProjects), save = useServerFn(saveProject), del = useServerFn(deleteProject), run = useServerFn(runNow), test = useServerFn(testRepo);
+  const load = useServerFn(getProjects), save = useServerFn(saveProject), del = useServerFn(deleteProject), run = useServerFn(runNow), test = useServerFn(testRepo), onboard = useServerFn(connectAndScan);
   const [list, setList] = useState<ProjectRow[] | null>(null);
   const [gh, setGh] = useState(false);
   const [form, setForm] = useState<typeof empty & { id?: string }>(empty);
@@ -36,7 +37,13 @@ function Projects() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault(); setErr(null);
-    try { await save({ data: form }); setForm(empty); await refresh(); } catch (x) { setErr((x as Error).message); }
+    try {
+      const r = await save({ data: form }); setForm(empty); await refresh();
+      if (r.created) {
+        setBusy(r.id); setMsg("Project added. Jackboy is connecting it and scanning the site…");
+        try { const o = await onboard({ data: { id: r.id } }); setMsg(`Done — ${o.steps.join(" · ")}`); } catch (x) { setErr((x as Error).message); } finally { setBusy(null); await refresh(); }
+      }
+    } catch (x) { setErr((x as Error).message); }
   };
   const generate = async (id: string) => {
     setBusy(id); setErr(null); setMsg(null);
@@ -54,6 +61,7 @@ function Projects() {
       <form onSubmit={submit} className="panel mb-6 grid gap-2 p-4 md:grid-cols-2">
         <h2 className="text-sm font-semibold uppercase tracking-wider text-silver md:col-span-2">{form.id ? "Edit project" : "Add project"}</h2>
         <input required aria-label="Name" placeholder="Project name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={input} />
+        <input aria-label="Live site URL" placeholder="Live site: https://…" value={form.site_url} onChange={(e) => setForm({ ...form, site_url: e.target.value })} className={input} />
         <input aria-label="Lovable project link" placeholder="https://lovable.dev/projects/…" value={form.lovable_url} onChange={(e) => setForm({ ...form, lovable_url: e.target.value })} className={input} />
         <textarea aria-label="Description" placeholder="Short description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className={`${input} min-h-16 md:col-span-2`} />
         <textarea aria-label="Goals" placeholder="Goals (one per line)" value={form.goals} onChange={(e) => setForm({ ...form, goals: e.target.value })} className={`${input} min-h-20`} />
@@ -88,7 +96,7 @@ function Projects() {
               {p.goals && <p className="mt-2 whitespace-pre-line text-xs"><span className="text-silver">Goals:</span> {p.goals}</p>}
               <div className="mt-3 flex gap-2">
                 <button className={btn} disabled={busy !== null} onClick={() => generate(p.id)}>{busy === p.id ? "Writing…" : "Run now"}</button>
-                <button className={btn} onClick={() => setForm({ id: p.id, name: p.name, lovable_url: p.lovable_url ?? "", description: p.description, goals: p.goals, notes: p.notes, github_repo: p.github_repo ?? "", github_branch: p.github_branch, frequency_hours: p.frequency_hours, active: p.active })}>Edit</button>
+                <button className={btn} onClick={() => setForm({ id: p.id, name: p.name, lovable_url: p.lovable_url ?? "", site_url: p.site_url ?? "", description: p.description, goals: p.goals, notes: p.notes, github_repo: p.github_repo ?? "", github_branch: p.github_branch, frequency_hours: p.frequency_hours, active: p.active })}>Edit</button>
                 <button className={btn} onClick={() => { if (confirm(`Delete ${p.name} and its proposals?`)) del({ data: { id: p.id } }).then(refresh).catch((x) => setErr(x.message)); }}>Delete</button>
               </div>
             </li>

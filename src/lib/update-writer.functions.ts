@@ -25,8 +25,9 @@ const projectInput = z.object({
   github_branch: z.string().trim().min(1).max(100).regex(/^[A-Za-z0-9._/-]+$/),
   frequency_hours: freq,
   active: z.boolean(),
+  site_url: z.string().trim().max(500).refine((v) => !v || /^https?:\/\//.test(v), "Site URL must start with https://").optional(),
 });
-export type ProjectRow = { id: string; name: string; lovable_url: string | null; description: string; goals: string; notes: string; github_repo: string | null; github_branch: string; frequency_hours: number; active: boolean; last_proposal_at: string | null };
+export type ProjectRow = { id: string; name: string; lovable_url: string | null; description: string; goals: string; notes: string; github_repo: string | null; github_branch: string; frequency_hours: number; active: boolean; last_proposal_at: string | null; site_url: string | null; autopilot: boolean; connect_state: string; connect_pr_url: string | null; connect_error: string | null };
 
 export const getProjects = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
   await owner(context);
@@ -39,13 +40,13 @@ export const saveProject = createServerFn({ method: "POST" }).middleware([requir
   .inputValidator((d: unknown) => projectInput.parse(d))
   .handler(async ({ data, context }) => {
     await owner(context);
-    const row = { name: data.name, lovable_url: data.lovable_url || null, description: data.description, goals: data.goals, notes: data.notes, github_repo: data.github_repo || null, github_branch: data.github_branch, frequency_hours: data.frequency_hours, active: data.active, updated_at: new Date().toISOString() };
+    const row = { name: data.name, lovable_url: data.lovable_url || null, description: data.description, goals: data.goals, notes: data.notes, github_repo: data.github_repo || null, github_branch: data.github_branch, frequency_hours: data.frequency_hours, active: data.active, site_url: data.site_url || null, updated_at: new Date().toISOString() };
     const res = data.id
       ? await context.supabase.from("owner_projects").update(row).eq("id", data.id)
-      : await context.supabase.from("owner_projects").insert({ ...row, created_by: context.userId });
+      : await context.supabase.from("owner_projects").insert({ ...row, created_by: context.userId }).select("id").single();
     if (res.error) throw new Error(res.error.message);
     await audit(context, data.id ? "projects.update" : "projects.create", { name: data.name, repo: data.github_repo || null });
-    return { ok: true };
+    return { ok: true, id: (data.id ?? (res.data as { id: string }).id) as string, created: !data.id };
   });
 
 export const deleteProject = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])

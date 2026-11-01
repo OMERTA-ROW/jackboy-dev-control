@@ -711,7 +711,11 @@ export type Database = {
       owner_projects: {
         Row: {
           active: boolean
+          autopilot: boolean
           client_key: string
+          connect_error: string | null
+          connect_pr_url: string | null
+          connect_state: string
           created_at: string
           created_by: string
           description: string
@@ -725,11 +729,16 @@ export type Database = {
           lovable_url: string | null
           name: string
           notes: string
+          site_url: string | null
           updated_at: string
         }
         Insert: {
           active?: boolean
+          autopilot?: boolean
           client_key?: string
+          connect_error?: string | null
+          connect_pr_url?: string | null
+          connect_state?: string
           created_at?: string
           created_by: string
           description?: string
@@ -743,11 +752,16 @@ export type Database = {
           lovable_url?: string | null
           name: string
           notes?: string
+          site_url?: string | null
           updated_at?: string
         }
         Update: {
           active?: boolean
+          autopilot?: boolean
           client_key?: string
+          connect_error?: string | null
+          connect_pr_url?: string | null
+          connect_state?: string
           created_at?: string
           created_by?: string
           description?: string
@@ -761,6 +775,7 @@ export type Database = {
           lovable_url?: string | null
           name?: string
           notes?: string
+          site_url?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -978,8 +993,62 @@ export type Database = {
           },
         ]
       }
+      site_scans: {
+        Row: {
+          avg_ms: number | null
+          created_at: string
+          error: string | null
+          findings: Json
+          finished_at: string | null
+          fix_proposal_id: string | null
+          id: string
+          links_checked: number
+          pages_checked: number
+          project_id: string
+          status: string
+          trigger: string
+        }
+        Insert: {
+          avg_ms?: number | null
+          created_at?: string
+          error?: string | null
+          findings?: Json
+          finished_at?: string | null
+          fix_proposal_id?: string | null
+          id?: string
+          links_checked?: number
+          pages_checked?: number
+          project_id: string
+          status?: string
+          trigger?: string
+        }
+        Update: {
+          avg_ms?: number | null
+          created_at?: string
+          error?: string | null
+          findings?: Json
+          finished_at?: string | null
+          fix_proposal_id?: string | null
+          id?: string
+          links_checked?: number
+          pages_checked?: number
+          project_id?: string
+          status?: string
+          trigger?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "site_scans_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "owner_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       update_proposals: {
         Row: {
+          autopilot_note: string | null
           branch_name: string | null
           build_prompt: string
           checks_state: string | null
@@ -998,6 +1067,7 @@ export type Database = {
           pr_url: string | null
           project_id: string
           revert_pr_url: string | null
+          source: string
           status: string
           title: string
           trigger: string
@@ -1005,6 +1075,7 @@ export type Database = {
           why: string
         }
         Insert: {
+          autopilot_note?: string | null
           branch_name?: string | null
           build_prompt: string
           checks_state?: string | null
@@ -1023,6 +1094,7 @@ export type Database = {
           pr_url?: string | null
           project_id: string
           revert_pr_url?: string | null
+          source?: string
           status?: string
           title: string
           trigger?: string
@@ -1030,6 +1102,7 @@ export type Database = {
           why: string
         }
         Update: {
+          autopilot_note?: string | null
           branch_name?: string | null
           build_prompt?: string
           checks_state?: string | null
@@ -1048,6 +1121,7 @@ export type Database = {
           pr_url?: string | null
           project_id?: string
           revert_pr_url?: string | null
+          source?: string
           status?: string
           title?: string
           trigger?: string
@@ -1066,6 +1140,7 @@ export type Database = {
       }
       update_writer_settings: {
         Row: {
+          autopilot_enabled: boolean
           frequency_hours: number
           id: number
           last_run_at: string | null
@@ -1076,6 +1151,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          autopilot_enabled?: boolean
           frequency_hours?: number
           id?: number
           last_run_at?: string | null
@@ -1086,6 +1162,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          autopilot_enabled?: boolean
           frequency_hours?: number
           id?: number
           last_run_at?: string | null

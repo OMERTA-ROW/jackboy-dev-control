@@ -27,6 +27,8 @@ import { chatWithJackboy, getDashboardFacts, getVoiceChatStatus, synthesizeJackb
 
 const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutGrid },
+  { to: "/autopilot", label: "Autopilot", icon: Workflow },
+  { to: "/chat", label: "Chat with Jackboy", icon: Bot },
   { to: "/projects", label: "Projects", icon: LayoutGrid },
   { to: "/updates", label: "Update Queue", icon: ScrollText },
   { to: "/releases", label: "Releases", icon: Send },
