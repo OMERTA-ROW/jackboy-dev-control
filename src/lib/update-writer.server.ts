@@ -20,7 +20,10 @@ export const audit = (actor: string | null, action: string, detail: Record<strin
 
 /** In-app notification. Email delivery is not set up (no sender domain), so it is recorded as such — never faked. */
 export const notify = (kind: string, message: string, proposalId: string | null = null) =>
-  supabaseAdmin.from("owner_notifications").insert({ kind, message, proposal_id: proposalId, email_state: "not_configured" });
+  proposalId
+    // One notification per (kind, proposal): retries and races never create duplicates.
+    ? supabaseAdmin.from("owner_notifications").upsert({ kind, message, proposal_id: proposalId, email_state: "not_configured" }, { onConflict: "kind,proposal_id", ignoreDuplicates: true })
+    : supabaseAdmin.from("owner_notifications").insert({ kind, message, proposal_id: proposalId, email_state: "not_configured" });
 
 async function usage(kind: "ai" | "run") {
   const { count } = await supabaseAdmin.from("usage_ledger").select("id", { count: "exact", head: true }).eq("kind", kind).gte("at", monthStart());
