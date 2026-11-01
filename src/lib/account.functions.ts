@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { INVITE_TTL_DAYS, hashToken, inviteRedeemable, isWellFormedToken, newInviteToken } from "./invite-token";
+import { OWNER_SETUP_REQUIRED, ownerSetupEligible, sendVerificationEmail } from "./account-auth";
 
 async function admin() {
   return (await import("@/integrations/supabase/client.server")).supabaseAdmin;
@@ -14,7 +15,8 @@ async function auditAs(actor: string | null, action: string, outcome: string, de
   await (await admin()).from("audit_logs").insert({ actor, action, outcome, detail: detail as never });
 }
 async function ownerExists() {
-  const { count } = await (await admin()).from("user_roles").select("id", { count: "exact", head: true }).eq("role", "owner");
+  const { count, error } = await (await admin()).from("user_roles").select("id", { count: "exact", head: true }).eq("role", "owner");
+  if (error) throw new Error("Could not check owner setup. Try again later.");
   return (count ?? 0) > 0;
 }
 async function recentAttempts(action: string, minutes: number) {
@@ -25,7 +27,7 @@ async function recentAttempts(action: string, minutes: number) {
 
 /** Public: whether owner setup is still possible. Never reveals the owner email. */
 export const getSetupState = createServerFn({ method: "GET" }).handler(async () => ({
-  ownerConfigured: Boolean(process.env["OWNER_EMAIL"]),
+  ownerConfigured: Boolean(process.env["OWNER_EMAIL"]?.trim()),
   ownerExists: await ownerExists(),
 }));
 
@@ -36,18 +38,20 @@ export const getSetupState = createServerFn({ method: "GET" }).handler(async () 
 export const requestOwnerSetup = createServerFn({ method: "POST" })
   .inputValidator((d: { email: string }) => ({ email: String(d.email ?? "").trim().toLowerCase().slice(0, 254) }))
   .handler(async ({ data }) => {
-    const generic = { message: "If this email is the configured owner, a verification email has been sent. Open it on this device to set your password." };
+    const generic = { message: "Request processed. If eligible, check your inbox and spam folder for the owner verification link. Jackboy cannot confirm inbox delivery; access still requires email verification and an explicit owner claim." };
     const ownerEmail = process.env["OWNER_EMAIL"]?.trim().toLowerCase();
-    if (!ownerEmail) throw new Error("Owner email is not configured on the server yet.");
+    if (!ownerEmail) throw new Error(OWNER_SETUP_REQUIRED);
     if ((await recentAttempts("owner.setup_request", 60)) >= 10) throw new Error("Too many attempts. Try again later.");
-    const match = data.email === ownerEmail && !(await ownerExists());
-    await auditAs(null, "owner.setup_request", match ? "sent" : "ignored");
+    const match = ownerSetupEligible(ownerEmail, data.email, await ownerExists());
+    await auditAs(null, "owner.setup_request", match ? "requested" : "ignored");
     if (match) {
       const sb = await admin();
-      const { error } = await sb.auth.admin.inviteUserByEmail(ownerEmail, { redirectTo: `${origin()}/set-password` });
-      if (error && !/already/i.test(error.message)) console.error("owner invite failed", error.message);
-      if (error && /already/i.test(error.message)) {
-        await sb.auth.resetPasswordForEmail(ownerEmail, { redirectTo: `${origin()}/set-password` });
+      try {
+        await sendVerificationEmail(sb.auth, ownerEmail, `${origin()}/set-password`);
+        await auditAs(null, "owner.setup_email", "accepted");
+      } catch (error) {
+        await auditAs(null, "owner.setup_email", "failed");
+        throw error;
       }
     }
     return generic;
@@ -66,7 +70,7 @@ export const claimOwner = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const ownerEmail = process.env["OWNER_EMAIL"]?.trim().toLowerCase();
-    if (!ownerEmail) throw new Error("Owner email has not been configured yet.");
+    if (!ownerEmail) throw new Error(OWNER_SETUP_REQUIRED);
     const sb = await admin();
     const { data: u } = await sb.auth.admin.getUserById(context.userId);
     if (!u.user?.email_confirmed_at || u.user.email?.toLowerCase() !== ownerEmail) {
