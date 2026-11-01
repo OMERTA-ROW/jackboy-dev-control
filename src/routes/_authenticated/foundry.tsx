@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/AppShell";
 import { QualityMetrics } from "@/components/QualityMetrics";
+import { ApprovalCard } from "@/components/ApprovalCard";
 import { foundryAct, foundryControl, foundryInspect, foundrySchedule, getFoundry } from "@/lib/foundry.functions";
 import { ACTIVE_APPROVAL, pickNext, TERMINAL, type State } from "@/lib/foundry";
 
@@ -63,7 +64,7 @@ function Foundry() {
         {files.length > 0 && <details className="mt-2"><summary className="cursor-pointer text-xs">Diff ({files.length} file)</summary>{files.map((f) => <pre key={f.path} className="mt-1 max-h-60 overflow-auto rounded bg-muted p-2 text-xs">{f.path} +{f.additions ?? 0} −{f.deletions ?? 0}{"\n"}{f.patch}</pre>)}</details>}
         <div className="mt-3 flex flex-wrap gap-2">
           {t.state === "awaiting_approval" && <>
-            <button className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50" disabled={!!busy} onClick={() => run(t.id, () => act({ data: { id: t.id, op: "approve", action: "open_draft_pr" } }))}>Approve: open draft PR</button>
+            <ApprovalCard taskId={t.id} onDone={(m) => { setMsg(m); void load(); }} />
             <button className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50" disabled={!!busy} onClick={() => run(t.id, () => act({ data: { id: t.id, op: "reject" } }))}>Reject</button>
           </>}
           {t.state === "blocked" && t.approved_action && <button className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50" disabled={!!busy} onClick={() => run(t.id, () => act({ data: { id: t.id, op: "retry" } }))}>Retry</button>}
