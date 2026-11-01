@@ -34,7 +34,6 @@ const NAV = [
   { to: "/chat", label: "Chat", icon: Bot },
   { to: "/settings", label: "Settings", icon: ShieldCheck },
 ] as const;
-void [Radar, Send, Code2, Globe, Workflow, Users, Library];
 
 function Hex({ className = "" }: { className?: string }) {
   return (
@@ -202,7 +201,7 @@ function VoiceControl() {
     if (!match) return null;
     const routes = {
       dashboard: "/",
-      projects: "/workspace",
+      projects: "/projects",
       inspect: "/workspace",
       discovery: "/discovery",
       research: "/research",
