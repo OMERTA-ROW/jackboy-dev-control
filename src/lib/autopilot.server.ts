@@ -27,7 +27,7 @@ async function timedFetch(url: string, method = "GET") {
 
 /** Crawls same-origin pages (static HTML only; no JavaScript is run) and stores a findings report. */
 export async function scanSite(projectId: string, trigger: string, actor: string | null) {
-  const { data: p } = await supabaseAdmin.from("owner_projects").select("id, name, site_url").eq("id", projectId).single();
+  const { data: p } = await supabaseAdmin.from("owner_projects").select("id, name, site_url, demo_detection").eq("id", projectId).single();
   if (!p?.site_url) throw new Error("This project has no site URL.");
   if (!safeFetchUrl(p.site_url)) throw new Error("Site URL must be a public http(s) address.");
   const { data: scan } = await supabaseAdmin.from("site_scans").insert({ project_id: projectId, trigger }).select("id").single();
@@ -93,7 +93,7 @@ export async function writeFix(projectId: string, problem: string, source: "scan
     throw e;
   }
   const files = ctx ? d.files : [];
-  const auto = !opts.forceApproval && s.autopilot_enabled && p.autopilot && (p as { repair_policy?: string }).repair_policy === "autopilot";
+  const auto = !opts.forceApproval && s.autopilot_enabled && p.autopilot;
   const { data: row, error } = await supabaseAdmin.from("update_proposals").insert({
     project_id: projectId, title: d.title, what_to_change: d.what_to_change, why: d.why, build_prompt: d.build_prompt,
     files: files as never, model: MODEL, trigger: source === "chat" || source === "demo" ? "manual" : "scheduled", source, delivery_error: note || null,
