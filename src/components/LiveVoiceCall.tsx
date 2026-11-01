@@ -25,7 +25,7 @@ export function LiveVoiceCall({ chatContext, onTranscript }: { chatContext: () =
   const [seconds, setSeconds] = useState<number | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const level = useRef(0);
-  const quiet = useRef<ReturnType<typeof setTimeout>>();
+  const quiet = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const push = (role: Row["role"], delta: string) => {
     const r = rowsRef.current, last = r.at(-1);
