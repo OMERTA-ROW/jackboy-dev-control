@@ -143,9 +143,10 @@ export const refreshPrChecks = createServerFn({ method: "POST" }).middleware([re
   .handler(async ({ data, context }) => { await owner(context); const s = await import("./update-writer.server"); return { state: await s.refreshChecks(data.id) }; });
 
 export const mergeUpdate = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), acceptNoChecks: z.boolean() }).parse(d))
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), acceptNoChecks: z.boolean(), grantId: z.string().uuid().optional() }).parse(d))
   .handler(async ({ data, context }) => {
     await owner(context);
+    await (await import("./passkey.server")).consumeGrant(data.grantId, context.userId, "merge_update", data.id);
     const s = await import("./update-writer.server");
     const state = await s.refreshChecks(data.id);
     const { data: cur } = await context.supabase.from("update_proposals").select("status").eq("id", data.id).single();
@@ -155,8 +156,9 @@ export const mergeUpdate = createServerFn({ method: "POST" }).middleware([requir
     return { ok: true };
   });
 
-export const revertUpdate = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).inputValidator(idOnly)
-  .handler(async ({ data, context }) => { await owner(context); const s = await import("./update-writer.server"); await s.revertProposal(data.id, context.userId); return { ok: true }; });
+export const revertUpdate = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), grantId: z.string().uuid().optional() }).parse(d))
+  .handler(async ({ data, context }) => { await owner(context); await (await import("./passkey.server")).consumeGrant(data.grantId, context.userId, "revert_update", data.id); const s = await import("./update-writer.server"); await s.revertProposal(data.id, context.userId); return { ok: true }; });
 
 export const setCaps = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ aiCap: z.number().int().min(0).max(10000), runCap: z.number().int().min(0).max(10000), clearPause: z.boolean() }).parse(d))
