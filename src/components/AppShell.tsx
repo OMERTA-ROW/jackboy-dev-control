@@ -1,4 +1,5 @@
-import { Link, useRouterState } from "@tanstack/react-router";
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import {
   LayoutGrid,
   Radar,
@@ -13,9 +14,16 @@ import {
   Workflow,
   Users,
   Library,
+  Mic,
+  MicOff,
+  X,
+  ArrowUp,
+  Square,
+  Trash2,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { setState, useJackboy, log } from "@/lib/jackboy-store";
+import { chatWithJackboy, getDashboardFacts, getVoiceChatStatus } from "@/lib/passport.functions";
 
 const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutGrid },
@@ -65,6 +73,400 @@ export function ModeToggle() {
           {m === "classic" ? "Classic View" : "Jackboy Assist"}
         </button>
       ))}
+    </div>
+  );
+}
+
+type ChatMessage = { role: "user" | "assistant"; content: string };
+type VoiceMode = "voice" | "text" | "silent";
+type Tone = "direct" | "balanced" | "witty";
+
+function VoiceControl() {
+  const navigate = useNavigate();
+  const getStatus = useServerFn(getVoiceChatStatus);
+  const chat = useServerFn(chatWithJackboy);
+  const dashboard = useServerFn(getDashboardFacts);
+  const [open, setOpen] = useState(false);
+  const [available, setAvailable] = useState<boolean | null>(null);
+  const [mode, setMode] = useState<VoiceMode>("text");
+  const [tone, setTone] = useState<Tone>("balanced");
+  const [volume, setVolume] = useState(0.8);
+  const [voiceName, setVoiceName] = useState("");
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [draft, setDraft] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [listening, setListening] = useState(false);
+  const [speaking, setSpeaking] = useState(false);
+  const [error, setError] = useState("");
+  const recognitionRef = useRef<any>(null);
+  const endRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem("jackboy.voice.preferences") || "{}");
+      if (["voice", "text", "silent"].includes(saved.mode)) setMode(saved.mode);
+      if (["direct", "balanced", "witty"].includes(saved.tone)) setTone(saved.tone);
+      if (typeof saved.volume === "number" && saved.volume >= 0 && saved.volume <= 1) setVolume(saved.volume);
+      if (typeof saved.voiceName === "string") setVoiceName(saved.voiceName);
+    } catch {
+      /* Browser storage is optional. */
+    }
+  }, []);
+  useEffect(() => {
+    try {
+      localStorage.setItem("jackboy.voice.preferences", JSON.stringify({ mode, tone, volume, voiceName }));
+    } catch {
+      /* Browser storage is optional. */
+    }
+  }, [mode, tone, volume, voiceName]);
+  useEffect(() => {
+    if (!open) return;
+    let active = true;
+    getStatus()
+      .then((result) => {
+        if (active) setAvailable(result.available);
+      })
+      .catch(() => {
+        if (active) setAvailable(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [open, getStatus]);
+  useEffect(() => {
+    if (!open || typeof window === "undefined" || !window.speechSynthesis) return;
+    const refresh = () => setVoices(window.speechSynthesis.getVoices());
+    refresh();
+    window.speechSynthesis.addEventListener("voiceschanged", refresh);
+    return () => window.speechSynthesis.removeEventListener("voiceschanged", refresh);
+  }, [open]);
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ block: "end", behavior: "smooth" });
+  }, [messages, busy]);
+
+  const stopAudio = () => {
+    recognitionRef.current?.abort();
+    recognitionRef.current = null;
+    setListening(false);
+    if (typeof window !== "undefined" && window.speechSynthesis) window.speechSynthesis.cancel();
+    setSpeaking(false);
+  };
+  const speak = (words: string) => {
+    if (mode !== "voice" || typeof window === "undefined" || !window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(words);
+    utterance.volume = volume;
+    const selected = voices.find((voice) => voice.name === voiceName);
+    if (selected) utterance.voice = selected;
+    utterance.onstart = () => setSpeaking(true);
+    utterance.onend = () => setSpeaking(false);
+    utterance.onerror = () => setSpeaking(false);
+    window.speechSynthesis.speak(utterance);
+  };
+  const close = () => {
+    stopAudio();
+    setOpen(false);
+  };
+
+  const localReply = async (input: string): Promise<string | null> => {
+    const phrase = input
+      .toLowerCase()
+      .trim()
+      .replace(/[.!?]+$/, "");
+    if (/^(status|what is the status|what's the status|give me a status update)$/.test(phrase)) {
+      const facts = await dashboard();
+      const queued = facts.jobs.filter((job) => !job.sent_at).length;
+      return `I can see ${facts.projects.length} registered projects, ${queued} OMNI tasks queued but not sent, ${facts.reports.length} open reports, and ${facts.proposals.length} proposals. This is live workspace data; it does not mean an agent ran.`;
+    }
+    const match = phrase.match(
+      /^(?:open|show|go to) (?:the )?(dashboard|projects|inspect|discovery|research|agents|fleet|automation|omni|logs|integrations|access)$/,
+    );
+    if (!match) return null;
+    const routes = {
+      dashboard: "/",
+      projects: "/workspace",
+      inspect: "/workspace",
+      discovery: "/discovery",
+      research: "/research",
+      agents: "/agents",
+      fleet: "/fleet",
+      automation: "/automation",
+      omni: "/omni",
+      logs: "/activity",
+      integrations: "/integrations",
+      access: "/access",
+    } as const;
+    navigate({ to: routes[match[1] as keyof typeof routes] });
+    return `Opened ${match[1]}.`;
+  };
+
+  const sendMessage = async (raw: string) => {
+    const content = raw.trim().slice(0, 1000);
+    if (!content || busy) return;
+    setDraft("");
+    setError("");
+    const next: ChatMessage[] = [...messages, { role: "user", content }];
+    setMessages(next);
+    setBusy(true);
+    try {
+      const local = await localReply(content);
+      if (local) {
+        setMessages([...next, { role: "assistant", content: local }]);
+        speak(local);
+      } else if (!available) {
+        setError("AI conversation is not connected. Local status and navigation commands still work.");
+      } else {
+        const result = await chat({ data: { messages: next.slice(-12), tone } });
+        setMessages([...next, { role: "assistant", content: result.answer }]);
+        speak(result.answer);
+      }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Chat failed. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const listen = () => {
+    if (listening) {
+      recognitionRef.current?.stop();
+      return;
+    }
+    if (mode !== "voice" || busy) return;
+    const Recognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!Recognition) {
+      setError("Speech recognition is unavailable in this browser. Use text chat.");
+      return;
+    }
+    stopAudio();
+    setError("");
+    const recognition = new Recognition();
+    recognition.lang = "en-US";
+    recognition.interimResults = false;
+    recognition.continuous = false;
+    recognition.onresult = (event: any) => {
+      const words = event.results?.[0]?.[0]?.transcript;
+      if (words) void sendMessage(words);
+    };
+    recognition.onerror = (event: any) => {
+      setListening(false);
+      setError(`Microphone error: ${event.error || "unavailable"}. Use text chat.`);
+    };
+    recognition.onend = () => {
+      setListening(false);
+      recognitionRef.current = null;
+    };
+    recognitionRef.current = recognition;
+    try {
+      recognition.start();
+      setListening(true);
+    } catch {
+      setError("Could not start the microphone. Use text chat.");
+    }
+  };
+
+  return (
+    <div className="fixed bottom-24 right-4 z-50 md:bottom-6 md:right-6">
+      {open && (
+        <section
+          aria-label="Jackboy voice chat"
+          className="mb-3 flex h-[min(72vh,620px)] w-[min(390px,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl"
+        >
+          <div className="flex items-center gap-3 border-b border-border bg-sidebar px-4 py-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-electric/15 text-electric">
+              <Hex className="h-5 w-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <h2 className="text-sm font-semibold text-foreground">Talk with Jackboy</h2>
+              <p className="text-xs text-muted-foreground">
+                {available === null
+                  ? "Checking AI chat…"
+                  : available
+                    ? "AI chat configured · model test pending"
+                    : "AI chat not connected · local commands work"}
+              </p>
+            </div>
+            <button
+              aria-label="Close voice chat"
+              onClick={close}
+              className="rounded p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="flex gap-1 border-b border-border px-3 py-2" role="group" aria-label="Chat mode">
+            {(
+              [
+                ["voice", "Voice + Text"],
+                ["text", "Text Only"],
+                ["silent", "Silent"],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                aria-pressed={mode === value}
+                onClick={() => {
+                  stopAudio();
+                  setMode(value);
+                }}
+                className={`flex-1 rounded-lg px-2 py-1.5 text-xs ${mode === value ? "bg-electric text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="flex-1 space-y-3 overflow-y-auto p-4" aria-live="polite">
+            {messages.length === 0 && (
+              <div className="rounded-xl border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
+                <p className="font-medium text-foreground">Start a conversation</p>
+                <p className="mt-2">
+                  Ask Jackboy a question, or say “status” for live workspace counts and “open integrations” to navigate.
+                </p>
+                {!available && <p className="mt-2">Natural AI replies need an owner-enabled model connection.</p>}
+              </div>
+            )}
+            {messages.map((message, index) => (
+              <div
+                key={index}
+                className={`max-w-[90%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap ${message.role === "user" ? "ml-auto bg-electric text-primary-foreground" : "border border-border bg-muted text-foreground"}`}
+              >
+                {message.content}
+              </div>
+            ))}
+            {busy && <p className="text-xs text-muted-foreground">Jackboy checking…</p>}
+            <div ref={endRef} />
+          </div>
+          {error && (
+            <p
+              role="alert"
+              className="mx-3 mb-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive"
+            >
+              {error}
+            </p>
+          )}
+          <div className="border-t border-border p-3">
+            <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
+              <label htmlFor="jackboy-tone">Style</label>
+              <select
+                id="jackboy-tone"
+                value={tone}
+                onChange={(event) => setTone(event.target.value as Tone)}
+                className="rounded border border-border bg-background px-2 py-1"
+              >
+                <option value="direct">Direct</option>
+                <option value="balanced">Balanced</option>
+                <option value="witty">Witty</option>
+              </select>
+              {mode === "voice" && (
+                <>
+                  <label htmlFor="jackboy-volume" className="ml-auto">
+                    Volume
+                  </label>
+                  <input
+                    id="jackboy-volume"
+                    aria-label="Voice volume"
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.1"
+                    value={volume}
+                    onChange={(event) => setVolume(Number(event.target.value))}
+                    className="w-20"
+                  />
+                </>
+              )}
+            </div>
+            {mode === "voice" && voices.length > 0 && (
+              <select
+                aria-label="Browser voice"
+                value={voiceName}
+                onChange={(event) => setVoiceName(event.target.value)}
+                className="mb-2 w-full rounded border border-border bg-background px-2 py-1 text-xs"
+              >
+                <option value="">Browser default voice</option>
+                {voices.map((voice) => (
+                  <option key={`${voice.name}-${voice.lang}`} value={voice.name}>
+                    {voice.name} ({voice.lang})
+                  </option>
+                ))}
+              </select>
+            )}
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                void sendMessage(draft);
+              }}
+              className="flex items-end gap-2"
+            >
+              <textarea
+                aria-label="Message Jackboy"
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    void sendMessage(draft);
+                  }
+                }}
+                rows={2}
+                maxLength={1000}
+                placeholder="Message Jackboy…"
+                className="min-h-12 max-h-28 flex-1 resize-y rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-electric"
+              />
+              {mode === "voice" && (
+                <button
+                  type="button"
+                  onClick={listen}
+                  disabled={busy}
+                  aria-label={listening ? "Stop listening" : "Speak to Jackboy"}
+                  className={`rounded-full p-3 ${listening ? "bg-destructive text-destructive-foreground" : "bg-muted text-foreground"}`}
+                >
+                  {listening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                </button>
+              )}
+              <button
+                type="submit"
+                disabled={busy || !draft.trim()}
+                aria-label="Send message"
+                className="rounded-full bg-electric p-3 text-primary-foreground disabled:opacity-40"
+              >
+                <ArrowUp className="h-4 w-4" />
+              </button>
+            </form>
+            <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+              <button
+                onClick={stopAudio}
+                disabled={!listening && !speaking}
+                className="inline-flex items-center gap-1 hover:text-foreground disabled:opacity-40"
+              >
+                <Square className="h-3 w-3" /> Stop audio
+              </button>
+              <button
+                onClick={() => {
+                  stopAudio();
+                  setMessages([]);
+                  setError("");
+                }}
+                className="ml-auto inline-flex items-center gap-1 hover:text-foreground"
+              >
+                <Trash2 className="h-3 w-3" /> Clear chat
+              </button>
+            </div>
+            <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
+              Browser speech recognition may use its speech service. When AI chat is enabled, conversation text goes to
+              OpenAI. This chat has no access to your Mac, agents, or passwords.
+            </p>
+          </div>
+        </section>
+      )}
+      <button
+        onClick={() => (open ? close() : setOpen(true))}
+        aria-label={open ? "Close Jackboy chat" : "Open Jackboy voice chat"}
+        className="ml-auto flex h-14 w-14 items-center justify-center rounded-full border border-electric/50 bg-sidebar text-electric shadow-xl hover:bg-muted"
+      >
+        <Hex className="h-7 w-7" />
+      </button>
     </div>
   );
 }
@@ -139,6 +541,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </Link>
         ))}
       </nav>
+      <VoiceControl />
     </div>
   );
 }
