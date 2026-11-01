@@ -17,6 +17,7 @@ export const Route = createFileRoute("/_authenticated/settings")({
 
 export const ADVANCED = [
   { group: "Automation", items: [
+    { to: "/foundry", label: "Code Foundry", note: "Inspect → patch → test → approve → draft PR, with full history" },
     { to: "/autopilot", label: "Autopilot", note: "Main switch, per-project switches, scan reports" },
     { to: "/releases", label: "Releases", note: "Versions, staged rollouts, feature switches" },
     { to: "/update-docs", label: "Update Docs", note: "Code projects use to check for updates" },

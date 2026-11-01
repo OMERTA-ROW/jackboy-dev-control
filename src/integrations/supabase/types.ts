@@ -587,6 +587,208 @@ export type Database = {
           },
         ]
       }
+      foundry_events: {
+        Row: {
+          action: string
+          actor: string
+          created_at: string
+          detail: Json
+          from_state: string | null
+          id: string
+          note: string
+          project_id: string | null
+          task_id: string | null
+          to_state: string | null
+        }
+        Insert: {
+          action: string
+          actor: string
+          created_at?: string
+          detail?: Json
+          from_state?: string | null
+          id?: string
+          note?: string
+          project_id?: string | null
+          task_id?: string | null
+          to_state?: string | null
+        }
+        Update: {
+          action?: string
+          actor?: string
+          created_at?: string
+          detail?: Json
+          from_state?: string | null
+          id?: string
+          note?: string
+          project_id?: string | null
+          task_id?: string | null
+          to_state?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "foundry_events_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "foundry_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      foundry_patterns: {
+        Row: {
+          created_at: string
+          description: string
+          id: string
+          key: string
+          last_task_id: string | null
+          title: string
+          updated_at: string
+          verified_count: number
+        }
+        Insert: {
+          created_at?: string
+          description?: string
+          id?: string
+          key: string
+          last_task_id?: string | null
+          title: string
+          updated_at?: string
+          verified_count?: number
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          id?: string
+          key?: string
+          last_task_id?: string | null
+          title?: string
+          updated_at?: string
+          verified_count?: number
+        }
+        Relationships: []
+      }
+      foundry_schedule: {
+        Row: {
+          daily_task_quota: number
+          enabled: boolean
+          id: number
+          interval_hours: number
+          last_project_id: string | null
+          last_run_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          daily_task_quota?: number
+          enabled?: boolean
+          id?: number
+          interval_hours?: number
+          last_project_id?: string | null
+          last_run_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          daily_task_quota?: number
+          enabled?: boolean
+          id?: number
+          interval_hours?: number
+          last_project_id?: string | null
+          last_run_at?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      foundry_tasks: {
+        Row: {
+          approved_action: string | null
+          attempts: number
+          blocked_reason: string | null
+          branch: string | null
+          commit_sha: string | null
+          created_at: string
+          created_by: string | null
+          dedupe_key: string
+          files: Json
+          id: string
+          idempotency_key: string | null
+          kind: string
+          max_attempts: number
+          paused: boolean
+          pr_number: number | null
+          pr_url: string | null
+          project_id: string
+          repo: string | null
+          risk: string
+          source: string
+          state: string
+          summary: string
+          test_evidence: Json
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          approved_action?: string | null
+          attempts?: number
+          blocked_reason?: string | null
+          branch?: string | null
+          commit_sha?: string | null
+          created_at?: string
+          created_by?: string | null
+          dedupe_key: string
+          files?: Json
+          id?: string
+          idempotency_key?: string | null
+          kind?: string
+          max_attempts?: number
+          paused?: boolean
+          pr_number?: number | null
+          pr_url?: string | null
+          project_id: string
+          repo?: string | null
+          risk?: string
+          source?: string
+          state?: string
+          summary?: string
+          test_evidence?: Json
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          approved_action?: string | null
+          attempts?: number
+          blocked_reason?: string | null
+          branch?: string | null
+          commit_sha?: string | null
+          created_at?: string
+          created_by?: string | null
+          dedupe_key?: string
+          files?: Json
+          id?: string
+          idempotency_key?: string | null
+          kind?: string
+          max_attempts?: number
+          paused?: boolean
+          pr_number?: number | null
+          pr_url?: string | null
+          project_id?: string
+          repo?: string | null
+          risk?: string
+          source?: string
+          state?: string
+          summary?: string
+          test_evidence?: Json
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "foundry_tasks_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "owner_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       health_reports: {
         Row: {
           channel: string
