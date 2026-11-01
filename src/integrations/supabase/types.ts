@@ -493,6 +493,47 @@ export type Database = {
         }
         Relationships: []
       }
+      finding_decisions: {
+        Row: {
+          created_at: string
+          decided_by: string | null
+          decision: string
+          finding_key: string
+          id: string
+          message: string
+          project_id: string
+          proposal_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          decided_by?: string | null
+          decision: string
+          finding_key: string
+          id?: string
+          message?: string
+          project_id: string
+          proposal_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          decided_by?: string | null
+          decision?: string
+          finding_key?: string
+          id?: string
+          message?: string
+          project_id?: string
+          proposal_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "finding_decisions_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "owner_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       health_reports: {
         Row: {
           channel: string
@@ -718,6 +759,7 @@ export type Database = {
           connect_state: string
           created_at: string
           created_by: string
+          demo_detection: boolean
           description: string
           frequency_hours: number
           github_branch: string
@@ -729,6 +771,7 @@ export type Database = {
           lovable_url: string | null
           name: string
           notes: string
+          repair_policy: string
           site_url: string | null
           updated_at: string
         }
@@ -741,6 +784,7 @@ export type Database = {
           connect_state?: string
           created_at?: string
           created_by: string
+          demo_detection?: boolean
           description?: string
           frequency_hours?: number
           github_branch?: string
@@ -752,6 +796,7 @@ export type Database = {
           lovable_url?: string | null
           name: string
           notes?: string
+          repair_policy?: string
           site_url?: string | null
           updated_at?: string
         }
@@ -764,6 +809,7 @@ export type Database = {
           connect_state?: string
           created_at?: string
           created_by?: string
+          demo_detection?: boolean
           description?: string
           frequency_hours?: number
           github_branch?: string
@@ -775,6 +821,7 @@ export type Database = {
           lovable_url?: string | null
           name?: string
           notes?: string
+          repair_policy?: string
           site_url?: string | null
           updated_at?: string
         }
