@@ -3,7 +3,7 @@ import { BATCH_SIZE, isDue, MAX_FILES, monthStart, parseProposal, parseRepo, und
 import { pageText, parseFeed, safeFetchUrl, sha256Hex, tagProjects } from "./feeds";
 import * as gh from "./github.server";
 
-const MODEL = "openai/gpt-6-astra";
+export const MODEL = "openai/gpt-6-astra";
 const SCHEMA = {
   type: "object", additionalProperties: false,
   required: ["title", "what_to_change", "why", "build_prompt", "files"],
@@ -13,7 +13,7 @@ const SCHEMA = {
   },
 };
 
-class GatewayError extends Error { constructor(public status: number, msg: string) { super(msg); } }
+export class GatewayError extends Error { constructor(public status: number, msg: string) { super(msg); } }
 
 export const audit = (actor: string | null, action: string, detail: Record<string, unknown>, outcome = "ok") =>
   supabaseAdmin.from("audit_logs").insert({ actor, action, detail: detail as never, outcome });
@@ -36,7 +36,7 @@ async function capCheck(kind: "ai" | "run", cap: number): Promise<string | null>
   return reason;
 }
 
-async function callAI(input: string): Promise<ProposalDraft> {
+export async function callAI(input: string): Promise<ProposalDraft> {
   const key = process.env["LOVABLE_API_KEY"];
   if (!key) throw new GatewayError(401, "AI is not configured on the server.");
   const res = await fetch("https://ai.gateway.lovable.dev/v1/responses", {
@@ -81,11 +81,11 @@ async function callAI(input: string): Promise<ProposalDraft> {
   return parseProposal(text);
 }
 
-type Project = { id: string; name: string; lovable_url: string | null; description: string; goals: string; notes: string; github_repo: string | null; github_branch: string };
+export type Project = { id: string; name: string; lovable_url: string | null; description: string; goals: string; notes: string; github_repo: string | null; github_branch: string };
 
 const CONTEXT_FILES = ["package.json", "README.md", "AGENTS.md", "src/routes/__root.tsx", "src/routes/index.tsx"];
 
-async function repoContext(p: Project) {
+export async function repoContext(p: Project) {
   const parsed = p.github_repo ? parseRepo(p.github_repo) : null;
   if (!parsed || !gh.githubConfigured()) return null;
   await gh.requirePrivateRepo(parsed.owner, parsed.repo);
