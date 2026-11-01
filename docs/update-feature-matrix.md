@@ -18,5 +18,6 @@ Concepts are independently implemented from publicly documented feature ideas; n
 | Canonical loop order | `patch-catalog.ts#nextStage` | Tested | Drive from hourly tick |
 | Connections / scopes | AutoConnect | Live (GitHub, AI) | Device enrollment capability |
 | Audit + Razoo outbox | Site Log (`site-log*.ts`) | Live (outbox pending, no endpoint) | Log patch-loop stages |
-| Multi-OS endpoint agent (macOS first) | — | Gap | Signed macOS helper, pairing |
+| Multi-project batch scan/repair/distribute | `batch.ts`, `/projects` | Live (browser-tested) | Rings across projects |
+| Device agent (optional, future, not in main workflow) | — | Not planned now | — |
 | Compliance reporting | — | Gap | Per-group patched/missing view |
