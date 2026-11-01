@@ -10,6 +10,7 @@
 <!-- LOVABLE:END -->
 
 ## Jackboy rules
+- Owner identity configuration and mail delivery are separate states; auth helpers revalidate confirmed sign-in and propagate sender failures, so configuration gaps never become fake email success or owner access.
 - All private pages live under `src/routes/_authenticated/` (client gate checks session + `my_role`, else `/onboarding`); server functions and RLS re-check roles. Owner bootstrap only via `claimOwner` matching the `OWNER_EMAIL` secret; others join only via `accept_invitation` RPC (email match). Roles live in `user_roles`.
 - Internet research is server-only (`src/lib/research.functions.ts`, policy in `src/lib/search-policy.ts`): Brave key in `BRAVE_SEARCH_API_KEY` secret, domain allowlist, timeout, audit-log-based rate limits; never return fake results when unconfigured.
 - Lovable Cloud is enabled for account infrastructure; existing browser-local demo stores remain demo-only until an explicit user-scoped storage migration, so enabling auth never makes old demo records shared private data.
