@@ -1,5 +1,19 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { LayoutGrid, Radar, Send, Hexagon, Code2, ScrollText, Plug, ShieldCheck, Eye, Globe, Bot, Workflow, Users, Library } from "lucide-react";
+import {
+  LayoutGrid,
+  Radar,
+  Send,
+  Hexagon,
+  Code2,
+  ScrollText,
+  Plug,
+  ShieldCheck,
+  Globe,
+  Bot,
+  Workflow,
+  Users,
+  Library,
+} from "lucide-react";
 import type { ReactNode } from "react";
 import { setState, useJackboy, log } from "@/lib/jackboy-store";
 
@@ -35,7 +49,11 @@ export function ModeToggle() {
     log("info", `Switched to ${m === "classic" ? "Classic View" : "Jackboy Assist"}.`);
   };
   return (
-    <div role="radiogroup" aria-label="View mode" className="inline-flex rounded-md border border-border bg-muted p-0.5 text-xs font-medium">
+    <div
+      role="radiogroup"
+      aria-label="View mode"
+      className="inline-flex rounded-md border border-border bg-muted p-0.5 text-xs font-medium"
+    >
       {(["classic", "assist"] as const).map((m) => (
         <button
           key={m}
@@ -56,7 +74,10 @@ export function AppShell({ children }: { children: ReactNode }) {
   if (path === "/auth" || path === "/onboarding") {
     return (
       <div className="min-h-screen px-4 py-6">
-        <div className="flex items-center justify-center gap-2"><Hex className="h-7 w-7 text-silver" /><span className="text-metal font-display text-xl font-bold tracking-wider">JACKBOY</span></div>
+        <div className="flex items-center justify-center gap-2">
+          <Hex className="h-7 w-7 text-silver" />
+          <span className="text-metal font-display text-xl font-bold tracking-wider">JACKBOY</span>
+        </div>
         {children}
       </div>
     );
@@ -85,8 +106,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           ))}
         </nav>
         <div className="mt-auto m-3 rounded-md border border-border p-3 text-xs text-muted-foreground">
-          <div className="flex items-center gap-2 text-silver"><Eye className="h-3.5 w-3.5" /> Read-only mode</div>
-          <p className="mt-1">Signed-in, invitation-only. GitHub, VS Code, OMNI and Honeycomb are not connected. Dashboard panels use demo data.</p>
+          Signed-in, invitation-only workspace. Connection details are under Integrations.
         </div>
       </aside>
 
@@ -96,13 +116,16 @@ export function AppShell({ children }: { children: ReactNode }) {
             <Hex className="h-6 w-6 text-silver" />
             <span className="text-metal font-display text-lg font-bold tracking-wider">JACKBOY</span>
           </div>
-          <span className="hidden rounded border border-warning/40 px-2 py-0.5 text-[11px] uppercase tracking-wider text-warning md:inline">Demo data</span>
+          <span className="hidden text-xs text-muted-foreground md:inline">Private workspace</span>
           <ModeToggle />
         </header>
         <main className="flex-1 px-4 py-6 md:px-8">{children}</main>
       </div>
 
-      <nav aria-label="Main mobile" className="fixed inset-x-0 bottom-0 z-20 flex overflow-x-auto border-t border-border bg-sidebar md:hidden">
+      <nav
+        aria-label="Main mobile"
+        className="fixed inset-x-0 bottom-0 z-20 flex overflow-x-auto border-t border-border bg-sidebar md:hidden"
+      >
         {NAV.map(({ to, label, icon: Icon }) => (
           <Link
             key={to}
@@ -133,7 +156,10 @@ export function GuidanceTip({ children }: { children: ReactNode }) {
   const { mode, guidance } = useJackboy();
   if (mode !== "assist" || !guidance) return null;
   return (
-    <div role="note" className="mb-4 flex gap-2 rounded-md border border-electric/40 bg-accent/40 p-3 text-sm text-accent-foreground">
+    <div
+      role="note"
+      className="mb-4 flex gap-2 rounded-md border border-electric/40 bg-accent/40 p-3 text-sm text-accent-foreground"
+    >
       <Hex className="mt-0.5 h-4 w-4 shrink-0 text-electric" />
       <div>{children}</div>
     </div>
