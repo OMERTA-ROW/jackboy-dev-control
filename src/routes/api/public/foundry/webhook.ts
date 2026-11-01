@@ -19,7 +19,7 @@ export const Route = createFileRoute("/api/public/foundry/webhook")({
     handlers: {
       POST: async ({ request }) => {
         const secret = process.env["FOUNDRY_WEBHOOK_SECRET"];
-        if (!secret) return Response.json({ error: "Webhook not configured" }, { status: 503 });
+        if (!secret) return Response.json({ error: "Webhook not configured" }, { status: 403 });
         const body = await request.text();
         if (body.length > 1_000_000) return Response.json({ error: "Too large" }, { status: 413 });
         if (!(await verify(secret, body, request.headers.get("x-hub-signature-256")))) return Response.json({ error: "Bad signature" }, { status: 401 });
