@@ -36,7 +36,20 @@ export function useChatVoice(onTranscript: (text: string) => void) {
   const rec = useRef<Rec | null>(null);
   const media = useRef<{ r: MediaRecorder; stream: MediaStream; chunks: Blob[] } | null>(null);
 
-  const releaseMic = () => { media.current?.stream.getTracks().forEach((t) => t.stop()); };
+  /** Real signal for the orb: mic loudness (recording path), speech-start events, or spoken word boundaries. 0..1 */
+  const level = useRef(0);
+  const meter = useRef<{ ctx: AudioContext; raf: number } | null>(null);
+  const stopMeter = () => { if (meter.current) { cancelAnimationFrame(meter.current.raf); void meter.current.ctx.close().catch(() => {}); meter.current = null; } level.current = 0; };
+  const startMeter = (stream: MediaStream) => {
+    try {
+      const ctx = new AudioContext(); const an = ctx.createAnalyser(); an.fftSize = 256;
+      ctx.createMediaStreamSource(stream).connect(an);
+      const buf = new Uint8Array(an.fftSize);
+      const tick = () => { an.getByteTimeDomainData(buf); let sum = 0; for (const v of buf) sum += ((v - 128) / 128) ** 2; level.current = Math.min(1, Math.sqrt(sum / buf.length) * 4); meter.current!.raf = requestAnimationFrame(tick); };
+      meter.current = { ctx, raf: requestAnimationFrame(tick) };
+    } catch { /* metering optional */ }
+  };
+  const releaseMic = () => { stopMeter(); media.current?.stream.getTracks().forEach((t) => t.stop()); };
   useEffect(() => {
     setSupport(speechSupport());
     try { setSpeakReplies(localStorage.getItem("jackboy.chat.speak") === "1"); } catch { /* optional */ }
@@ -55,7 +68,8 @@ export function useChatVoice(onTranscript: (text: string) => void) {
     if (!speakReplies || !("speechSynthesis" in window) || !text.trim()) return;
     window.speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(redactTranscript(text).replace(/[`*#_>|]/g, "").slice(0, 1500));
-    u.onend = () => setState("idle"); u.onerror = () => setState("idle");
+    u.onend = () => { level.current = 0; setState("idle"); }; u.onerror = () => { level.current = 0; setState("idle"); };
+    u.onboundary = () => { level.current = 1; }; // real per-word event from the speech engine
     setState("speaking");
     window.speechSynthesis.speak(u);
   }, [speakReplies]);
@@ -89,7 +103,9 @@ export function useChatVoice(onTranscript: (text: string) => void) {
       r.lang = navigator.language || "en-US"; r.interimResults = false; r.continuous = false;
       r.onresult = (e) => { const t = Array.from(e.results as ArrayLike<any>).map((x) => x[0]?.transcript ?? "").join(" ").trim(); if (t) onTranscript(redactTranscript(t)); };
       r.onerror = (e) => fail(e.error === "not-allowed" || e.error === "service-not-allowed" ? "Microphone permission was denied. Allow it in your browser settings, or type instead." : e.error === "no-speech" ? "I didn't hear anything. Try again or type instead." : `Voice input stopped (${e.error}). Type instead.`);
-      r.onend = () => { setState((s) => (s === "listening" ? "idle" : s)); rec.current = null; };
+      (r as any).onspeechstart = () => { level.current = 0.8; };
+      (r as any).onspeechend = () => { level.current = 0.2; };
+      r.onend = () => { level.current = 0; setState((s) => (s === "listening" ? "idle" : s)); rec.current = null; };
       rec.current = r;
       try { r.start(); setState("listening"); } catch { fail("Couldn't start the microphone. Type instead."); }
       return;
@@ -102,7 +118,7 @@ export function useChatVoice(onTranscript: (text: string) => void) {
         const chunks: Blob[] = [];
         r.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
         r.onstop = () => { releaseMic(); const blob = new Blob(chunks, { type: r.mimeType || mime || "audio/webm" }); media.current = null; if (blob.size) void upload(blob); else fail("Nothing was recorded. Try again."); };
-        media.current = { r, stream, chunks };
+        media.current = { r, stream, chunks }; startMeter(stream);
         r.start(); setState("listening");
         setTimeout(() => { if (media.current?.r === r && r.state === "recording") r.stop(); }, 60_000);
       } catch (e) {
@@ -112,7 +128,7 @@ export function useChatVoice(onTranscript: (text: string) => void) {
     }
     fail("Voice input isn't supported in this browser. Type instead.");
   };
-  return { support, state, listening: state === "listening", speaking: state === "speaking", speakReplies, error, toggleListen, toggleSpeak, stopSpeaking, speak };
+  return { level, support, state, listening: state === "listening", speaking: state === "speaking", speakReplies, error, toggleListen, toggleSpeak, stopSpeaking, speak };
 }
 
 const iconBtn = "inline-flex size-9 items-center justify-center rounded-md border border-border text-muted-foreground hover:border-electric hover:text-foreground focus-visible:outline-2 focus-visible:outline-electric disabled:opacity-40";

@@ -130,3 +130,36 @@
 @utility hex-clip {
   clip-path: polygon(25% 4%, 75% 4%, 100% 50%, 75% 96%, 25% 96%, 0% 50%);
 }
+
+/* Jackboy voice orb: black + graphite/silver with white highlights. --orb-level is driven by real audio/session events. */
+:root {
+  --orb-core: oklch(0.16 0.004 260);
+  --orb-graphite: oklch(0.38 0.006 260);
+  --orb-highlight: oklch(0.98 0 0);
+}
+.jb-orb {
+  --orb-level: 0;
+  position: relative; border-radius: 9999px; aspect-ratio: 1;
+  background:
+    radial-gradient(circle at 34% 28%, color-mix(in oklab, var(--orb-highlight) 85%, transparent) 0 6%, transparent 28%),
+    radial-gradient(circle at 50% 55%, var(--orb-graphite) 0%, var(--orb-core) 62%, oklch(0.06 0 0) 100%);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in oklab, var(--silver) 45%, transparent),
+    0 0 calc(8px + var(--orb-level) * 40px) calc(var(--orb-level) * 6px) color-mix(in oklab, var(--silver) calc(15% + var(--orb-level) * 45%), transparent);
+  transform: scale(calc(1 + var(--orb-level) * 0.08));
+  transition: transform 90ms linear, box-shadow 120ms linear, filter 300ms ease;
+}
+.jb-orb::after { content: ""; position: absolute; inset: 12%; border-radius: inherit;
+  background: conic-gradient(from 0deg, transparent, color-mix(in oklab, var(--silver) 35%, transparent), transparent 40%);
+  opacity: 0; }
+.jb-orb[data-mode="idle"], .jb-orb[data-mode="muted"] { filter: saturate(0) brightness(0.85); }
+.jb-orb[data-mode="muted"] { opacity: 0.6; }
+.jb-orb[data-mode="listening"] { animation: jb-breathe 2.4s ease-in-out infinite; }
+.jb-orb[data-mode="thinking"]::after { opacity: 1; animation: jb-spin 3.2s linear infinite; }
+.jb-orb[data-mode="error"] { box-shadow: inset 0 0 0 2px var(--destructive); }
+@keyframes jb-spin { to { transform: rotate(360deg); } }
+@keyframes jb-breathe { 50% { filter: brightness(1.15); } }
+@media (prefers-reduced-motion: reduce) {
+  .jb-orb, .jb-orb::after { animation: none !important; transition: none; transform: none; }
+  .jb-orb[data-mode="thinking"]::after { opacity: 0.6; }
+}

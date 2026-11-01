@@ -252,6 +252,18 @@ export async function handleChat(request: Request) {
     stopWhen: stepCountIs(50),
     abortSignal: request.signal,
     providerOptions: { openai: { store: false, forceReasoning: true, reasoningEffort: "low", reasoningSummary: "auto", include: ["reasoning.encrypted_content"] } },
+    // A closed tab, navigation or Stop aborts the request: expected, not a crash.
+    onError: ({ error }) => { if (!isAbort(error, request.signal)) console.error("chat stream error", error); },
   });
-  return withLovableAiGatewayRunIdHeader(result.toUIMessageStreamResponse({ originalMessages: body.messages, sendReasoning: true }), runIdFetch);
+  return withLovableAiGatewayRunIdHeader(result.toUIMessageStreamResponse({
+    originalMessages: body.messages, sendReasoning: true,
+    onError: (e) => (isAbort(e, request.signal) ? "Request stopped." : e instanceof Error ? e.message : "Chat failed."),
+  }), runIdFetch).catch((e) => {
+    if (isAbort(e, request.signal)) return new Response(null, { status: 499 });
+    throw e;
+  });
+}
+
+function isAbort(e: unknown, signal: AbortSignal) {
+  return signal.aborted || (e instanceof Error && (e.name === "AbortError" || e.name === "ResponseAborted"));
 }
