@@ -45,6 +45,7 @@ import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as ApiTranscribeRouteImport } from './routes/api/transcribe'
 import { Route as AuthenticatedPassportAgentIdRouteImport } from './routes/_authenticated/passport.$agentId'
 import { Route as AuthenticatedProjectIdRouteImport } from './routes/_authenticated/project.$id'
+import { Route as ApiAgentManifestRouteImport } from './routes/api/agent/manifest'
 import { Route as ApiPublicAgentIngestRouteImport } from './routes/api/public/agent-ingest'
 import { Route as ApiPublicFeedsSourceIdRouteImport } from './routes/api/public/feeds.$sourceId'
 import { Route as ApiPublicFoundryWebhookRouteImport } from './routes/api/public/foundry/webhook'
@@ -239,6 +240,11 @@ const AuthenticatedProjectIdRoute = AuthenticatedProjectIdRouteImport.update({
   path: '/project/$id',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const ApiAgentManifestRoute = ApiAgentManifestRouteImport.update({
+  id: '/api/agent/manifest',
+  path: '/api/agent/manifest',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicAgentIngestRoute = ApiPublicAgentIngestRouteImport.update({
   id: '/api/public/agent-ingest',
   path: '/api/public/agent-ingest',
@@ -335,6 +341,7 @@ export interface FileRoutesByFullPath {
   '/api/transcribe': typeof ApiTranscribeRoute
   '/passport/$agentId': typeof AuthenticatedPassportAgentIdRoute
   '/project/$id': typeof AuthenticatedProjectIdRoute
+  '/api/agent/manifest': typeof ApiAgentManifestRoute
   '/api/public/agent-ingest': typeof ApiPublicAgentIngestRoute
   '/api/public/feeds/$sourceId': typeof ApiPublicFeedsSourceIdRoute
   '/api/public/foundry/webhook': typeof ApiPublicFoundryWebhookRoute
@@ -383,6 +390,7 @@ export interface FileRoutesByTo {
   '/': typeof AuthenticatedIndexRoute
   '/passport/$agentId': typeof AuthenticatedPassportAgentIdRoute
   '/project/$id': typeof AuthenticatedProjectIdRoute
+  '/api/agent/manifest': typeof ApiAgentManifestRoute
   '/api/public/agent-ingest': typeof ApiPublicAgentIngestRoute
   '/api/public/feeds/$sourceId': typeof ApiPublicFeedsSourceIdRoute
   '/api/public/foundry/webhook': typeof ApiPublicFoundryWebhookRoute
@@ -433,6 +441,7 @@ export interface FileRoutesById {
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/passport/$agentId': typeof AuthenticatedPassportAgentIdRoute
   '/_authenticated/project/$id': typeof AuthenticatedProjectIdRoute
+  '/api/agent/manifest': typeof ApiAgentManifestRoute
   '/api/public/agent-ingest': typeof ApiPublicAgentIngestRoute
   '/api/public/feeds/$sourceId': typeof ApiPublicFeedsSourceIdRoute
   '/api/public/foundry/webhook': typeof ApiPublicFoundryWebhookRoute
@@ -483,6 +492,7 @@ export interface FileRouteTypes {
     | '/api/transcribe'
     | '/passport/$agentId'
     | '/project/$id'
+    | '/api/agent/manifest'
     | '/api/public/agent-ingest'
     | '/api/public/feeds/$sourceId'
     | '/api/public/foundry/webhook'
@@ -531,6 +541,7 @@ export interface FileRouteTypes {
     | '/'
     | '/passport/$agentId'
     | '/project/$id'
+    | '/api/agent/manifest'
     | '/api/public/agent-ingest'
     | '/api/public/feeds/$sourceId'
     | '/api/public/foundry/webhook'
@@ -580,6 +591,7 @@ export interface FileRouteTypes {
     | '/_authenticated/'
     | '/_authenticated/passport/$agentId'
     | '/_authenticated/project/$id'
+    | '/api/agent/manifest'
     | '/api/public/agent-ingest'
     | '/api/public/feeds/$sourceId'
     | '/api/public/foundry/webhook'
@@ -601,6 +613,7 @@ export interface RootRouteChildren {
   SetPasswordRoute: typeof SetPasswordRoute
   ApiChatRoute: typeof ApiChatRoute
   ApiTranscribeRoute: typeof ApiTranscribeRoute
+  ApiAgentManifestRoute: typeof ApiAgentManifestRoute
   ApiPublicAgentIngestRoute: typeof ApiPublicAgentIngestRoute
   ApiPublicFeedsSourceIdRoute: typeof ApiPublicFeedsSourceIdRoute
   ApiPublicFoundryWebhookRoute: typeof ApiPublicFoundryWebhookRoute
@@ -868,6 +881,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedProjectIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/agent/manifest': {
+      id: '/api/agent/manifest'
+      path: '/api/agent/manifest'
+      fullPath: '/api/agent/manifest'
+      preLoaderRoute: typeof ApiAgentManifestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/agent-ingest': {
       id: '/api/public/agent-ingest'
       path: '/api/public/agent-ingest'
@@ -1023,6 +1043,7 @@ const rootRouteChildren: RootRouteChildren = {
   SetPasswordRoute: SetPasswordRoute,
   ApiChatRoute: ApiChatRoute,
   ApiTranscribeRoute: ApiTranscribeRoute,
+  ApiAgentManifestRoute: ApiAgentManifestRoute,
   ApiPublicAgentIngestRoute: ApiPublicAgentIngestRoute,
   ApiPublicFeedsSourceIdRoute: ApiPublicFeedsSourceIdRoute,
   ApiPublicFoundryWebhookRoute: ApiPublicFoundryWebhookRoute,
