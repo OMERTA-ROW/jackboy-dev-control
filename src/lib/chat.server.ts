@@ -24,6 +24,15 @@ export async function verifyOwner(request: Request): Promise<string | null> {
 }
 
 import { buildJackboyTools } from "./jackboy-tools.server";
+export async function handleChat(request: Request) {
+  const userId = await verifyOwner(request);
+  if (!userId) return Response.json({ error: "Owner sign-in required." }, { status: 401 });
+  const key = process.env["LOVABLE_API_KEY"];
+  if (!key) return Response.json({ error: "AI is not configured on the server." }, { status: 500 });
+  const body = (await request.json()) as { messages?: UIMessage[] };
+  if (!Array.isArray(body.messages) || body.messages.length > 200) return Response.json({ error: "Invalid messages." }, { status: 400 });
+
+  const tools = buildJackboyTools(userId);
 
 
   // GuardianPolicy: voice is intent, not identity. Each privileged tool is re-decided per call.
