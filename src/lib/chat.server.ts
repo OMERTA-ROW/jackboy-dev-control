@@ -258,7 +258,7 @@ export async function handleChat(request: Request) {
   return withLovableAiGatewayRunIdHeader(result.toUIMessageStreamResponse({
     originalMessages: body.messages, sendReasoning: true,
     onError: (e) => (isAbort(e, request.signal) ? "Request stopped." : e instanceof Error ? e.message : "Chat failed."),
-  }), runIdFetch, undefined, { waitForUpstreamHeaders: false }).catch((e) => {
+  }), runIdFetch).catch((e) => {
     if (isAbort(e, request.signal)) return new Response(null, { status: 499 });
     throw e;
   });
