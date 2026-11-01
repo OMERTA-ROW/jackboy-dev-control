@@ -33,7 +33,12 @@ import { Route as AuthenticatedWorkspaceRouteImport } from './routes/_authentica
 import { Route as AuthenticatedPassportAgentIdRouteImport } from './routes/_authenticated/passport.$agentId'
 import { Route as ApiPublicAgentIngestRouteImport } from './routes/api/public/agent-ingest'
 import { Route as ApiPublicFeedsSourceIdRouteImport } from './routes/api/public/feeds.$sourceId'
+import { Route as ApiPublicJobsReleasesRouteImport } from './routes/api/public/jobs/releases'
 import { Route as ApiPublicJobsUpdateWriterRouteImport } from './routes/api/public/jobs/update-writer'
+import { Route as ApiPublicUpdatesCheckRouteImport } from './routes/api/public/updates/check'
+import { Route as ApiPublicUpdatesFlagsRouteImport } from './routes/api/public/updates/flags'
+import { Route as ApiPublicUpdatesHealthRouteImport } from './routes/api/public/updates/health'
+import { Route as ApiPublicUpdatesPublicKeyRouteImport } from './routes/api/public/updates/public-key'
 
 const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
   id: '/_authenticated',
@@ -156,10 +161,36 @@ const ApiPublicFeedsSourceIdRoute = ApiPublicFeedsSourceIdRouteImport.update({
   path: '/api/public/feeds/$sourceId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicJobsReleasesRoute = ApiPublicJobsReleasesRouteImport.update({
+  id: '/api/public/jobs/releases',
+  path: '/api/public/jobs/releases',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicJobsUpdateWriterRoute =
   ApiPublicJobsUpdateWriterRouteImport.update({
     id: '/api/public/jobs/update-writer',
     path: '/api/public/jobs/update-writer',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicUpdatesCheckRoute = ApiPublicUpdatesCheckRouteImport.update({
+  id: '/api/public/updates/check',
+  path: '/api/public/updates/check',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicUpdatesFlagsRoute = ApiPublicUpdatesFlagsRouteImport.update({
+  id: '/api/public/updates/flags',
+  path: '/api/public/updates/flags',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicUpdatesHealthRoute = ApiPublicUpdatesHealthRouteImport.update({
+  id: '/api/public/updates/health',
+  path: '/api/public/updates/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicUpdatesPublicKeyRoute =
+  ApiPublicUpdatesPublicKeyRouteImport.update({
+    id: '/api/public/updates/public-key',
+    path: '/api/public/updates/public-key',
     getParentRoute: () => rootRouteImport,
   } as any)
 
@@ -187,7 +218,12 @@ export interface FileRoutesByFullPath {
   '/passport/$agentId': typeof AuthenticatedPassportAgentIdRoute
   '/api/public/agent-ingest': typeof ApiPublicAgentIngestRoute
   '/api/public/feeds/$sourceId': typeof ApiPublicFeedsSourceIdRoute
+  '/api/public/jobs/releases': typeof ApiPublicJobsReleasesRoute
   '/api/public/jobs/update-writer': typeof ApiPublicJobsUpdateWriterRoute
+  '/api/public/updates/check': typeof ApiPublicUpdatesCheckRoute
+  '/api/public/updates/flags': typeof ApiPublicUpdatesFlagsRoute
+  '/api/public/updates/health': typeof ApiPublicUpdatesHealthRoute
+  '/api/public/updates/public-key': typeof ApiPublicUpdatesPublicKeyRoute
 }
 export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
@@ -213,7 +249,12 @@ export interface FileRoutesByTo {
   '/passport/$agentId': typeof AuthenticatedPassportAgentIdRoute
   '/api/public/agent-ingest': typeof ApiPublicAgentIngestRoute
   '/api/public/feeds/$sourceId': typeof ApiPublicFeedsSourceIdRoute
+  '/api/public/jobs/releases': typeof ApiPublicJobsReleasesRoute
   '/api/public/jobs/update-writer': typeof ApiPublicJobsUpdateWriterRoute
+  '/api/public/updates/check': typeof ApiPublicUpdatesCheckRoute
+  '/api/public/updates/flags': typeof ApiPublicUpdatesFlagsRoute
+  '/api/public/updates/health': typeof ApiPublicUpdatesHealthRoute
+  '/api/public/updates/public-key': typeof ApiPublicUpdatesPublicKeyRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -241,7 +282,12 @@ export interface FileRoutesById {
   '/_authenticated/passport/$agentId': typeof AuthenticatedPassportAgentIdRoute
   '/api/public/agent-ingest': typeof ApiPublicAgentIngestRoute
   '/api/public/feeds/$sourceId': typeof ApiPublicFeedsSourceIdRoute
+  '/api/public/jobs/releases': typeof ApiPublicJobsReleasesRoute
   '/api/public/jobs/update-writer': typeof ApiPublicJobsUpdateWriterRoute
+  '/api/public/updates/check': typeof ApiPublicUpdatesCheckRoute
+  '/api/public/updates/flags': typeof ApiPublicUpdatesFlagsRoute
+  '/api/public/updates/health': typeof ApiPublicUpdatesHealthRoute
+  '/api/public/updates/public-key': typeof ApiPublicUpdatesPublicKeyRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -269,7 +315,12 @@ export interface FileRouteTypes {
     | '/passport/$agentId'
     | '/api/public/agent-ingest'
     | '/api/public/feeds/$sourceId'
+    | '/api/public/jobs/releases'
     | '/api/public/jobs/update-writer'
+    | '/api/public/updates/check'
+    | '/api/public/updates/flags'
+    | '/api/public/updates/health'
+    | '/api/public/updates/public-key'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/auth'
@@ -295,7 +346,12 @@ export interface FileRouteTypes {
     | '/passport/$agentId'
     | '/api/public/agent-ingest'
     | '/api/public/feeds/$sourceId'
+    | '/api/public/jobs/releases'
     | '/api/public/jobs/update-writer'
+    | '/api/public/updates/check'
+    | '/api/public/updates/flags'
+    | '/api/public/updates/health'
+    | '/api/public/updates/public-key'
   id:
     | '__root__'
     | '/_authenticated'
@@ -322,7 +378,12 @@ export interface FileRouteTypes {
     | '/_authenticated/passport/$agentId'
     | '/api/public/agent-ingest'
     | '/api/public/feeds/$sourceId'
+    | '/api/public/jobs/releases'
     | '/api/public/jobs/update-writer'
+    | '/api/public/updates/check'
+    | '/api/public/updates/flags'
+    | '/api/public/updates/health'
+    | '/api/public/updates/public-key'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -333,7 +394,12 @@ export interface RootRouteChildren {
   SetPasswordRoute: typeof SetPasswordRoute
   ApiPublicAgentIngestRoute: typeof ApiPublicAgentIngestRoute
   ApiPublicFeedsSourceIdRoute: typeof ApiPublicFeedsSourceIdRoute
+  ApiPublicJobsReleasesRoute: typeof ApiPublicJobsReleasesRoute
   ApiPublicJobsUpdateWriterRoute: typeof ApiPublicJobsUpdateWriterRoute
+  ApiPublicUpdatesCheckRoute: typeof ApiPublicUpdatesCheckRoute
+  ApiPublicUpdatesFlagsRoute: typeof ApiPublicUpdatesFlagsRoute
+  ApiPublicUpdatesHealthRoute: typeof ApiPublicUpdatesHealthRoute
+  ApiPublicUpdatesPublicKeyRoute: typeof ApiPublicUpdatesPublicKeyRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -506,11 +572,46 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicFeedsSourceIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/jobs/releases': {
+      id: '/api/public/jobs/releases'
+      path: '/api/public/jobs/releases'
+      fullPath: '/api/public/jobs/releases'
+      preLoaderRoute: typeof ApiPublicJobsReleasesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/jobs/update-writer': {
       id: '/api/public/jobs/update-writer'
       path: '/api/public/jobs/update-writer'
       fullPath: '/api/public/jobs/update-writer'
       preLoaderRoute: typeof ApiPublicJobsUpdateWriterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/updates/check': {
+      id: '/api/public/updates/check'
+      path: '/api/public/updates/check'
+      fullPath: '/api/public/updates/check'
+      preLoaderRoute: typeof ApiPublicUpdatesCheckRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/updates/flags': {
+      id: '/api/public/updates/flags'
+      path: '/api/public/updates/flags'
+      fullPath: '/api/public/updates/flags'
+      preLoaderRoute: typeof ApiPublicUpdatesFlagsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/updates/health': {
+      id: '/api/public/updates/health'
+      path: '/api/public/updates/health'
+      fullPath: '/api/public/updates/health'
+      preLoaderRoute: typeof ApiPublicUpdatesHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/updates/public-key': {
+      id: '/api/public/updates/public-key'
+      path: '/api/public/updates/public-key'
+      fullPath: '/api/public/updates/public-key'
+      preLoaderRoute: typeof ApiPublicUpdatesPublicKeyRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -567,7 +668,12 @@ const rootRouteChildren: RootRouteChildren = {
   SetPasswordRoute: SetPasswordRoute,
   ApiPublicAgentIngestRoute: ApiPublicAgentIngestRoute,
   ApiPublicFeedsSourceIdRoute: ApiPublicFeedsSourceIdRoute,
+  ApiPublicJobsReleasesRoute: ApiPublicJobsReleasesRoute,
   ApiPublicJobsUpdateWriterRoute: ApiPublicJobsUpdateWriterRoute,
+  ApiPublicUpdatesCheckRoute: ApiPublicUpdatesCheckRoute,
+  ApiPublicUpdatesFlagsRoute: ApiPublicUpdatesFlagsRoute,
+  ApiPublicUpdatesHealthRoute: ApiPublicUpdatesHealthRoute,
+  ApiPublicUpdatesPublicKeyRoute: ApiPublicUpdatesPublicKeyRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
