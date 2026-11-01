@@ -96,7 +96,7 @@ function Projects() {
               {p.goals && <p className="mt-2 whitespace-pre-line text-xs"><span className="text-silver">Goals:</span> {p.goals}</p>}
               <div className="mt-3 flex gap-2">
                 <button className={btn} disabled={busy !== null} onClick={() => generate(p.id)}>{busy === p.id ? "Writing…" : "Run now"}</button>
-                <button className={btn} onClick={() => setForm({ id: p.id, name: p.name, lovable_url: p.lovable_url ?? "", description: p.description, goals: p.goals, notes: p.notes, github_repo: p.github_repo ?? "", github_branch: p.github_branch, frequency_hours: p.frequency_hours, active: p.active })}>Edit</button>
+                <button className={btn} onClick={() => setForm({ id: p.id, name: p.name, lovable_url: p.lovable_url ?? "", site_url: p.site_url ?? "", description: p.description, goals: p.goals, notes: p.notes, github_repo: p.github_repo ?? "", github_branch: p.github_branch, frequency_hours: p.frequency_hours, active: p.active })}>Edit</button>
                 <button className={btn} onClick={() => { if (confirm(`Delete ${p.name} and its proposals?`)) del({ data: { id: p.id } }).then(refresh).catch((x) => setErr(x.message)); }}>Delete</button>
               </div>
             </li>
