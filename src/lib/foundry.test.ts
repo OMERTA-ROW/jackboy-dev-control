@@ -48,3 +48,23 @@ describe("scheduling", () => {
     expect(quotaLeft(3, 1)).toBe(2);
   });
 });
+
+import { backoffMs, budget, isTransient, pickNext } from "./foundry";
+describe("pipeline limits", () => {
+  it("backs off exponentially and caps at 6h", () => {
+    expect(backoffMs(1)).toBe(300_000);
+    expect(backoffMs(2)).toBe(1_200_000);
+    expect(backoffMs(10)).toBe(21_600_000);
+  });
+  it("enforces and resets the daily run budget", () => {
+    expect(budget({ runs_today: 24, runs_day: "2026-11-01", max_runs_per_day: 24 }, "2026-11-01").allowed).toBe(false);
+    expect(budget({ runs_today: 24, runs_day: "2026-10-31", max_runs_per_day: 24 }, "2026-11-01").allowed).toBe(true);
+  });
+  it("picks highest priority, then oldest", () => {
+    expect(pickNext([{ id: "a", priority: 50, created_at: "2" }, { id: "b", priority: 80, created_at: "3" }, { id: "c", priority: 80, created_at: "1" }])?.id).toBe("c");
+  });
+  it("retries only transient errors", () => {
+    expect(isTransient("GitHub 503: unavailable")).toBe(true);
+    expect(isTransient("GitHub 403: forbidden")).toBe(false);
+  });
+});

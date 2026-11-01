@@ -73,3 +73,26 @@ export function nextProject<T extends { id: string }>(projects: T[], lastId: str
 export function quotaLeft(quota: number, createdToday: number): number {
   return Math.max(0, quota - createdToday);
 }
+
+/** Exponential backoff for automatic retries: 5 min, 20 min, 80 min… capped at 6 h. */
+export function backoffMs(attempts: number): number {
+  return Math.min(6 * 3600_000, 5 * 60_000 * 4 ** Math.max(0, attempts - 1));
+}
+
+export const IN_FLIGHT: State[] = ["analyzing", "patch_prepared", "testing", "approved", "executing", "verifying"];
+
+/** Daily run budget; resets when the UTC day changes. */
+export function budget(s: { runs_today: number; runs_day: string | null; max_runs_per_day: number }, today: string): { allowed: boolean; runsToday: number } {
+  const runsToday = s.runs_day === today ? s.runs_today : 0;
+  return { allowed: runsToday < s.max_runs_per_day, runsToday };
+}
+
+/** Highest priority first, then oldest. */
+export function pickNext<T extends { priority: number; created_at: string }>(tasks: T[]): T | null {
+  return [...tasks].sort((a, b) => b.priority - a.priority || a.created_at.localeCompare(b.created_at))[0] ?? null;
+}
+
+/** Transient connector errors are retried later; anything else fails for owner review. */
+export function isTransient(msg: string): boolean {
+  return /\b(429|500|502|503|504)\b|timeout|network|fetch failed|rate limit/i.test(msg);
+}

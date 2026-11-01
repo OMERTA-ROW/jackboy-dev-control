@@ -675,6 +675,13 @@ export type Database = {
           interval_hours: number
           last_project_id: string | null
           last_run_at: string | null
+          last_tick_at: string | null
+          last_tick_result: Json
+          max_in_flight: number
+          max_runs_per_day: number
+          paused: boolean
+          runs_day: string | null
+          runs_today: number
           updated_at: string
         }
         Insert: {
@@ -684,6 +691,13 @@ export type Database = {
           interval_hours?: number
           last_project_id?: string | null
           last_run_at?: string | null
+          last_tick_at?: string | null
+          last_tick_result?: Json
+          max_in_flight?: number
+          max_runs_per_day?: number
+          paused?: boolean
+          runs_day?: string | null
+          runs_today?: number
           updated_at?: string
         }
         Update: {
@@ -693,6 +707,13 @@ export type Database = {
           interval_hours?: number
           last_project_id?: string | null
           last_run_at?: string | null
+          last_tick_at?: string | null
+          last_tick_result?: Json
+          max_in_flight?: number
+          max_runs_per_day?: number
+          paused?: boolean
+          runs_day?: string | null
+          runs_today?: number
           updated_at?: string
         }
         Relationships: []
@@ -712,9 +733,11 @@ export type Database = {
           idempotency_key: string | null
           kind: string
           max_attempts: number
+          next_attempt_at: string | null
           paused: boolean
           pr_number: number | null
           pr_url: string | null
+          priority: number
           project_id: string
           repo: string | null
           risk: string
@@ -739,9 +762,11 @@ export type Database = {
           idempotency_key?: string | null
           kind?: string
           max_attempts?: number
+          next_attempt_at?: string | null
           paused?: boolean
           pr_number?: number | null
           pr_url?: string | null
+          priority?: number
           project_id: string
           repo?: string | null
           risk?: string
@@ -766,9 +791,11 @@ export type Database = {
           idempotency_key?: string | null
           kind?: string
           max_attempts?: number
+          next_attempt_at?: string | null
           paused?: boolean
           pr_number?: number | null
           pr_url?: string | null
+          priority?: number
           project_id?: string
           repo?: string | null
           risk?: string

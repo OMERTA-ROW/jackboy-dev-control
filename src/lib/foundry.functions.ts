@@ -8,7 +8,32 @@ async function owner(ctx: { supabase: { rpc: (n: "my_role") => PromiseLike<{ dat
   return `owner:${ctx.userId}`;
 }
 
-export type Connector = { id: string; name: string; state: "connected" | "setup_required" | "error"; scopes: string; detail: string };
+export type Connector = { id: string; name: string; kind: "OAuth" | "API token" | "MCP" | "Runner" | "Webhook"; state: "connected" | "setup_required" | "error"; scopes: string; detail: string; vault: string; revoke: string };
+
+async function connections(): Promise<Connector[]> {
+  const has = (k: string) => Boolean(process.env[k]);
+  const out: Connector[] = [];
+  const gh: Connector = { id: "github", name: "GitHub", kind: "API token", state: "setup_required", scopes: "Needed: Contents read/write, Pull requests read/write, Actions read (private repos only)", detail: "Add a fine-grained GitHub token limited to the repos Jackboy may touch.", vault: "GITHUB_TOKEN (backend secret)", revoke: "Revoke on GitHub → Settings → Developer settings → Tokens; then delete the secret." };
+  if (has("GITHUB_TOKEN")) {
+    try {
+      const ws = await import("./repo-workspace.server");
+      const r = await ws.listAccessibleRepos();
+      Object.assign(gh, { state: "connected", detail: `${r.filter((x) => x.usable).length} usable private repos (public repos are refused). Actions results are not readable with the current token.` });
+    } catch (e) { Object.assign(gh, { state: "error", detail: (e as Error).message.slice(0, 160) }); }
+  }
+  out.push(gh);
+  out.push({ id: "github-webhook", name: "GitHub push webhook", kind: "Webhook", state: has("FOUNDRY_WEBHOOK_SECRET") ? "connected" : "setup_required", scopes: "Push events → one budgeted inspection", detail: has("FOUNDRY_WEBHOOK_SECRET") ? "Signature secret set. Configure the repo webhook to /api/public/foundry/webhook." : "No signature secret; the webhook endpoint rejects every call.", vault: "FOUNDRY_WEBHOOK_SECRET (backend secret)", revoke: "Delete the repo webhook on GitHub and the secret." });
+  out.push({ id: "google", name: "Google APIs", kind: "OAuth", state: "setup_required", scopes: "-", detail: "No Google connection authorized.", vault: "-", revoke: "-" });
+  out.push({ id: "notion", name: "Notion", kind: "OAuth", state: has("NOTION_API_KEY") ? "connected" : "setup_required", scopes: has("NOTION_API_KEY") ? "Pages shared with the integration" : "-", detail: has("NOTION_API_KEY") ? "Linked; note sync not yet built." : "Not linked. Notes stay in Jackboy.", vault: has("NOTION_API_KEY") ? "NOTION_API_KEY (connector)" : "-", revoke: "Unlink in workspace connectors." });
+  out.push({ id: "deploy", name: "Deployment target", kind: "API token", state: "setup_required", scopes: "-", detail: "No deployment connection. Jackboy stops at draft PRs; nothing is deployed.", vault: "-", revoke: "-" });
+  out.push({ id: "runner", name: "Browser / CLI sandbox runner", kind: "Runner", state: "setup_required", scopes: "-", detail: "No isolated runner. Tests come only from GitHub Actions when readable.", vault: "-", revoke: "-" });
+  out.push({ id: "mcp", name: "MCP tools", kind: "MCP", state: "setup_required", scopes: "-", detail: "No app-side MCP adapter; chat-only MCP tools can't be called by the app.", vault: "-", revoke: "-" });
+  return out;
+}
+
+export const getConnections = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => { await owner(context as never); return connections(); });
 
 export const getFoundry = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -16,24 +41,13 @@ export const getFoundry = createServerFn({ method: "GET" })
     await owner(context as never);
     const sb = context.supabase;
     const [tasks, events, patterns, schedule, projects] = await Promise.all([
-      sb.from("foundry_tasks").select("id, project_id, title, summary, kind, risk, state, repo, branch, commit_sha, pr_url, pr_number, files, test_evidence, approved_action, attempts, paused, blocked_reason, source, created_at, updated_at").order("updated_at", { ascending: false }).limit(200),
+      sb.from("foundry_tasks").select("id, project_id, title, summary, kind, risk, state, repo, branch, commit_sha, pr_url, pr_number, files, test_evidence, approved_action, attempts, paused, blocked_reason, source, priority, next_attempt_at, created_at, updated_at").order("updated_at", { ascending: false }).limit(200),
       sb.from("foundry_events").select("id, task_id, project_id, action, actor, from_state, to_state, note, created_at").order("created_at", { ascending: false }).limit(300),
       sb.from("foundry_patterns").select("*").order("verified_count", { ascending: false }),
       sb.from("foundry_schedule").select("*").eq("id", 1).single(),
       sb.from("owner_projects").select("id, name, github_repo").order("name"),
     ]);
-    const connectors: Connector[] = [];
-    if (process.env["GITHUB_TOKEN"]) {
-      try {
-        const ws = await import("./repo-workspace.server");
-        const r = await ws.listAccessibleRepos();
-        connectors.push({ id: "github", name: "GitHub", state: "connected", scopes: "Contents + PRs (private repos with push)", detail: `${r.filter((x) => x.usable).length} usable private repos. Token is a backend secret, revocable on GitHub.` });
-      } catch (e) { connectors.push({ id: "github", name: "GitHub", state: "error", scopes: "-", detail: (e as Error).message.slice(0, 160) }); }
-    } else connectors.push({ id: "github", name: "GitHub", state: "setup_required", scopes: "-", detail: "Add a fine-grained GitHub token as a backend secret." });
-    connectors.push({ id: "notion", name: "Notion", state: process.env["NOTION_API_KEY"] ? "connected" : "setup_required", scopes: process.env["NOTION_API_KEY"] ? "Pages shared with the integration" : "-", detail: process.env["NOTION_API_KEY"] ? "Linked; note sync not yet built." : "Not linked. Notes stay in Jackboy." });
-    connectors.push({ id: "google", name: "Google", state: "setup_required", scopes: "-", detail: "No Google connection authorized." });
-    connectors.push({ id: "mcp", name: "MCP tools", state: "setup_required", scopes: "-", detail: "No app-side MCP adapter exists; chat-only MCP tools can't be called by the app." });
-    connectors.push({ id: "runner", name: "CLI sandbox runner", state: "setup_required", scopes: "-", detail: "No isolated runner connected. Tests come only from GitHub Actions when readable." });
+    const connectors = await connections();
     return { tasks: tasks.data ?? [], events: events.data ?? [], patterns: patterns.data ?? [], schedule: schedule.data, projects: projects.data ?? [], connectors };
   });
 
@@ -61,12 +75,24 @@ export const foundryAct = createServerFn({ method: "POST" })
 
 export const foundrySchedule = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { enabled: boolean; interval_hours: number; daily_task_quota: number }) => ({
-    enabled: Boolean(d.enabled), interval_hours: Math.min(720, Math.max(1, Math.round(d.interval_hours))), daily_task_quota: Math.min(20, Math.max(0, Math.round(d.daily_task_quota))),
-  }))
+  .inputValidator((d: { enabled: boolean; interval_hours: number; daily_task_quota: number; max_in_flight: number; max_runs_per_day: number }) => {
+    const n = (x: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, Math.round(Number(x) || lo)));
+    return { enabled: Boolean(d.enabled), interval_hours: n(d.interval_hours, 1, 720), daily_task_quota: n(d.daily_task_quota, 0, 20), max_in_flight: n(d.max_in_flight, 1, 10), max_runs_per_day: n(d.max_runs_per_day, 1, 200) };
+  })
   .handler(async ({ data, context }) => {
     const actor = await owner(context as never);
     const s = await import("./foundry.server");
     await s.setSchedule(actor, data);
     return { ok: true };
+  });
+
+export const foundryControl = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { op: "pause_all" | "resume_all" | "advance" }) => d)
+  .handler(async ({ data, context }) => {
+    const actor = await owner(context as never);
+    const s = await import("./foundry.server");
+    if (data.op === "advance") return { result: await s.advance(actor) };
+    await s.setGlobalPause(actor, data.op === "pause_all");
+    return { result: data.op };
   });

@@ -16,6 +16,7 @@ import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as SetPasswordRouteImport } from './routes/set-password'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as AuthenticatedAccessRouteImport } from './routes/_authenticated/access'
+import { Route as AuthenticatedAccountsRouteImport } from './routes/_authenticated/accounts'
 import { Route as AuthenticatedActivityRouteImport } from './routes/_authenticated/activity'
 import { Route as AuthenticatedAgentsRouteImport } from './routes/_authenticated/agents'
 import { Route as AuthenticatedAutomationRouteImport } from './routes/_authenticated/automation'
@@ -43,6 +44,7 @@ import { Route as AuthenticatedPassportAgentIdRouteImport } from './routes/_auth
 import { Route as AuthenticatedProjectIdRouteImport } from './routes/_authenticated/project.$id'
 import { Route as ApiPublicAgentIngestRouteImport } from './routes/api/public/agent-ingest'
 import { Route as ApiPublicFeedsSourceIdRouteImport } from './routes/api/public/feeds.$sourceId'
+import { Route as ApiPublicFoundryWebhookRouteImport } from './routes/api/public/foundry/webhook'
 import { Route as ApiPublicJobsReleasesRouteImport } from './routes/api/public/jobs/releases'
 import { Route as ApiPublicJobsUpdateWriterRouteImport } from './routes/api/public/jobs/update-writer'
 import { Route as ApiPublicUpdatesCheckRouteImport } from './routes/api/public/updates/check'
@@ -82,6 +84,11 @@ const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
 const AuthenticatedAccessRoute = AuthenticatedAccessRouteImport.update({
   id: '/access',
   path: '/access',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedAccountsRoute = AuthenticatedAccountsRouteImport.update({
+  id: '/accounts',
+  path: '/accounts',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedActivityRoute = AuthenticatedActivityRouteImport.update({
@@ -221,6 +228,11 @@ const ApiPublicFeedsSourceIdRoute = ApiPublicFeedsSourceIdRouteImport.update({
   path: '/api/public/feeds/$sourceId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicFoundryWebhookRoute = ApiPublicFoundryWebhookRouteImport.update({
+  id: '/api/public/foundry/webhook',
+  path: '/api/public/foundry/webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicJobsReleasesRoute = ApiPublicJobsReleasesRouteImport.update({
   id: '/api/public/jobs/releases',
   path: '/api/public/jobs/releases',
@@ -261,6 +273,7 @@ export interface FileRoutesByFullPath {
   '/onboarding': typeof OnboardingRoute
   '/set-password': typeof SetPasswordRoute
   '/access': typeof AuthenticatedAccessRoute
+  '/accounts': typeof AuthenticatedAccountsRoute
   '/activity': typeof AuthenticatedActivityRoute
   '/agents': typeof AuthenticatedAgentsRoute
   '/automation': typeof AuthenticatedAutomationRoute
@@ -288,6 +301,7 @@ export interface FileRoutesByFullPath {
   '/project/$id': typeof AuthenticatedProjectIdRoute
   '/api/public/agent-ingest': typeof ApiPublicAgentIngestRoute
   '/api/public/feeds/$sourceId': typeof ApiPublicFeedsSourceIdRoute
+  '/api/public/foundry/webhook': typeof ApiPublicFoundryWebhookRoute
   '/api/public/jobs/releases': typeof ApiPublicJobsReleasesRoute
   '/api/public/jobs/update-writer': typeof ApiPublicJobsUpdateWriterRoute
   '/api/public/updates/check': typeof ApiPublicUpdatesCheckRoute
@@ -301,6 +315,7 @@ export interface FileRoutesByTo {
   '/onboarding': typeof OnboardingRoute
   '/set-password': typeof SetPasswordRoute
   '/access': typeof AuthenticatedAccessRoute
+  '/accounts': typeof AuthenticatedAccountsRoute
   '/activity': typeof AuthenticatedActivityRoute
   '/agents': typeof AuthenticatedAgentsRoute
   '/automation': typeof AuthenticatedAutomationRoute
@@ -329,6 +344,7 @@ export interface FileRoutesByTo {
   '/project/$id': typeof AuthenticatedProjectIdRoute
   '/api/public/agent-ingest': typeof ApiPublicAgentIngestRoute
   '/api/public/feeds/$sourceId': typeof ApiPublicFeedsSourceIdRoute
+  '/api/public/foundry/webhook': typeof ApiPublicFoundryWebhookRoute
   '/api/public/jobs/releases': typeof ApiPublicJobsReleasesRoute
   '/api/public/jobs/update-writer': typeof ApiPublicJobsUpdateWriterRoute
   '/api/public/updates/check': typeof ApiPublicUpdatesCheckRoute
@@ -344,6 +360,7 @@ export interface FileRoutesById {
   '/onboarding': typeof OnboardingRoute
   '/set-password': typeof SetPasswordRoute
   '/_authenticated/access': typeof AuthenticatedAccessRoute
+  '/_authenticated/accounts': typeof AuthenticatedAccountsRoute
   '/_authenticated/activity': typeof AuthenticatedActivityRoute
   '/_authenticated/agents': typeof AuthenticatedAgentsRoute
   '/_authenticated/automation': typeof AuthenticatedAutomationRoute
@@ -372,6 +389,7 @@ export interface FileRoutesById {
   '/_authenticated/project/$id': typeof AuthenticatedProjectIdRoute
   '/api/public/agent-ingest': typeof ApiPublicAgentIngestRoute
   '/api/public/feeds/$sourceId': typeof ApiPublicFeedsSourceIdRoute
+  '/api/public/foundry/webhook': typeof ApiPublicFoundryWebhookRoute
   '/api/public/jobs/releases': typeof ApiPublicJobsReleasesRoute
   '/api/public/jobs/update-writer': typeof ApiPublicJobsUpdateWriterRoute
   '/api/public/updates/check': typeof ApiPublicUpdatesCheckRoute
@@ -388,6 +406,7 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/set-password'
     | '/access'
+    | '/accounts'
     | '/activity'
     | '/agents'
     | '/automation'
@@ -415,6 +434,7 @@ export interface FileRouteTypes {
     | '/project/$id'
     | '/api/public/agent-ingest'
     | '/api/public/feeds/$sourceId'
+    | '/api/public/foundry/webhook'
     | '/api/public/jobs/releases'
     | '/api/public/jobs/update-writer'
     | '/api/public/updates/check'
@@ -428,6 +448,7 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/set-password'
     | '/access'
+    | '/accounts'
     | '/activity'
     | '/agents'
     | '/automation'
@@ -456,6 +477,7 @@ export interface FileRouteTypes {
     | '/project/$id'
     | '/api/public/agent-ingest'
     | '/api/public/feeds/$sourceId'
+    | '/api/public/foundry/webhook'
     | '/api/public/jobs/releases'
     | '/api/public/jobs/update-writer'
     | '/api/public/updates/check'
@@ -470,6 +492,7 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/set-password'
     | '/_authenticated/access'
+    | '/_authenticated/accounts'
     | '/_authenticated/activity'
     | '/_authenticated/agents'
     | '/_authenticated/automation'
@@ -498,6 +521,7 @@ export interface FileRouteTypes {
     | '/_authenticated/project/$id'
     | '/api/public/agent-ingest'
     | '/api/public/feeds/$sourceId'
+    | '/api/public/foundry/webhook'
     | '/api/public/jobs/releases'
     | '/api/public/jobs/update-writer'
     | '/api/public/updates/check'
@@ -515,6 +539,7 @@ export interface RootRouteChildren {
   ApiChatRoute: typeof ApiChatRoute
   ApiPublicAgentIngestRoute: typeof ApiPublicAgentIngestRoute
   ApiPublicFeedsSourceIdRoute: typeof ApiPublicFeedsSourceIdRoute
+  ApiPublicFoundryWebhookRoute: typeof ApiPublicFoundryWebhookRoute
   ApiPublicJobsReleasesRoute: typeof ApiPublicJobsReleasesRoute
   ApiPublicJobsUpdateWriterRoute: typeof ApiPublicJobsUpdateWriterRoute
   ApiPublicUpdatesCheckRoute: typeof ApiPublicUpdatesCheckRoute
@@ -572,6 +597,13 @@ declare module '@tanstack/react-router' {
       path: '/access'
       fullPath: '/access'
       preLoaderRoute: typeof AuthenticatedAccessRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/accounts': {
+      id: '/_authenticated/accounts'
+      path: '/accounts'
+      fullPath: '/accounts'
+      preLoaderRoute: typeof AuthenticatedAccountsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/activity': {
@@ -763,6 +795,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicFeedsSourceIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/foundry/webhook': {
+      id: '/api/public/foundry/webhook'
+      path: '/api/public/foundry/webhook'
+      fullPath: '/api/public/foundry/webhook'
+      preLoaderRoute: typeof ApiPublicFoundryWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/jobs/releases': {
       id: '/api/public/jobs/releases'
       path: '/api/public/jobs/releases'
@@ -810,6 +849,7 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAccessRoute: typeof AuthenticatedAccessRoute
+  AuthenticatedAccountsRoute: typeof AuthenticatedAccountsRoute
   AuthenticatedActivityRoute: typeof AuthenticatedActivityRoute
   AuthenticatedAgentsRoute: typeof AuthenticatedAgentsRoute
   AuthenticatedAutomationRoute: typeof AuthenticatedAutomationRoute
@@ -839,6 +879,7 @@ interface AuthenticatedRouteRouteChildren {
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAccessRoute: AuthenticatedAccessRoute,
+  AuthenticatedAccountsRoute: AuthenticatedAccountsRoute,
   AuthenticatedActivityRoute: AuthenticatedActivityRoute,
   AuthenticatedAgentsRoute: AuthenticatedAgentsRoute,
   AuthenticatedAutomationRoute: AuthenticatedAutomationRoute,
@@ -878,6 +919,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiChatRoute: ApiChatRoute,
   ApiPublicAgentIngestRoute: ApiPublicAgentIngestRoute,
   ApiPublicFeedsSourceIdRoute: ApiPublicFeedsSourceIdRoute,
+  ApiPublicFoundryWebhookRoute: ApiPublicFoundryWebhookRoute,
   ApiPublicJobsReleasesRoute: ApiPublicJobsReleasesRoute,
   ApiPublicJobsUpdateWriterRoute: ApiPublicJobsUpdateWriterRoute,
   ApiPublicUpdatesCheckRoute: ApiPublicUpdatesCheckRoute,

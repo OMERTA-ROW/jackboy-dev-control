@@ -39,6 +39,7 @@ export const ADVANCED = [
   { group: "Account & records", items: [
     { to: "/overview", label: "Advanced overview", note: "Previous dashboard with all counts" },
     { to: "/activity", label: "Logs & Approvals", note: "Audit trail" },
+    { to: "/accounts", label: "Connect Accounts", note: "Live status, scopes, where credentials live, revoke" },
     { to: "/integrations", label: "Integrations", note: "Connection status and setup" },
     { to: "/access", label: "Access", note: "Members, invitations, sessions" },
   ] },
