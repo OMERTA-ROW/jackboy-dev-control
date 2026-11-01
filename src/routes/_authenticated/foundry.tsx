@@ -2,8 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/AppShell";
-import { foundryAct, foundryInspect, foundrySchedule, getFoundry } from "@/lib/foundry.functions";
-import { ACTIVE_APPROVAL, TERMINAL, type State } from "@/lib/foundry";
+import { foundryAct, foundryControl, foundryInspect, foundrySchedule, getFoundry } from "@/lib/foundry.functions";
+import { ACTIVE_APPROVAL, pickNext, TERMINAL, type State } from "@/lib/foundry";
 
 export const Route = createFileRoute("/_authenticated/foundry")({
   head: () => ({
@@ -23,7 +23,7 @@ type Data = Awaited<ReturnType<typeof getFoundry>>;
 const tone = (s: string) => s === "completed" || s === "connected" || s === "passed" ? "text-success" : s === "failed" || s === "error" || s === "rolled_back" ? "text-destructive" : s === "blocked" || s === "setup_required" || s === "not_runnable" || s === "pending" ? "text-warning" : "text-primary";
 
 function Foundry() {
-  const get = useServerFn(getFoundry), inspect = useServerFn(foundryInspect), act = useServerFn(foundryAct), sched = useServerFn(foundrySchedule);
+  const get = useServerFn(getFoundry), inspect = useServerFn(foundryInspect), act = useServerFn(foundryAct), ctl = useServerFn(foundryControl), sched = useServerFn(foundrySchedule);
   const [d, setD] = useState<Data | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
@@ -42,6 +42,9 @@ function Foundry() {
   const active = d.tasks.filter((t) => !ACTIVE_APPROVAL.includes(t.state as State) && !TERMINAL.includes(t.state as State));
   const history = d.tasks.filter((t) => TERMINAL.includes(t.state as State) && (!q || `${t.title} ${t.pr_url ?? ""} ${t.branch ?? ""}`.toLowerCase().includes(q.toLowerCase())));
   const repoProjects = d.projects.filter((p) => p.github_repo);
+  const next = pickNext(pending) ?? pickNext(active);
+  const sc = d.schedule;
+  const tickAge = sc?.last_tick_at ? (Date.now() - new Date(sc.last_tick_at).getTime()) / 3600_000 : null;
 
   const Task = ({ t }: { t: Data["tasks"][number] }) => {
     const ev = t.test_evidence as { status?: string; reason?: string };
@@ -73,6 +76,14 @@ function Foundry() {
     <>
       <PageHeader title="Code Foundry" subtitle="Inspect → patch on a jackboy/* branch → test → your approval → draft PR. Nothing merges or deploys on its own." />
       {msg && <p role="status" className="mb-4 text-sm text-warning">{msg}</p>}
+      <section className="panel mb-4 grid gap-3 p-4 md:grid-cols-3" aria-label="Live work status">
+        <div><p className="text-xs uppercase text-muted-foreground">Pipeline</p><p className={`font-semibold ${sc?.paused ? "text-warning" : "text-success"}`}>{sc?.paused ? "Paused" : "Running when triggered"}</p>
+          <button className="mt-1 rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50" disabled={!!busy} onClick={() => run("ctl", () => ctl({ data: { op: sc?.paused ? "resume_all" : "pause_all" } }))}>{sc?.paused ? "Resume all" : "Stop all"}</button></div>
+        <div><p className="text-xs uppercase text-muted-foreground">Scheduler</p><p className="text-sm">{tickAge === null ? "Has not run this code yet (hourly job runs on the published app)." : `Last ran ${tickAge < 1 ? "under an hour" : `${Math.round(tickAge)} h`} ago: ${JSON.stringify(sc?.last_tick_result).slice(0, 120)}`}</p>
+          <p className="text-xs text-muted-foreground">Runs today {sc?.runs_day === new Date().toISOString().slice(0, 10) ? sc?.runs_today : 0}/{sc?.max_runs_per_day} · max {sc?.max_in_flight} in flight</p></div>
+        <div><p className="text-xs uppercase text-muted-foreground">Next task</p><p className="text-sm">{next ? `${next.title} (${next.state.replace("_", " ")})` : "None queued"}</p>
+          <button className="mt-1 rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50" disabled={!!busy || !!sc?.paused} onClick={() => run("adv", () => ctl({ data: { op: "advance" } }))}>Find next task now</button></div>
+      </section>
       <section className="panel mb-4 p-4" aria-label="Connections">
         <h2 className="text-sm font-semibold uppercase tracking-wider text-silver">Connections (checked live)</h2>
         <ul className="mt-2 grid gap-2 md:grid-cols-2">{d.connectors.map((c) => <li key={c.id} className="text-sm"><span className="font-medium">{c.name}</span> <span className={`text-xs uppercase ${tone(c.state)}`}>{c.state.replace("_", " ")}</span><br /><span className="text-xs text-muted-foreground">{c.detail}</span></li>)}</ul>
@@ -96,13 +107,15 @@ function Foundry() {
   );
 }
 
-function Schedule({ s, onSave }: { s: NonNullable<Data["schedule"]>; onSave: (v: { enabled: boolean; interval_hours: number; daily_task_quota: number }) => void }) {
-  const [v, setV] = useState({ enabled: s.enabled, interval_hours: s.interval_hours, daily_task_quota: s.daily_task_quota });
+function Schedule({ s, onSave }: { s: NonNullable<Data["schedule"]>; onSave: (v: { enabled: boolean; interval_hours: number; daily_task_quota: number; max_in_flight: number; max_runs_per_day: number }) => void }) {
+  const [v, setV] = useState({ enabled: s.enabled, interval_hours: s.interval_hours, daily_task_quota: s.daily_task_quota, max_in_flight: s.max_in_flight, max_runs_per_day: s.max_runs_per_day });
   return (
     <div className="mt-4 flex flex-wrap items-end gap-3 text-sm">
       <label className="flex items-center gap-2"><input type="checkbox" checked={v.enabled} onChange={(e) => setV({ ...v, enabled: e.target.checked })} />Recurring inspections</label>
       <label>Every (hours) <input type="number" min={1} max={720} className="w-20 rounded border border-border bg-background p-1" value={v.interval_hours} onChange={(e) => setV({ ...v, interval_hours: Number(e.target.value) })} /></label>
       <label>Max new tasks/day <input type="number" min={0} max={20} className="w-16 rounded border border-border bg-background p-1" value={v.daily_task_quota} onChange={(e) => setV({ ...v, daily_task_quota: Number(e.target.value) })} /></label>
+      <label>Max runs/day <input type="number" min={1} max={200} className="w-16 rounded border border-border bg-background p-1" value={v.max_runs_per_day} onChange={(e) => setV({ ...v, max_runs_per_day: Number(e.target.value) })} /></label>
+      <label>Max in flight <input type="number" min={1} max={10} className="w-14 rounded border border-border bg-background p-1" value={v.max_in_flight} onChange={(e) => setV({ ...v, max_in_flight: Number(e.target.value) })} /></label>
       <button className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50" onClick={() => onSave(v)}>Save schedule</button>
       <span className="text-xs text-muted-foreground">One project per run, rotating. Scheduled tasks always wait for approval.</span>
     </div>
