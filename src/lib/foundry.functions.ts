@@ -96,3 +96,20 @@ export const foundryControl = createServerFn({ method: "POST" })
     await s.setGlobalPause(actor, data.op === "pause_all");
     return { result: data.op };
   });
+
+/** Owner-only quality metrics from stored tasks, proposals, releases and installs. */
+export const getQualityMetrics = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await owner(context as never);
+    const sb = context.supabase;
+    const [t, p, r, i] = await Promise.all([
+      sb.from("foundry_tasks").select("state, test_evidence").limit(2000),
+      sb.from("update_proposals").select("status, checks_state, revert_pr_url").limit(2000),
+      sb.from("releases").select("status").limit(2000),
+      sb.from("update_installs").select("phase").limit(5000),
+    ]);
+    for (const x of [t, p, r, i]) if (x.error) throw new Error(x.error.message);
+    const { qualityMetrics } = await import("./quality-metrics");
+    return qualityMetrics({ tasks: t.data ?? [], proposals: p.data ?? [], releases: r.data ?? [], installs: i.data ?? [] });
+  });
