@@ -73,7 +73,7 @@ function OmniPage() {
 
       {handoffs.length === 0 ? (
         <section className="panel p-6 text-sm text-muted-foreground">
-          The queue is empty. Open{" "}
+          No research handoffs yet. Open{" "}
           <Link to="/discovery" className="text-electric underline">
             Discovery
           </Link>{" "}
