@@ -42,7 +42,7 @@ export async function approveCapability(cap: string, projectId: string, actor: s
 async function realCheck(cap: string, repoFull: string | null): Promise<{ ok: boolean; account: string | null; detail: string }> {
   const token = process.env["GITHUB_TOKEN"];
   const gh = async (path: string) => fetch(`https://api.github.com${path}`, { signal: AbortSignal.timeout(10_000), headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${token}`, "User-Agent": "Jackboy", "X-GitHub-Api-Version": "2022-11-28" } });
-  const post = (path: string, method: string, body?: unknown) => fetch(`https://api.github.com${path}`, { method, signal: AbortSignal.timeout(10_000), body: body ? JSON.stringify(body) : undefined, headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${token}`, "User-Agent": "Jackboy", "X-GitHub-Api-Version": "2022-11-28", "Content-Type": "application/json" } });
+  const post = (path: string, method: string, body?: unknown) => fetch(`https://api.github.com${path}`, { method, signal: AbortSignal.timeout(10_000), body: body ? JSON.stringify(body) : null, headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${token}`, "User-Agent": "Jackboy", "X-GitHub-Api-Version": "2022-11-28", "Content-Type": "application/json" } });
   if (cap === "model_provider") {
     const key = process.env["LOVABLE_API_KEY"];
     if (!key) return { ok: false, account: null, detail: "AI key missing on the server." };
