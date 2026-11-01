@@ -23,7 +23,7 @@ export const Route = createFileRoute("/_authenticated/blockers")({
 
 const STATUS: Record<Blocker["status"], [string, string]> = {
   needs_approval: ["Needs your approval", "text-warning"],
-  owner_action: ["Needs you on the provider", "text-warning"],
+  owner_action: ["Needs your action", "text-warning"],
   auto_checking: ["Jackboy re-checking", "text-electric"],
   paused: ["Paused", "text-muted-foreground"],
   unsupported: ["No supported connection", "text-destructive"],
