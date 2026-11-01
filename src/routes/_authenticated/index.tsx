@@ -1,7 +1,7 @@
 import type React from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 import { PageHeader } from "@/components/AppShell";
@@ -38,6 +38,7 @@ function Home() {
   const refresh = useCallback(() => load().then(setHub).catch((e) => setErr((e as Error).message)), [load]);
   const approve = useServerFn(setProposalStatus);
   const [approving, setApproving] = useState<Set<string>>(new Set());
+  const lastClick = useRef(0);
   useEffect(() => {
     void refresh();
     // Revalidate from the server: other tabs, tab focus, and a slow poll. No cached counts.
@@ -50,7 +51,9 @@ function Home() {
   }, [refresh]);
   const groups = hub ? groupProposals(hub.waiting) : null;
   const doApprove = async (id: string, title: string) => {
-    if (approving.has(id)) return; // duplicate click
+    // Duplicate click guard: after an item leaves the list, the next item slides under the pointer, so ignore rapid repeat clicks.
+    if (approving.has(id) || Date.now() - lastClick.current < 800) return;
+    lastClick.current = Date.now();
     setApproving((s) => new Set(s).add(id)); setErr("");
     setHub((h) => (h ? { ...h, waiting: optimisticApprove(h.waiting, id) } : h));
     try {
