@@ -53,3 +53,7 @@ The spoken acronym “NLOA” is unconfirmed in Notion. Do not infer a technical
 - [ ] Foundry on OMNI — blocked: OMNI repo is public; owner must make it private or provide a private repo
 - [ ] Foundry test evidence — blocked: GitHub token needs "Actions: read"; no sandbox runner connected
 - [ ] Notion/Google/MCP adapters — blocked: owner authorization of those connections
+- [x] Foundry continuous loop: auto-advance after completion, backoff retries, budgets/concurrency, global stop, push-webhook scans, Connect Accounts page. Second self-repair done (draft PR #4).
+- [ ] Hourly scheduler running the new Foundry code — needs publishing (schedule hits the published app)
+- [ ] Push-webhook scans — owner must add FOUNDRY_WEBHOOK_SECRET and set the repo webhook
+- [ ] Deployment target / distribution step — no deploy connection authorized
