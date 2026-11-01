@@ -48,7 +48,25 @@ export async function handleChat(request: Request) {
     if (!data?.github_repo) throw new Error(`${p.name} has no GitHub repo linked. Use listRepos, then linkRepo when the owner names the repo.`);
     return (await ws()).openRepo(data.github_repo);
   };
+  const remember = async (projectName: string | null, kind: string, summary: string, extra: Record<string, unknown> = {}) => {
+    const pid = projectName ? (await findProject(projectName)).id : null;
+    await supabaseAdmin.from("agent_memory").insert({ project_id: pid, kind, summary: summary.slice(0, 2000), created_by: userId, ...extra } as never);
+  };
   const tools = {
+    recallMemory: tool({
+      description: "Read Jackboy's persistent memory (past inspections, edits, PRs, test results, failures, next actions) for a project, or all projects when null. Call before starting work on a project.",
+      inputSchema: z.object({ project: z.string().nullable() }),
+      execute: async ({ project }) => {
+        let q = supabaseAdmin.from("agent_memory").select("kind, summary, repo, branch, commit_sha, url, created_at, owner_projects(name)").order("created_at", { ascending: false }).limit(30);
+        if (project) q = q.eq("project_id", (await findProject(project)).id);
+        return (await q).data ?? [];
+      },
+    }),
+    saveMemory: tool({
+      description: "Save a note to project memory: an inspection finding, a failure, a fix outcome or the next action. Only record things that actually happened.",
+      inputSchema: z.object({ project: z.string().nullable(), kind: z.enum(["inspect", "failure", "fix", "note", "next_action"]), summary: z.string() }),
+      execute: async ({ project, kind, summary }) => { await remember(project, kind, summary); return { saved: true }; },
+    }),
     capabilities: tool({
       description: "Report exactly which Jackboy capabilities are connected and verified right now. Call this before claiming you can build, edit, test or deploy.",
       inputSchema: z.object({}),
@@ -101,6 +119,7 @@ export async function handleChat(request: Request) {
         const x = await projectRepo(project);
         const r = await (await ws()).write(x, branch, path, content, message);
         await log(userId, "workspace.write", { repo: x.full, branch, path, action: r.action, commit: r.commit });
+        await remember(project, "edit", `${r.action} ${path}: ${message}`, { repo: x.full, branch, commit_sha: r.commit });
         return r;
       },
     }),
@@ -116,13 +135,18 @@ export async function handleChat(request: Request) {
         const x = await projectRepo(project);
         const pr = await (await ws()).openDraftPr(x, branch, title, body);
         await log(userId, "workspace.open_pr", { repo: x.full, branch, pr: pr.url });
+        await remember(project, "pr", `Draft PR: ${title}`, { repo: x.full, branch, url: pr.url });
         return pr;
       },
     }),
     checkStatus: tool({
       description: "Read GitHub Actions check results for a branch or commit in the project's repo.",
       inputSchema: z.object({ project: z.string(), ref: z.string() }),
-      execute: async ({ project, ref }) => (await ws()).checks(await projectRepo(project), ref),
+      execute: async ({ project, ref }) => {
+        const x = await projectRepo(project); const c = await (await ws()).checks(x, ref);
+        await remember(project, "test", "error" in c && c.error ? `Checks unreadable for ${ref}: ${c.error}` : `Checks for ${ref}: ${c.runs.map((r) => `${r.name}=${r.conclusion ?? r.status}`).join(", ") || "none"}`, { repo: x.full, branch: ref });
+        return c;
+      },
     }),
     projectStatus: tool({
       description: "List all projects with autopilot state, connection state, latest scan and queued/shipped update counts.",
@@ -213,12 +237,12 @@ export async function handleChat(request: Request) {
       "Use tools for every fact about projects, scans, repos and updates — never invent status, results, files, diffs, PRs or releases.",
       "You are a working coding agent ONLY through your repo tools: to change code, use repoTree/repoSearch/readFile, then writeFile on a branch named jackboy/<short-topic>, then showDiff, then openDraftPR. Never paste code into chat as a substitute for writing it, and never claim a change exists unless writeFile returned a commit.",
       "You cannot run code, tests, builds, a terminal or a browser yourself. For checks, use checkStatus (GitHub Actions); if no workflow exists say so plainly. Never say you tested something unless a tool result shows it.",
-      "Before saying you can build/edit/test anything, call capabilities. Never merge, deploy or write to the base branch; the owner approves pull requests.",
+      "Workflow for any fix: recallMemory -> inspect -> writeFile -> showDiff -> checkStatus -> openDraftPR -> saveMemory (outcome + next_action). Pick low-risk changes; never touch auth, payments, secrets, migrations or permissions without the owner asking.", "Before saying you can build/edit/test anything, call capabilities. Never merge, deploy or write to the base branch; the owner approves pull requests.",
       "Site scans read static HTML only and do not run JavaScript; say so when relevant. Report failures exactly.",
     ].join(" "),
     messages: await convertToModelMessages(body.messages),
     tools,
-    stopWhen: stepCountIs(16),
+    stopWhen: stepCountIs(50),
     abortSignal: request.signal,
     providerOptions: { openai: { store: false, forceReasoning: true, reasoningEffort: "low", reasoningSummary: "auto", include: ["reasoning.encrypted_content"] } },
   });
