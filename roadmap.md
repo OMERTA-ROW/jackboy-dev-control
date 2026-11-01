@@ -65,3 +65,5 @@ The spoken acronym “NLOA” is unconfirmed in Notion. Do not infer a technical
 - [x] Connect page multi-select (Select all/Clear, saved per user, truthful status, Connect selected, Run coding loop on selected)
 - [ ] OMNI as coding target — blocked: GitHub repo OMERTA-ROW/Omni is public; Jackboy only edits private repos. Owner makes it private (or a private copy), then links it on its project.
 - [ ] New end-to-end coding task verified — Jackboy's built-in checks found nothing new in its own repo; needs more repair checks or an OMNI private repo
+- [x] Scan → issue → AI fix → validate → package → draft PR loop (Code Foundry, from Connect "Run coding loop")
+- [ ] First low-risk auto-fix verified end to end — no low-risk defect exists in Jackboy's repo; needs another connected private repo (OMNI repo is public → refused)
