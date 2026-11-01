@@ -1,5 +1,6 @@
 // Owner-only Code Foundry API. Each handler re-checks the owner role before touching the runtime.
 import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 async function owner(ctx: { supabase: { rpc: (n: "my_role") => PromiseLike<{ data: unknown }> }; userId: string }) {
@@ -66,7 +67,8 @@ export const foundryAct = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const actor = await owner(context as never);
     const s = await import("./foundry.server");
-    if (data.op === "approve") await s.decide(data.id, actor, "approve", data.action === "read_checks" ? "read_checks" : "open_draft_pr");
+    if (data.op === "approve") throw new Error("Approve through the approval card (it records scope, expiry and a one-time code).");
+    if (false as boolean) await s.decide(data.id, actor, "approve", data.action === "read_checks" ? "read_checks" : "open_draft_pr");
     else if (data.op === "reject") await s.decide(data.id, actor, "reject");
     else if (data.op === "pause" || data.op === "resume") await s.setPaused(data.id, actor, data.op === "pause");
     else if (data.op === "retry") await s.retryBlocked(data.id, actor);
@@ -113,3 +115,70 @@ export const getQualityMetrics = createServerFn({ method: "GET" })
     const { qualityMetrics } = await import("./quality-metrics");
     return qualityMetrics({ tasks: t.data ?? [], proposals: p.data ?? [], releases: r.data ?? [], installs: i.data ?? [] });
   });
+
+const sha256 = async (x: string) => Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(x)))).map((b) => b.toString(16).padStart(2, "0")).join("");
+
+/** Create (or re-issue) the approval card for one task action. Returns a fresh single-use nonce; older cards for it stop working. */
+export const requestAction = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ taskId: z.string().uuid(), action: z.enum(["open_draft_pr", "read_checks"]) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const actor = await owner(context as never);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const A = await import("./action-approval");
+    const { data: t } = await supabaseAdmin.from("foundry_tasks").select("id, project_id, title, risk, state, repo, branch, files").eq("id", data.taskId).single();
+    if (!t) throw new Error("Task not found.");
+    if (t.state !== "awaiting_approval") throw new Error(`Task is ${t.state}, not awaiting approval.`);
+    await supabaseAdmin.from("action_requests").update({ status: "expired" }).eq("status", "pending").lt("expires_at", new Date().toISOString());
+    const nonce = Array.from(crypto.getRandomValues(new Uint8Array(24))).map((b) => b.toString(16).padStart(2, "0")).join("");
+    const nonce_hash = await sha256(nonce);
+    const files = (t.files as { path: string; additions?: number; deletions?: number }[]) ?? [];
+    const tier = A.classifyTier(data.action, t.risk);
+    const expires_at = new Date(Date.now() + A.REQUEST_TTL_MS).toISOString();
+    const { data: existing } = await supabaseAdmin.from("action_requests").select("id").eq("task_id", t.id).eq("action", data.action).eq("status", "pending").maybeSingle();
+    const res = existing
+      ? (await supabaseAdmin.from("action_requests").update({ nonce_hash, expires_at, requested_by: context.userId }).eq("id", existing.id).select("*").single())
+      : (await supabaseAdmin.from("action_requests").insert({ project_id: t.project_id, task_id: t.id, action: data.action, tier, nonce_hash, requested_by: context.userId, expires_at,
+          resources: { repo: t.repo, branch: t.branch, files: files.map((f) => f.path) } as never, permissions: A.PERMISSIONS[data.action] ?? [],
+          diff_summary: files.map((f) => `${f.path} +${f.additions ?? 0}/-${f.deletions ?? 0}`).join("\n").slice(0, 2000), risk: t.risk }).select("*").single());
+    const row = res.data;
+    if (!row) throw new Error(`Could not create the approval request: ${res.error?.message ?? "unknown"}`);
+    const { nonce_hash: _h, ...card } = row;
+    return { ...card, nonce, title: t.title };
+  });
+
+/** Apply Allow Once / Allow for This Task / Deny. Atomic, single-use, expiring; Critical needs a passkey grant bound to this request. */
+export const decideAction = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), nonce: z.string().min(16).max(128), decision: z.enum(["allow_once", "allow_task", "deny"]), grantId: z.string().uuid().optional() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const actor = await owner(context as never);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const A = await import("./action-approval");
+    const { data: r } = await supabaseAdmin.from("action_requests").select("*").eq("id", data.id).maybeSingle();
+    const bad = A.canDecide(r as never, context.userId, data.decision, Boolean(data.grantId));
+    if (bad) { if (r?.status === "pending" && /expired/.test(bad)) await supabaseAdmin.from("action_requests").update({ status: "expired" }).eq("id", data.id).eq("status", "pending"); throw new Error(bad); }
+    if (r!.tier === "critical" && data.decision !== "deny") await (await import("./passkey.server")).consumeGrant(data.grantId, context.userId, "critical_change", data.id);
+    const allowed = data.decision !== "deny";
+    const { data: won } = await supabaseAdmin.from("action_requests").update({ status: allowed ? "allowed" : "denied", mode: data.decision === "allow_task" ? "task" : data.decision === "allow_once" ? "once" : null, decided_by: context.userId, decided_at: new Date().toISOString() })
+      .eq("id", data.id).eq("status", "pending").eq("nonce_hash", await sha256(data.nonce)).gt("expires_at", new Date().toISOString()).select("id").maybeSingle();
+    if (!won) throw new Error("This card is stale or already used (another tab may have decided it). Refresh.");
+    await supabaseAdmin.from("audit_logs").insert({ actor: context.userId, action: `action.${data.decision}`, detail: { request: data.id, task: r!.task_id, action: r!.action, tier: r!.tier } as never, outcome: "ok" });
+    const s = await import("./foundry.server");
+    let outcome = "denied";
+    try {
+      if (!allowed) { await s.decide(r!.task_id!, actor, "reject"); }
+      else {
+        await s.decide(r!.task_id!, actor, "approve", r!.action as "open_draft_pr" | "read_checks");
+        // Report what actually happened to the task, never assume success.
+        const { data: after } = await supabaseAdmin.from("foundry_tasks").select("state, blocked_reason").eq("id", r!.task_id!).single();
+        outcome = after?.state === "completed" ? "completed" : `action_required: ${after?.state ?? "unknown"}${after?.blocked_reason ? ` (${after.blocked_reason})` : ""}`;
+      }
+    } catch (e) { outcome = `action_required: ${(e as Error).message}`.slice(0, 500); }
+    await supabaseAdmin.from("action_requests").update({ outcome }).eq("id", data.id);
+    return { status: allowed ? "allowed" : "denied", outcome };
+  });
+
+export const listActionRequests = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
+  await owner(context as never);
+  const { data } = await context.supabase.from("action_requests").select("id, task_id, action, tier, status, mode, outcome, expires_at, decided_at, created_at").order("created_at", { ascending: false }).limit(30);
+  return data ?? [];
+});

@@ -155,6 +155,13 @@
       "when": 1793567008618,
       "tag": "0021_passkey_step_up",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1793567530543,
+      "tag": "0022_action_requests",
+      "breakpoints": true
     }
   ]
 }

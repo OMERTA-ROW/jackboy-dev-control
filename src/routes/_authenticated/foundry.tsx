@@ -1,8 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/AppShell";
 import { QualityMetrics } from "@/components/QualityMetrics";
+import { ApprovalCard } from "@/components/ApprovalCard";
 import { foundryAct, foundryControl, foundryInspect, foundrySchedule, getFoundry } from "@/lib/foundry.functions";
 import { ACTIVE_APPROVAL, pickNext, TERMINAL, type State } from "@/lib/foundry";
 
@@ -63,7 +64,7 @@ function Foundry() {
         {files.length > 0 && <details className="mt-2"><summary className="cursor-pointer text-xs">Diff ({files.length} file)</summary>{files.map((f) => <pre key={f.path} className="mt-1 max-h-60 overflow-auto rounded bg-muted p-2 text-xs">{f.path} +{f.additions ?? 0} −{f.deletions ?? 0}{"\n"}{f.patch}</pre>)}</details>}
         <div className="mt-3 flex flex-wrap gap-2">
           {t.state === "awaiting_approval" && <>
-            <button className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50" disabled={!!busy} onClick={() => run(t.id, () => act({ data: { id: t.id, op: "approve", action: "open_draft_pr" } }))}>Approve: open draft PR</button>
+            <ApprovalCard taskId={t.id} onDone={(m) => { setMsg(m); void load(); }} />
             <button className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50" disabled={!!busy} onClick={() => run(t.id, () => act({ data: { id: t.id, op: "reject" } }))}>Reject</button>
           </>}
           {t.state === "blocked" && t.approved_action && <button className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50" disabled={!!busy} onClick={() => run(t.id, () => act({ data: { id: t.id, op: "retry" } }))}>Retry</button>}
@@ -97,11 +98,11 @@ function Foundry() {
         {d.schedule && <Schedule s={d.schedule} onSave={(v) => run("sched", () => sched({ data: v }))} />}
       </section>
       <h2 className="mb-2 text-lg font-semibold">Awaiting your approval ({pending.length})</h2>
-      <ul className="mb-6 space-y-3">{pending.map((t) => <Task key={t.id} t={t} />)}{!pending.length && <li className="text-sm text-muted-foreground">Nothing waiting.</li>}</ul>
-      {active.length > 0 && <><h2 className="mb-2 text-lg font-semibold">In progress / blocked</h2><ul className="mb-6 space-y-3">{active.map((t) => <Task key={t.id} t={t} />)}</ul></>}
+      <ul className="mb-6 space-y-3">{pending.map((t) => <Fragment key={t.id}>{Task({ t })}</Fragment>)}{!pending.length && <li className="text-sm text-muted-foreground">Nothing waiting.</li>}</ul>
+      {active.length > 0 && <><h2 className="mb-2 text-lg font-semibold">In progress / blocked</h2><ul className="mb-6 space-y-3">{active.map((t) => <Fragment key={t.id}>{Task({ t })}</Fragment>)}</ul></>}
       <h2 className="mb-2 text-lg font-semibold">History</h2>
       <input aria-label="Search history" className="mb-3 w-full rounded-md border border-border bg-background p-2 text-sm" placeholder="Search by title, branch or PR" value={q} onChange={(e) => setQ(e.target.value)} />
-      <ul className="mb-6 space-y-3">{history.map((t) => <Task key={t.id} t={t} />)}{!history.length && <li className="text-sm text-muted-foreground">No finished tasks.</li>}</ul>
+      <ul className="mb-6 space-y-3">{history.map((t) => <Fragment key={t.id}>{Task({ t })}</Fragment>)}{!history.length && <li className="text-sm text-muted-foreground">No finished tasks.</li>}</ul>
       <details className="panel p-4"><summary className="cursor-pointer text-sm font-semibold">Audit trail ({d.events.length}, permanent)</summary>
         <ul className="mt-2 space-y-1 text-xs">{d.events.map((e) => <li key={e.id}><span className="text-muted-foreground">{new Date(e.created_at).toLocaleString()}</span> · {e.actor.split(":")[0]} · {e.action}{e.to_state ? ` → ${e.to_state}` : ""} {e.note && `— ${e.note}`}</li>)}</ul>
       </details>
