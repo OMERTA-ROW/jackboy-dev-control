@@ -13,7 +13,7 @@ const audit = (ctx: Ctx, action: string, detail: Record<string, unknown>, outcom
 const channel = z.enum(CHANNELS);
 const uuid = z.string().uuid();
 
-export type ReleaseRow = { id: string; project_id: string; version: string; channel: string; notes: string; status: string; rollout_percent: number; auto_step: number; step_hours: number; error_threshold: number; min_reports: number; artifact_path: string | null; artifact_sha256: string | null; artifact_size: number | null; signature: string | null; rollback_reason: string | null; published_at: string | null; created_at: string; config: unknown };
+export type ReleaseRow = { id: string; project_id: string; version: string; channel: string; notes: string; status: string; rollout_percent: number; auto_step: number; step_hours: number; error_threshold: number; min_reports: number; artifact_path: string | null; artifact_sha256: string | null; artifact_size: number | null; signature: string | null; rollback_reason: string | null; published_at: string | null; created_at: string; config: Record<string, any> | null };
 export type FlagRow = { id: string; project_id: string; channel: string; key: string; enabled: boolean; rollout_percent: number; description: string };
 
 export const getReleaseData = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
@@ -48,7 +48,7 @@ export const createRelease = createServerFn({ method: "POST" }).middleware([requ
   .inputValidator((d: unknown) => releaseInput.parse(d))
   .handler(async ({ data, context }) => {
     await owner(context);
-    let config: unknown = {};
+    let config: any = {};
     if (data.config.trim()) { try { config = JSON.parse(data.config); } catch { throw new Error("Config must be valid JSON."); } }
     if (data.artifact_path && !data.artifact_path.startsWith(data.project_id + "/")) throw new Error("Artifact belongs to another project.");
     const { error } = await context.supabase.from("releases").insert({ ...data, config, created_by: context.userId });
@@ -91,7 +91,7 @@ export const changeRelease = createServerFn({ method: "POST" }).middleware([requ
     await owner(context);
     const { data: r, error } = await context.supabase.from("releases").select("id, status, version, channel").eq("id", data.id).single();
     if (error) throw new Error(error.message);
-    let patch: Record<string, unknown>;
+    let patch: Record<string, any>;
     if (data.action === "percent") {
       if (!["rolling", "paused", "draft"].includes(r.status)) throw new Error("Percent can only change before completion.");
       patch = { rollout_percent: data.percent ?? 0, last_step_at: new Date().toISOString() };
