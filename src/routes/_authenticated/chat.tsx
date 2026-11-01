@@ -13,6 +13,7 @@ import { Tool, ToolContent, ToolHeader, ToolInput, ToolOutput } from "@/componen
 import { Shimmer } from "@/components/ai-elements/shimmer";
 import { getAutopilot } from "@/lib/autopilot.functions";
 import { useChatVoice, VoiceButtons } from "@/components/ChatVoice";
+import { AgentStatusPanel } from "@/components/AgentStatusPanel";
 
 export const Route = createFileRoute("/_authenticated/chat")({
   head: () => ({
@@ -101,7 +102,7 @@ function ChatPage() {
             {(voice.support.listen || voice.support.speak) && <p className="mt-1 text-[11px] text-muted-foreground">Voice uses your browser's speech features; your browser may send speech to its own service. Jackboy doesn't record or save audio. Spoken words appear in the box so you can edit before sending.</p>}
           </div>
         </section>
-        <ActivityFeed refreshKey={messages.length + (busy ? 0 : 1)} />
+        <div className="flex flex-col gap-4"><AgentStatusPanel /><ActivityFeed refreshKey={messages.length + (busy ? 0 : 1)} /></div>
       </div>
     </>
   );
