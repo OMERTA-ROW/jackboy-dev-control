@@ -57,7 +57,7 @@ export async function handleChat(request: Request) {
         if (process.env["GITHUB_TOKEN"]) { try { const r = await (await ws()).listAccessibleRepos(); github = { connected: true, usablePrivateRepos: r.filter((x) => x.usable).length }; } catch (e) { github = { connected: false, error: (e as Error).message }; } }
         return {
           github,
-          canDo: ["list/read/search files in a linked private repo", "write, replace or delete files on a jackboy/* branch", "show the real diff", "open a DRAFT pull request", "read GitHub Actions check results", "static HTML site scans"],
+          canDo: ["list/read/search files in a linked private repo", "write, replace or delete files on a jackboy/* branch", "show the real diff", "open a DRAFT pull request", "read GitHub Actions check results only if the token has Actions: read (use checkStatus; it reports the real error)", "static HTML site scans"],
           cannotDo: ["run code, tests, builds or a terminal inside Jackboy (no sandbox runner connected)", "JavaScript/Playwright browser testing (no isolated browser runner connected)", "merge, deploy or push to the main branch (owner approval only)", "modify its own running server"],
           ciNote: "Automated checks run only if the repository has a GitHub Actions workflow; use checkStatus to see.",
         };
