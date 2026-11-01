@@ -127,6 +127,13 @@
       "when": 1793563879385,
       "tag": "0017_site_log_outbox_research",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1793564177186,
+      "tag": "0018_capability_grants",
+      "breakpoints": true
     }
   ]
 }

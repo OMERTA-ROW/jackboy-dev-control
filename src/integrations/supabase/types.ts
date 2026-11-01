@@ -416,6 +416,68 @@ export type Database = {
         }
         Relationships: []
       }
+      capability_grants: {
+        Row: {
+          account: string | null
+          approved_at: string | null
+          approved_by: string | null
+          capability: string
+          expires_at: string | null
+          id: string
+          last_error: string | null
+          last_verified_at: string | null
+          method: string
+          paused: boolean
+          project_id: string
+          scopes: string
+          status: string
+          updated_at: string
+          verify_attempts: number
+        }
+        Insert: {
+          account?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          capability: string
+          expires_at?: string | null
+          id?: string
+          last_error?: string | null
+          last_verified_at?: string | null
+          method?: string
+          paused?: boolean
+          project_id: string
+          scopes?: string
+          status?: string
+          updated_at?: string
+          verify_attempts?: number
+        }
+        Update: {
+          account?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          capability?: string
+          expires_at?: string | null
+          id?: string
+          last_error?: string | null
+          last_verified_at?: string | null
+          method?: string
+          paused?: boolean
+          project_id?: string
+          scopes?: string
+          status?: string
+          updated_at?: string
+          verify_attempts?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "capability_grants_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "owner_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       feature_flags: {
         Row: {
           channel: string
@@ -751,6 +813,7 @@ export type Database = {
           idempotency_key: string | null
           kind: string
           max_attempts: number
+          needs_capability: string | null
           next_attempt_at: string | null
           paused: boolean
           pr_number: number | null
@@ -780,6 +843,7 @@ export type Database = {
           idempotency_key?: string | null
           kind?: string
           max_attempts?: number
+          needs_capability?: string | null
           next_attempt_at?: string | null
           paused?: boolean
           pr_number?: number | null
@@ -809,6 +873,7 @@ export type Database = {
           idempotency_key?: string | null
           kind?: string
           max_attempts?: number
+          needs_capability?: string | null
           next_attempt_at?: string | null
           paused?: boolean
           pr_number?: number | null
