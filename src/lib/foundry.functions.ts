@@ -41,7 +41,7 @@ export const getFoundry = createServerFn({ method: "GET" })
     await owner(context as never);
     const sb = context.supabase;
     const [tasks, events, patterns, schedule, projects] = await Promise.all([
-      sb.from("foundry_tasks").select("id, project_id, title, summary, kind, risk, state, repo, branch, commit_sha, pr_url, pr_number, files, test_evidence, approved_action, attempts, paused, blocked_reason, source, created_at, updated_at").order("updated_at", { ascending: false }).limit(200),
+      sb.from("foundry_tasks").select("id, project_id, title, summary, kind, risk, state, repo, branch, commit_sha, pr_url, pr_number, files, test_evidence, approved_action, attempts, paused, blocked_reason, source, priority, next_attempt_at, created_at, updated_at").order("updated_at", { ascending: false }).limit(200),
       sb.from("foundry_events").select("id, task_id, project_id, action, actor, from_state, to_state, note, created_at").order("created_at", { ascending: false }).limit(300),
       sb.from("foundry_patterns").select("*").order("verified_count", { ascending: false }),
       sb.from("foundry_schedule").select("*").eq("id", 1).single(),
