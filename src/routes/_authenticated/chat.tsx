@@ -94,9 +94,9 @@ function ChatPage() {
           {voice.error && <p role="alert" className="border-t border-destructive/40 px-4 py-2 text-xs text-destructive">{voice.error}</p>}
           {error && <p role="alert" className="border-t border-destructive/40 px-4 py-2 text-xs text-destructive">{error}</p>}
           <div
-            className={orbOpen ? "absolute inset-x-0 top-0 bottom-[9.5rem] z-10 flex touch-none flex-col items-center justify-center bg-background/75 backdrop-blur-sm" : "border-t border-border"}
+            className={orbOpen ? "absolute inset-x-0 top-0 bottom-[9.5rem] z-10 flex touch-none select-none flex-col items-center justify-center bg-background/75 backdrop-blur-sm" : "relative border-t border-border pr-24"}
             onPointerDown={orbOpen ? (e) => { dragged.current = false; drag.current = e.clientY; } : undefined}
-            onPointerMove={orbOpen ? (e) => { if (drag.current !== null && e.clientY - drag.current > 48) { drag.current = null; dragged.current = true; dock(); } } : undefined}
+            onPointerMove={orbOpen ? (e) => { if (drag.current !== null && e.clientY - drag.current > 48) { drag.current = null; dragged.current = true; setTimeout(() => { dragged.current = false; }, 400); dock(); } } : undefined}
             onPointerUp={() => { drag.current = null; }}
             onClickCapture={(e) => { if (dragged.current) { dragged.current = false; e.stopPropagation(); e.preventDefault(); } }}
             onWheel={orbOpen ? (e) => { if (Math.abs(e.deltaY) > 12) dock(); } : undefined}
