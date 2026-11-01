@@ -34,7 +34,7 @@ export function deriveBlockers(projects: Project[], grants: GrantRow[], tasks: T
     if (isConnected(p) && !p.github_repo) out.push({
       id: `repo:${p.id}`, projectId: p.id, projectName: p.name,
       cause: "Jackboy is activated for this project but no repository is linked.",
-      missing: "Linked private GitHub repository", remedy: "Open the project, add its private GitHub repo, then Jackboy verifies access automatically.",
+      missing: "Linked GitHub repository (public or private) with write access", remedy: "Open the project, add its GitHub repo, then Jackboy verifies access automatically.",
       risk: "Controlled", status: "owner_action", action: { kind: "link_repo" }, waitingTasks: [],
     });
   }

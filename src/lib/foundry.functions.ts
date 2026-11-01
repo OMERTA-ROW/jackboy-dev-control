@@ -14,12 +14,12 @@ export type Connector = { id: string; name: string; kind: "OAuth" | "API token" 
 async function connections(): Promise<Connector[]> {
   const has = (k: string) => Boolean(process.env[k]);
   const out: Connector[] = [];
-  const gh: Connector = { id: "github", name: "GitHub", kind: "API token", state: "setup_required", scopes: "Needed: Contents read/write, Pull requests read/write, Actions read (private repos only)", detail: "Add a fine-grained GitHub token limited to the repos Jackboy may touch.", vault: "GITHUB_TOKEN (backend secret)", revoke: "Revoke on GitHub → Settings → Developer settings → Tokens; then delete the secret." };
+  const gh: Connector = { id: "github", name: "GitHub", kind: "API token", state: "setup_required", scopes: "Needed: Contents read/write, Pull requests read/write, Actions read", detail: "Add a fine-grained GitHub token limited to the repos Jackboy may touch.", vault: "GITHUB_TOKEN (backend secret)", revoke: "Revoke on GitHub → Settings → Developer settings → Tokens; then delete the secret." };
   if (has("GITHUB_TOKEN")) {
     try {
       const ws = await import("./repo-workspace.server");
       const r = await ws.listAccessibleRepos();
-      Object.assign(gh, { state: "connected", detail: `${r.filter((x) => x.usable).length} usable private repos (public repos are refused). Actions results are not readable with the current token.` });
+      Object.assign(gh, { state: "connected", detail: `${r.filter((x) => x.usable).length} writable repos (public or private, by granted permission). Actions results are not readable with the current token.` });
     } catch (e) { Object.assign(gh, { state: "error", detail: (e as Error).message.slice(0, 160) }); }
   }
   out.push(gh);
