@@ -8,7 +8,7 @@ async function owner(ctx: { supabase: { rpc: (n: "my_role") => PromiseLike<{ dat
   if (data !== "owner") throw new Error("Owner only.");
   return `owner:${ctx.userId}`;
 }
-type Filter = { q?: string; category?: string; status?: string; projectId?: string; limit?: number };
+type Filter = { q?: string | undefined; category?: string | undefined; status?: string | undefined; projectId?: string | undefined; limit?: number | undefined };
 const COLS = ["at", "project_id", "actor", "action", "category", "status", "summary", "issue", "source_url", "license", "repo", "branch", "commit_sha", "pr_url", "tests", "task_id"];
 
 function query(sb: Parameters<typeof owner>[0]["supabase"] & { from: any }, f: Filter) {
