@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/AppShell";
+import { QualityMetrics } from "@/components/QualityMetrics";
 import { foundryAct, foundryControl, foundryInspect, foundrySchedule, getFoundry } from "@/lib/foundry.functions";
 import { ACTIVE_APPROVAL, pickNext, TERMINAL, type State } from "@/lib/foundry";
 
@@ -75,6 +76,7 @@ function Foundry() {
   return (
     <>
       <PageHeader title="Code Foundry" subtitle="Inspect → patch on a jackboy/* branch → test → your approval → draft PR. Nothing merges or deploys on its own." />
+      <QualityMetrics />
       {msg && <p role="status" className="mb-4 text-sm text-warning">{msg}</p>}
       <section className="panel mb-4 grid gap-3 p-4 md:grid-cols-3" aria-label="Live work status">
         <div><p className="text-xs uppercase text-muted-foreground">Pipeline</p><p className={`font-semibold ${sc?.paused ? "text-warning" : "text-success"}`}>{sc?.paused ? "Paused" : "Running when triggered"}</p>
