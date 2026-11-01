@@ -26,7 +26,7 @@ export const getBlockers = createServerFn({ method: "GET" })
 
 export const actOnBlocker = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { cap: string; projectId: string; op: "approve" | "verify"; grantId?: string }) => {
+  .inputValidator((d: { cap: string; projectId: string; op: "approve" | "verify"; grantId?: string | undefined }) => {
     if (!/^[a-z_]{3,40}$/.test(d.cap) || !/^[0-9a-f-]{36}$/i.test(d.projectId) || !["approve", "verify"].includes(d.op)) throw new Error("Bad input.");
     return d;
   })
