@@ -162,6 +162,7 @@ export const getOmniQueue = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const currentRole = await role(context);
+    if (currentRole === "member") throw new Error("Owner or admin only.");
     const [projects, jobs] = await Promise.all([
       context.supabase.from("agent_projects").select("id,name").order("name"),
       context.supabase
