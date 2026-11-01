@@ -27,7 +27,7 @@ async function usage(kind: "ai" | "run") {
   return count ?? 0;
 }
 
-async function capCheck(kind: "ai" | "run", cap: number): Promise<string | null> {
+export async function capCheck(kind: "ai" | "run", cap: number): Promise<string | null> {
   if (underCap(await usage(kind), cap)) return null;
   const reason = `Monthly ${kind === "ai" ? "AI call" : "job run"} cap (${cap}) reached`;
   await supabaseAdmin.from("update_writer_settings").update({ paused_reason: reason }).eq("id", 1);
