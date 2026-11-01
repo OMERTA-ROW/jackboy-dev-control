@@ -43,7 +43,8 @@ function ChatPage() {
   }), []);
   const { messages, sendMessage, status, stop } = useChat({ transport, onError: (e) => setError(e.message.includes("402") ? "AI credits are used up. Add credits in Settings → Plans & credits." : e.message) });
   const busy = status === "submitted" || status === "streaming";
-  const voice = useChatVoice((t) => setText((cur) => (cur.trim() ? `${cur.trim()} ${t}` : t)));
+  const [fromVoice, setFromVoice] = useState(false);
+  const voice = useChatVoice((t) => { setFromVoice(true); setText((cur) => (cur.trim() ? `${cur.trim()} ${t}` : t)); });
   const spokenId = useRef<string | null>(null);
   useEffect(() => {
     if (status !== "ready") return;
@@ -52,7 +53,7 @@ function ChatPage() {
     spokenId.current = last.id;
     voice.speak(last.parts.filter((x) => x.type === "text").map((x) => (x as { text: string }).text).join(" "));
   }, [status, messages, voice.speak]);
-  const send = (t: string) => { if (!t.trim() || busy) return; setError(null); sendMessage({ text: t }); setText(""); };
+  const send = (t: string) => { if (!t.trim() || busy) return; setError(null); sendMessage(fromVoice ? { text: t, metadata: { voice: true } } : { text: t }); setText(""); setFromVoice(false); };
 
   return (
     <>
@@ -92,14 +93,14 @@ function ChatPage() {
           <div className="border-t border-border p-3">
             <PromptInput onSubmit={(msg) => send(msg.text)}>
               <PromptInputBody>
-                <PromptInputTextarea autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder="Message Jackboy…" />
+                <PromptInputTextarea autoFocus value={text} onChange={(e) => { setText(e.target.value); if (!e.target.value.trim()) setFromVoice(false); }} placeholder="Message Jackboy…" />
               </PromptInputBody>
               <PromptInputFooter>
                 <PromptInputTools><VoiceButtons v={voice} /></PromptInputTools>
                 <PromptInputSubmit status={status} onStop={stop} disabled={!busy && !text.trim()} />
               </PromptInputFooter>
             </PromptInput>
-            {(voice.support.listen || voice.support.speak) && <p className="mt-1 text-[11px] text-muted-foreground">Voice uses your browser's speech features; your browser may send speech to its own service. Jackboy doesn't record or save audio. Spoken words appear in the box so you can edit before sending.</p>}
+            {(voice.support.listen !== "none" || voice.support.speak) && <p className="mt-1 text-[11px] text-muted-foreground">The mic listens only after you tap it. Speech is turned into text by your browser, or sent once to Jackboy's transcription service on browsers without it; audio is never saved. Spoken words appear in the box to edit before sending, and changes asked for by voice need you to reply “confirm”.</p>}
           </div>
         </section>
         <div className="flex flex-col gap-4"><AgentStatusPanel /><ActivityFeed refreshKey={messages.length + (busy ? 0 : 1)} /></div>
