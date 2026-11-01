@@ -548,7 +548,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           </Link>
         ))}
       </nav>
-      <VoiceControl />
+      {/* One conversation: the floating mini-chat is hidden on the full chat page. */}
+      {path !== "/chat" && <VoiceControl />}
     </div>
   );
 }
