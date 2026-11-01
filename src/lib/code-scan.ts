@@ -53,7 +53,7 @@ export function validateFix(d: Defect, before: string, after: string, maxChanged
   const newOnes = scanFile(d.path, after).filter((x) => x.rule !== d.rule).length - scanFile(d.path, before).filter((x) => x.rule !== d.rule).length;
   add("no_new_defects", newOnes <= 0, newOnes > 0 ? `${newOnes} new finding(s) introduced.` : "No new findings.");
   const c = lineChanges(before, after);
-  add("minimal", c.added + c.removed <= maxChangedLines, `${c.removed} line(s) removed, ${c.added} added (limit ${maxChangedLines}).`);
+  add("minimal", c.added <= maxChangedLines / 2 && c.removed <= maxChangedLines / 2, `${c.removed} line(s) removed, ${c.added} added (limit ${maxChangedLines / 2} each).`);
   add("brackets_balanced", balance(before) === balance(after) || d.rule === "debugger-statement" && balance(after) === balance(before), `Bracket balance ${balance(before)} → ${balance(after)}.`);
   return { ok: checks.every((x) => x.passed), checks };
 }
