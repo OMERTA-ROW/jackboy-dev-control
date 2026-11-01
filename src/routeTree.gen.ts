@@ -21,21 +21,25 @@ import { Route as AuthenticatedAgentsRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedAutomationRouteImport } from './routes/_authenticated/automation'
 import { Route as AuthenticatedAutopilotRouteImport } from './routes/_authenticated/autopilot'
 import { Route as AuthenticatedChatRouteImport } from './routes/_authenticated/chat'
+import { Route as AuthenticatedConnectRouteImport } from './routes/_authenticated/connect'
 import { Route as AuthenticatedDiscoveryRouteImport } from './routes/_authenticated/discovery'
 import { Route as AuthenticatedFeedsRouteImport } from './routes/_authenticated/feeds'
 import { Route as AuthenticatedFleetRouteImport } from './routes/_authenticated/fleet'
 import { Route as AuthenticatedIntegrationsRouteImport } from './routes/_authenticated/integrations'
 import { Route as AuthenticatedJaxRouteImport } from './routes/_authenticated/jax'
 import { Route as AuthenticatedOmniRouteImport } from './routes/_authenticated/omni'
+import { Route as AuthenticatedOverviewRouteImport } from './routes/_authenticated/overview'
 import { Route as AuthenticatedProjectsRouteImport } from './routes/_authenticated/projects'
 import { Route as AuthenticatedRazulRouteImport } from './routes/_authenticated/razul'
 import { Route as AuthenticatedReleasesRouteImport } from './routes/_authenticated/releases'
 import { Route as AuthenticatedResearchRouteImport } from './routes/_authenticated/research'
+import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedUpdateDocsRouteImport } from './routes/_authenticated/update-docs'
 import { Route as AuthenticatedUpdatesRouteImport } from './routes/_authenticated/updates'
 import { Route as AuthenticatedWorkspaceRouteImport } from './routes/_authenticated/workspace'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as AuthenticatedPassportAgentIdRouteImport } from './routes/_authenticated/passport.$agentId'
+import { Route as AuthenticatedProjectIdRouteImport } from './routes/_authenticated/project.$id'
 import { Route as ApiPublicAgentIngestRouteImport } from './routes/api/public/agent-ingest'
 import { Route as ApiPublicFeedsSourceIdRouteImport } from './routes/api/public/feeds.$sourceId'
 import { Route as ApiPublicJobsReleasesRouteImport } from './routes/api/public/jobs/releases'
@@ -104,6 +108,11 @@ const AuthenticatedChatRoute = AuthenticatedChatRouteImport.update({
   path: '/chat',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedConnectRoute = AuthenticatedConnectRouteImport.update({
+  id: '/connect',
+  path: '/connect',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedDiscoveryRoute = AuthenticatedDiscoveryRouteImport.update({
   id: '/discovery',
   path: '/discovery',
@@ -135,6 +144,11 @@ const AuthenticatedOmniRoute = AuthenticatedOmniRouteImport.update({
   path: '/omni',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedOverviewRoute = AuthenticatedOverviewRouteImport.update({
+  id: '/overview',
+  path: '/overview',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedProjectsRoute = AuthenticatedProjectsRouteImport.update({
   id: '/projects',
   path: '/projects',
@@ -153,6 +167,11 @@ const AuthenticatedReleasesRoute = AuthenticatedReleasesRouteImport.update({
 const AuthenticatedResearchRoute = AuthenticatedResearchRouteImport.update({
   id: '/research',
   path: '/research',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedUpdateDocsRoute = AuthenticatedUpdateDocsRouteImport.update({
@@ -181,6 +200,11 @@ const AuthenticatedPassportAgentIdRoute =
     path: '/passport/$agentId',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedProjectIdRoute = AuthenticatedProjectIdRouteImport.update({
+  id: '/project/$id',
+  path: '/project/$id',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const ApiPublicAgentIngestRoute = ApiPublicAgentIngestRouteImport.update({
   id: '/api/public/agent-ingest',
   path: '/api/public/agent-ingest',
@@ -236,21 +260,25 @@ export interface FileRoutesByFullPath {
   '/automation': typeof AuthenticatedAutomationRoute
   '/autopilot': typeof AuthenticatedAutopilotRoute
   '/chat': typeof AuthenticatedChatRoute
+  '/connect': typeof AuthenticatedConnectRoute
   '/discovery': typeof AuthenticatedDiscoveryRoute
   '/feeds': typeof AuthenticatedFeedsRoute
   '/fleet': typeof AuthenticatedFleetRoute
   '/integrations': typeof AuthenticatedIntegrationsRoute
   '/jax': typeof AuthenticatedJaxRoute
   '/omni': typeof AuthenticatedOmniRoute
+  '/overview': typeof AuthenticatedOverviewRoute
   '/projects': typeof AuthenticatedProjectsRoute
   '/razul': typeof AuthenticatedRazulRoute
   '/releases': typeof AuthenticatedReleasesRoute
   '/research': typeof AuthenticatedResearchRoute
+  '/settings': typeof AuthenticatedSettingsRoute
   '/update-docs': typeof AuthenticatedUpdateDocsRoute
   '/updates': typeof AuthenticatedUpdatesRoute
   '/workspace': typeof AuthenticatedWorkspaceRoute
   '/api/chat': typeof ApiChatRoute
   '/passport/$agentId': typeof AuthenticatedPassportAgentIdRoute
+  '/project/$id': typeof AuthenticatedProjectIdRoute
   '/api/public/agent-ingest': typeof ApiPublicAgentIngestRoute
   '/api/public/feeds/$sourceId': typeof ApiPublicFeedsSourceIdRoute
   '/api/public/jobs/releases': typeof ApiPublicJobsReleasesRoute
@@ -271,22 +299,26 @@ export interface FileRoutesByTo {
   '/automation': typeof AuthenticatedAutomationRoute
   '/autopilot': typeof AuthenticatedAutopilotRoute
   '/chat': typeof AuthenticatedChatRoute
+  '/connect': typeof AuthenticatedConnectRoute
   '/discovery': typeof AuthenticatedDiscoveryRoute
   '/feeds': typeof AuthenticatedFeedsRoute
   '/fleet': typeof AuthenticatedFleetRoute
   '/integrations': typeof AuthenticatedIntegrationsRoute
   '/jax': typeof AuthenticatedJaxRoute
   '/omni': typeof AuthenticatedOmniRoute
+  '/overview': typeof AuthenticatedOverviewRoute
   '/projects': typeof AuthenticatedProjectsRoute
   '/razul': typeof AuthenticatedRazulRoute
   '/releases': typeof AuthenticatedReleasesRoute
   '/research': typeof AuthenticatedResearchRoute
+  '/settings': typeof AuthenticatedSettingsRoute
   '/update-docs': typeof AuthenticatedUpdateDocsRoute
   '/updates': typeof AuthenticatedUpdatesRoute
   '/workspace': typeof AuthenticatedWorkspaceRoute
   '/api/chat': typeof ApiChatRoute
   '/': typeof AuthenticatedIndexRoute
   '/passport/$agentId': typeof AuthenticatedPassportAgentIdRoute
+  '/project/$id': typeof AuthenticatedProjectIdRoute
   '/api/public/agent-ingest': typeof ApiPublicAgentIngestRoute
   '/api/public/feeds/$sourceId': typeof ApiPublicFeedsSourceIdRoute
   '/api/public/jobs/releases': typeof ApiPublicJobsReleasesRoute
@@ -309,22 +341,26 @@ export interface FileRoutesById {
   '/_authenticated/automation': typeof AuthenticatedAutomationRoute
   '/_authenticated/autopilot': typeof AuthenticatedAutopilotRoute
   '/_authenticated/chat': typeof AuthenticatedChatRoute
+  '/_authenticated/connect': typeof AuthenticatedConnectRoute
   '/_authenticated/discovery': typeof AuthenticatedDiscoveryRoute
   '/_authenticated/feeds': typeof AuthenticatedFeedsRoute
   '/_authenticated/fleet': typeof AuthenticatedFleetRoute
   '/_authenticated/integrations': typeof AuthenticatedIntegrationsRoute
   '/_authenticated/jax': typeof AuthenticatedJaxRoute
   '/_authenticated/omni': typeof AuthenticatedOmniRoute
+  '/_authenticated/overview': typeof AuthenticatedOverviewRoute
   '/_authenticated/projects': typeof AuthenticatedProjectsRoute
   '/_authenticated/razul': typeof AuthenticatedRazulRoute
   '/_authenticated/releases': typeof AuthenticatedReleasesRoute
   '/_authenticated/research': typeof AuthenticatedResearchRoute
+  '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/update-docs': typeof AuthenticatedUpdateDocsRoute
   '/_authenticated/updates': typeof AuthenticatedUpdatesRoute
   '/_authenticated/workspace': typeof AuthenticatedWorkspaceRoute
   '/api/chat': typeof ApiChatRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/passport/$agentId': typeof AuthenticatedPassportAgentIdRoute
+  '/_authenticated/project/$id': typeof AuthenticatedProjectIdRoute
   '/api/public/agent-ingest': typeof ApiPublicAgentIngestRoute
   '/api/public/feeds/$sourceId': typeof ApiPublicFeedsSourceIdRoute
   '/api/public/jobs/releases': typeof ApiPublicJobsReleasesRoute
@@ -348,21 +384,25 @@ export interface FileRouteTypes {
     | '/automation'
     | '/autopilot'
     | '/chat'
+    | '/connect'
     | '/discovery'
     | '/feeds'
     | '/fleet'
     | '/integrations'
     | '/jax'
     | '/omni'
+    | '/overview'
     | '/projects'
     | '/razul'
     | '/releases'
     | '/research'
+    | '/settings'
     | '/update-docs'
     | '/updates'
     | '/workspace'
     | '/api/chat'
     | '/passport/$agentId'
+    | '/project/$id'
     | '/api/public/agent-ingest'
     | '/api/public/feeds/$sourceId'
     | '/api/public/jobs/releases'
@@ -383,22 +423,26 @@ export interface FileRouteTypes {
     | '/automation'
     | '/autopilot'
     | '/chat'
+    | '/connect'
     | '/discovery'
     | '/feeds'
     | '/fleet'
     | '/integrations'
     | '/jax'
     | '/omni'
+    | '/overview'
     | '/projects'
     | '/razul'
     | '/releases'
     | '/research'
+    | '/settings'
     | '/update-docs'
     | '/updates'
     | '/workspace'
     | '/api/chat'
     | '/'
     | '/passport/$agentId'
+    | '/project/$id'
     | '/api/public/agent-ingest'
     | '/api/public/feeds/$sourceId'
     | '/api/public/jobs/releases'
@@ -420,22 +464,26 @@ export interface FileRouteTypes {
     | '/_authenticated/automation'
     | '/_authenticated/autopilot'
     | '/_authenticated/chat'
+    | '/_authenticated/connect'
     | '/_authenticated/discovery'
     | '/_authenticated/feeds'
     | '/_authenticated/fleet'
     | '/_authenticated/integrations'
     | '/_authenticated/jax'
     | '/_authenticated/omni'
+    | '/_authenticated/overview'
     | '/_authenticated/projects'
     | '/_authenticated/razul'
     | '/_authenticated/releases'
     | '/_authenticated/research'
+    | '/_authenticated/settings'
     | '/_authenticated/update-docs'
     | '/_authenticated/updates'
     | '/_authenticated/workspace'
     | '/api/chat'
     | '/_authenticated/'
     | '/_authenticated/passport/$agentId'
+    | '/_authenticated/project/$id'
     | '/api/public/agent-ingest'
     | '/api/public/feeds/$sourceId'
     | '/api/public/jobs/releases'
@@ -549,6 +597,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedChatRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/connect': {
+      id: '/_authenticated/connect'
+      path: '/connect'
+      fullPath: '/connect'
+      preLoaderRoute: typeof AuthenticatedConnectRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/discovery': {
       id: '/_authenticated/discovery'
       path: '/discovery'
@@ -591,6 +646,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedOmniRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/overview': {
+      id: '/_authenticated/overview'
+      path: '/overview'
+      fullPath: '/overview'
+      preLoaderRoute: typeof AuthenticatedOverviewRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/projects': {
       id: '/_authenticated/projects'
       path: '/projects'
@@ -617,6 +679,13 @@ declare module '@tanstack/react-router' {
       path: '/research'
       fullPath: '/research'
       preLoaderRoute: typeof AuthenticatedResearchRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/settings': {
+      id: '/_authenticated/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AuthenticatedSettingsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/update-docs': {
@@ -652,6 +721,13 @@ declare module '@tanstack/react-router' {
       path: '/passport/$agentId'
       fullPath: '/passport/$agentId'
       preLoaderRoute: typeof AuthenticatedPassportAgentIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/project/$id': {
+      id: '/_authenticated/project/$id'
+      path: '/project/$id'
+      fullPath: '/project/$id'
+      preLoaderRoute: typeof AuthenticatedProjectIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/api/public/agent-ingest': {
@@ -720,21 +796,25 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAutomationRoute: typeof AuthenticatedAutomationRoute
   AuthenticatedAutopilotRoute: typeof AuthenticatedAutopilotRoute
   AuthenticatedChatRoute: typeof AuthenticatedChatRoute
+  AuthenticatedConnectRoute: typeof AuthenticatedConnectRoute
   AuthenticatedDiscoveryRoute: typeof AuthenticatedDiscoveryRoute
   AuthenticatedFeedsRoute: typeof AuthenticatedFeedsRoute
   AuthenticatedFleetRoute: typeof AuthenticatedFleetRoute
   AuthenticatedIntegrationsRoute: typeof AuthenticatedIntegrationsRoute
   AuthenticatedJaxRoute: typeof AuthenticatedJaxRoute
   AuthenticatedOmniRoute: typeof AuthenticatedOmniRoute
+  AuthenticatedOverviewRoute: typeof AuthenticatedOverviewRoute
   AuthenticatedProjectsRoute: typeof AuthenticatedProjectsRoute
   AuthenticatedRazulRoute: typeof AuthenticatedRazulRoute
   AuthenticatedReleasesRoute: typeof AuthenticatedReleasesRoute
   AuthenticatedResearchRoute: typeof AuthenticatedResearchRoute
+  AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedUpdateDocsRoute: typeof AuthenticatedUpdateDocsRoute
   AuthenticatedUpdatesRoute: typeof AuthenticatedUpdatesRoute
   AuthenticatedWorkspaceRoute: typeof AuthenticatedWorkspaceRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedPassportAgentIdRoute: typeof AuthenticatedPassportAgentIdRoute
+  AuthenticatedProjectIdRoute: typeof AuthenticatedProjectIdRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -744,21 +824,25 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAutomationRoute: AuthenticatedAutomationRoute,
   AuthenticatedAutopilotRoute: AuthenticatedAutopilotRoute,
   AuthenticatedChatRoute: AuthenticatedChatRoute,
+  AuthenticatedConnectRoute: AuthenticatedConnectRoute,
   AuthenticatedDiscoveryRoute: AuthenticatedDiscoveryRoute,
   AuthenticatedFeedsRoute: AuthenticatedFeedsRoute,
   AuthenticatedFleetRoute: AuthenticatedFleetRoute,
   AuthenticatedIntegrationsRoute: AuthenticatedIntegrationsRoute,
   AuthenticatedJaxRoute: AuthenticatedJaxRoute,
   AuthenticatedOmniRoute: AuthenticatedOmniRoute,
+  AuthenticatedOverviewRoute: AuthenticatedOverviewRoute,
   AuthenticatedProjectsRoute: AuthenticatedProjectsRoute,
   AuthenticatedRazulRoute: AuthenticatedRazulRoute,
   AuthenticatedReleasesRoute: AuthenticatedReleasesRoute,
   AuthenticatedResearchRoute: AuthenticatedResearchRoute,
+  AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedUpdateDocsRoute: AuthenticatedUpdateDocsRoute,
   AuthenticatedUpdatesRoute: AuthenticatedUpdatesRoute,
   AuthenticatedWorkspaceRoute: AuthenticatedWorkspaceRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedPassportAgentIdRoute: AuthenticatedPassportAgentIdRoute,
+  AuthenticatedProjectIdRoute: AuthenticatedProjectIdRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =

@@ -45,3 +45,5 @@ Source: [Jackboy Updates — Competitive Advantage, Architecture & Business Foun
 - [ ] Add real trusted-source dependency/advisory intake, compatibility and security tests, model benchmarks, cost tracking and customer tenant boundaries before hosted/self-hosted launch claims.
 
 The spoken acronym “NLOA” is unconfirmed in Notion. Do not infer a technical architecture from it.
+- [x] Simple owner flow: Home with Connect Project, searchable Projects, connect wizard with saved-inventory picker, project detail, advanced tools under Settings
+- [ ] Live Lovable project list — blocked: needs Lovable account connection (Business/Enterprise plan)
