@@ -6,10 +6,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { btn, field, primaryBtn } from "@/components/ProjectBits";
 import { searchByName } from "@/lib/project-hub";
 import { sanitizeSelection, runBounded, MAX_CONCURRENCY } from "@/lib/batch";
-import { agentState, connectRows, loopEligible, newProjectInput, selectAll, toggle, type ConnectRow } from "@/lib/connect-select";
+import { agentState, connectRows, devPriority, loopEligible, newProjectInput, selectAll, toggle, type ConnectRow } from "@/lib/connect-select";
 import { saveProject } from "@/lib/update-writer.functions";
 import { foundryInspect, getFoundry } from "@/lib/foundry.functions";
-import type { getProjectHub } from "@/lib/project-hub.functions";
+import { setDevEnabled, type getProjectHub } from "@/lib/project-hub.functions";
 
 type Hub = Awaited<ReturnType<typeof getProjectHub>>;
 type Task = { project_id: string | null; state: string; blocked_reason: string | null; paused: boolean };
@@ -17,6 +17,7 @@ const STATUS: Record<ConnectRow["status"], string> = { saved_only: "Not connecte
 const TONE: Record<string, string> = { Online: "text-success", Working: "text-electric", Blocked: "text-destructive", Offline: "text-muted-foreground" };
 
 export function MultiSelect({ hub, onPick, reload }: { hub: Hub | null; onPick: (name: string, ref: string | null) => void; reload: () => Promise<unknown> }) {
+  const setDev = useServerFn(setDevEnabled);
   const save = useServerFn(saveProject), inspect = useServerFn(foundryInspect), foundry = useServerFn(getFoundry);
   const [uid, setUid] = useState<string | null>(null);
   const [sel, setSel] = useState<string[]>([]);
@@ -48,6 +49,12 @@ export function MultiSelect({ hub, onPick, reload }: { hub: Hub | null; onPick: 
     await reload();
     update(sel.map((k) => created[k] ?? k));
     setBusy(false);
+  };
+  const activate = async (on: boolean) => {
+    setBusy(true);
+    const targets = chosen.filter((r) => { if (!r.projectId) note(r.key, "Skipped: connect it first"); return Boolean(r.projectId); });
+    await runBounded(targets, MAX_CONCURRENCY, (r) => setDev({ data: { id: r.projectId!, enabled: on } }), (r, o) => note(r.key, o.ok ? (on ? "Background work activated" : "Background work off") : `Failed: ${o.error}`));
+    await reload(); setBusy(false);
   };
   const runLoop = async () => {
     setBusy(true);
@@ -85,7 +92,8 @@ export function MultiSelect({ hub, onPick, reload }: { hub: Hub | null; onPick: 
                   <label className="flex items-start gap-2">
                     <input type="checkbox" className="mt-1" checked={sel.includes(r.key)} onChange={() => update(toggle(sel, r.key))} aria-label={`Select ${r.name}`} />
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate font-medium">{r.name}</span>
+                      <span className="block truncate font-medium">{r.name}{devPriority(r.name) < 100 && <span className="ml-2 rounded border border-border px-1 text-[10px] text-muted-foreground">priority {devPriority(r.name)}</span>}</span>
+                      {r.projectId && <span className={`block text-xs ${r.devEnabled ? "text-success" : "text-muted-foreground"}`}>Background work: {r.devEnabled ? "activated by you" : "off (not authorized)"}</span>}
                       <span className="block text-xs text-muted-foreground">{STATUS[r.status]} — {r.detail}</span>
                       {st && <span className={`block text-xs ${TONE[st.label]}`}>{st.label}: {st.reason}</span>}
                       {results[r.key] && <span className="block text-xs">{results[r.key]}</span>}
@@ -101,9 +109,11 @@ export function MultiSelect({ hub, onPick, reload }: { hub: Hub | null; onPick: 
           </ul>
           <div className="mt-4 flex flex-wrap gap-2">
             <button type="button" className={btn} disabled={busy || !toConnect.length} onClick={connectSelected}>Connect selected ({toConnect.length})</button>
+            <button type="button" className={btn} disabled={busy || !chosen.length} onClick={() => activate(true)}>Activate background work</button>
+            <button type="button" className={btn} disabled={busy || !chosen.length} onClick={() => activate(false)}>Turn off background work</button>
             <button type="button" className={primaryBtn} disabled={busy || !chosen.length} onClick={runLoop}>{busy ? "Working…" : `Run coding loop on selected (${chosen.length})`}</button>
           </div>
-          <p className="mt-2 text-xs text-muted-foreground">The coding loop reads the repo, prepares one minimal change on a separate branch and reads available checks. It stops for your approval before opening a draft pull request; merging and deploying are never automatic.</p>
+          <p className="mt-2 text-xs text-muted-foreground">The coding loop reads the repo, prepares one minimal change on a separate branch and reads available checks. It stops for your approval before opening a draft pull request; merging and deploying are never automatic. Background work (recurring scans and fixes) runs only on projects you activate, in order: OMNI, JAX, Nano, Jail Release, then the rest. Being in this list never means a project is authorized.</p>
         </>
       )}
     </section>
