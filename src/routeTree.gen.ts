@@ -19,6 +19,7 @@ import { Route as AuthenticatedAccessRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedAccountsRouteImport } from './routes/_authenticated/accounts'
 import { Route as AuthenticatedActivityRouteImport } from './routes/_authenticated/activity'
 import { Route as AuthenticatedAgentsRouteImport } from './routes/_authenticated/agents'
+import { Route as AuthenticatedAutoconnectRouteImport } from './routes/_authenticated/autoconnect'
 import { Route as AuthenticatedAutomationRouteImport } from './routes/_authenticated/automation'
 import { Route as AuthenticatedAutopilotRouteImport } from './routes/_authenticated/autopilot'
 import { Route as AuthenticatedChatRouteImport } from './routes/_authenticated/chat'
@@ -102,6 +103,12 @@ const AuthenticatedAgentsRoute = AuthenticatedAgentsRouteImport.update({
   path: '/agents',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedAutoconnectRoute =
+  AuthenticatedAutoconnectRouteImport.update({
+    id: '/autoconnect',
+    path: '/autoconnect',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAutomationRoute = AuthenticatedAutomationRouteImport.update({
   id: '/automation',
   path: '/automation',
@@ -282,6 +289,7 @@ export interface FileRoutesByFullPath {
   '/accounts': typeof AuthenticatedAccountsRoute
   '/activity': typeof AuthenticatedActivityRoute
   '/agents': typeof AuthenticatedAgentsRoute
+  '/autoconnect': typeof AuthenticatedAutoconnectRoute
   '/automation': typeof AuthenticatedAutomationRoute
   '/autopilot': typeof AuthenticatedAutopilotRoute
   '/chat': typeof AuthenticatedChatRoute
@@ -325,6 +333,7 @@ export interface FileRoutesByTo {
   '/accounts': typeof AuthenticatedAccountsRoute
   '/activity': typeof AuthenticatedActivityRoute
   '/agents': typeof AuthenticatedAgentsRoute
+  '/autoconnect': typeof AuthenticatedAutoconnectRoute
   '/automation': typeof AuthenticatedAutomationRoute
   '/autopilot': typeof AuthenticatedAutopilotRoute
   '/chat': typeof AuthenticatedChatRoute
@@ -371,6 +380,7 @@ export interface FileRoutesById {
   '/_authenticated/accounts': typeof AuthenticatedAccountsRoute
   '/_authenticated/activity': typeof AuthenticatedActivityRoute
   '/_authenticated/agents': typeof AuthenticatedAgentsRoute
+  '/_authenticated/autoconnect': typeof AuthenticatedAutoconnectRoute
   '/_authenticated/automation': typeof AuthenticatedAutomationRoute
   '/_authenticated/autopilot': typeof AuthenticatedAutopilotRoute
   '/_authenticated/chat': typeof AuthenticatedChatRoute
@@ -418,6 +428,7 @@ export interface FileRouteTypes {
     | '/accounts'
     | '/activity'
     | '/agents'
+    | '/autoconnect'
     | '/automation'
     | '/autopilot'
     | '/chat'
@@ -461,6 +472,7 @@ export interface FileRouteTypes {
     | '/accounts'
     | '/activity'
     | '/agents'
+    | '/autoconnect'
     | '/automation'
     | '/autopilot'
     | '/chat'
@@ -506,6 +518,7 @@ export interface FileRouteTypes {
     | '/_authenticated/accounts'
     | '/_authenticated/activity'
     | '/_authenticated/agents'
+    | '/_authenticated/autoconnect'
     | '/_authenticated/automation'
     | '/_authenticated/autopilot'
     | '/_authenticated/chat'
@@ -630,6 +643,13 @@ declare module '@tanstack/react-router' {
       path: '/agents'
       fullPath: '/agents'
       preLoaderRoute: typeof AuthenticatedAgentsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/autoconnect': {
+      id: '/_authenticated/autoconnect'
+      path: '/autoconnect'
+      fullPath: '/autoconnect'
+      preLoaderRoute: typeof AuthenticatedAutoconnectRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/automation': {
@@ -871,6 +891,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAccountsRoute: typeof AuthenticatedAccountsRoute
   AuthenticatedActivityRoute: typeof AuthenticatedActivityRoute
   AuthenticatedAgentsRoute: typeof AuthenticatedAgentsRoute
+  AuthenticatedAutoconnectRoute: typeof AuthenticatedAutoconnectRoute
   AuthenticatedAutomationRoute: typeof AuthenticatedAutomationRoute
   AuthenticatedAutopilotRoute: typeof AuthenticatedAutopilotRoute
   AuthenticatedChatRoute: typeof AuthenticatedChatRoute
@@ -902,6 +923,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAccountsRoute: AuthenticatedAccountsRoute,
   AuthenticatedActivityRoute: AuthenticatedActivityRoute,
   AuthenticatedAgentsRoute: AuthenticatedAgentsRoute,
+  AuthenticatedAutoconnectRoute: AuthenticatedAutoconnectRoute,
   AuthenticatedAutomationRoute: AuthenticatedAutomationRoute,
   AuthenticatedAutopilotRoute: AuthenticatedAutopilotRoute,
   AuthenticatedChatRoute: AuthenticatedChatRoute,

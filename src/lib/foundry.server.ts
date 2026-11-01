@@ -54,6 +54,8 @@ export async function inspectProject(projectId: string, actor: string, source: "
   const { data: p } = await supabaseAdmin.from("owner_projects").select("id, name, github_repo").eq("id", projectId).single();
   if (!p) throw new Error("Project not found.");
   if (!p.github_repo) { await event({ id: null as never, project_id: p.id }, "inspect_blocked", actor, null, null, "No private repo linked."); return { created: 0, blocked: "No private GitHub repo linked to this project." }; }
+  const { data: rg } = await supabaseAdmin.from("capability_grants").select("status, paused").eq("capability", "github_repo").eq("project_id", p.id).maybeSingle();
+  if (rg && (rg.status === "revoked" || rg.paused)) { await event({ id: null as never, project_id: p.id }, "inspect_blocked", actor, null, null, "GitHub repo access revoked or paused in AutoConnect."); return { created: 0, blocked: "GitHub repo access is revoked or paused for this project." }; }
   let repo: ws.Repo;
   try { repo = await ws.openRepo(p.github_repo); }
   catch (e) { const m = (e as Error).message; await event({ id: null as never, project_id: p.id }, "inspect_blocked", actor, null, null, m); return { created: 0, blocked: m }; }
