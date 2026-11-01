@@ -32,10 +32,13 @@ function Dashboard() {
       .catch((e) => setError((e as Error).message));
   }, []);
   const pending = state.suggestions.filter((x) => x.status === "pending");
-  const queued = facts?.jobs.filter((j) => j.status === "queued" && !j.sent_at).length ?? 0;
-  const openReports = facts?.reports.filter((r) => r.status === "open" || r.status === "acknowledged").length ?? 0;
-  const pendingProposals =
-    facts?.proposals.filter((p) => p.status === "proposed" || p.status === "pending").length ?? 0;
+  const queued = facts ? facts.jobs.filter((j) => j.status === "queued" && !j.sent_at).length : undefined;
+  const openReports = facts
+    ? facts.reports.filter((r) => r.status === "open" || r.status === "acknowledged").length
+    : undefined;
+  const pendingProposals = facts
+    ? facts.proposals.filter((p) => p.status === "proposed" || p.status === "pending").length
+    : undefined;
 
   return (
     <>
