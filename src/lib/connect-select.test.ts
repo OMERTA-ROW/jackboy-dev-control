@@ -34,9 +34,9 @@ describe("connect multi-select", () => {
 
 import { devPriority, byPriority } from "./connect-select";
 describe("development priority", () => {
-  it("OMNI, then JAX, then Nano, then Jail Release, then the rest", () => {
-    const names = ["Vera Health AI", "Jail Release Assist", "NanoDrift Platform", "Jax Data Concierge", "OMNI internal build"];
-    expect(byPriority(names.map((name) => ({ name }))).map((x) => x.name)).toEqual(["OMNI internal build", "Jax Data Concierge", "NanoDrift Platform", "Jail Release Assist", "Vera Health AI"]);
+  it("OMNI, Honeycomb Terminal, Honeycomb Vault, JAX, Nano, Jail Release, then the rest", () => {
+    const names = ["Honeycomb Vault", "Vera Health AI", "Honeycomb Terminal Companion", "Jail Release Assist", "NanoDrift Platform", "Jax Data Concierge", "OMNI internal build"];
+    expect(byPriority(names.map((name) => ({ name }))).map((x) => x.name)).toEqual(["OMNI internal build", "Honeycomb Terminal Companion", "Honeycomb Vault", "Jax Data Concierge", "NanoDrift Platform", "Jail Release Assist", "Vera Health AI"]);
     expect(devPriority("Orbiting Minds Mothership")).toBe(100);
   });
 });

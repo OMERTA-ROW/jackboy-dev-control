@@ -64,13 +64,15 @@ export function agentState(repoOk: boolean, tasks: { state: string; blocked_reas
   return { label: "Online", reason: tasks.some((t) => t.state === "awaiting_approval") ? "Waiting for your approval" : "Idle, ready" };
 }
 
-/** Owner-set development order: OMNI, then JAX, then Nano and Jail Release, then everything else. Lower runs first. */
+/** Owner-set development order: OMNI, Honeycomb Terminal, Honeycomb Vault, JAX, Nano, Jail Release, then the rest. Lower runs first. */
 export function devPriority(name: string): number {
   const n = name.toLowerCase();
   if (/\bomni\b/.test(n)) return 1;
-  if (/\bjax\b/.test(n)) return 2;
-  if (/nano/.test(n)) return 3;
-  if (/jail release/.test(n)) return 4;
+  if (/honeycomb terminal/.test(n)) return 2;
+  if (/honeycomb vault/.test(n)) return 3;
+  if (/\bjax\b/.test(n)) return 4;
+  if (/nano/.test(n)) return 5;
+  if (/jail release/.test(n)) return 6;
   return 100;
 }
 export function byPriority<T extends { name: string }>(rows: T[]): T[] {
