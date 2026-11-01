@@ -119,10 +119,10 @@ Never read out secrets, tokens, passwords or keys, and never ask the owner to sp
 Backchannel policy: Use occasional brief listening sounds without taking over.
 Interruption policy: Stop your answer and listen when the owner interrupts; keep any backend lookup going.
 Delegation policy:
-Backend tools: Read-only lookup of Jackboy's real state: projects and their queue priority, blockers, Code Foundry tasks and pending approvals.
-Delegate to the backend when: The owner asks about project status, blockers, the queue, tasks, approvals, or what Jackboy can do next.
+Backend tools: Jackboy's real actions, the same as the dashboard buttons: status, queue, blockers, connection state, site checks, scans, Code Foundry inspections, findings, fixes on branches, diffs, checks, draft pull requests, approving or rejecting tasks, and memory.
+Delegate to the backend when: The owner asks about anything in their projects or asks Jackboy to do any of those actions, including confirmations of a pending action.
 Do not delegate to the backend when: Greeting, clarifying, or repeating a still-current answer.
-Voice cannot approve, merge, deploy, change permissions or edit code. For any such request, say it must be done in the Jackboy screens with passkey approval.
+For any change, the backend first restates the exact action and asks the owner to say "confirm". Voice can never merge, deploy, connect a repository, change permissions or turn automation on or off; those need the Jackboy screens with passkey or typing.
 Wait for the backend result before presenting its answer.`;
 
 const statusInput = z.object({}).strict();
@@ -145,6 +145,16 @@ async function readJackboyStatus(token: string) {
     blockers: blockers.slice(0, 12).map((b) => ({ project: b.projectName, cause: b.cause, fix: b.remedy, status: b.status })),
     pending_approvals: a.count ?? 0,
   };
+}
+
+/** Same real backend tools as typed chat and the dashboard, guarded for spoken input (confirm for bounded, typed-only for sensitive). */
+async function voiceTools(token: string, messages: ModelMessage[]) {
+  const { data } = await ownerClient(token).auth.getUser(token);
+  if (!data.user) throw new Error("Your session expired. Sign in again.");
+  const { buildJackboyTools, guardTools } = await import("./jackboy-tools.server");
+  const { decideTool, liveMessagesForGuard, PRIVILEGED_TOOLS } = await import("./voice-guard");
+  const guardMsgs = liveMessagesForGuard(messages as never);
+  return guardTools(buildJackboyTools(data.user.id), data.user.id, (n) => decideTool(n, guardMsgs), PRIVILEGED_TOOLS);
 }
 
 function ownerClient(token: string) {
@@ -225,12 +235,14 @@ async function answerQuestion(
     system:
       "You help Jackboy's voice answer the owner's latest question about their projects. " +
       "Transcripts may be incomplete or corrected; use the latest correction. " +
-      "Call get_jackboy_status for any question about projects, queue order, blockers, tasks or approvals, and answer only from its result. " +
-      "Never claim a connection, fix, test, merge or deployment that the result does not show. " +
-      "Voice cannot approve, merge, deploy, change permissions or edit code: say those need the Jackboy screens with passkey approval. " +
+      "Use tools for every fact and action; answer only from tool results and read back the actual result or error. " +
+      "Use get_jackboy_status for overview, foundryQueue/foundryInspect/foundryDecide for the work queue, scanSite/scanResults for site scans, checkSite for reachability, connectionStatus for repo access, repo tools (repoTree, readFile, writeFile on jackboy/* branches, showDiff, checkStatus, openDraftPR) for code. " +
+      "Input is spoken and may be misheard: before any change tool, restate exactly what you will do (project, action) and ask the owner to say confirm; only call it after they confirm. If a tool returns blocked, read the reason. If a project name is ambiguous, ask which one. " +
+      "Never claim a connection, fix, test, merge or deployment that a result does not show. Voice cannot merge, deploy, connect repos, change permissions or toggle automation. " +
       "Never output secrets. Answer in at most 90 spoken words, plain sentences, no markdown.",
     messages,
     tools: {
+      ...(await voiceTools(token, messages)),
       get_jackboy_status: tool({
         description: "Read-only: Jackboy's development queue, open Code Foundry tasks, blockers and pending approval count.",
         inputSchema: statusInput,
