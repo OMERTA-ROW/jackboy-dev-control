@@ -42,6 +42,7 @@ import { Route as AuthenticatedUpdateDocsRouteImport } from './routes/_authentic
 import { Route as AuthenticatedUpdatesRouteImport } from './routes/_authenticated/updates'
 import { Route as AuthenticatedWorkspaceRouteImport } from './routes/_authenticated/workspace'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
+import { Route as ApiTranscribeRouteImport } from './routes/api/transcribe'
 import { Route as AuthenticatedPassportAgentIdRouteImport } from './routes/_authenticated/passport.$agentId'
 import { Route as AuthenticatedProjectIdRouteImport } from './routes/_authenticated/project.$id'
 import { Route as ApiPublicAgentIngestRouteImport } from './routes/api/public/agent-ingest'
@@ -222,6 +223,11 @@ const ApiChatRoute = ApiChatRouteImport.update({
   path: '/api/chat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiTranscribeRoute = ApiTranscribeRouteImport.update({
+  id: '/api/transcribe',
+  path: '/api/transcribe',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedPassportAgentIdRoute =
   AuthenticatedPassportAgentIdRouteImport.update({
     id: '/passport/$agentId',
@@ -326,6 +332,7 @@ export interface FileRoutesByFullPath {
   '/updates': typeof AuthenticatedUpdatesRoute
   '/workspace': typeof AuthenticatedWorkspaceRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/transcribe': typeof ApiTranscribeRoute
   '/passport/$agentId': typeof AuthenticatedPassportAgentIdRoute
   '/project/$id': typeof AuthenticatedProjectIdRoute
   '/api/public/agent-ingest': typeof ApiPublicAgentIngestRoute
@@ -372,6 +379,7 @@ export interface FileRoutesByTo {
   '/updates': typeof AuthenticatedUpdatesRoute
   '/workspace': typeof AuthenticatedWorkspaceRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/transcribe': typeof ApiTranscribeRoute
   '/': typeof AuthenticatedIndexRoute
   '/passport/$agentId': typeof AuthenticatedPassportAgentIdRoute
   '/project/$id': typeof AuthenticatedProjectIdRoute
@@ -421,6 +429,7 @@ export interface FileRoutesById {
   '/_authenticated/updates': typeof AuthenticatedUpdatesRoute
   '/_authenticated/workspace': typeof AuthenticatedWorkspaceRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/transcribe': typeof ApiTranscribeRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/passport/$agentId': typeof AuthenticatedPassportAgentIdRoute
   '/_authenticated/project/$id': typeof AuthenticatedProjectIdRoute
@@ -471,6 +480,7 @@ export interface FileRouteTypes {
     | '/updates'
     | '/workspace'
     | '/api/chat'
+    | '/api/transcribe'
     | '/passport/$agentId'
     | '/project/$id'
     | '/api/public/agent-ingest'
@@ -517,6 +527,7 @@ export interface FileRouteTypes {
     | '/updates'
     | '/workspace'
     | '/api/chat'
+    | '/api/transcribe'
     | '/'
     | '/passport/$agentId'
     | '/project/$id'
@@ -565,6 +576,7 @@ export interface FileRouteTypes {
     | '/_authenticated/updates'
     | '/_authenticated/workspace'
     | '/api/chat'
+    | '/api/transcribe'
     | '/_authenticated/'
     | '/_authenticated/passport/$agentId'
     | '/_authenticated/project/$id'
@@ -588,6 +600,7 @@ export interface RootRouteChildren {
   OnboardingRoute: typeof OnboardingRoute
   SetPasswordRoute: typeof SetPasswordRoute
   ApiChatRoute: typeof ApiChatRoute
+  ApiTranscribeRoute: typeof ApiTranscribeRoute
   ApiPublicAgentIngestRoute: typeof ApiPublicAgentIngestRoute
   ApiPublicFeedsSourceIdRoute: typeof ApiPublicFeedsSourceIdRoute
   ApiPublicFoundryWebhookRoute: typeof ApiPublicFoundryWebhookRoute
@@ -834,6 +847,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiChatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/transcribe': {
+      id: '/api/transcribe'
+      path: '/api/transcribe'
+      fullPath: '/api/transcribe'
+      preLoaderRoute: typeof ApiTranscribeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/passport/$agentId': {
       id: '/_authenticated/passport/$agentId'
       path: '/passport/$agentId'
@@ -1002,6 +1022,7 @@ const rootRouteChildren: RootRouteChildren = {
   OnboardingRoute: OnboardingRoute,
   SetPasswordRoute: SetPasswordRoute,
   ApiChatRoute: ApiChatRoute,
+  ApiTranscribeRoute: ApiTranscribeRoute,
   ApiPublicAgentIngestRoute: ApiPublicAgentIngestRoute,
   ApiPublicFeedsSourceIdRoute: ApiPublicFeedsSourceIdRoute,
   ApiPublicFoundryWebhookRoute: ApiPublicFoundryWebhookRoute,
