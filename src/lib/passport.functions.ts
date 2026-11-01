@@ -174,3 +174,40 @@ export const getOmniQueue = createServerFn({ method: "POST" })
     if (projects.error || jobs.error) throw new Error("Could not load the OMNI task queue.");
     return { role: currentRole, projects: projects.data ?? [], jobs: jobs.data ?? [], omniVerified: OMNI_VERIFIED };
   });
+
+/** Dashboard facts come only from authenticated, RLS-scoped records. */
+export const getDashboardFacts = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const currentRole = await role(context);
+    const [projects, jobs, reports, proposals, events] = await Promise.all([
+      context.supabase
+        .from("agent_projects")
+        .select("id,name,enrolled,health,last_report_at")
+        .order("created_at", { ascending: false })
+        .limit(100),
+      context.supabase
+        .from("omni_jobs")
+        .select("id,project_id,kind,status,sent_at,created_at")
+        .order("created_at", { ascending: false })
+        .limit(100),
+      context.supabase
+        .from("agent_reports")
+        .select("id,status,severity")
+        .in("status", ["open", "acknowledged"])
+        .limit(100),
+      context.supabase.from("agent_proposals").select("id,status,tests_passed").limit(100),
+      context.supabase.from("audit_logs").select("id,action,at,outcome").order("at", { ascending: false }).limit(8),
+    ]);
+    if ([projects, jobs, reports, proposals, events].some((x) => x.error))
+      throw new Error("Dashboard data could not be loaded.");
+    return {
+      role: currentRole,
+      projects: projects.data ?? [],
+      jobs: jobs.data ?? [],
+      reports: reports.data ?? [],
+      proposals: proposals.data ?? [],
+      events: events.data ?? [],
+      omniVerified: OMNI_VERIFIED,
+    };
+  });
