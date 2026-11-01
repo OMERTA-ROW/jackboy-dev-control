@@ -31,6 +31,7 @@ import { Route as AuthenticatedUpdatesRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedWorkspaceRouteImport } from './routes/_authenticated/workspace'
 import { Route as AuthenticatedPassportAgentIdRouteImport } from './routes/_authenticated/passport.$agentId'
 import { Route as ApiPublicAgentIngestRouteImport } from './routes/api/public/agent-ingest'
+import { Route as ApiPublicFeedsSourceIdRouteImport } from './routes/api/public/feeds.$sourceId'
 import { Route as ApiPublicJobsUpdateWriterRouteImport } from './routes/api/public/jobs/update-writer'
 
 const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
@@ -144,6 +145,11 @@ const ApiPublicAgentIngestRoute = ApiPublicAgentIngestRouteImport.update({
   path: '/api/public/agent-ingest',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicFeedsSourceIdRoute = ApiPublicFeedsSourceIdRouteImport.update({
+  id: '/api/public/feeds/$sourceId',
+  path: '/api/public/feeds/$sourceId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicJobsUpdateWriterRoute =
   ApiPublicJobsUpdateWriterRouteImport.update({
     id: '/api/public/jobs/update-writer',
@@ -173,6 +179,7 @@ export interface FileRoutesByFullPath {
   '/workspace': typeof AuthenticatedWorkspaceRoute
   '/passport/$agentId': typeof AuthenticatedPassportAgentIdRoute
   '/api/public/agent-ingest': typeof ApiPublicAgentIngestRoute
+  '/api/public/feeds/$sourceId': typeof ApiPublicFeedsSourceIdRoute
   '/api/public/jobs/update-writer': typeof ApiPublicJobsUpdateWriterRoute
 }
 export interface FileRoutesByTo {
@@ -197,6 +204,7 @@ export interface FileRoutesByTo {
   '/': typeof AuthenticatedIndexRoute
   '/passport/$agentId': typeof AuthenticatedPassportAgentIdRoute
   '/api/public/agent-ingest': typeof ApiPublicAgentIngestRoute
+  '/api/public/feeds/$sourceId': typeof ApiPublicFeedsSourceIdRoute
   '/api/public/jobs/update-writer': typeof ApiPublicJobsUpdateWriterRoute
 }
 export interface FileRoutesById {
@@ -223,6 +231,7 @@ export interface FileRoutesById {
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/passport/$agentId': typeof AuthenticatedPassportAgentIdRoute
   '/api/public/agent-ingest': typeof ApiPublicAgentIngestRoute
+  '/api/public/feeds/$sourceId': typeof ApiPublicFeedsSourceIdRoute
   '/api/public/jobs/update-writer': typeof ApiPublicJobsUpdateWriterRoute
 }
 export interface FileRouteTypes {
@@ -249,6 +258,7 @@ export interface FileRouteTypes {
     | '/workspace'
     | '/passport/$agentId'
     | '/api/public/agent-ingest'
+    | '/api/public/feeds/$sourceId'
     | '/api/public/jobs/update-writer'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -273,6 +283,7 @@ export interface FileRouteTypes {
     | '/'
     | '/passport/$agentId'
     | '/api/public/agent-ingest'
+    | '/api/public/feeds/$sourceId'
     | '/api/public/jobs/update-writer'
   id:
     | '__root__'
@@ -298,6 +309,7 @@ export interface FileRouteTypes {
     | '/_authenticated/'
     | '/_authenticated/passport/$agentId'
     | '/api/public/agent-ingest'
+    | '/api/public/feeds/$sourceId'
     | '/api/public/jobs/update-writer'
   fileRoutesById: FileRoutesById
 }
@@ -308,6 +320,7 @@ export interface RootRouteChildren {
   OnboardingRoute: typeof OnboardingRoute
   SetPasswordRoute: typeof SetPasswordRoute
   ApiPublicAgentIngestRoute: typeof ApiPublicAgentIngestRoute
+  ApiPublicFeedsSourceIdRoute: typeof ApiPublicFeedsSourceIdRoute
   ApiPublicJobsUpdateWriterRoute: typeof ApiPublicJobsUpdateWriterRoute
 }
 
@@ -467,6 +480,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicAgentIngestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/feeds/$sourceId': {
+      id: '/api/public/feeds/$sourceId'
+      path: '/api/public/feeds/$sourceId'
+      fullPath: '/api/public/feeds/$sourceId'
+      preLoaderRoute: typeof ApiPublicFeedsSourceIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/jobs/update-writer': {
       id: '/api/public/jobs/update-writer'
       path: '/api/public/jobs/update-writer'
@@ -525,6 +545,7 @@ const rootRouteChildren: RootRouteChildren = {
   OnboardingRoute: OnboardingRoute,
   SetPasswordRoute: SetPasswordRoute,
   ApiPublicAgentIngestRoute: ApiPublicAgentIngestRoute,
+  ApiPublicFeedsSourceIdRoute: ApiPublicFeedsSourceIdRoute,
   ApiPublicJobsUpdateWriterRoute: ApiPublicJobsUpdateWriterRoute,
 }
 export const routeTree = rootRouteImport

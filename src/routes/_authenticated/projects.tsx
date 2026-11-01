@@ -2,15 +2,16 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useState } from "react";
 import { PageHeader } from "@/components/AppShell";
-import { deleteProject, getProjects, runNow, saveProject } from "@/lib/update-writer.functions";
+import { FREQUENCIES } from "@/lib/update-writer";
+import { deleteProject, getProjects, runNow, saveProject, testRepo, type ProjectRow } from "@/lib/update-writer.functions";
 
 export const Route = createFileRoute("/_authenticated/projects")({
   head: () => ({
     meta: [
       { title: "Projects — Jackboy" },
-      { name: "description", content: "Owner registry of projects Jackboy writes update proposals for." },
+      { name: "description", content: "Owner registry of projects Jackboy writes and delivers updates for." },
       { property: "og:title", content: "Projects — Jackboy" },
-      { property: "og:description", content: "List each project's link, description and goals." },
+      { property: "og:description", content: "Each project's link, goals, private GitHub repo and update schedule." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -18,19 +19,19 @@ export const Route = createFileRoute("/_authenticated/projects")({
   component: Projects,
 });
 
-type P = Awaited<ReturnType<typeof getProjects>>[number];
-const empty = { name: "", lovable_url: "", description: "", goals: "", notes: "", active: true };
+const empty = { name: "", lovable_url: "", description: "", goals: "", notes: "", github_repo: "", github_branch: "main", frequency_hours: 24, active: true };
 const input = "rounded-md border border-input bg-background px-3 py-2 text-sm";
 const btn = "rounded-md border border-border px-3 py-1.5 text-xs hover:border-electric disabled:opacity-40";
 
 function Projects() {
-  const load = useServerFn(getProjects), save = useServerFn(saveProject), del = useServerFn(deleteProject), run = useServerFn(runNow);
-  const [list, setList] = useState<P[] | null>(null);
+  const load = useServerFn(getProjects), save = useServerFn(saveProject), del = useServerFn(deleteProject), run = useServerFn(runNow), test = useServerFn(testRepo);
+  const [list, setList] = useState<ProjectRow[] | null>(null);
+  const [gh, setGh] = useState(false);
   const [form, setForm] = useState<typeof empty & { id?: string }>(empty);
   const [err, setErr] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
-  const refresh = useCallback(() => load().then(setList).catch((e) => setErr((e as Error).message)), [load]);
+  const refresh = useCallback(() => load().then((r) => { setList(r.projects); setGh(r.githubConfigured); }).catch((e) => setErr((e as Error).message)), [load]);
   useEffect(() => { refresh(); }, [refresh]);
 
   const submit = async (e: React.FormEvent) => {
@@ -39,13 +40,14 @@ function Projects() {
   };
   const generate = async (id: string) => {
     setBusy(id); setErr(null); setMsg(null);
-    try { const r = await run({ data: { projectId: id } }); setMsg(r.skipped ? `Skipped: ${r.skipped}` : r.created ? "Proposal written — see Update Queue." : `Failed: ${r.errors.join("; ")}`); await refresh(); }
+    try { const r = await run({ data: { projectId: id } }); setMsg(r.skipped ? `Skipped: ${r.skipped}` : r.created ? `Update written.${r.errors.length ? ` ${r.errors.join("; ")}` : ""}` : `Failed: ${r.errors.join("; ")}`); await refresh(); }
     catch (x) { setErr((x as Error).message); } finally { setBusy(null); }
   };
 
   return (
     <>
-      <PageHeader title="Projects" subtitle="List your projects and their goals. Jackboy reads these to write update proposals for the Update Queue." />
+      <PageHeader title="Projects" subtitle="Your projects, their goals and private GitHub repos. Jackboy reads these plus your feeds to write code updates." />
+      {!gh && <p className="mb-4 rounded-md border border-border p-3 text-xs text-muted-foreground">GitHub is not connected yet — updates are written as ideas and build prompts only. Add the <span className="font-mono">GITHUB_TOKEN</span> secret to enable pull requests.</p>}
       {err && <p role="alert" className="mb-4 rounded-md border border-destructive/40 p-3 text-sm text-destructive">{err}</p>}
       {msg && <p aria-live="polite" className="mb-4 rounded-md border border-border p-3 text-sm">{msg} <Link to="/updates" className="text-electric underline">Open queue</Link></p>}
 
@@ -56,6 +58,14 @@ function Projects() {
         <textarea aria-label="Description" placeholder="Short description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className={`${input} min-h-16 md:col-span-2`} />
         <textarea aria-label="Goals" placeholder="Goals (one per line)" value={form.goals} onChange={(e) => setForm({ ...form, goals: e.target.value })} className={`${input} min-h-20`} />
         <textarea aria-label="Recent notes" placeholder="Recent notes: what changed, what's broken, feedback" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className={`${input} min-h-20`} />
+        <div className="flex gap-2">
+          <input aria-label="GitHub repo" placeholder="Private repo: owner/repo" value={form.github_repo} onChange={(e) => setForm({ ...form, github_repo: e.target.value })} className={`${input} flex-1`} />
+          <input aria-label="Branch" placeholder="main" value={form.github_branch} onChange={(e) => setForm({ ...form, github_branch: e.target.value })} className={`${input} w-28`} />
+          <button type="button" className={btn} disabled={!form.github_repo} onClick={() => test({ data: { repo: form.github_repo } }).then((r) => (r.ok ? setMsg(r.message) : setErr(r.message)))}>Test</button>
+        </div>
+        <select aria-label="Update frequency" value={form.frequency_hours} onChange={(e) => setForm({ ...form, frequency_hours: Number(e.target.value) })} className={input}>
+          {FREQUENCIES.map((f) => <option key={f.hours} value={f.hours}>{f.label}</option>)}
+        </select>
         <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} /> Include in scheduled updates</label>
         <div className="flex justify-end gap-2">
           {form.id && <button type="button" className={btn} onClick={() => setForm(empty)}>Cancel</button>}
@@ -70,15 +80,15 @@ function Projects() {
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <div className="font-semibold">{p.name} {!p.active && <span className="text-xs text-muted-foreground">(not scheduled)</span>}</div>
+                  <div className="text-xs text-muted-foreground">{p.github_repo ? <span className="font-mono">{p.github_repo}@{p.github_branch}</span> : "No repo — ideas only"} · {FREQUENCIES.find((f) => f.hours === p.frequency_hours)?.label}</div>
                   {p.lovable_url && <a href={p.lovable_url} target="_blank" rel="noreferrer" className="text-xs text-electric underline">Open project</a>}
                 </div>
                 <span className="text-xs text-muted-foreground">{p.last_proposal_at ? `Last update ${new Date(p.last_proposal_at).toLocaleString()}` : "No updates yet"}</span>
               </div>
-              {p.description && <p className="mt-2 text-muted-foreground">{p.description}</p>}
               {p.goals && <p className="mt-2 whitespace-pre-line text-xs"><span className="text-silver">Goals:</span> {p.goals}</p>}
               <div className="mt-3 flex gap-2">
-                <button className={btn} disabled={busy !== null} onClick={() => generate(p.id)}>{busy === p.id ? "Writing…" : "Write update now"}</button>
-                <button className={btn} onClick={() => setForm({ id: p.id, name: p.name, lovable_url: p.lovable_url ?? "", description: p.description, goals: p.goals, notes: p.notes, active: p.active })}>Edit</button>
+                <button className={btn} disabled={busy !== null} onClick={() => generate(p.id)}>{busy === p.id ? "Writing…" : "Run now"}</button>
+                <button className={btn} onClick={() => setForm({ id: p.id, name: p.name, lovable_url: p.lovable_url ?? "", description: p.description, goals: p.goals, notes: p.notes, github_repo: p.github_repo ?? "", github_branch: p.github_branch, frequency_hours: p.frequency_hours, active: p.active })}>Edit</button>
                 <button className={btn} onClick={() => { if (confirm(`Delete ${p.name} and its proposals?`)) del({ data: { id: p.id } }).then(refresh).catch((x) => setErr(x.message)); }}>Delete</button>
               </div>
             </li>
