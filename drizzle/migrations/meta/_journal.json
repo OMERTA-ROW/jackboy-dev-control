@@ -50,6 +50,13 @@
       "when": 1793452649830,
       "tag": "0006_razul",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793546760641,
+      "tag": "0007_update_writer",
+      "breakpoints": true
     }
   ]
 }

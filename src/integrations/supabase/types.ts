@@ -497,6 +497,48 @@ export type Database = {
           },
         ]
       }
+      owner_projects: {
+        Row: {
+          active: boolean
+          created_at: string
+          created_by: string
+          description: string
+          goals: string
+          id: string
+          last_proposal_at: string | null
+          lovable_url: string | null
+          name: string
+          notes: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          created_by: string
+          description?: string
+          goals?: string
+          id?: string
+          last_proposal_at?: string | null
+          lovable_url?: string | null
+          name: string
+          notes?: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          created_by?: string
+          description?: string
+          goals?: string
+          id?: string
+          last_proposal_at?: string | null
+          lovable_url?: string | null
+          name?: string
+          notes?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       playbooks: {
         Row: {
           created_at: string
@@ -626,6 +668,89 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      update_proposals: {
+        Row: {
+          build_prompt: string
+          created_at: string
+          decided_at: string | null
+          decided_by: string | null
+          edited: boolean
+          id: string
+          model: string | null
+          project_id: string
+          status: string
+          title: string
+          trigger: string
+          what_to_change: string
+          why: string
+        }
+        Insert: {
+          build_prompt: string
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          edited?: boolean
+          id?: string
+          model?: string | null
+          project_id: string
+          status?: string
+          title: string
+          trigger?: string
+          what_to_change: string
+          why: string
+        }
+        Update: {
+          build_prompt?: string
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          edited?: boolean
+          id?: string
+          model?: string | null
+          project_id?: string
+          status?: string
+          title?: string
+          trigger?: string
+          what_to_change?: string
+          why?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "update_proposals_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "owner_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      update_writer_settings: {
+        Row: {
+          frequency_hours: number
+          id: number
+          last_run_at: string | null
+          lock_until: string | null
+          paused_reason: string | null
+          updated_at: string
+        }
+        Insert: {
+          frequency_hours?: number
+          id?: number
+          last_run_at?: string | null
+          lock_until?: string | null
+          paused_reason?: string | null
+          updated_at?: string
+        }
+        Update: {
+          frequency_hours?: number
+          id?: number
+          last_run_at?: string | null
+          lock_until?: string | null
+          paused_reason?: string | null
+          updated_at?: string
+        }
+        Relationships: []
       }
       user_roles: {
         Row: {
