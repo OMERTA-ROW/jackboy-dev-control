@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { ArrowUpRight, Activity, ShieldAlert } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { GuidanceTip, PageHeader } from "@/components/AppShell";
+import { MasterSwitch } from "./autopilot";
 import { log, resolveSuggestion, setState, useJackboy } from "@/lib/jackboy-store";
 import { getDashboardFacts } from "@/lib/passport.functions";
 
@@ -46,6 +47,7 @@ function Dashboard() {
         title="Jackboy"
         subtitle="Your registered projects, real task records, and next steps in one place."
       />
+      <div className="mb-6"><MasterSwitch /></div>
       {error && (
         <p role="alert" className="mb-4 rounded-md border border-destructive/40 p-3 text-sm text-destructive">
           {error}
