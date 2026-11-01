@@ -135,12 +135,13 @@ export const requestAction = createServerFn({ method: "POST" }).middleware([requ
     const tier = A.classifyTier(data.action, t.risk);
     const expires_at = new Date(Date.now() + A.REQUEST_TTL_MS).toISOString();
     const { data: existing } = await supabaseAdmin.from("action_requests").select("id").eq("task_id", t.id).eq("action", data.action).eq("status", "pending").maybeSingle();
-    const row = existing
-      ? (await supabaseAdmin.from("action_requests").update({ nonce_hash, expires_at, requested_by: actor }).eq("id", existing.id).select("*").single()).data
+    const res = existing
+      ? (await supabaseAdmin.from("action_requests").update({ nonce_hash, expires_at, requested_by: actor }).eq("id", existing.id).select("*").single())
       : (await supabaseAdmin.from("action_requests").insert({ project_id: t.project_id, task_id: t.id, action: data.action, tier, nonce_hash, requested_by: actor, expires_at,
           resources: { repo: t.repo, branch: t.branch, files: files.map((f) => f.path) } as never, permissions: A.PERMISSIONS[data.action] ?? [],
-          diff_summary: files.map((f) => `${f.path} +${f.additions ?? 0}/-${f.deletions ?? 0}`).join("\n").slice(0, 2000), risk: t.risk }).select("*").single()).data;
-    if (!row) throw new Error("Could not create the approval request.");
+          diff_summary: files.map((f) => `${f.path} +${f.additions ?? 0}/-${f.deletions ?? 0}`).join("\n").slice(0, 2000), risk: t.risk }).select("*").single());
+    const row = res.data;
+    if (!row) throw new Error(`Could not create the approval request: ${res.error?.message ?? "unknown"}`);
     const { nonce_hash: _h, ...card } = row;
     return { ...card, nonce, title: t.title };
   });
