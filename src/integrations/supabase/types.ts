@@ -759,6 +759,36 @@ export type Database = {
           },
         ]
       }
+      foundry_packages: {
+        Row: {
+          created_at: string
+          id: string
+          manifest: Json
+          package_sha256: string
+          project_id: string | null
+          task_id: string
+          version: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          manifest: Json
+          package_sha256: string
+          project_id?: string | null
+          task_id: string
+          version: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          manifest?: Json
+          package_sha256?: string
+          project_id?: string | null
+          task_id?: string
+          version?: string
+        }
+        Relationships: []
+      }
       foundry_patterns: {
         Row: {
           created_at: string

@@ -80,7 +80,95 @@ export async function inspectProject(projectId: string, actor: string, source: "
       if (task.state === "analyzing" || task.state === "patch_prepared" || task.state === "testing") await move(task, "blocked", actor, msg, { blocked_reason: msg }).catch(() => {});
     });
   }
-  return { created, ids, inspectedFiles: t.total, findings: found.length };
+  let scan: Awaited<ReturnType<typeof codeScan>> | null = null;
+  if (created < limit) {
+    scan = await codeScan(p.id, repo, t.files, actor, source).catch(async (e) => { const m = (e as Error).message; await event({ id: null as never, project_id: p.id }, "code_scan_failed", actor, null, null, m); return { error: m } as never; });
+    if (scan && "taskId" in scan && scan.taskId) { created++; ids.push(scan.taskId); }
+  }
+  return { created, ids, inspectedFiles: t.total, findings: found.length, scan };
+}
+
+/** Source-code defect scan → AI fix → deterministic validation → branch commit → update package → (routine only) draft PR. */
+async function codeScan(projectId: string, repo: ws.Repo, files: string[], actor: string, source: "manual" | "scheduled") {
+  const cs = await import("./code-scan");
+  const targets = files.filter(cs.scannable).slice(0, 300); // bounded: at most 300 file reads per run
+  const defects: import("./code-scan").Defect[] = [];
+  const contents = new Map<string, { content: string; sha: string }>();
+  for (const path of targets) {
+    try { const f = await ws.read(repo, path, repo.base); contents.set(path, f); defects.push(...cs.scanFile(path, f.content)); } catch { /* unreadable/protected files are skipped */ }
+  }
+  await event({ id: null as never, project_id: projectId }, "code_scan", actor, null, null, `Scanned ${contents.size} source file(s) in ${repo.full}; ${defects.length} finding(s).`, { scanned: contents.size, findings: defects.length, rules: [...new Set(defects.map((d) => d.rule))] });
+  let pick: import("./code-scan").Defect | undefined;
+  for (const d of cs.prioritize(defects)) {
+    const { data: ex } = await supabaseAdmin.from("foundry_tasks").select("id").eq("project_id", projectId).eq("dedupe_key", cs.dedupeKey(d)).maybeSingle();
+    if (!ex) { pick = d; break; }
+  }
+  if (!pick) return { scanned: contents.size, findings: defects.length, taskId: null as string | null, note: "No new findings." };
+  const d = pick;
+  const risk = d.risk === "sensitive" || classifyRisk([{ path: d.path }]) === "sensitive" ? "sensitive" : "low";
+  const { data: row, error } = await supabaseAdmin.from("foundry_tasks").insert({
+    project_id: projectId, title: `${d.title} in ${d.path}:${d.line}`, summary: `${d.why} Line ${d.line}: ${d.excerpt}`, kind: "repair", dedupe_key: cs.dedupeKey(d), repo: repo.full, source,
+    priority: risk === "low" ? 55 : 80, risk, files: [{ path: d.path, action: "update" }] as never,
+  }).select("*").single();
+  if (error || !row) throw new Error(error?.message ?? "Could not create task.");
+  const task = row as unknown as Task;
+  await event(task, "discovered", actor, null, "discovered", `${d.rule} at ${d.path}:${d.line}`, { rule: d.rule });
+  try {
+    await move(task, "analyzing", actor, "Generating a minimal fix with AI.");
+    if (risk !== "low") { await move(task, "blocked", actor, "Sensitive finding: Jackboy does not auto-generate fixes here. Owner review required.", { blocked_reason: "Sensitive finding — owner review required.", next_attempt_at: null }); return { scanned: contents.size, findings: defects.length, taskId: task.id }; }
+    const before = contents.get(d.path)!;
+    const after = cs.extractCode(await generateFix(d, before.content));
+    const v = cs.validateFix(d, before.content, after);
+    if (!v.ok) { await move(task, "failed", actor, `Generated fix rejected by validation: ${v.checks.filter((c) => !c.passed).map((c) => c.detail).join(" ")}`, { test_evidence: { status: "failed", validation: v } }); return { scanned: contents.size, findings: defects.length, taskId: task.id }; }
+    const branch = `jackboy/scan-${d.rule}-${task.id.slice(0, 8)}`;
+    const w = await ws.write(repo, branch, d.path, after, d.title);
+    await move(task, "patch_prepared", actor, `Committed AI fix to ${d.path} on ${branch}.`, { branch, commit_sha: w.commit });
+    await move(task, "testing", actor, "Validation passed; reading CI checks.");
+    const ck = await ws.checks(repo, branch);
+    const ci = "error" in ck && ck.error ? { status: "not_runnable", reason: ck.error } : !ck.workflowsConfigured ? { status: "not_runnable", reason: "No CI workflows on this repo and no sandbox runner." } : !ck.runs.length ? { status: "pending" } : { status: ck.runs.every((r) => r.conclusion === "success") ? "passed" : ck.runs.some((r) => r.conclusion === "failure") ? "failed" : "pending" };
+    const dd = await ws.diff(repo, branch);
+    const evidence = { status: ci.status === "failed" ? "failed" : "static_passed", validation: v, ci };
+    await move(task, "awaiting_approval", actor, `Static validation passed (${v.checks.length} checks); CI: ${ci.status}.`, { test_evidence: evidence, needs_capability: ci.status === "not_runnable" ? capabilityForTestGap(String((ci as { reason?: string }).reason ?? "")) : null, files: dd.files.map((f) => ({ path: f.file, status: f.status, additions: f.additions, deletions: f.deletions, patch: f.patch })) });
+    // Versioned, checksummed, immutable update package with rollback plan.
+    const sha = async (x: string) => [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(x)))].map((b) => b.toString(16).padStart(2, "0")).join("");
+    const c = cs.lineChanges(before.content, after);
+    const { count } = await supabaseAdmin.from("foundry_packages").select("id", { count: "exact", head: true }).eq("project_id", projectId);
+    const pkg: import("./code-scan").UpdatePackage = {
+      schema: "jackboy.update-package/v1", version: cs.packageVersion(new Date(), (count ?? 0) + 1), repo: repo.full, branch, base: repo.base, base_commit: null, commit: w.commit,
+      finding: { rule: d.rule, path: d.path, line: d.line, title: d.title, why: d.why, risk: d.risk },
+      files: [{ path: d.path, before_sha256: await sha(before.content), after_sha256: await sha(after), added: c.added, removed: c.removed }],
+      tests: { ...v, ci }, rollback: { strategy: "restore_previous_content", files: [{ path: d.path, restore_sha256: await sha(before.content) }], note: `Close the draft PR, or restore ${d.path} to blob ${before.sha} from ${repo.base}. Nothing is merged or deployed by Jackboy.` },
+      diff: dd.files.map((f) => `--- ${f.file}\n${f.patch}`).join("\n"),
+    };
+    pkg.package_sha256 = await sha(cs.canonical(pkg));
+    const ins = await supabaseAdmin.from("foundry_packages").insert({ task_id: task.id, project_id: projectId, version: pkg.version, package_sha256: pkg.package_sha256, manifest: pkg as never });
+    if (ins.error) throw new Error(`Package not stored: ${ins.error.message}`);
+    await event(task, "package_built", actor, null, null, `Update package ${pkg.version} sha256 ${pkg.package_sha256.slice(0, 12)}…`, { version: pkg.version, sha256: pkg.package_sha256 });
+    if (ci.status !== "failed" && cs.autoRunnable(d, v, dd.files.length)) {
+      await move(task, "approved", "policy:routine-auto", "Routine low-risk single-file fix: draft PR allowed by policy (never merge/deploy).", { approved_action: "open_draft_pr" });
+      await execute(task.id, "policy:routine-auto");
+    }
+  } catch (e) {
+    const m = (e as Error).message.slice(0, 500);
+    const cur = await load(task.id);
+    if (["analyzing", "patch_prepared", "testing"].includes(cur.state)) await move(cur, "blocked", actor, m, { blocked_reason: m, next_attempt_at: null }).catch(() => {});
+  }
+  return { scanned: contents.size, findings: defects.length, taskId: task.id };
+}
+
+async function generateFix(d: import("./code-scan").Defect, content: string): Promise<string> {
+  const key = process.env["LOVABLE_API_KEY"];
+  if (!key) throw new Error("AI is not configured (LOVABLE_API_KEY missing).");
+  const { createOpenAI } = await import("@ai-sdk/openai");
+  const { streamText } = await import("ai");
+  const provider = createOpenAI({ baseURL: "https://ai.gateway.lovable.dev/v1", apiKey: key, headers: { "Lovable-API-Key": key, "X-Lovable-AIG-SDK": "vercel-ai-sdk" } });
+  const r = streamText({
+    model: provider.responses("openai/gpt-6-astra"),
+    instructions: "You fix exactly one defect in a source file with the smallest possible change. Return the COMPLETE corrected file in one fenced code block and nothing else. Do not reformat, rename or touch any other line.",
+    prompt: `Defect: ${d.title} (rule ${d.rule}) at line ${d.line}.\nWhy: ${d.why}\nFile ${d.path}:\n\`\`\`\n${content}\n\`\`\``,
+    providerOptions: { openai: { store: false, forceReasoning: true, reasoningEffort: "low", reasoningSummary: "auto", include: ["reasoning.encrypted_content"] } },
+  });
+  return await r.text;
 }
 
 async function prepare(task: Task, c: Check, repo: ws.Repo, actor: string) {

@@ -61,12 +61,19 @@ function Foundry() {
         <p className="mt-2 text-xs">Tests: <span className={tone(ev.status ?? "")}>{ev.status ?? "none"}</span>{ev.reason ? ` — ${ev.reason}` : ""}</p>
         {t.blocked_reason && <p className="mt-1 text-xs text-warning">Blocked: {t.blocked_reason}</p>}
         {t.pr_url && <a className="mt-1 block text-xs text-primary underline" href={t.pr_url} target="_blank" rel="noreferrer">Draft PR #{t.pr_number} (not merged)</a>}
+        {(() => { const pk = d.packages.find((x) => x.task_id === t.id); if (!pk) return null; const m = pk.manifest as { tests?: { checks?: { name: string; passed: boolean; detail: string }[]; ci?: { status: string } }; rollback?: { note?: string }; files?: { path: string; before_sha256: string; after_sha256: string }[] };
+          return <details className="mt-2"><summary className="cursor-pointer text-xs">Update package {pk.version} · sha256 {pk.package_sha256.slice(0, 12)}…</summary>
+            <ul className="mt-1 text-xs">{m.tests?.checks?.map((c) => <li key={c.name} className={c.passed ? "text-success" : "text-destructive"}>{c.passed ? "✓" : "✗"} {c.name}: {c.detail}</li>)}<li>CI: {m.tests?.ci?.status}</li></ul>
+            {m.files?.map((f) => <p key={f.path} className="text-xs break-all">{f.path}: {f.before_sha256.slice(0, 12)} → {f.after_sha256.slice(0, 12)}</p>)}
+            <p className="text-xs text-muted-foreground">Rollback: {m.rollback?.note}</p>
+            <a className="text-xs text-primary underline" download={`jackboy-package-${pk.version}.json`} href={`data:application/json,${encodeURIComponent(JSON.stringify(pk.manifest, null, 2))}`}>Download manifest</a></details>; })()}
         {files.length > 0 && <details className="mt-2"><summary className="cursor-pointer text-xs">Diff ({files.length} file)</summary>{files.map((f) => <pre key={f.path} className="mt-1 max-h-60 overflow-auto rounded bg-muted p-2 text-xs">{f.path} +{f.additions ?? 0} −{f.deletions ?? 0}{"\n"}{f.patch}</pre>)}</details>}
         <div className="mt-3 flex flex-wrap gap-2">
           {t.state === "awaiting_approval" && <>
             <ApprovalCard taskId={t.id} onDone={(m) => { setMsg(m); void load(); }} />
             <button className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50" disabled={!!busy} onClick={() => run(t.id, () => act({ data: { id: t.id, op: "reject" } }))}>Reject</button>
           </>}
+          {t.state === "blocked" && <button className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50" disabled={!!busy} onClick={() => run(t.id, () => act({ data: { id: t.id, op: "reject" } }))}>Reject</button>}
           {t.state === "blocked" && t.approved_action && <button className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50" disabled={!!busy} onClick={() => run(t.id, () => act({ data: { id: t.id, op: "retry" } }))}>Retry</button>}
           {!TERMINAL.includes(t.state as State) && <button className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50" disabled={!!busy} onClick={() => run(t.id, () => act({ data: { id: t.id, op: t.paused ? "resume" : "pause" } }))}>{t.paused ? "Resume" : "Pause"}</button>}
         </div>
