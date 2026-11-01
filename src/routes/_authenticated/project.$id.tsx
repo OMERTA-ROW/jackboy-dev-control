@@ -54,6 +54,7 @@ function Detail() {
     <>
       <Link to="/projects" className="mb-2 inline-block text-xs text-electric">← Projects</Link>
       <PageHeader title={p.name} subtitle={p.site_url ?? "No site address yet — add one to enable scans."} />
+      <Steps at={!last ? 1 : waiting.length ? 3 : last.findings.length ? 2 : 4} />
       {err && <p role="alert" className="mb-4 rounded-md border border-destructive/40 p-3 text-sm text-destructive">{err}</p>}
       {msg && <p aria-live="polite" className="mb-4 rounded-md border border-border p-3 text-sm">{msg}</p>}
 
@@ -72,25 +73,25 @@ function Detail() {
             Autopilot for this project
           </label>
           <div className="mt-4 flex flex-wrap gap-2">
-            <button className={primaryBtn} disabled={!p.site_url || busy !== null} onClick={() => act("scan", async () => { const r = await scan({ data: { id: p.id } }); return `Checked ${r.pages} page(s): ${r.findings} finding(s).`; })}>{busy === "scan" ? "Scanning…" : "Scan now"}</button>
+            <button className={primaryBtn} disabled={!p.site_url || busy !== null} onClick={() => act("scan", async () => { const r = await scan({ data: { id: p.id } }); return `Checked ${r.pages} page(s): ${r.findings} finding(s). Review them below.`; })}>{busy === "scan" ? "Scanning…" : waiting.some((w) => w.status === "approved") || d.proposals.some((x) => x.status === "merged") ? "Scan again to verify" : "Scan & Review"}</button>
             <button className={btn} disabled={busy !== null} onClick={() => act("run", async () => { const r = await run({ data: { projectId: p.id } }); return r.skipped ? `Skipped: ${r.skipped}` : r.created ? "Update written to the approval queue." : `Failed: ${r.errors.join("; ")}`; })}>{busy === "run" ? "Writing…" : "Write update now"}</button>
             <button className={btn} onClick={() => setEdit((v) => !v)}>{edit ? "Close edit" : "Edit details"}</button>
           </div>
         </section>
 
-        <section className="panel p-5" aria-labelledby="scan">
-          <h2 id="scan" className="font-semibold">Last scan</h2>
-          {!last ? <p className="mt-2 text-sm text-muted-foreground">Not scanned yet.</p> : (
+        <section className="panel p-5 lg:col-span-2" aria-labelledby="scan">
+          <h2 id="scan" className="font-semibold">Review last scan</h2>
+          {!last ? <p className="mt-2 text-sm text-muted-foreground">Not scanned yet. Press <strong>Scan &amp; Review</strong> above.</p> : (
             <>
-              <p className="mt-1 text-xs text-muted-foreground">{new Date(last.created_at).toLocaleString()} · {last.pages_checked} pages · {last.links_checked} links{last.avg_ms ? ` · avg ${last.avg_ms} ms` : ""}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{new Date(last.created_at).toLocaleString()} · {last.pages_checked} pages · {last.links_checked} links{last.avg_ms ? ` · avg ${last.avg_ms} ms` : ""}. Checks the page HTML only; screens built by JavaScript after loading may be missed.</p>
               {last.error && <p className="mt-2 text-sm text-destructive">{last.error}</p>}
               {last.findings.length === 0 ? <p className="mt-2 text-sm text-success">No issues found in this scan.</p> : (
-                <ul className="mt-2 max-h-64 space-y-1 overflow-y-auto text-sm">
-                  {last.findings.map((f, i) => <li key={i}><span className={`mr-2 text-xs uppercase ${SEV[f.severity] ?? ""}`}>{f.severity}</span>{f.message} <span className="text-xs text-muted-foreground">{f.url}</span></li>)}
-                </ul>
-              )}
-              {last.findings.some((f) => f.severity !== "low") && !last.fix_proposal_id && (
-                <button className={`${btn} mt-3`} disabled={busy !== null} onClick={() => act("fix", async () => { await fix({ data: { id: last.id } }); return "Repair written. Check it below or in the Update Queue."; })}>{busy === "fix" ? "Writing repair…" : "Write repair"}</button>
+                <>
+                  <FindingsReview projectId={p.id} scan={last} onChanged={() => void refresh()} />
+                  {last.findings.some((f) => f.severity !== "low" && f.kind !== "demo") && !last.fix_proposal_id && (
+                    <button className={`${btn} mt-3`} disabled={busy !== null} onClick={() => act("fix", async () => { await fix({ data: { id: last.id } }); return "One combined repair written. Check it below or in Approvals."; })}>{busy === "fix" ? "Writing repair…" : "Repair all errors at once"}</button>
+                  )}
+                </>
               )}
             </>
           )}
