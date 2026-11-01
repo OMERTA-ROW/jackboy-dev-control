@@ -148,6 +148,13 @@
       "when": 1793566628260,
       "tag": "0020_dedupe_proposal_notifications",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1793567008618,
+      "tag": "0021_passkey_step_up",
+      "breakpoints": true
     }
   ]
 }

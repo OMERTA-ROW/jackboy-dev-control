@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
+import { useStepUp } from "@/lib/step-up-client";
 import { useCallback, useEffect, useState } from "react";
 import { PageHeader } from "@/components/AppShell";
 import { canTransition, STATUS_LABEL, STATUSES, type ProposalStatus } from "@/lib/update-writer";
@@ -104,6 +105,7 @@ function Updates() {
 
 function ProposalCard({ p, act }: { p: Prop; act: (x: Promise<unknown>) => Promise<void> }) {
   const f = { status: useServerFn(setProposalStatus), edit: useServerFn(editProposal), open: useServerFn(openPr), checks: useServerFn(refreshPrChecks), merge: useServerFn(mergeUpdate), revert: useServerFn(revertUpdate) };
+  const stepUp = useStepUp();
   const [editing, setEditing] = useState(false);
   const [d, setD] = useState({ title: p.title, what_to_change: p.what_to_change, why: p.why, build_prompt: p.build_prompt });
   const [copied, setCopied] = useState(false);
@@ -116,7 +118,7 @@ function ProposalCard({ p, act }: { p: Prop; act: (x: Promise<unknown>) => Promi
     const none = p.checks_state === "none";
     if (none && !confirm("This repo has no build checks, so nothing verified this change. Merge anyway?")) return;
     if (!none && !confirm("Merge this pull request into your main branch? It will sync back into Lovable.")) return;
-    run(f.merge({ data: { id: p.id, acceptNoChecks: none } }));
+    run(stepUp("merge_update", p.id).then((grantId) => f.merge({ data: { id: p.id, acceptNoChecks: none, grantId } })));
   };
 
   return (
@@ -164,7 +166,7 @@ function ProposalCard({ p, act }: { p: Prop; act: (x: Promise<unknown>) => Promi
           {p.pr_url && <a href={p.pr_url} target="_blank" rel="noreferrer" className={btn}>View PR #{p.pr_number}</a>}
           {p.status === "pr_open" && <button className={btn} disabled={busy} onClick={() => run(f.checks({ data: { id: p.id } }))}>Refresh build status</button>}
           {p.status === "pr_open" && <button className={`${btn} text-success`} disabled={busy || p.checks_state === "failure" || p.checks_state === "pending"} onClick={merge} title={p.checks_state === "failure" ? "Build failed" : p.checks_state === "pending" ? "Wait for build" : ""}>Approve &amp; merge</button>}
-          {p.status === "merged" && <button className={`${btn} text-destructive`} disabled={busy} onClick={() => { if (confirm("Revert this update? Jackboy restores the previous file contents via a new PR and merges it.")) run(f.revert({ data: { id: p.id } })); }}>Revert</button>}
+          {p.status === "merged" && <button className={`${btn} text-destructive`} disabled={busy} onClick={() => { if (confirm("Revert this update? Jackboy restores the previous file contents via a new PR and merges it.")) run(stepUp("revert_update", p.id).then((grantId) => f.revert({ data: { id: p.id, grantId } }))); }}>Revert</button>}
           {p.revert_pr_url && <a href={p.revert_pr_url} target="_blank" rel="noreferrer" className={btn}>Revert PR</a>}
           {can("approved") && <button className={`${btn} text-success`} onClick={() => act(f.status({ data: { id: p.id, status: "approved" } }))}>Approve</button>}
           {can("rejected") && <button className={`${btn} text-destructive`} disabled={busy} onClick={() => run(f.status({ data: { id: p.id, status: "rejected" } }))}>{p.status === "pr_open" ? "Reject & close PR" : "Reject"}</button>}
