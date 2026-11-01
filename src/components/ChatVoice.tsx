@@ -17,7 +17,7 @@ export function speechSupport(): { listen: VoiceMode; speak: boolean } {
   if (typeof window === "undefined") return { listen: "none", speak: false };
   const w = window as any;
   const listen: VoiceMode = w.SpeechRecognition || w.webkitSpeechRecognition ? "browser"
-    : typeof w.MediaRecorder !== "undefined" && navigator.mediaDevices?.getUserMedia ? "record" : "none";
+    : typeof w.MediaRecorder !== "undefined" && typeof navigator.mediaDevices?.getUserMedia === "function" ? "record" : "none";
   return { listen, speak: "speechSynthesis" in window };
 }
 
