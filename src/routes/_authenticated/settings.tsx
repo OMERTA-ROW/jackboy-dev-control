@@ -40,6 +40,7 @@ export const ADVANCED = [
     { to: "/overview", label: "Advanced overview", note: "Previous dashboard with all counts" },
     { to: "/site-log", label: "Site Log & Research", note: "Permanent log, export, report delivery, code research" },
     { to: "/activity", label: "Logs & Approvals", note: "Audit trail" },
+    { to: "/autoconnect", label: "AutoConnect", note: "Approve & connect missing tools per project; resumes waiting work" },
     { to: "/accounts", label: "Connect Accounts", note: "Live status, scopes, where credentials live, revoke" },
     { to: "/integrations", label: "Integrations", note: "Connection status and setup" },
     { to: "/access", label: "Access", note: "Members, invitations, sessions" },

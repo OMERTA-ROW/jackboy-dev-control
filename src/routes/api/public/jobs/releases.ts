@@ -16,10 +16,13 @@ export const Route = createFileRoute("/api/public/jobs/releases")({
         const { foundryTick } = await import("@/lib/foundry.server");
         let foundry: unknown;
         try { foundry = await foundryTick(); } catch (e) { foundry = { error: (e as Error).message }; }
+        const { autoconnectTick } = await import("@/lib/autoconnect.server");
+        let autoconnect: unknown;
+        try { autoconnect = await autoconnectTick(); } catch (e) { autoconnect = { error: (e as Error).message }; }
         const { deliverOutbox } = await import("@/lib/site-log.server");
         let outbox: unknown;
         try { outbox = await deliverOutbox(); } catch (e) { outbox = { error: (e as Error).message }; }
-        return Response.json({ releases, autopilot, foundry, outbox });
+        return Response.json({ releases, autopilot, foundry, autoconnect, outbox });
       },
     },
   },
