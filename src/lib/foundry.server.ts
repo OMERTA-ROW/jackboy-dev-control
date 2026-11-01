@@ -256,7 +256,7 @@ async function runBudgeted(actor: string, why: string) {
   const { count } = await supabaseAdmin.from("foundry_tasks").select("id", { count: "exact", head: true }).neq("source", "manual").gte("created_at", since);
   const left = quotaLeft(s.daily_task_quota, count ?? 0);
   if (left === 0) return { skipped: "daily task quota reached" };
-  const { data: projects } = await supabaseAdmin.from("owner_projects").select("id").eq("active", true).not("github_repo", "is", null).order("created_at");
+  const { data: projects } = await supabaseAdmin.from("owner_projects").select("id").eq("active", true).eq("dev_enabled", true).not("github_repo", "is", null).order("dev_priority").order("name"); // only owner-activated projects, OMNI → JAX → Nano → Jail Release → rest
   const p = nextProject(projects ?? [], s.last_project_id);
   if (!p) return { skipped: "no authorized projects with a private repo" };
   await supabaseAdmin.from("foundry_schedule").update({ last_project_id: p.id, runs_today: b.runsToday + 1, runs_day: today }).eq("id", 1);
@@ -300,7 +300,7 @@ export async function foundryTick() {
 
 /** Webhook-triggered scan for a pushed private repo (signature verified by the route). */
 export async function webhookInspect(repoFull: string) {
-  const { data: p } = await supabaseAdmin.from("owner_projects").select("id").eq("active", true).ilike("github_repo", repoFull).maybeSingle();
+  const { data: p } = await supabaseAdmin.from("owner_projects").select("id").eq("active", true).eq("dev_enabled", true).ilike("github_repo", repoFull).maybeSingle();
   if (!p) return { skipped: "repo not registered" };
   return runBudgetedFor(p.id);
 }

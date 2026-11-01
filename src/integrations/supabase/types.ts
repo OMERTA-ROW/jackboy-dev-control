@@ -1320,6 +1320,8 @@ export type Database = {
           created_by: string
           demo_detection: boolean
           description: string
+          dev_enabled: boolean
+          dev_priority: number
           frequency_hours: number
           github_branch: string
           github_repo: string | null
@@ -1345,6 +1347,8 @@ export type Database = {
           created_by: string
           demo_detection?: boolean
           description?: string
+          dev_enabled?: boolean
+          dev_priority?: number
           frequency_hours?: number
           github_branch?: string
           github_repo?: string | null
@@ -1370,6 +1374,8 @@ export type Database = {
           created_by?: string
           demo_detection?: boolean
           description?: string
+          dev_enabled?: boolean
+          dev_priority?: number
           frequency_hours?: number
           github_branch?: string
           github_repo?: string | null

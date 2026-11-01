@@ -8,10 +8,11 @@ export type ConnectRow = {
   lovableRef: string | null;
   repo: string | null;
   status: "saved_only" | "connected_no_repo" | "repo_linked" | "repo_error";
+  devEnabled: boolean;         // owner explicitly activated background work
   detail: string;
 };
 
-type P = { id: string; name: string; github_repo: string | null; connect_state?: string | null; connect_error?: string | null; lovable_url?: string | null };
+type P = { id: string; name: string; github_repo: string | null; dev_enabled?: boolean; connect_state?: string | null; connect_error?: string | null; lovable_url?: string | null };
 type I = { id: string; name: string; lovable_project_ref: string | null };
 
 /** One row per project: connected ones first (truthful repo status), then saved-inventory items not yet connected. */
@@ -21,14 +22,14 @@ export function connectRows(projects: P[], inventory: I[]): ConnectRow[] {
     const status: ConnectRow["status"] = !p.github_repo ? "connected_no_repo" : err ? "repo_error" : "repo_linked";
     const detail = status === "connected_no_repo" ? "Connected, but no private GitHub repo — coding is blocked."
       : status === "repo_error" ? `Repo problem: ${p.connect_error ?? "check failed"}` : `Repo ${p.github_repo}`;
-    return { key: `p:${p.id}`, name: p.name, projectId: p.id, lovableRef: null, repo: p.github_repo, status, detail };
+    return { key: `p:${p.id}`, name: p.name, projectId: p.id, lovableRef: null, repo: p.github_repo, status, detail, devEnabled: Boolean(p.dev_enabled) };
   });
   const taken = new Set(projects.map((p) => p.name.trim().toLowerCase()));
   for (const i of inventory) {
     if (taken.has(i.name.trim().toLowerCase())) continue;
-    rows.push({ key: `i:${i.id}`, name: i.name, projectId: null, lovableRef: i.lovable_project_ref, repo: null, status: "saved_only", detail: "Saved in the list only — not connected yet." });
+    rows.push({ key: `i:${i.id}`, name: i.name, projectId: null, lovableRef: i.lovable_project_ref, repo: null, status: "saved_only", detail: "Saved in the list only — not connected yet.", devEnabled: false });
   }
-  return rows;
+  return byPriority(rows);
 }
 
 export function toggle(sel: string[], key: string): string[] {
@@ -61,4 +62,17 @@ export function agentState(repoOk: boolean, tasks: { state: string; blocked_reas
   if (working) return { label: "Working", reason: `Task ${working.state.replace("_", " ")}` };
   if (blocked) return { label: "Blocked", reason: blocked.blocked_reason ?? (blocked.paused ? "Paused" : "Blocked") };
   return { label: "Online", reason: tasks.some((t) => t.state === "awaiting_approval") ? "Waiting for your approval" : "Idle, ready" };
+}
+
+/** Owner-set development order: OMNI, then JAX, then Nano and Jail Release, then everything else. Lower runs first. */
+export function devPriority(name: string): number {
+  const n = name.toLowerCase();
+  if (/\bomni\b/.test(n)) return 1;
+  if (/\bjax\b/.test(n)) return 2;
+  if (/nano/.test(n)) return 3;
+  if (/jail release/.test(n)) return 4;
+  return 100;
+}
+export function byPriority<T extends { name: string }>(rows: T[]): T[] {
+  return [...rows].sort((a, b) => devPriority(a.name) - devPriority(b.name) || a.name.localeCompare(b.name));
 }

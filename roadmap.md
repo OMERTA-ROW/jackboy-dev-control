@@ -67,3 +67,5 @@ The spoken acronym “NLOA” is unconfirmed in Notion. Do not infer a technical
 - [ ] New end-to-end coding task verified — Jackboy's built-in checks found nothing new in its own repo; needs more repair checks or an OMNI private repo
 - [x] Scan → issue → AI fix → validate → package → draft PR loop (Code Foundry, from Connect "Run coding loop")
 - [ ] First low-risk auto-fix verified end to end — no low-risk defect exists in Jackboy's repo; needs another connected private repo (OMNI repo is public → refused)
+- [x] Whole-workspace project list (19) with priority OMNI → JAX → Nano → Jail Release, per-project background-work activation (off by default)
+- [ ] JAX, Nano, Jail Release and other projects coding — blocked: each needs its private GitHub repo linked (and OMNI's repo made private)

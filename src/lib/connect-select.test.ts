@@ -10,7 +10,7 @@ const inv = [{ id: "x", name: "jackboy", lovable_project_ref: "r1" }, { id: "y",
 describe("connect multi-select", () => {
   it("lists every project once with truthful status", () => {
     const r = connectRows(projects, inv);
-    expect(r.map((x) => [x.name, x.status])).toEqual([["Jackboy", "repo_linked"], ["Mothership", "connected_no_repo"], ["OMNI", "saved_only"]]);
+    expect(r.map((x) => [x.name, x.status, x.devEnabled])).toEqual([["OMNI", "saved_only", false], ["Jackboy", "repo_linked", false], ["Mothership", "connected_no_repo", false]]);
   });
   it("toggle, select all and clear", () => {
     expect(toggle(["a"], "a")).toEqual([]);
@@ -18,7 +18,7 @@ describe("connect multi-select", () => {
     expect(selectAll(["a"], ["a", "b", "c"])).toEqual(["a", "b", "c"]);
   });
   it("loop runs only with a linked repo; others get the exact fix", () => {
-    const [jb, ms, om] = connectRows(projects, inv);
+    const [om, jb, ms] = connectRows(projects, inv);
     expect(loopEligible(jb!)).toEqual({ ok: true });
     expect(loopEligible(ms!)).toEqual({ ok: false, reason: "Link a private GitHub repo" });
     expect(loopEligible(om!)).toEqual({ ok: false, reason: "Connect it first" });
@@ -29,5 +29,14 @@ describe("connect multi-select", () => {
     expect(agentState(true, [{ state: "testing" }]).label).toBe("Working");
     expect(agentState(true, [{ state: "blocked", blocked_reason: "403" }])).toEqual({ label: "Blocked", reason: "403" });
     expect(agentState(true, [{ state: "awaiting_approval" }]).reason).toBe("Waiting for your approval");
+  });
+});
+
+import { devPriority, byPriority } from "./connect-select";
+describe("development priority", () => {
+  it("OMNI, then JAX, then Nano, then Jail Release, then the rest", () => {
+    const names = ["Vera Health AI", "Jail Release Assist", "NanoDrift Platform", "Jax Data Concierge", "OMNI internal build"];
+    expect(byPriority(names.map((name) => ({ name }))).map((x) => x.name)).toEqual(["OMNI internal build", "Jax Data Concierge", "NanoDrift Platform", "Jail Release Assist", "Vera Health AI"]);
+    expect(devPriority("Orbiting Minds Mothership")).toBe(100);
   });
 });

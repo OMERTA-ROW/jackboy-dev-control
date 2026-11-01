@@ -19,7 +19,7 @@ export const getProjectHub = createServerFn({ method: "POST" }).middleware([requ
     context.supabase.from("owner_projects").select("*").order("name"),
     context.supabase.from("site_scans").select("id,project_id,status,trigger,pages_checked,links_checked,avg_ms,findings,error,fix_proposal_id,created_at").order("created_at", { ascending: false }).limit(200),
     context.supabase.from("update_proposals").select("id,project_id,title,status,source,pr_url,checks_state,delivery_error,files,created_at,owner_projects(github_repo)").in("status", ["draft", "pr_open", "approved"]).order("created_at", { ascending: false }).limit(200),
-    context.supabase.from("agent_projects").select("id,name,lovable_project_ref").not("lovable_project_ref", "is", null).order("name"),
+    context.supabase.from("agent_projects").select("id,name,lovable_project_ref").order("name"),
   ]);
   for (const r of [p, s, q, inv]) if (r.error) throw new Error(r.error.message);
   return {
@@ -98,5 +98,21 @@ export const setProjectPrefs = createServerFn({ method: "POST" }).middleware([re
     const { error } = await context.supabase.from("owner_projects").update({ demo_detection: data.demo_detection, repair_policy: data.repair_policy }).eq("id", data.id);
     if (error) throw new Error(error.message);
     await context.supabase.rpc("write_audit", { _action: "projects.prefs", _detail: data, _outcome: "ok" });
+    return { ok: true };
+  });
+
+/** Owner explicitly activates/deactivates background development for ONE project. Audited. */
+export const setDevEnabled = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), enabled: z.boolean() }).parse(d))
+  .handler(async ({ data, context }) => {
+    await owner(context);
+    const { data: p, error } = await context.supabase.from("owner_projects").select("name").eq("id", data.id).single();
+    if (error || !p) throw new Error("Project not found.");
+    const { devPriority } = await import("./connect-select");
+    const u = await context.supabase.from("owner_projects").update({ dev_enabled: data.enabled, dev_priority: devPriority(p.name) }).eq("id", data.id);
+    if (u.error) throw new Error(u.error.message);
+    await context.supabase.rpc("write_audit", { _action: data.enabled ? "dev.activate" : "dev.deactivate", _detail: { project: p.name }, _outcome: "ok" });
+    const { logSite } = await import("./site-log.server");
+    await logSite({ actor: `owner:${context.userId}`, action: data.enabled ? "dev.activate" : "dev.deactivate", category: "config", status: "info", summary: `${data.enabled ? "Activated" : "Deactivated"} background development for ${p.name}.`, project_id: data.id });
     return { ok: true };
   });
