@@ -77,7 +77,7 @@ function OmniPage() {
           <Link to="/discovery" className="text-electric underline">
             Discovery
           </Link>{" "}
-          and use “Send to OMNI” on an opportunity.
+          — handoffs appear here once a real discovery source produces findings.
         </section>
       ) : (
         <div className="grid gap-4 lg:grid-cols-[320px_1fr]">

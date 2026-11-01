@@ -16,14 +16,6 @@ export const Route = createFileRoute("/_authenticated/workspace")({
   component: Workspace,
 });
 
-const SAMPLE = `// Sample snippet (demo)
-const apiKey = "sk_live_1234567890abcd";
-function load(data: any) {
-  if (data.count == 0) console.log("empty");
-  // TODO: handle errors
-  return eval(data.expr);
-}`;
-
 const SEV: Record<Finding["severity"], string> = {
   error: "text-destructive border-destructive/40",
   warning: "text-warning border-warning/40",
@@ -31,7 +23,7 @@ const SEV: Record<Finding["severity"], string> = {
 };
 
 function Workspace() {
-  const [code, setCode] = useState(SAMPLE);
+  const [code, setCode] = useState("");
   const [findings, setFindings] = useState<Finding[] | null>(null);
 
   const run = () => {
