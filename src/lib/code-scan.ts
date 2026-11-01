@@ -8,10 +8,15 @@ export const RULES: Rule[] = [
   { id: "blank-target-no-rel", title: "Add rel=\"noopener noreferrer\" to target=\"_blank\" link", why: "Links opening a new tab without rel=noopener let the new page control the opener (reverse tabnabbing).", risk: "low",
     test: (l) => /target=["']_blank["']/.test(l) && !/\brel=/.test(l) },
   { id: "eval-call", title: "Replace eval() call", why: "eval executes arbitrary strings as code and is a code-injection risk.", risk: "sensitive",
-    test: (l) => /(^|[^.\w])eval\s*\(/.test(l) && !/^\s*(\/\/|\*)/.test(l) },
+    test: (l) => /(^|[^.\w])eval\s*\(/.test(code(l)) && !/^\s*(\/\/|\*)/.test(l) },
   { id: "hardcoded-secret", title: "Remove hard-coded secret", why: "A credential-looking literal is committed to source.", risk: "sensitive",
     test: (l) => /(sk_live_[0-9a-z]{10,}|ghp_[0-9A-Za-z]{30,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----)/i.test(l) },
 ];
+
+/** Line with string, template and regex literals blanked, so code-like text inside them is not reported. */
+export function code(l: string): string {
+  return l.replace(/(["'`])(?:\\.|(?!\1).)*\1/g, '""').replace(/\/(?:\\.|[^/\n])+\/[gimsuy]*/g, "/r/");
+}
 
 export const SCANNABLE = /\.(tsx?|jsx?|mjs|cjs|html)$/i;
 const SKIP = /(^|\/)(node_modules|dist|build|\.output|coverage|vendor)\/|\.min\.js$|(^|\/)routeTree\.gen\.ts$|\.test\.|\.spec\.|code-scan\.ts$/;

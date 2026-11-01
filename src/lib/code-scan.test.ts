@@ -12,6 +12,10 @@ describe("code scan", () => {
     const d = scanFile("k.ts", `const k = "ghp_${"a".repeat(36)}";`);
     expect(d[0]).toMatchObject({ rule: "hardcoded-secret", risk: "sensitive", excerpt: "[secret masked]" });
   });
+  it("ignores eval inside regex or strings (real false positive from diagnostics.ts)", () => {
+    expect(scanFile("d.ts", `  { rule: "no-eval", re: /\\beval\\s*\\(/, message: "eval() executes arbitrary code." },`)).toEqual([]);
+    expect(scanFile("e.ts", "const r = eval(x);")[0]?.rule).toBe("eval-call");
+  });
   it("skips tests, builds and generated files", () => {
     expect(scannable("src/a.tsx")).toBe(true);
     expect(scannable("src/a.test.ts")).toBe(false);
