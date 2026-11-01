@@ -24,11 +24,14 @@ import { Route as AuthenticatedFleetRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedIntegrationsRouteImport } from './routes/_authenticated/integrations'
 import { Route as AuthenticatedJaxRouteImport } from './routes/_authenticated/jax'
 import { Route as AuthenticatedOmniRouteImport } from './routes/_authenticated/omni'
+import { Route as AuthenticatedProjectsRouteImport } from './routes/_authenticated/projects'
 import { Route as AuthenticatedRazulRouteImport } from './routes/_authenticated/razul'
 import { Route as AuthenticatedResearchRouteImport } from './routes/_authenticated/research'
+import { Route as AuthenticatedUpdatesRouteImport } from './routes/_authenticated/updates'
 import { Route as AuthenticatedWorkspaceRouteImport } from './routes/_authenticated/workspace'
 import { Route as AuthenticatedPassportAgentIdRouteImport } from './routes/_authenticated/passport.$agentId'
 import { Route as ApiPublicAgentIngestRouteImport } from './routes/api/public/agent-ingest'
+import { Route as ApiPublicJobsUpdateWriterRouteImport } from './routes/api/public/jobs/update-writer'
 
 const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
   id: '/_authenticated',
@@ -105,6 +108,11 @@ const AuthenticatedOmniRoute = AuthenticatedOmniRouteImport.update({
   path: '/omni',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedProjectsRoute = AuthenticatedProjectsRouteImport.update({
+  id: '/projects',
+  path: '/projects',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedRazulRoute = AuthenticatedRazulRouteImport.update({
   id: '/razul',
   path: '/razul',
@@ -113,6 +121,11 @@ const AuthenticatedRazulRoute = AuthenticatedRazulRouteImport.update({
 const AuthenticatedResearchRoute = AuthenticatedResearchRouteImport.update({
   id: '/research',
   path: '/research',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedUpdatesRoute = AuthenticatedUpdatesRouteImport.update({
+  id: '/updates',
+  path: '/updates',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedWorkspaceRoute = AuthenticatedWorkspaceRouteImport.update({
@@ -131,6 +144,12 @@ const ApiPublicAgentIngestRoute = ApiPublicAgentIngestRouteImport.update({
   path: '/api/public/agent-ingest',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicJobsUpdateWriterRoute =
+  ApiPublicJobsUpdateWriterRouteImport.update({
+    id: '/api/public/jobs/update-writer',
+    path: '/api/public/jobs/update-writer',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
@@ -147,11 +166,14 @@ export interface FileRoutesByFullPath {
   '/integrations': typeof AuthenticatedIntegrationsRoute
   '/jax': typeof AuthenticatedJaxRoute
   '/omni': typeof AuthenticatedOmniRoute
+  '/projects': typeof AuthenticatedProjectsRoute
   '/razul': typeof AuthenticatedRazulRoute
   '/research': typeof AuthenticatedResearchRoute
+  '/updates': typeof AuthenticatedUpdatesRoute
   '/workspace': typeof AuthenticatedWorkspaceRoute
   '/passport/$agentId': typeof AuthenticatedPassportAgentIdRoute
   '/api/public/agent-ingest': typeof ApiPublicAgentIngestRoute
+  '/api/public/jobs/update-writer': typeof ApiPublicJobsUpdateWriterRoute
 }
 export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
@@ -167,12 +189,15 @@ export interface FileRoutesByTo {
   '/integrations': typeof AuthenticatedIntegrationsRoute
   '/jax': typeof AuthenticatedJaxRoute
   '/omni': typeof AuthenticatedOmniRoute
+  '/projects': typeof AuthenticatedProjectsRoute
   '/razul': typeof AuthenticatedRazulRoute
   '/research': typeof AuthenticatedResearchRoute
+  '/updates': typeof AuthenticatedUpdatesRoute
   '/workspace': typeof AuthenticatedWorkspaceRoute
   '/': typeof AuthenticatedIndexRoute
   '/passport/$agentId': typeof AuthenticatedPassportAgentIdRoute
   '/api/public/agent-ingest': typeof ApiPublicAgentIngestRoute
+  '/api/public/jobs/update-writer': typeof ApiPublicJobsUpdateWriterRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -190,12 +215,15 @@ export interface FileRoutesById {
   '/_authenticated/integrations': typeof AuthenticatedIntegrationsRoute
   '/_authenticated/jax': typeof AuthenticatedJaxRoute
   '/_authenticated/omni': typeof AuthenticatedOmniRoute
+  '/_authenticated/projects': typeof AuthenticatedProjectsRoute
   '/_authenticated/razul': typeof AuthenticatedRazulRoute
   '/_authenticated/research': typeof AuthenticatedResearchRoute
+  '/_authenticated/updates': typeof AuthenticatedUpdatesRoute
   '/_authenticated/workspace': typeof AuthenticatedWorkspaceRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/passport/$agentId': typeof AuthenticatedPassportAgentIdRoute
   '/api/public/agent-ingest': typeof ApiPublicAgentIngestRoute
+  '/api/public/jobs/update-writer': typeof ApiPublicJobsUpdateWriterRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -214,11 +242,14 @@ export interface FileRouteTypes {
     | '/integrations'
     | '/jax'
     | '/omni'
+    | '/projects'
     | '/razul'
     | '/research'
+    | '/updates'
     | '/workspace'
     | '/passport/$agentId'
     | '/api/public/agent-ingest'
+    | '/api/public/jobs/update-writer'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/auth'
@@ -234,12 +265,15 @@ export interface FileRouteTypes {
     | '/integrations'
     | '/jax'
     | '/omni'
+    | '/projects'
     | '/razul'
     | '/research'
+    | '/updates'
     | '/workspace'
     | '/'
     | '/passport/$agentId'
     | '/api/public/agent-ingest'
+    | '/api/public/jobs/update-writer'
   id:
     | '__root__'
     | '/_authenticated'
@@ -256,12 +290,15 @@ export interface FileRouteTypes {
     | '/_authenticated/integrations'
     | '/_authenticated/jax'
     | '/_authenticated/omni'
+    | '/_authenticated/projects'
     | '/_authenticated/razul'
     | '/_authenticated/research'
+    | '/_authenticated/updates'
     | '/_authenticated/workspace'
     | '/_authenticated/'
     | '/_authenticated/passport/$agentId'
     | '/api/public/agent-ingest'
+    | '/api/public/jobs/update-writer'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -271,6 +308,7 @@ export interface RootRouteChildren {
   OnboardingRoute: typeof OnboardingRoute
   SetPasswordRoute: typeof SetPasswordRoute
   ApiPublicAgentIngestRoute: typeof ApiPublicAgentIngestRoute
+  ApiPublicJobsUpdateWriterRoute: typeof ApiPublicJobsUpdateWriterRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -380,6 +418,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedOmniRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/projects': {
+      id: '/_authenticated/projects'
+      path: '/projects'
+      fullPath: '/projects'
+      preLoaderRoute: typeof AuthenticatedProjectsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/razul': {
       id: '/_authenticated/razul'
       path: '/razul'
@@ -392,6 +437,13 @@ declare module '@tanstack/react-router' {
       path: '/research'
       fullPath: '/research'
       preLoaderRoute: typeof AuthenticatedResearchRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/updates': {
+      id: '/_authenticated/updates'
+      path: '/updates'
+      fullPath: '/updates'
+      preLoaderRoute: typeof AuthenticatedUpdatesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/workspace': {
@@ -415,6 +467,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicAgentIngestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/jobs/update-writer': {
+      id: '/api/public/jobs/update-writer'
+      path: '/api/public/jobs/update-writer'
+      fullPath: '/api/public/jobs/update-writer'
+      preLoaderRoute: typeof ApiPublicJobsUpdateWriterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -428,8 +487,10 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedIntegrationsRoute: typeof AuthenticatedIntegrationsRoute
   AuthenticatedJaxRoute: typeof AuthenticatedJaxRoute
   AuthenticatedOmniRoute: typeof AuthenticatedOmniRoute
+  AuthenticatedProjectsRoute: typeof AuthenticatedProjectsRoute
   AuthenticatedRazulRoute: typeof AuthenticatedRazulRoute
   AuthenticatedResearchRoute: typeof AuthenticatedResearchRoute
+  AuthenticatedUpdatesRoute: typeof AuthenticatedUpdatesRoute
   AuthenticatedWorkspaceRoute: typeof AuthenticatedWorkspaceRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedPassportAgentIdRoute: typeof AuthenticatedPassportAgentIdRoute
@@ -445,8 +506,10 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedIntegrationsRoute: AuthenticatedIntegrationsRoute,
   AuthenticatedJaxRoute: AuthenticatedJaxRoute,
   AuthenticatedOmniRoute: AuthenticatedOmniRoute,
+  AuthenticatedProjectsRoute: AuthenticatedProjectsRoute,
   AuthenticatedRazulRoute: AuthenticatedRazulRoute,
   AuthenticatedResearchRoute: AuthenticatedResearchRoute,
+  AuthenticatedUpdatesRoute: AuthenticatedUpdatesRoute,
   AuthenticatedWorkspaceRoute: AuthenticatedWorkspaceRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedPassportAgentIdRoute: AuthenticatedPassportAgentIdRoute,
@@ -462,6 +525,7 @@ const rootRouteChildren: RootRouteChildren = {
   OnboardingRoute: OnboardingRoute,
   SetPasswordRoute: SetPasswordRoute,
   ApiPublicAgentIngestRoute: ApiPublicAgentIngestRoute,
+  ApiPublicJobsUpdateWriterRoute: ApiPublicJobsUpdateWriterRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
