@@ -69,16 +69,15 @@ export async function handleChat(request: Request) {
       execute: async ({ project, kind, summary }) => { await remember(project, kind, summary); return { saved: true }; },
     }),
     capabilities: tool({
-      description: "Report exactly which Jackboy capabilities are connected and verified right now. Call this before claiming you can build, edit, test or deploy.",
+      description: "Jackboy's live manifest: what I can do (operational), what's missing (blocked / not built, with the fix) and what I can do next. Call for 'what can you do', 'what's missing', 'what next', and before claiming any ability.",
       inputSchema: z.object({}),
       execute: async () => {
-        let github: unknown = "not connected (GITHUB_TOKEN missing)";
-        if (process.env["GITHUB_TOKEN"]) { try { const r = await (await ws()).listAccessibleRepos(); github = { connected: true, usablePrivateRepos: r.filter((x) => x.usable).length }; } catch (e) { github = { connected: false, error: (e as Error).message }; } }
+        const m = await (await import("./agent-manifest.server")).jackboyManifest();
+        const { missing, nextActions } = await import("./agent-manifest");
         return {
-          github,
-          canDo: ["list/read/search files in a linked private repo", "write, replace or delete files on a jackboy/* branch", "show the real diff", "open a DRAFT pull request", "read GitHub Actions check results only if the token has Actions: read (use checkStatus; it reports the real error)", "static HTML site scans"],
-          cannotDo: ["run code, tests, builds or a terminal inside Jackboy (no sandbox runner connected)", "JavaScript/Playwright browser testing (no isolated browser runner connected)", "merge, deploy or push to the main branch (owner approval only)", "modify its own running server"],
-          ciNote: "Automated checks run only if the repository has a GitHub Actions workflow; use checkStatus to see.",
+          canDo: m.capabilities.filter((c) => c.status === "operational").map((c) => ({ label: c.label, detail: c.detail, tool: c.tool })),
+          missing: missing(m).map((c) => ({ label: c.label, status: c.status, why: c.detail, fix: c.fix })),
+          next: nextActions(m),
         };
       },
     }),
@@ -244,7 +243,7 @@ export async function handleChat(request: Request) {
       "Use tools for every fact about projects, scans, repos and updates — never invent status, results, files, diffs, PRs or releases.",
       "You are a working coding agent ONLY through your repo tools: to change code, use repoTree/repoSearch/readFile, then writeFile on a branch named jackboy/<short-topic>, then showDiff, then openDraftPR. Never paste code into chat as a substitute for writing it, and never claim a change exists unless writeFile returned a commit.",
       "You cannot run code, tests, builds, a terminal or a browser yourself. For checks, use checkStatus (GitHub Actions); if no workflow exists say so plainly. Never say you tested something unless a tool result shows it.",
-      "Workflow for any fix: recallMemory -> inspect -> writeFile -> showDiff -> checkStatus -> openDraftPR -> saveMemory (outcome + next_action). Pick low-risk changes; never touch auth, payments, secrets, migrations or permissions without the owner asking.", "Before saying you can build/edit/test anything, call capabilities. Never merge, deploy or write to the base branch; the owner approves pull requests.",
+      "Workflow for any fix: recallMemory -> inspect -> writeFile -> showDiff -> checkStatus -> openDraftPR -> saveMemory (outcome + next_action). Pick low-risk changes; never touch auth, payments, secrets, migrations or permissions without the owner asking.", "For what can you do / what is missing / what next, call capabilities and answer in three short parts. For \"fix it\", use the next actions (scan → fix → draft PR) within approval rules. Before saying you can build/edit/test anything, call capabilities. Never merge, deploy or write to the base branch; the owner approves pull requests.",
       "Messages from the microphone may be misheard: for any change (scan, fix, write, PR, autopilot, repo link) restate the exact action and wait for the owner to reply \"confirm\" or \"approve\". Spoken approval never covers Autopilot or repo-link changes — ask the owner to type those. Never repeat passwords, tokens or keys aloud or in text. ",
       "Site scans read static HTML only and do not run JavaScript; say so when relevant. Report failures exactly.",
     ].join(" "),
