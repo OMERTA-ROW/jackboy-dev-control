@@ -136,8 +136,8 @@ export const requestAction = createServerFn({ method: "POST" }).middleware([requ
     const expires_at = new Date(Date.now() + A.REQUEST_TTL_MS).toISOString();
     const { data: existing } = await supabaseAdmin.from("action_requests").select("id").eq("task_id", t.id).eq("action", data.action).eq("status", "pending").maybeSingle();
     const res = existing
-      ? (await supabaseAdmin.from("action_requests").update({ nonce_hash, expires_at, requested_by: actor }).eq("id", existing.id).select("*").single())
-      : (await supabaseAdmin.from("action_requests").insert({ project_id: t.project_id, task_id: t.id, action: data.action, tier, nonce_hash, requested_by: actor, expires_at,
+      ? (await supabaseAdmin.from("action_requests").update({ nonce_hash, expires_at, requested_by: context.userId }).eq("id", existing.id).select("*").single())
+      : (await supabaseAdmin.from("action_requests").insert({ project_id: t.project_id, task_id: t.id, action: data.action, tier, nonce_hash, requested_by: context.userId, expires_at,
           resources: { repo: t.repo, branch: t.branch, files: files.map((f) => f.path) } as never, permissions: A.PERMISSIONS[data.action] ?? [],
           diff_summary: files.map((f) => `${f.path} +${f.additions ?? 0}/-${f.deletions ?? 0}`).join("\n").slice(0, 2000), risk: t.risk }).select("*").single());
     const row = res.data;
@@ -154,14 +154,14 @@ export const decideAction = createServerFn({ method: "POST" }).middleware([requi
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const A = await import("./action-approval");
     const { data: r } = await supabaseAdmin.from("action_requests").select("*").eq("id", data.id).maybeSingle();
-    const bad = A.canDecide(r as never, actor, data.decision, Boolean(data.grantId));
+    const bad = A.canDecide(r as never, context.userId, data.decision, Boolean(data.grantId));
     if (bad) { if (r?.status === "pending" && /expired/.test(bad)) await supabaseAdmin.from("action_requests").update({ status: "expired" }).eq("id", data.id).eq("status", "pending"); throw new Error(bad); }
-    if (r!.tier === "critical" && data.decision !== "deny") await (await import("./passkey.server")).consumeGrant(data.grantId, actor, "critical_change", data.id);
+    if (r!.tier === "critical" && data.decision !== "deny") await (await import("./passkey.server")).consumeGrant(data.grantId, context.userId, "critical_change", data.id);
     const allowed = data.decision !== "deny";
-    const { data: won } = await supabaseAdmin.from("action_requests").update({ status: allowed ? "allowed" : "denied", mode: data.decision === "allow_task" ? "task" : data.decision === "allow_once" ? "once" : null, decided_by: actor, decided_at: new Date().toISOString() })
+    const { data: won } = await supabaseAdmin.from("action_requests").update({ status: allowed ? "allowed" : "denied", mode: data.decision === "allow_task" ? "task" : data.decision === "allow_once" ? "once" : null, decided_by: context.userId, decided_at: new Date().toISOString() })
       .eq("id", data.id).eq("status", "pending").eq("nonce_hash", await sha256(data.nonce)).gt("expires_at", new Date().toISOString()).select("id").maybeSingle();
     if (!won) throw new Error("This card is stale or already used (another tab may have decided it). Refresh.");
-    await supabaseAdmin.from("audit_logs").insert({ actor, action: `action.${data.decision}`, detail: { request: data.id, task: r!.task_id, action: r!.action, tier: r!.tier } as never, outcome: "ok" });
+    await supabaseAdmin.from("audit_logs").insert({ actor: context.userId, action: `action.${data.decision}`, detail: { request: data.id, task: r!.task_id, action: r!.action, tier: r!.tier } as never, outcome: "ok" });
     const s = await import("./foundry.server");
     let outcome = "denied";
     try {
