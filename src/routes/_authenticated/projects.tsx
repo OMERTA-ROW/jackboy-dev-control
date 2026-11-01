@@ -1,5 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
+import { checkSites } from "@/lib/site-monitor.functions";
+import { SITE_LABEL, type SiteStatus } from "@/lib/site-monitor";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Plus, Search } from "lucide-react";
 import { PageHeader } from "@/components/AppShell";
@@ -34,6 +36,22 @@ function Projects() {
   const scan = useServerFn(scanNow);
   const repair = useServerFn(fixScan);
   const ship = useServerFn(openPr);
+  const checkSite = useServerFn(checkSites);
+  async function checkSelected() {
+    if (!hub) return;
+    setBusy(true);
+    const init: Record<string, RowState> = {};
+    const todo = selected.filter((p) => { if (!p.site_url) init[p.id] = { state: "skipped", text: "Skipped: add a site address first" }; else init[p.id] = { state: "running", text: "Checking site…" }; return Boolean(p.site_url); });
+    setRows(init);
+    try {
+      for (let i = 0; i < todo.length; i += 20) {
+        const out = await checkSite({ data: { ids: todo.slice(i, i + 20).map((p) => p.id) } });
+        setRows((r) => { const n = { ...r }; for (const o of out) n[o.id] = { state: o.status === "connected" ? "done" : "error", text: `${SITE_LABEL[o.status as SiteStatus]}: ${o.reason}` }; return n; });
+      }
+    } catch (e) { setErr((e as Error).message); }
+    setBusy(false);
+    void refresh();
+  }
   const [hub, setHub] = useState<Hub | null>(null);
   const [err, setErr] = useState("");
   const [q, setQ] = useState("");
@@ -106,11 +124,12 @@ function Projects() {
             </div>
             <div className="flex flex-wrap gap-2">
               <button type="button" className={btn} disabled={busy || !sel.length} onClick={() => run("scan")}>Scan Selected</button>
+              <button type="button" className={btn} disabled={busy || !sel.length} onClick={() => void checkSelected()}>Check Site Connections</button>
               <button type="button" className={btn} disabled={busy || !sel.length} onClick={() => run("repair")}>Prepare Repairs</button>
               <Link to="/updates" className={btn}>Review Approvals{sel.length ? ` (${waitingSel})` : ""}</Link>
               <button type="button" className={btn} disabled={busy || !sel.length} onClick={() => run("distribute")}>Distribute Approved Updates</button>
             </div>
-            <p className="text-xs text-muted-foreground">Runs {MAX_CONCURRENCY} projects at a time. Distribute opens pull requests on private repos for review; nothing is merged or published automatically.</p>
+            <p className="text-xs text-muted-foreground">Runs {MAX_CONCURRENCY} projects at a time. Distribute opens pull requests on repos Jackboy can write, for review; nothing is merged or published automatically.</p>
           </div>
           {list.length === 0 ? <p className="text-sm text-muted-foreground">No project matches “{q}”.</p> : (
             <ul className="divide-y divide-border rounded-lg border border-border">
