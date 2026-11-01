@@ -162,6 +162,13 @@
       "when": 1793567530543,
       "tag": "0022_action_requests",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1793568937021,
+      "tag": "0023_foundry_packages",
+      "breakpoints": true
     }
   ]
 }
