@@ -1333,6 +1333,12 @@ export type Database = {
           name: string
           notes: string
           repair_policy: string
+          site_checked_at: string | null
+          site_evidence: Json
+          site_fail_count: number
+          site_monitoring: boolean
+          site_next_check_at: string | null
+          site_status: string
           site_url: string | null
           updated_at: string
         }
@@ -1360,6 +1366,12 @@ export type Database = {
           name: string
           notes?: string
           repair_policy?: string
+          site_checked_at?: string | null
+          site_evidence?: Json
+          site_fail_count?: number
+          site_monitoring?: boolean
+          site_next_check_at?: string | null
+          site_status?: string
           site_url?: string | null
           updated_at?: string
         }
@@ -1387,6 +1399,12 @@ export type Database = {
           name?: string
           notes?: string
           repair_policy?: string
+          site_checked_at?: string | null
+          site_evidence?: Json
+          site_fail_count?: number
+          site_monitoring?: boolean
+          site_next_check_at?: string | null
+          site_status?: string
           site_url?: string | null
           updated_at?: string
         }
