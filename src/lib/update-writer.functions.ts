@@ -135,7 +135,7 @@ export const mergeUpdate = createServerFn({ method: "POST" }).middleware([requir
     const s = await import("./update-writer.server");
     const state = await s.refreshChecks(data.id);
     const { data: cur } = await context.supabase.from("update_proposals").select("status").eq("id", data.id).single();
-    const gate = canMerge(cur?.status, state, data.acceptNoChecks);
+    const gate = canMerge((cur?.status ?? "draft") as ProposalStatus, state, data.acceptNoChecks);
     if (!gate.ok) { await audit(context, "updates.merge_blocked", { id: data.id, reason: gate.reason }, "denied"); throw new Error(gate.reason); }
     await s.mergeProposal(data.id, context.userId);
     return { ok: true };
