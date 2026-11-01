@@ -587,10 +587,11 @@ export function bindLiveConnection(
     }
   }
 
-  async function startSession(sdp: string, token: unknown) {
+  async function startSession(sdp: string, token: unknown, context: unknown) {
     if (closing || browser.readyState !== 1) return;
     clearTimeout(startTimer);
     ownerToken = await verifyOwner(token); // before any paid Gateway connection
+    if (typeof context === "string" && context.trim()) backendMessages.push({ role: "user", content: `Earlier typed chat with Jackboy, for context only (not new requests):\n${context.slice(0, 6000)}` });
     if (closing || browser.readyState !== 1) return;
     startupTimer = setTimeout(() => {
       emit({ type: "app.error", error: { message: "Voice startup timed out" } });
@@ -642,7 +643,7 @@ export function bindLiveConnection(
         }
         starting = true;
         execution.waitUntil(
-          startSession(event.sdp, event.token).catch((error) => {
+          startSession(event.sdp, event.token, event.context).catch((error) => {
             if (!closing)
               emit({
                 type: "app.error",

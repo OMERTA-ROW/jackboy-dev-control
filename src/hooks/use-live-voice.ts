@@ -33,6 +33,8 @@ export function useLiveVoice(
     url?: string;
     /** Returns the signed-in owner's current access token; the relay refuses calls without a valid owner session. */
     getToken?: () => string | null;
+    /** Recent typed chat, so voice continues the same conversation. */
+    getContext?: () => string;
     onEvent?: (event: LiveEvent) => void | Promise<void>;
   } = {},
 ) {
@@ -74,6 +76,7 @@ export function useLiveVoice(
     const voice = createLiveVoice({
       url: endpoint.href,
       token: latest.current.getToken?.() ?? null,
+      context: latest.current.getContext?.() ?? "",
       audio,
       onEvent(event) {
         if (!mounted.current || controller.current !== voice) return;
@@ -125,6 +128,7 @@ export function useLiveVoice(
 type LiveOptions = {
   url: string;
   token: string | null;
+  context: string;
   audio: HTMLAudioElement;
   onEvent: (event: LiveEvent) => void;
 };
@@ -355,7 +359,7 @@ function createLiveVoice(options: LiveOptions) {
       deadline = setTimeout(() => fail("Voice session did not start"), 50_000);
       socket.onopen = () => {
         if (!starting()) return release();
-        send({ type: "app.start", sdp, token: options.token });
+        send({ type: "app.start", sdp, token: options.token, context: options.context });
       };
       socket.onmessage = ({ data }) => {
         try {
