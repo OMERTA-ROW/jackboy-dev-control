@@ -3,8 +3,9 @@ import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, isToolUIPart, type UIMessage } from "ai";
 import { useServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Hexagon, ChevronDown, ChevronUp, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
-import { PageHeader } from "@/components/AppShell";
+import { Hexagon, ChevronDown, ChevronUp, Loader2, CheckCircle2, AlertCircle, Copy, Check, ExternalLink, PanelRight } from "lucide-react";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { getVoiceChatStatus, synthesizeJackboy } from "@/lib/passport.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { Conversation, ConversationContent, ConversationEmptyState, ConversationScrollButton } from "@/components/ai-elements/conversation";
 import { Message, MessageContent, MessageResponse } from "@/components/ai-elements/message";
@@ -45,88 +46,171 @@ function ChatPage() {
   const busy = status === "submitted" || status === "streaming";
   const [fromVoice, setFromVoice] = useState(false);
   const voice = useChatVoice((t) => { setFromVoice(true); setText((cur) => (cur.trim() ? `${cur.trim()} ${t}` : t)); });
+  const jackboyVoice = useJackboyVoice();
   const spokenId = useRef<string | null>(null);
   useEffect(() => {
-    if (status !== "ready") return;
+    if (status !== "ready" || !voice.speakReplies) return;
     const last = messages.at(-1);
     if (!last || last.role !== "assistant" || spokenId.current === last.id) return;
     spokenId.current = last.id;
-    voice.speak(last.parts.filter((x) => x.type === "text").map((x) => (x as { text: string }).text).join(" "));
-  }, [status, messages, voice.speak]);
-  const textOf = (m: UIMessage) => m.parts.filter((x) => x.type === "text").map((x) => (x as { text: string }).text).join(" ");
+    const words = textOf(last);
+    if (!words.trim()) return;
+    if (jackboyVoice.available) void jackboyVoice.speak(words).catch(() => voice.speak(words));
+    else voice.speak(words);
+  }, [status, messages, voice.speakReplies, voice.speak, jackboyVoice]);
   const chatContext = () => messages.slice(-12).map((m) => `${m.role === "user" ? "Owner" : "Jackboy"}: ${textOf(m)}`).join("\n").slice(-6000);
   const addVoiceTranscript = (rows: { role: "user" | "assistant"; text: string }[]) =>
     setMessages((cur) => [...cur, ...rows.filter((r) => r.text.trim()).map((r, i) => ({ id: `voice-${Date.now()}-${i}`, role: r.role, parts: [{ type: "text" as const, text: r.role === "user" ? `🎙 ${r.text.trim()}` : r.text.trim() }] }))]);
   const [orbOpen, setOrbOpen] = useState(true);
   const drag = useRef<number | null>(null);
   const dragged = useRef(false);
-  const dock = () => setOrbOpen(false);
-  const send = (t: string) => { if (!t.trim() || busy) return; setError(null); sendMessage(fromVoice ? { text: t, metadata: { voice: true } } : { text: t }); setText(""); setFromVoice(false); };
+  const swallow = () => { dragged.current = true; setTimeout(() => { dragged.current = false; }, 400); };
+  const send = (t: string) => { if (!t.trim() || busy) return; setError(null); setOrbOpen(false); sendMessage(fromVoice ? { text: t, metadata: { voice: true } } : { text: t }); setText(""); setFromVoice(false); };
+  const [banner, setBanner] = useState<{ ok: boolean; text: string } | null>(null);
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search); const g = q.get("github");
+    if (!g) return;
+    setOrbOpen(false);
+    setBanner(g === "error" ? { ok: false, text: `GitHub authorization didn't complete: ${q.get("reason") ?? "unknown error"}` }
+      : { ok: g === "connected", text: `GitHub App installed on ${q.get("account")}. ${q.get("missing") ? `Still missing: ${q.get("missing")}. ` : ""}${q.get("verified") ?? ""}` });
+    window.history.replaceState(null, "", window.location.pathname);
+  }, []);
+  const dragProps = {
+    onPointerDown: (e: React.PointerEvent) => { dragged.current = false; drag.current = e.clientY; },
+    onPointerMove: (e: React.PointerEvent) => {
+      if (drag.current === null) return;
+      const dy = e.clientY - drag.current;
+      if (orbOpen && dy > 48) { drag.current = null; swallow(); setOrbOpen(false); }
+      else if (!orbOpen && dy < -40) { drag.current = null; swallow(); setOrbOpen(true); }
+    },
+    onPointerUp: () => { drag.current = null; },
+    onClickCapture: (e: React.MouseEvent) => { if (dragged.current) { dragged.current = false; e.stopPropagation(); e.preventDefault(); } },
+  };
 
   return (
-    <>
-      <PageHeader title="Chat with Jackboy" subtitle="Ask about projects, scans and updates, or give commands like “scan site X”, “fix issue Y”, “pause autopilot on Z”." />
-      <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
-        <section className="panel relative flex h-[calc(100dvh-11rem)] min-h-[32rem] flex-col overflow-hidden lg:h-[72vh]">
-          <Conversation className="flex-1">
-            <ConversationContent>
-              {messages.length === 0 ? (
-                <ConversationEmptyState icon={<Hexagon className="size-8 text-electric" />} title="Jackboy is ready" description="He only reports what he can see in your projects — nothing is made up.">
-                  <div className="mt-4 flex flex-wrap justify-center gap-2">
-                    {SUGGESTIONS.map((s) => <button key={s} onClick={() => send(s)} className="rounded-full border border-border px-3 py-1 text-xs hover:border-electric">{s}</button>)}
-                  </div>
-                </ConversationEmptyState>
-              ) : messages.map((m) => (
-                <Message key={m.id} from={m.role}>
-                  <MessageContent className={m.role === "user" ? "bg-primary text-primary-foreground" : "bg-transparent"}>
-                    {m.parts.map((part, i) => {
-                      if (part.type === "text") return <MessageResponse key={i}>{part.text}</MessageResponse>;
-                      if (isToolUIPart(part)) return <TaskUpdate key={i} name={part.type === "dynamic-tool" ? part.toolName : part.type.slice(5)} state={part.state} input={part.input} output={part.output} errorText={part.errorText} />;
-                      return null;
-                    })}
-                  </MessageContent>
-                </Message>
-              ))}
-              {status === "submitted" && <Shimmer className="text-sm">Jackboy is thinking…</Shimmer>}
-            </ConversationContent>
-            <ConversationScrollButton />
-          </Conversation>
-          {voice.error && <p role="alert" className="border-t border-destructive/40 px-4 py-2 text-xs text-destructive">{voice.error}</p>}
-          {error && <p role="alert" className="border-t border-destructive/40 px-4 py-2 text-xs text-destructive">{error}</p>}
-          <div
-            className={orbOpen ? "absolute inset-x-0 top-0 bottom-[9.5rem] z-10 flex touch-none select-none flex-col items-center justify-center bg-background/75 backdrop-blur-sm" : "flex items-center gap-1 border-t border-border pr-2 [&>div:first-child]:flex-1"}
-            onPointerDown={orbOpen ? (e) => { dragged.current = false; drag.current = e.clientY; } : undefined}
-            onPointerMove={orbOpen ? (e) => { if (drag.current !== null && e.clientY - drag.current > 48) { drag.current = null; dragged.current = true; setTimeout(() => { dragged.current = false; }, 400); dock(); } } : undefined}
-            onPointerUp={() => { drag.current = null; }}
-            onClickCapture={(e) => { if (dragged.current) { dragged.current = false; e.stopPropagation(); e.preventDefault(); } }}
-            onWheel={orbOpen ? (e) => { if (Math.abs(e.deltaY) > 12) dock(); } : undefined}
-            onKeyDown={(e) => { if (orbOpen && (e.key === "ArrowDown" || e.key === "Escape")) dock(); else if (!orbOpen && e.key === "ArrowUp" && e.altKey) setOrbOpen(true); }}
-          >
-            <LiveVoiceCall chatContext={chatContext} onTranscript={addVoiceTranscript} variant={orbOpen ? "expanded" : "docked"} />
-            {orbOpen
-              ? <button type="button" onClick={dock} className="mt-1 inline-flex min-h-11 items-center gap-1 rounded-full border border-border bg-background/80 px-4 text-xs text-silver hover:border-electric" aria-label="Dock voice orb above the message box and show the conversation"><ChevronDown className="h-4 w-4" />Drag down or tap to show chat</button>
-              : <button type="button" onClick={() => setOrbOpen(true)} className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-full border border-border px-3 text-[11px] text-silver hover:border-electric" aria-label="Expand voice orb"><ChevronUp className="h-3.5 w-3.5" />Expand</button>}
-          </div>
-          <div className="relative border-t border-border p-3">
-            <PromptInput onSubmit={(msg) => send(msg.text)}>
-              <PromptInputBody>
-                <PromptInputTextarea autoFocus value={text} onChange={(e) => { setText(e.target.value); if (!e.target.value.trim()) setFromVoice(false); }} placeholder="Message Jackboy…" />
-              </PromptInputBody>
-              <PromptInputFooter>
-                <PromptInputTools><VoiceButtons v={voice} /></PromptInputTools>
-                <PromptInputSubmit status={status} onStop={stop} disabled={!busy && !text.trim()} />
-              </PromptInputFooter>
-            </PromptInput>
-            {(voice.support.listen !== "none" || voice.support.speak) && <p className="mt-1 text-[11px] text-muted-foreground">The mic listens only after you tap it. Speech is turned into text by your browser, or sent once to Jackboy's transcription service on browsers without it; audio is never saved. Spoken words appear in the box to edit before sending, and changes asked for by voice need you to reply “confirm”.</p>}
-          </div>
-        </section>
-        <div className="flex flex-col gap-4 lg:max-h-[72vh] lg:overflow-y-auto"><AgentStatusPanel /><ActivityFeed refreshKey={messages.length + (busy ? 0 : 1)} /></div>
+    <section className="panel relative -mx-2 flex h-[calc(100dvh-6.5rem)] min-h-[30rem] flex-col overflow-hidden sm:mx-0">
+      <header className="flex items-center gap-2 border-b border-border px-4 py-2">
+        <Hexagon className="size-4 text-electric" aria-hidden />
+        <h1 className="text-sm font-semibold">Jackboy</h1>
+        <span className="text-xs text-muted-foreground">{busy ? "working…" : "online"}</span>
+        <Sheet>
+          <SheetTrigger className="ml-auto inline-flex min-h-9 items-center gap-1 rounded-md border border-border px-3 text-xs hover:border-electric"><PanelRight className="size-4" />Status & activity</SheetTrigger>
+          <SheetContent className="w-full overflow-y-auto sm:max-w-md"><SheetHeader><SheetTitle>Jackboy status</SheetTitle></SheetHeader><div className="mt-4 flex flex-col gap-4"><AgentStatusPanel /><ActivityFeed refreshKey={messages.length + (busy ? 0 : 1)} /></div></SheetContent>
+        </Sheet>
+      </header>
+      {banner && <p role="status" className={`border-b px-4 py-2 text-xs ${banner.ok ? "border-success/40 text-success" : "border-warning/40 text-warning"}`}>{banner.text} <button className="ml-2 underline" onClick={() => setBanner(null)}>Dismiss</button></p>}
+      {/* The conversation stays mounted (never lost); the big orb simply covers it until docked. */}
+      <Conversation className={orbOpen ? "hidden" : "flex-1"}>
+        <ConversationContent className="mx-auto w-full max-w-3xl select-text">
+          {messages.length === 0 ? (
+            <ConversationEmptyState icon={<Hexagon className="size-8 text-electric" />} title="Right, what are we fixing today?" description="Ask me anything about your projects. I only report what I can actually see — no make-believe.">
+              <div className="mt-4 flex flex-wrap justify-center gap-2">
+                {SUGGESTIONS.map((s) => <button key={s} onClick={() => send(s)} className="rounded-full border border-border px-3 py-1 text-xs hover:border-electric">{s}</button>)}
+              </div>
+            </ConversationEmptyState>
+          ) : messages.map((m) => (
+            <Message key={m.id} from={m.role}>
+              <MessageContent className={m.role === "user" ? "bg-primary text-primary-foreground" : "bg-transparent"}>
+                {m.parts.map((part, i) => {
+                  if (part.type === "text") return <MessageResponse key={i}>{part.text}</MessageResponse>;
+                  if (isToolUIPart(part)) return <TaskUpdate key={i} name={part.type === "dynamic-tool" ? part.toolName : part.type.slice(5)} state={part.state} input={part.input} output={part.output} errorText={part.errorText} />;
+                  return null;
+                })}
+                {m.role === "assistant" && textOf(m).trim() && <CopyButton text={textOf(m)} />}
+              </MessageContent>
+            </Message>
+          ))}
+          {status === "submitted" && <Shimmer className="text-sm">Jackboy is thinking…</Shimmer>}
+        </ConversationContent>
+        <ConversationScrollButton />
+      </Conversation>
+      <div
+        className={orbOpen ? "flex flex-1 touch-none select-none flex-col items-center justify-center bg-background" : "flex touch-none items-center gap-1 border-t border-border pr-2 [&>div:nth-child(2)]:flex-1"}
+        {...dragProps}
+        onWheel={orbOpen ? (e) => { if (e.deltaY > 12) setOrbOpen(false); } : undefined}
+        onKeyDown={(e) => { if (orbOpen && (e.key === "ArrowDown" || e.key === "Escape")) setOrbOpen(false); else if (!orbOpen && e.key === "ArrowUp" && e.altKey) setOrbOpen(true); }}
+      >
+        {!orbOpen && <span aria-hidden className="ml-2 h-8 w-1 shrink-0 cursor-grab rounded-full bg-border" title="Drag up to enlarge" />}
+        <LiveVoiceCall chatContext={chatContext} onTranscript={addVoiceTranscript} variant={orbOpen ? "expanded" : "docked"} />
+        {orbOpen
+          ? <button type="button" onClick={() => setOrbOpen(false)} className="mt-1 inline-flex min-h-11 items-center gap-1 rounded-full border border-border bg-background/80 px-4 text-xs text-silver hover:border-electric" aria-label="Dock the voice orb and show the conversation"><ChevronDown className="h-4 w-4" />Drag down to see the chat{messages.length ? ` (${messages.length})` : ""}</button>
+          : <button type="button" onClick={() => setOrbOpen(true)} className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-full border border-border px-3 text-[11px] text-silver hover:border-electric" aria-label="Enlarge the voice orb"><ChevronUp className="h-3.5 w-3.5" />Enlarge</button>}
       </div>
-    </>
+      {voice.error && <p role="alert" className="border-t border-destructive/40 px-4 py-2 text-xs text-destructive">{voice.error}</p>}
+      {jackboyVoice.error && <p role="alert" className="border-t border-warning/40 px-4 py-2 text-xs text-warning">{jackboyVoice.error}</p>}
+      {error && <p role="alert" className="border-t border-destructive/40 px-4 py-2 text-xs text-destructive">{error}</p>}
+      <div className="border-t border-border p-3">
+        <div className="mx-auto max-w-3xl">
+          <PromptInput onSubmit={(msg) => send(msg.text)}>
+            <PromptInputBody>
+              <PromptInputTextarea value={text} onChange={(e) => { setText(e.target.value); if (!e.target.value.trim()) setFromVoice(false); }} placeholder="Message Jackboy… or tap the mic" />
+            </PromptInputBody>
+            <PromptInputFooter>
+              <PromptInputTools><VoiceButtons v={voice} />{voice.speakReplies && <span className="text-[11px] text-muted-foreground">{jackboyVoice.available ? "Replies in Jackboy's voice" : "Jackboy voice unavailable — using device voice"}</span>}</PromptInputTools>
+              <PromptInputSubmit status={status} onStop={stop} disabled={!busy && !text.trim()} />
+            </PromptInputFooter>
+          </PromptInput>
+          <p className="mt-1 text-[11px] text-muted-foreground">Mic listens only after you tap it; audio is never saved. Spoken words land in the box to edit, and voice-requested changes need a “confirm”.</p>
+        </div>
+      </div>
+    </section>
   );
 }
 
-const TOOL_WORDS: Record<string, string> = { get_status: "Checking project status", scan_site: "Scanning the site", read_file: "Reading a file", list_files: "Looking through files", write_file: "Writing a change", open_pr: "Opening a draft pull request" };
+const textOf = (m: UIMessage) => m.parts.filter((x) => x.type === "text").map((x) => (x as { text: string }).text).join(" ");
+
+function CopyButton({ text }: { text: string }) {
+  const [done, setDone] = useState(false);
+  return <button type="button" onClick={() => void navigator.clipboard.writeText(text).then(() => { setDone(true); setTimeout(() => setDone(false), 1500); })} className="mt-1 inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground" aria-label="Copy reply">{done ? <Check className="size-3" /> : <Copy className="size-3" />}{done ? "Copied" : "Copy"}</button>;
+}
+
+/** Speaks replies with the original ElevenLabs "Jackboy" voice (server-side key) when it is configured. */
+function useJackboyVoice() {
+  const status = useServerFn(getVoiceChatStatus);
+  const synth = useServerFn(synthesizeJackboy);
+  const [available, setAvailable] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const audio = useRef<HTMLAudioElement | null>(null);
+  useEffect(() => { status().then((s) => setAvailable(s.voiceAvailable)).catch(() => setAvailable(false)); }, [status]);
+  const speak = useCallback(async (words: string) => {
+    setError(null);
+    try {
+      const r = await synth({ data: { text: words.replace(/[#*`_>|]/g, "").slice(0, 900) } });
+      audio.current?.pause();
+      const a = new Audio(`data:${r.mimeType};base64,${r.audioBase64}`);
+      audio.current = a;
+      await a.play();
+    } catch (e) { setError(e instanceof Error ? e.message : "Jackboy's voice failed; the reply is still here as text."); throw e; }
+  }, [synth]);
+  return useMemo(() => ({ available, error, speak }), [available, error, speak]);
+}
+
+type AuthLink = { label: string; url: string; primary?: boolean };
+type Authorization = { provider: string; repo: string | null; state: string; missing: string[]; automatic: string[]; ownerMust: string[]; links: AuthLink[]; detail: string; lastError: string | null };
+
+/** Real authorization destinations returned by the server; nothing here is invented client-side. */
+function AuthCard({ a }: { a: Authorization }) {
+  const primary = a.links.find((l) => l.primary) ?? a.links[0];
+  const safe = (u: string) => u.startsWith("https://github.com/");
+  return (
+    <div className="my-2 rounded-lg border border-electric/50 bg-card/60 p-3 text-xs">
+      <p className="font-semibold">{a.provider} access {a.state === "authorized" ? "is in place" : `needed${a.repo ? ` for ${a.repo}` : ""}`}</p>
+      <p className="mt-1 text-muted-foreground">{a.detail}</p>
+      {a.lastError && <p className="mt-1 text-destructive">Last GitHub answer: {a.lastError}</p>}
+      {a.missing.length > 0 && <><p className="mt-2 font-medium">Missing permissions</p><ul className="list-disc pl-4">{a.missing.map((m) => <li key={m}>{m}</li>)}</ul></>}
+      {a.ownerMust.length > 0 && <><p className="mt-2 font-medium">You approve</p><ul className="list-disc pl-4">{a.ownerMust.map((m) => <li key={m}>{m}</li>)}</ul></>}
+      {a.automatic.length > 0 && <><p className="mt-2 font-medium">I handle automatically after that</p><ul className="list-disc pl-4">{a.automatic.map((m) => <li key={m}>{m}</li>)}</ul></>}
+      {primary && safe(primary.url) && (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <a href={primary.url} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-10 items-center gap-1 rounded-md bg-primary px-3 font-medium text-primary-foreground"><ExternalLink className="size-3.5" />Take me there</a>
+          {a.links.filter((l) => safe(l.url)).map((l) => <a key={l.url} href={l.url} target="_blank" rel="noopener noreferrer" className="break-all text-electric underline">{l.label}</a>)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const TOOL_WORDS: Record<string, string> = { authorizationHelp: "Finding the right approval link", get_status: "Checking project status", scan_site: "Scanning the site", read_file: "Reading a file", list_files: "Looking through files", write_file: "Writing a change", open_pr: "Opening a draft pull request" };
 const human = (n: string) => TOOL_WORDS[n] ?? n.replace(/[_-]+/g, " ").replace(/^./, (c) => c.toUpperCase());
 
 /** One conversational line per real tool call: live state, result or error, with details on request. */
@@ -134,6 +218,8 @@ function TaskUpdate({ name, state, input, output, errorText }: { name: string; s
   const running = state === "input-streaming" || state === "input-available";
   const failed = state === "output-error" || state === "output-denied";
   const waiting = state === "approval-requested";
+  const auths = (output as { authorizations?: Authorization[] } | null)?.authorizations;
+  if (auths?.length && !running) return <>{auths.map((a, i) => <AuthCard key={i} a={a} />)}</>;
   return (
     <details className="group my-1 rounded-lg border border-border/60 bg-card/40 px-3 py-2 text-xs">
       <summary className="flex cursor-pointer list-none items-center gap-2 rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-electric">
@@ -142,6 +228,7 @@ function TaskUpdate({ name, state, input, output, errorText }: { name: string; s
         <span className="ml-auto text-muted-foreground group-open:hidden">details</span>
       </summary>
       {failed && errorText && <p role="alert" className="mt-2 text-destructive">{errorText}</p>}
+      {failed && /403|not accessible|permission/i.test(errorText ?? "") && <p className="mt-1 text-muted-foreground">That's an access problem, not a dead end — ask me “how do I fix access?” and I'll bring the GitHub link.</p>}
       <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded bg-background/60 p-2 text-[11px] text-muted-foreground">{JSON.stringify({ asked: input, result: output }, null, 2)?.slice(0, 4000)}</pre>
     </details>
   );
