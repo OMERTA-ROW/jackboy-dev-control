@@ -363,6 +363,47 @@ export type Database = {
         }
         Relationships: []
       }
+      feature_flags: {
+        Row: {
+          channel: string
+          description: string
+          enabled: boolean
+          id: string
+          key: string
+          project_id: string
+          rollout_percent: number
+          updated_at: string
+        }
+        Insert: {
+          channel: string
+          description?: string
+          enabled?: boolean
+          id?: string
+          key: string
+          project_id: string
+          rollout_percent?: number
+          updated_at?: string
+        }
+        Update: {
+          channel?: string
+          description?: string
+          enabled?: boolean
+          id?: string
+          key?: string
+          project_id?: string
+          rollout_percent?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feature_flags_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "owner_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       feed_items: {
         Row: {
           created_at: string
@@ -451,6 +492,57 @@ export type Database = {
           url?: string | null
         }
         Relationships: []
+      }
+      health_reports: {
+        Row: {
+          channel: string
+          created_at: string
+          device_hash: string
+          id: string
+          kind: string
+          message: string
+          project_id: string
+          release_id: string | null
+          version: string
+        }
+        Insert: {
+          channel: string
+          created_at?: string
+          device_hash: string
+          id?: string
+          kind: string
+          message?: string
+          project_id: string
+          release_id?: string | null
+          version: string
+        }
+        Update: {
+          channel?: string
+          created_at?: string
+          device_hash?: string
+          id?: string
+          kind?: string
+          message?: string
+          project_id?: string
+          release_id?: string | null
+          version?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "health_reports_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "owner_projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "health_reports_release_id_fkey"
+            columns: ["release_id"]
+            isOneToOne: false
+            referencedRelation: "releases"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       invitations: {
         Row: {
@@ -619,6 +711,7 @@ export type Database = {
       owner_projects: {
         Row: {
           active: boolean
+          client_key: string
           created_at: string
           created_by: string
           description: string
@@ -636,6 +729,7 @@ export type Database = {
         }
         Insert: {
           active?: boolean
+          client_key?: string
           created_at?: string
           created_by: string
           description?: string
@@ -653,6 +747,7 @@ export type Database = {
         }
         Update: {
           active?: boolean
+          client_key?: string
           created_at?: string
           created_by?: string
           description?: string
@@ -796,6 +891,89 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "agent_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      releases: {
+        Row: {
+          artifact_path: string | null
+          artifact_sha256: string | null
+          artifact_size: number | null
+          auto_step: number
+          channel: string
+          config: Json
+          created_at: string
+          created_by: string
+          error_threshold: number
+          id: string
+          last_step_at: string | null
+          manifest: Json | null
+          min_reports: number
+          notes: string
+          project_id: string
+          published_at: string | null
+          rollback_reason: string | null
+          rollout_percent: number
+          signature: string | null
+          status: string
+          step_hours: number
+          version: string
+        }
+        Insert: {
+          artifact_path?: string | null
+          artifact_sha256?: string | null
+          artifact_size?: number | null
+          auto_step?: number
+          channel: string
+          config?: Json
+          created_at?: string
+          created_by: string
+          error_threshold?: number
+          id?: string
+          last_step_at?: string | null
+          manifest?: Json | null
+          min_reports?: number
+          notes?: string
+          project_id: string
+          published_at?: string | null
+          rollback_reason?: string | null
+          rollout_percent?: number
+          signature?: string | null
+          status?: string
+          step_hours?: number
+          version: string
+        }
+        Update: {
+          artifact_path?: string | null
+          artifact_sha256?: string | null
+          artifact_size?: number | null
+          auto_step?: number
+          channel?: string
+          config?: Json
+          created_at?: string
+          created_by?: string
+          error_threshold?: number
+          id?: string
+          last_step_at?: string | null
+          manifest?: Json | null
+          min_reports?: number
+          notes?: string
+          project_id?: string
+          published_at?: string | null
+          rollback_reason?: string | null
+          rollout_percent?: number
+          signature?: string | null
+          status?: string
+          step_hours?: number
+          version?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "releases_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "owner_projects"
             referencedColumns: ["id"]
           },
         ]
