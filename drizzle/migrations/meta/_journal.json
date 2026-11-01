@@ -141,6 +141,13 @@
       "when": 1793564432385,
       "tag": "0019_update_targets",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1793566628260,
+      "tag": "0020_dedupe_proposal_notifications",
+      "breakpoints": true
     }
   ]
 }
