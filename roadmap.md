@@ -62,3 +62,6 @@ The spoken acronym “NLOA” is unconfirmed in Notion. Do not infer a technical
 - [x] AutoConnect slice: per-project capabilities, Approve & Connect with exact permissions, real verification (GitHub repo, GitHub Actions read, AI model), pause/revoke, auto-resume of waiting Foundry tests
 - [ ] GitHub Actions read — owner must add "Actions: Read-only" to the GitHub token, then press Verify now
 - [ ] GitHub App / OAuth sign-in flow for GitHub, Google, Notion — needs owner-created provider app credentials; browser runner and deploy adapters not available
+- [x] Connect page multi-select (Select all/Clear, saved per user, truthful status, Connect selected, Run coding loop on selected)
+- [ ] OMNI as coding target — blocked: GitHub repo OMERTA-ROW/Omni is public; Jackboy only edits private repos. Owner makes it private (or a private copy), then links it on its project.
+- [ ] New end-to-end coding task verified — Jackboy's built-in checks found nothing new in its own repo; needs more repair checks or an OMNI private repo
