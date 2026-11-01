@@ -67,6 +67,7 @@ function Foundry() {
             <ApprovalCard taskId={t.id} onDone={(m) => { setMsg(m); void load(); }} />
             <button className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50" disabled={!!busy} onClick={() => run(t.id, () => act({ data: { id: t.id, op: "reject" } }))}>Reject</button>
           </>}
+          {t.state === "blocked" && <button className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50" disabled={!!busy} onClick={() => run(t.id, () => act({ data: { id: t.id, op: "reject" } }))}>Reject</button>}
           {t.state === "blocked" && t.approved_action && <button className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50" disabled={!!busy} onClick={() => run(t.id, () => act({ data: { id: t.id, op: "retry" } }))}>Retry</button>}
           {!TERMINAL.includes(t.state as State) && <button className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50" disabled={!!busy} onClick={() => run(t.id, () => act({ data: { id: t.id, op: t.paused ? "resume" : "pause" } }))}>{t.paused ? "Resume" : "Pause"}</button>}
         </div>
