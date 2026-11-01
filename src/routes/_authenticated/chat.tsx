@@ -13,8 +13,8 @@ import { Tool, ToolContent, ToolHeader, ToolInput, ToolOutput } from "@/componen
 import { Shimmer } from "@/components/ai-elements/shimmer";
 import { getAutopilot } from "@/lib/autopilot.functions";
 import { useChatVoice, VoiceButtons } from "@/components/ChatVoice";
-import { orbMode, VoiceOrb } from "@/components/VoiceOrb";
 import { AgentStatusPanel } from "@/components/AgentStatusPanel";
+import { LiveVoiceCall } from "@/components/LiveVoiceCall";
 
 export const Route = createFileRoute("/_authenticated/chat")({
   head: () => ({
@@ -42,7 +42,7 @@ function ChatPage() {
       return data.session ? { Authorization: `Bearer ${data.session.access_token}` } : {};
     },
   }), []);
-  const { messages, sendMessage, status, stop } = useChat({ transport, onError: (e) => setError(e.message.includes("402") ? "AI credits are used up. Add credits in Settings → Plans & credits." : e.message) });
+  const { messages, sendMessage, setMessages, status, stop } = useChat({ transport, onError: (e) => setError(e.message.includes("402") ? "AI credits are used up. Add credits in Settings → Plans & credits." : e.message) });
   const busy = status === "submitted" || status === "streaming";
   const [fromVoice, setFromVoice] = useState(false);
   const voice = useChatVoice((t) => { setFromVoice(true); setText((cur) => (cur.trim() ? `${cur.trim()} ${t}` : t)); });
@@ -54,6 +54,10 @@ function ChatPage() {
     spokenId.current = last.id;
     voice.speak(last.parts.filter((x) => x.type === "text").map((x) => (x as { text: string }).text).join(" "));
   }, [status, messages, voice.speak]);
+  const textOf = (m: UIMessage) => m.parts.filter((x) => x.type === "text").map((x) => (x as { text: string }).text).join(" ");
+  const chatContext = () => messages.slice(-12).map((m) => `${m.role === "user" ? "Owner" : "Jackboy"}: ${textOf(m)}`).join("\n").slice(-6000);
+  const addVoiceTranscript = (rows: { role: "user" | "assistant"; text: string }[]) =>
+    setMessages((cur) => [...cur, ...rows.filter((r) => r.text.trim()).map((r, i) => ({ id: `voice-${Date.now()}-${i}`, role: r.role, parts: [{ type: "text" as const, text: r.role === "user" ? `🎙 ${r.text.trim()}` : r.text.trim() }] }))]);
   const send = (t: string) => { if (!t.trim() || busy) return; setError(null); sendMessage(fromVoice ? { text: t, metadata: { voice: true } } : { text: t }); setText(""); setFromVoice(false); };
 
   return (
@@ -91,11 +95,7 @@ function ChatPage() {
           </Conversation>
           {voice.error && <p role="alert" className="border-t border-destructive/40 px-4 py-2 text-xs text-destructive">{voice.error}</p>}
           {error && <p role="alert" className="border-t border-destructive/40 px-4 py-2 text-xs text-destructive">{error}</p>}
-          {voice.support.listen !== "none" && (
-            <div className="flex justify-center border-t border-border py-3">
-              <VoiceOrb mode={orbMode(voice.state, busy, voice.speakReplies)} level={voice.level} onTap={() => void voice.toggleListen()} size={64} />
-            </div>
-          )}
+          <LiveVoiceCall chatContext={chatContext} onTranscript={addVoiceTranscript} />
           <div className="border-t border-border p-3">
             <PromptInput onSubmit={(msg) => send(msg.text)}>
               <PromptInputBody>
