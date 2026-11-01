@@ -20,7 +20,7 @@ describe("connect multi-select", () => {
   it("loop runs only with a linked repo; others get the exact fix", () => {
     const [om, jb, ms] = connectRows(projects, inv);
     expect(loopEligible(jb!)).toEqual({ ok: true });
-    expect(loopEligible(ms!)).toEqual({ ok: false, reason: "Link a private GitHub repo" });
+    expect(loopEligible(ms!)).toEqual({ ok: false, reason: "Link a GitHub repo Jackboy can write" });
     expect(loopEligible(om!)).toEqual({ ok: false, reason: "Connect it first" });
   });
   it("agent state comes from real task states", () => {
