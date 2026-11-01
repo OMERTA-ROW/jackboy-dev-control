@@ -23,8 +23,7 @@ export const Route = createFileRoute("/_authenticated/connect")({
   component: Connect,
 });
 
-const LOVABLE_CONNECT = "https://lovable.dev/connectors/lovable_account/connect?workspace=qTqTdBvij3LL2HnYLgG8";
-type Hub = Awaited<ReturnType<typeof getProjectHub>>;
+export type Hub = Awaited<ReturnType<typeof getProjectHub>>;
 
 function Connect() {
   const load = useServerFn(getProjectHub), save = useServerFn(saveProject), test = useServerFn(testRepo), onboard = useServerFn(connectAndScan);
@@ -55,7 +54,7 @@ function Connect() {
 
       <form onSubmit={submit} className="panel grid gap-4 p-5">
         <div>
-          <h2 className="font-semibold">2. Site address</h2>
+          <h2 className="font-semibold">Project details (add or edit one project)</h2><h3 className="mt-2 text-sm font-medium">2. Site address</h3><span className="hidden"></h2>
           <div className="mt-2 grid gap-2 sm:grid-cols-2">
             <label className="text-xs">Project name<input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={`${field} mt-1`} /></label>
             <label className="text-xs">Live site address<input value={form.site_url} onChange={(e) => setForm({ ...form, site_url: e.target.value })} placeholder="https://…" className={`${field} mt-1`} /></label>
