@@ -222,8 +222,56 @@ export const getVoiceChatStatus = createServerFn({ method: "POST" })
         currentRole !== "member" &&
         Boolean(process.env.OPENAI_API_KEY) &&
         process.env.JACKBOY_VOICE_AI_ENABLED === "true",
+      voiceAvailable:
+        currentRole !== "member" &&
+        Boolean(process.env.ELEVENLABS_API_KEY) &&
+        Boolean(process.env.JACKBOY_ELEVEN_VOICE_ID) &&
+        process.env.JACKBOY_ELEVEN_ENABLED === "true",
       model: "gpt-6-luna",
     };
+  });
+
+/** ElevenLabs speech is generated on the server so the provider key never reaches the browser. */
+export const synthesizeJackboy = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ text: z.string().trim().min(1).max(900) }).parse(d))
+  .handler(async ({ data, context }) => {
+    if ((await role(context)) === "member") throw new Error("Owner or admin only.");
+    const key = process.env.ELEVENLABS_API_KEY;
+    const voiceId = process.env.JACKBOY_ELEVEN_VOICE_ID;
+    if (!key || !voiceId || process.env.JACKBOY_ELEVEN_ENABLED !== "true")
+      throw new Error("ElevenLabs voice is not enabled.");
+    if (!/^[a-zA-Z0-9_-]{10,80}$/.test(voiceId)) throw new Error("ElevenLabs voice ID is invalid.");
+    const since = new Date(Date.now() - 60_000).toISOString();
+    const recent = await context.supabase
+      .from("audit_logs")
+      .select("id", { count: "exact", head: true })
+      .eq("actor", context.userId)
+      .eq("action", "voice.speech.request")
+      .gte("at", since);
+    if (recent.error) throw new Error("Could not check speech rate limit.");
+    if ((recent.count ?? 0) >= 8) throw new Error("Speech limit reached. Wait a minute and try again.");
+    const recorded = await audit(context, "voice.speech.request", {
+      provider: "elevenlabs",
+      characters: data.text.length,
+    });
+    if (recorded.error) throw new Error("Could not record the speech request.");
+    let response: Response;
+    try {
+      response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_22050_32`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "xi-api-key": key },
+        body: JSON.stringify({ text: data.text, model_id: "eleven_flash_v2_5" }),
+        signal: AbortSignal.timeout(20_000),
+      });
+    } catch {
+      throw new Error("ElevenLabs voice could not be reached. The reply is still available as text.");
+    }
+    if (!response.ok)
+      throw new Error(`ElevenLabs voice is unavailable (${response.status}). The reply is still available as text.`);
+    const bytes = await response.arrayBuffer();
+    if (bytes.byteLength > 1_000_000) throw new Error("Speech response exceeded the size limit.");
+    return { audioBase64: Buffer.from(bytes).toString("base64"), mimeType: "audio/mpeg" };
   });
 
 const voiceMessage = z.object({ role: z.enum(["user", "assistant"]), content: z.string().trim().min(1).max(1000) });
