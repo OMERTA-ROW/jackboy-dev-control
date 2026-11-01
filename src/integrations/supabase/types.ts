@@ -363,6 +363,95 @@ export type Database = {
         }
         Relationships: []
       }
+      feed_items: {
+        Row: {
+          created_at: string
+          dedupe_key: string
+          id: string
+          project_ids: string[]
+          published_at: string | null
+          source_id: string
+          summary: string
+          title: string
+          url: string | null
+        }
+        Insert: {
+          created_at?: string
+          dedupe_key: string
+          id?: string
+          project_ids?: string[]
+          published_at?: string | null
+          source_id: string
+          summary?: string
+          title: string
+          url?: string | null
+        }
+        Update: {
+          created_at?: string
+          dedupe_key?: string
+          id?: string
+          project_ids?: string[]
+          published_at?: string | null
+          source_id?: string
+          summary?: string
+          title?: string
+          url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feed_items_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "feed_sources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      feed_sources: {
+        Row: {
+          active: boolean
+          created_at: string
+          created_by: string
+          id: string
+          kind: string
+          last_checked_at: string | null
+          last_error: string | null
+          last_hash: string | null
+          name: string
+          project_ids: string[]
+          token_hash: string | null
+          url: string | null
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          created_by: string
+          id?: string
+          kind: string
+          last_checked_at?: string | null
+          last_error?: string | null
+          last_hash?: string | null
+          name: string
+          project_ids?: string[]
+          token_hash?: string | null
+          url?: string | null
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          created_by?: string
+          id?: string
+          kind?: string
+          last_checked_at?: string | null
+          last_error?: string | null
+          last_hash?: string | null
+          name?: string
+          project_ids?: string[]
+          token_hash?: string | null
+          url?: string | null
+        }
+        Relationships: []
+      }
       invitations: {
         Row: {
           accepted_by: string | null
@@ -497,15 +586,49 @@ export type Database = {
           },
         ]
       }
+      owner_notifications: {
+        Row: {
+          created_at: string
+          email_state: string
+          id: string
+          kind: string
+          message: string
+          proposal_id: string | null
+          read: boolean
+        }
+        Insert: {
+          created_at?: string
+          email_state?: string
+          id?: string
+          kind: string
+          message: string
+          proposal_id?: string | null
+          read?: boolean
+        }
+        Update: {
+          created_at?: string
+          email_state?: string
+          id?: string
+          kind?: string
+          message?: string
+          proposal_id?: string | null
+          read?: boolean
+        }
+        Relationships: []
+      }
       owner_projects: {
         Row: {
           active: boolean
           created_at: string
           created_by: string
           description: string
+          frequency_hours: number
+          github_branch: string
+          github_repo: string | null
           goals: string
           id: string
           last_proposal_at: string | null
+          last_run_at: string | null
           lovable_url: string | null
           name: string
           notes: string
@@ -516,9 +639,13 @@ export type Database = {
           created_at?: string
           created_by: string
           description?: string
+          frequency_hours?: number
+          github_branch?: string
+          github_repo?: string | null
           goals?: string
           id?: string
           last_proposal_at?: string | null
+          last_run_at?: string | null
           lovable_url?: string | null
           name: string
           notes?: string
@@ -529,9 +656,13 @@ export type Database = {
           created_at?: string
           created_by?: string
           description?: string
+          frequency_hours?: number
+          github_branch?: string
+          github_repo?: string | null
           goals?: string
           id?: string
           last_proposal_at?: string | null
+          last_run_at?: string | null
           lovable_url?: string | null
           name?: string
           notes?: string
@@ -671,14 +802,24 @@ export type Database = {
       }
       update_proposals: {
         Row: {
+          branch_name: string | null
           build_prompt: string
+          checks_state: string | null
           created_at: string
           decided_at: string | null
           decided_by: string | null
+          delivery_error: string | null
           edited: boolean
+          feed_item_ids: string[]
+          files: Json
+          head_sha: string | null
           id: string
+          merge_sha: string | null
           model: string | null
+          pr_number: number | null
+          pr_url: string | null
           project_id: string
+          revert_pr_url: string | null
           status: string
           title: string
           trigger: string
@@ -686,14 +827,24 @@ export type Database = {
           why: string
         }
         Insert: {
+          branch_name?: string | null
           build_prompt: string
+          checks_state?: string | null
           created_at?: string
           decided_at?: string | null
           decided_by?: string | null
+          delivery_error?: string | null
           edited?: boolean
+          feed_item_ids?: string[]
+          files?: Json
+          head_sha?: string | null
           id?: string
+          merge_sha?: string | null
           model?: string | null
+          pr_number?: number | null
+          pr_url?: string | null
           project_id: string
+          revert_pr_url?: string | null
           status?: string
           title: string
           trigger?: string
@@ -701,14 +852,24 @@ export type Database = {
           why: string
         }
         Update: {
+          branch_name?: string | null
           build_prompt?: string
+          checks_state?: string | null
           created_at?: string
           decided_at?: string | null
           decided_by?: string | null
+          delivery_error?: string | null
           edited?: boolean
+          feed_item_ids?: string[]
+          files?: Json
+          head_sha?: string | null
           id?: string
+          merge_sha?: string | null
           model?: string | null
+          pr_number?: number | null
+          pr_url?: string | null
           project_id?: string
+          revert_pr_url?: string | null
           status?: string
           title?: string
           trigger?: string
@@ -731,6 +892,8 @@ export type Database = {
           id: number
           last_run_at: string | null
           lock_until: string | null
+          monthly_ai_cap: number
+          monthly_run_cap: number
           paused_reason: string | null
           updated_at: string
         }
@@ -739,6 +902,8 @@ export type Database = {
           id?: number
           last_run_at?: string | null
           lock_until?: string | null
+          monthly_ai_cap?: number
+          monthly_run_cap?: number
           paused_reason?: string | null
           updated_at?: string
         }
@@ -747,8 +912,31 @@ export type Database = {
           id?: number
           last_run_at?: string | null
           lock_until?: string | null
+          monthly_ai_cap?: number
+          monthly_run_cap?: number
           paused_reason?: string | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      usage_ledger: {
+        Row: {
+          at: string
+          id: string
+          kind: string
+          project_id: string | null
+        }
+        Insert: {
+          at?: string
+          id?: string
+          kind: string
+          project_id?: string | null
+        }
+        Update: {
+          at?: string
+          id?: string
+          kind?: string
+          project_id?: string | null
         }
         Relationships: []
       }
