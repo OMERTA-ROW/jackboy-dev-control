@@ -57,6 +57,13 @@
       "when": 1793546760641,
       "tag": "0007_update_writer",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793547005371,
+      "tag": "0008_code_delivery_feeds",
+      "breakpoints": true
     }
   ]
 }
