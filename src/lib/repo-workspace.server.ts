@@ -5,8 +5,9 @@ import { assessRepoAccess, checkPath, checkWorkBranch, MAX_WRITE_BYTES, parseRep
 const API = "https://api.github.com";
 
 async function gh<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const token = process.env["GITHUB_TOKEN"];
-  if (!token) throw new Error("GitHub is not connected: GITHUB_TOKEN secret is missing.");
+  const { githubTokenFor, repoFromPath } = await import("./github-app.server");
+  const token = (await githubTokenFor(repoFromPath(path)))?.token;
+  if (!token) throw new Error("GitHub is not connected: install the Jackboy GitHub App or add the GITHUB_TOKEN secret.");
   const res = await fetch(`${API}${path}`, {
     ...init,
     headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${token}`, "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "Jackboy", ...(init.body ? { "Content-Type": "application/json" } : {}) },

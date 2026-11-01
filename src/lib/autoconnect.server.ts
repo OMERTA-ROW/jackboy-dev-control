@@ -40,7 +40,8 @@ export async function approveCapability(cap: string, projectId: string, actor: s
 }
 
 async function realCheck(cap: string, repoFull: string | null): Promise<{ ok: boolean; account: string | null; detail: string }> {
-  const token = process.env["GITHUB_TOKEN"];
+  const auth = await (await import("./github-app.server")).githubTokenFor(repoFull);
+  const token = auth?.token;
   const gh = async (path: string) => fetch(`https://api.github.com${path}`, { signal: AbortSignal.timeout(10_000), headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${token}`, "User-Agent": "Jackboy", "X-GitHub-Api-Version": "2022-11-28" } });
   const post = (path: string, method: string, body?: unknown) => fetch(`https://api.github.com${path}`, { method, signal: AbortSignal.timeout(10_000), body: body ? JSON.stringify(body) : null, headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${token}`, "User-Agent": "Jackboy", "X-GitHub-Api-Version": "2022-11-28", "Content-Type": "application/json" } });
   if (cap === "model_provider") {
@@ -50,9 +51,9 @@ async function realCheck(cap: string, repoFull: string | null): Promise<{ ok: bo
     return { ok: !!r?.ok, account: "Lovable AI", detail: r?.ok ? "Model list reachable." : `Check failed (${r?.status ?? "network"}).` };
   }
   if (cap === "github_repo" || cap === "github_actions_read") {
-    if (!token) return { ok: false, account: null, detail: "GITHUB_TOKEN secret missing." };
+    if (!token) return { ok: false, account: null, detail: "No GitHub App installation or GITHUB_TOKEN covers this repo." };
     if (!repoFull) return { ok: false, account: null, detail: "Project has no repo." };
-    const u = await gh("/user"); const login = u.ok ? ((await u.json()) as { login: string }).login : null;
+    const u = auth?.via === "app" ? null : await gh("/user"); const login = auth?.via === "app" ? `GitHub App (${process.env["GITHUB_APP_SLUG"]})` : u?.ok ? ((await u.json()) as { login: string }).login : null;
     if (cap === "github_repo") {
       const r = await gh(`/repos/${repoFull}`);
       if (!r.ok) return { ok: false, account: login, detail: `GitHub ${r.status} reading repo.` };

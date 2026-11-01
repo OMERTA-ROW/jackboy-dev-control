@@ -7,8 +7,9 @@ export class GitHubError extends Error { constructor(public status: number, msg:
 export function githubConfigured() { return Boolean(process.env["GITHUB_TOKEN"]); }
 
 async function gh<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const token = process.env["GITHUB_TOKEN"];
-  if (!token) throw new GitHubError(401, "GitHub is not connected: add the GITHUB_TOKEN secret.");
+  const { githubTokenFor, repoFromPath } = await import("./github-app.server");
+  const token = (await githubTokenFor(repoFromPath(path)))?.token;
+  if (!token) throw new GitHubError(401, "GitHub is not connected: install the Jackboy GitHub App or add the GITHUB_TOKEN secret.");
   const res = await fetch(`${API}${path}`, {
     ...init,
     headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${token}`, "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "Jackboy", ...(init.body ? { "Content-Type": "application/json" } : {}), ...(init.headers ?? {}) },
