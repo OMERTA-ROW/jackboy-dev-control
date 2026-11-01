@@ -104,13 +104,12 @@ export async function openDraftPr(x: Repo, branch: string, title: string, body: 
 }
 
 export async function checks(x: Repo, ref: string) {
-  const [runs, wf] = await Promise.all([
-    gh<{ check_runs: { name: string; status: string; conclusion: string | null; html_url: string }[] }>(`${R(x)}/commits/${encodeURIComponent(ref)}/check-runs?per_page=50`),
-    gh<{ total_count: number }>(`${R(x)}/actions/workflows`).catch(() => ({ total_count: 0 })),
-  ]);
-  return {
-    workflowsConfigured: wf.total_count,
-    runs: runs.check_runs.map((c) => ({ name: c.name, status: c.status, conclusion: c.conclusion, url: c.html_url })),
-    note: wf.total_count ? undefined : "This repository has no GitHub Actions workflows, so no automated checks run. A checks workflow must be added (via an owner-approved PR) first.",
-  };
+  const wf = await gh<{ total_count: number }>(`${R(x)}/actions/workflows`).catch((e) => ({ total_count: -1, error: String(e) }));
+  if (wf.total_count === 0) return { workflowsConfigured: 0, runs: [], note: "This repository has no GitHub Actions workflows, so no automated checks run yet." };
+  try {
+    const d = await gh<{ workflow_runs: { name: string; status: string; conclusion: string | null; html_url: string; head_sha: string; head_branch: string }[] }>(`${R(x)}/actions/runs?branch=${encodeURIComponent(ref)}&per_page=10`);
+    return { workflowsConfigured: wf.total_count, runs: d.workflow_runs.map((r) => ({ name: r.name, status: r.status, conclusion: r.conclusion, commit: r.head_sha.slice(0, 7), url: r.html_url })) };
+  } catch (e) {
+    return { workflowsConfigured: wf.total_count, runs: [], error: `Cannot read check results: ${(e as Error).message.slice(0, 160)}. The GitHub token needs "Actions: read" permission.` };
+  }
 }
