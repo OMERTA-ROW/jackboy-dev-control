@@ -7,6 +7,7 @@ import { getProjectDetail } from "@/lib/project-hub.functions";
 import { projectStatus } from "@/lib/project-hub";
 import { fixScan, scanNow, setProjectAutopilot } from "@/lib/autopilot.functions";
 import { deleteProject, runNow, saveProject } from "@/lib/update-writer.functions";
+import { FindingsReview, Steps } from "@/components/FindingsReview";
 import { FREQUENCIES, STATUS_LABEL, type ProposalStatus } from "@/lib/update-writer";
 
 export const Route = createFileRoute("/_authenticated/project/$id")({
@@ -24,7 +25,6 @@ export const Route = createFileRoute("/_authenticated/project/$id")({
 });
 
 type D = Awaited<ReturnType<typeof getProjectDetail>>;
-const SEV: Record<string, string> = { high: "text-destructive", medium: "text-warning", low: "text-muted-foreground" };
 
 function Detail() {
   const { id } = Route.useParams();
