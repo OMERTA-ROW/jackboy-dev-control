@@ -91,7 +91,7 @@ export async function inspectProject(projectId: string, actor: string, source: "
 /** Source-code defect scan → AI fix → deterministic validation → branch commit → update package → (routine only) draft PR. */
 async function codeScan(projectId: string, repo: ws.Repo, files: string[], actor: string, source: "manual" | "scheduled") {
   const cs = await import("./code-scan");
-  const targets = files.filter(cs.scannable).slice(0, 150); // bounded: at most 150 file reads per run
+  const targets = files.filter(cs.scannable).slice(0, 300); // bounded: at most 300 file reads per run
   const defects: import("./code-scan").Defect[] = [];
   const contents = new Map<string, { content: string; sha: string }>();
   for (const path of targets) {
