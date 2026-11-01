@@ -53,6 +53,8 @@ import { Route as ApiPublicUpdatesCheckRouteImport } from './routes/api/public/u
 import { Route as ApiPublicUpdatesFlagsRouteImport } from './routes/api/public/updates/flags'
 import { Route as ApiPublicUpdatesHealthRouteImport } from './routes/api/public/updates/health'
 import { Route as ApiPublicUpdatesPublicKeyRouteImport } from './routes/api/public/updates/public-key'
+import { Route as ApiPublicUpdatesTargetCheckRouteImport } from './routes/api/public/updates/target-check'
+import { Route as ApiPublicUpdatesTargetReportRouteImport } from './routes/api/public/updates/target-report'
 
 const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
   id: '/_authenticated',
@@ -278,6 +280,18 @@ const ApiPublicUpdatesPublicKeyRoute =
     path: '/api/public/updates/public-key',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicUpdatesTargetCheckRoute =
+  ApiPublicUpdatesTargetCheckRouteImport.update({
+    id: '/api/public/updates/target-check',
+    path: '/api/public/updates/target-check',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicUpdatesTargetReportRoute =
+  ApiPublicUpdatesTargetReportRouteImport.update({
+    id: '/api/public/updates/target-report',
+    path: '/api/public/updates/target-report',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
@@ -323,6 +337,8 @@ export interface FileRoutesByFullPath {
   '/api/public/updates/flags': typeof ApiPublicUpdatesFlagsRoute
   '/api/public/updates/health': typeof ApiPublicUpdatesHealthRoute
   '/api/public/updates/public-key': typeof ApiPublicUpdatesPublicKeyRoute
+  '/api/public/updates/target-check': typeof ApiPublicUpdatesTargetCheckRoute
+  '/api/public/updates/target-report': typeof ApiPublicUpdatesTargetReportRoute
 }
 export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
@@ -368,6 +384,8 @@ export interface FileRoutesByTo {
   '/api/public/updates/flags': typeof ApiPublicUpdatesFlagsRoute
   '/api/public/updates/health': typeof ApiPublicUpdatesHealthRoute
   '/api/public/updates/public-key': typeof ApiPublicUpdatesPublicKeyRoute
+  '/api/public/updates/target-check': typeof ApiPublicUpdatesTargetCheckRoute
+  '/api/public/updates/target-report': typeof ApiPublicUpdatesTargetReportRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -415,6 +433,8 @@ export interface FileRoutesById {
   '/api/public/updates/flags': typeof ApiPublicUpdatesFlagsRoute
   '/api/public/updates/health': typeof ApiPublicUpdatesHealthRoute
   '/api/public/updates/public-key': typeof ApiPublicUpdatesPublicKeyRoute
+  '/api/public/updates/target-check': typeof ApiPublicUpdatesTargetCheckRoute
+  '/api/public/updates/target-report': typeof ApiPublicUpdatesTargetReportRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -462,6 +482,8 @@ export interface FileRouteTypes {
     | '/api/public/updates/flags'
     | '/api/public/updates/health'
     | '/api/public/updates/public-key'
+    | '/api/public/updates/target-check'
+    | '/api/public/updates/target-report'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/auth'
@@ -507,6 +529,8 @@ export interface FileRouteTypes {
     | '/api/public/updates/flags'
     | '/api/public/updates/health'
     | '/api/public/updates/public-key'
+    | '/api/public/updates/target-check'
+    | '/api/public/updates/target-report'
   id:
     | '__root__'
     | '/_authenticated'
@@ -553,6 +577,8 @@ export interface FileRouteTypes {
     | '/api/public/updates/flags'
     | '/api/public/updates/health'
     | '/api/public/updates/public-key'
+    | '/api/public/updates/target-check'
+    | '/api/public/updates/target-report'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -571,6 +597,8 @@ export interface RootRouteChildren {
   ApiPublicUpdatesFlagsRoute: typeof ApiPublicUpdatesFlagsRoute
   ApiPublicUpdatesHealthRoute: typeof ApiPublicUpdatesHealthRoute
   ApiPublicUpdatesPublicKeyRoute: typeof ApiPublicUpdatesPublicKeyRoute
+  ApiPublicUpdatesTargetCheckRoute: typeof ApiPublicUpdatesTargetCheckRoute
+  ApiPublicUpdatesTargetReportRoute: typeof ApiPublicUpdatesTargetReportRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -883,6 +911,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicUpdatesPublicKeyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/updates/target-check': {
+      id: '/api/public/updates/target-check'
+      path: '/api/public/updates/target-check'
+      fullPath: '/api/public/updates/target-check'
+      preLoaderRoute: typeof ApiPublicUpdatesTargetCheckRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/updates/target-report': {
+      id: '/api/public/updates/target-report'
+      path: '/api/public/updates/target-report'
+      fullPath: '/api/public/updates/target-report'
+      preLoaderRoute: typeof ApiPublicUpdatesTargetReportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -969,6 +1011,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicUpdatesFlagsRoute: ApiPublicUpdatesFlagsRoute,
   ApiPublicUpdatesHealthRoute: ApiPublicUpdatesHealthRoute,
   ApiPublicUpdatesPublicKeyRoute: ApiPublicUpdatesPublicKeyRoute,
+  ApiPublicUpdatesTargetCheckRoute: ApiPublicUpdatesTargetCheckRoute,
+  ApiPublicUpdatesTargetReportRoute: ApiPublicUpdatesTargetReportRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -134,6 +134,13 @@
       "when": 1793564177186,
       "tag": "0018_capability_grants",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1793564432385,
+      "tag": "0019_update_targets",
+      "breakpoints": true
     }
   ]
 }

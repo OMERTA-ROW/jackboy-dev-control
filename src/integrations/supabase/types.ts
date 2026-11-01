@@ -1586,6 +1586,54 @@ export type Database = {
           },
         ]
       }
+      update_installs: {
+        Row: {
+          created_at: string
+          detail: string
+          id: string
+          idempotency_key: string
+          phase: string
+          release_id: string | null
+          target_id: string
+          version: string
+        }
+        Insert: {
+          created_at?: string
+          detail?: string
+          id?: string
+          idempotency_key: string
+          phase: string
+          release_id?: string | null
+          target_id: string
+          version: string
+        }
+        Update: {
+          created_at?: string
+          detail?: string
+          id?: string
+          idempotency_key?: string
+          phase?: string
+          release_id?: string | null
+          target_id?: string
+          version?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "update_installs_release_id_fkey"
+            columns: ["release_id"]
+            isOneToOne: false
+            referencedRelation: "releases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "update_installs_target_id_fkey"
+            columns: ["target_id"]
+            isOneToOne: false
+            referencedRelation: "update_targets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       update_proposals: {
         Row: {
           autopilot_note: string | null
@@ -1671,6 +1719,62 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "update_proposals_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "owner_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      update_targets: {
+        Row: {
+          channel: string
+          created_at: string
+          created_by: string | null
+          current_version: string | null
+          id: string
+          last_release_id: string | null
+          last_seen_at: string | null
+          name: string
+          platform: string
+          project_id: string
+          revoked_at: string | null
+          state: string
+          token_hash: string
+        }
+        Insert: {
+          channel?: string
+          created_at?: string
+          created_by?: string | null
+          current_version?: string | null
+          id?: string
+          last_release_id?: string | null
+          last_seen_at?: string | null
+          name: string
+          platform?: string
+          project_id: string
+          revoked_at?: string | null
+          state?: string
+          token_hash: string
+        }
+        Update: {
+          channel?: string
+          created_at?: string
+          created_by?: string | null
+          current_version?: string | null
+          id?: string
+          last_release_id?: string | null
+          last_seen_at?: string | null
+          name?: string
+          platform?: string
+          project_id?: string
+          revoked_at?: string | null
+          state?: string
+          token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "update_targets_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "owner_projects"
