@@ -1179,6 +1179,42 @@ export type Database = {
         }
         Relationships: []
       }
+      owner_passkeys: {
+        Row: {
+          counter: number
+          created_at: string
+          credential_id: string
+          id: string
+          label: string
+          last_used_at: string | null
+          public_key: string
+          transports: string[]
+          user_id: string
+        }
+        Insert: {
+          counter?: number
+          created_at?: string
+          credential_id: string
+          id?: string
+          label?: string
+          last_used_at?: string | null
+          public_key: string
+          transports?: string[]
+          user_id: string
+        }
+        Update: {
+          counter?: number
+          created_at?: string
+          credential_id?: string
+          id?: string
+          label?: string
+          last_used_at?: string | null
+          public_key?: string
+          transports?: string[]
+          user_id?: string
+        }
+        Relationships: []
+      }
       owner_projects: {
         Row: {
           active: boolean
@@ -1586,6 +1622,39 @@ export type Database = {
           },
         ]
       }
+      step_up_grants: {
+        Row: {
+          action: string
+          created_at: string
+          credential_id: string
+          expires_at: string
+          id: string
+          target: string
+          used_at: string | null
+          user_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          credential_id: string
+          expires_at: string
+          id?: string
+          target: string
+          used_at?: string | null
+          user_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          credential_id?: string
+          expires_at?: string
+          id?: string
+          target?: string
+          used_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       update_installs: {
         Row: {
           created_at: string
@@ -1856,6 +1925,42 @@ export type Database = {
           created_at?: string
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      webauthn_challenges: {
+        Row: {
+          action: string | null
+          challenge: string
+          created_at: string
+          expires_at: string
+          id: string
+          purpose: string
+          target: string | null
+          used_at: string | null
+          user_id: string
+        }
+        Insert: {
+          action?: string | null
+          challenge: string
+          created_at?: string
+          expires_at: string
+          id?: string
+          purpose: string
+          target?: string | null
+          used_at?: string | null
+          user_id: string
+        }
+        Update: {
+          action?: string | null
+          challenge?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          purpose?: string
+          target?: string | null
+          used_at?: string | null
           user_id?: string
         }
         Relationships: []
