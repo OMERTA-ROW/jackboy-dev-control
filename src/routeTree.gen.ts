@@ -19,6 +19,8 @@ import { Route as AuthenticatedAccessRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedActivityRouteImport } from './routes/_authenticated/activity'
 import { Route as AuthenticatedAgentsRouteImport } from './routes/_authenticated/agents'
 import { Route as AuthenticatedAutomationRouteImport } from './routes/_authenticated/automation'
+import { Route as AuthenticatedAutopilotRouteImport } from './routes/_authenticated/autopilot'
+import { Route as AuthenticatedChatRouteImport } from './routes/_authenticated/chat'
 import { Route as AuthenticatedDiscoveryRouteImport } from './routes/_authenticated/discovery'
 import { Route as AuthenticatedFeedsRouteImport } from './routes/_authenticated/feeds'
 import { Route as AuthenticatedFleetRouteImport } from './routes/_authenticated/fleet'
@@ -90,6 +92,16 @@ const AuthenticatedAgentsRoute = AuthenticatedAgentsRouteImport.update({
 const AuthenticatedAutomationRoute = AuthenticatedAutomationRouteImport.update({
   id: '/automation',
   path: '/automation',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedAutopilotRoute = AuthenticatedAutopilotRouteImport.update({
+  id: '/autopilot',
+  path: '/autopilot',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedChatRoute = AuthenticatedChatRouteImport.update({
+  id: '/chat',
+  path: '/chat',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedDiscoveryRoute = AuthenticatedDiscoveryRouteImport.update({
@@ -222,6 +234,8 @@ export interface FileRoutesByFullPath {
   '/activity': typeof AuthenticatedActivityRoute
   '/agents': typeof AuthenticatedAgentsRoute
   '/automation': typeof AuthenticatedAutomationRoute
+  '/autopilot': typeof AuthenticatedAutopilotRoute
+  '/chat': typeof AuthenticatedChatRoute
   '/discovery': typeof AuthenticatedDiscoveryRoute
   '/feeds': typeof AuthenticatedFeedsRoute
   '/fleet': typeof AuthenticatedFleetRoute
@@ -255,6 +269,8 @@ export interface FileRoutesByTo {
   '/activity': typeof AuthenticatedActivityRoute
   '/agents': typeof AuthenticatedAgentsRoute
   '/automation': typeof AuthenticatedAutomationRoute
+  '/autopilot': typeof AuthenticatedAutopilotRoute
+  '/chat': typeof AuthenticatedChatRoute
   '/discovery': typeof AuthenticatedDiscoveryRoute
   '/feeds': typeof AuthenticatedFeedsRoute
   '/fleet': typeof AuthenticatedFleetRoute
@@ -291,6 +307,8 @@ export interface FileRoutesById {
   '/_authenticated/activity': typeof AuthenticatedActivityRoute
   '/_authenticated/agents': typeof AuthenticatedAgentsRoute
   '/_authenticated/automation': typeof AuthenticatedAutomationRoute
+  '/_authenticated/autopilot': typeof AuthenticatedAutopilotRoute
+  '/_authenticated/chat': typeof AuthenticatedChatRoute
   '/_authenticated/discovery': typeof AuthenticatedDiscoveryRoute
   '/_authenticated/feeds': typeof AuthenticatedFeedsRoute
   '/_authenticated/fleet': typeof AuthenticatedFleetRoute
@@ -328,6 +346,8 @@ export interface FileRouteTypes {
     | '/activity'
     | '/agents'
     | '/automation'
+    | '/autopilot'
+    | '/chat'
     | '/discovery'
     | '/feeds'
     | '/fleet'
@@ -361,6 +381,8 @@ export interface FileRouteTypes {
     | '/activity'
     | '/agents'
     | '/automation'
+    | '/autopilot'
+    | '/chat'
     | '/discovery'
     | '/feeds'
     | '/fleet'
@@ -396,6 +418,8 @@ export interface FileRouteTypes {
     | '/_authenticated/activity'
     | '/_authenticated/agents'
     | '/_authenticated/automation'
+    | '/_authenticated/autopilot'
+    | '/_authenticated/chat'
     | '/_authenticated/discovery'
     | '/_authenticated/feeds'
     | '/_authenticated/fleet'
@@ -509,6 +533,20 @@ declare module '@tanstack/react-router' {
       path: '/automation'
       fullPath: '/automation'
       preLoaderRoute: typeof AuthenticatedAutomationRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/autopilot': {
+      id: '/_authenticated/autopilot'
+      path: '/autopilot'
+      fullPath: '/autopilot'
+      preLoaderRoute: typeof AuthenticatedAutopilotRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/chat': {
+      id: '/_authenticated/chat'
+      path: '/chat'
+      fullPath: '/chat'
+      preLoaderRoute: typeof AuthenticatedChatRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/discovery': {
@@ -680,6 +718,8 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedActivityRoute: typeof AuthenticatedActivityRoute
   AuthenticatedAgentsRoute: typeof AuthenticatedAgentsRoute
   AuthenticatedAutomationRoute: typeof AuthenticatedAutomationRoute
+  AuthenticatedAutopilotRoute: typeof AuthenticatedAutopilotRoute
+  AuthenticatedChatRoute: typeof AuthenticatedChatRoute
   AuthenticatedDiscoveryRoute: typeof AuthenticatedDiscoveryRoute
   AuthenticatedFeedsRoute: typeof AuthenticatedFeedsRoute
   AuthenticatedFleetRoute: typeof AuthenticatedFleetRoute
@@ -702,6 +742,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedActivityRoute: AuthenticatedActivityRoute,
   AuthenticatedAgentsRoute: AuthenticatedAgentsRoute,
   AuthenticatedAutomationRoute: AuthenticatedAutomationRoute,
+  AuthenticatedAutopilotRoute: AuthenticatedAutopilotRoute,
+  AuthenticatedChatRoute: AuthenticatedChatRoute,
   AuthenticatedDiscoveryRoute: AuthenticatedDiscoveryRoute,
   AuthenticatedFeedsRoute: AuthenticatedFeedsRoute,
   AuthenticatedFleetRoute: AuthenticatedFleetRoute,
