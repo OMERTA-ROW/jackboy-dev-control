@@ -169,6 +169,13 @@
       "when": 1793568937021,
       "tag": "0023_foundry_packages",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1793569381167,
+      "tag": "0024_project_dev_activation",
+      "breakpoints": true
     }
   ]
 }
