@@ -29,6 +29,7 @@ import { Route as AuthenticatedResearchRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedWorkspaceRouteImport } from './routes/_authenticated/workspace'
 import { Route as AuthenticatedPassportAgentIdRouteImport } from './routes/_authenticated/passport.$agentId'
 import { Route as ApiPublicAgentIngestRouteImport } from './routes/api/public/agent-ingest'
+import { Route as ApiPublicJobsUpdateWriterRouteImport } from './routes/api/public/jobs/update-writer'
 
 const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
   id: '/_authenticated',
@@ -131,6 +132,12 @@ const ApiPublicAgentIngestRoute = ApiPublicAgentIngestRouteImport.update({
   path: '/api/public/agent-ingest',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicJobsUpdateWriterRoute =
+  ApiPublicJobsUpdateWriterRouteImport.update({
+    id: '/api/public/jobs/update-writer',
+    path: '/api/public/jobs/update-writer',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
@@ -152,6 +159,7 @@ export interface FileRoutesByFullPath {
   '/workspace': typeof AuthenticatedWorkspaceRoute
   '/passport/$agentId': typeof AuthenticatedPassportAgentIdRoute
   '/api/public/agent-ingest': typeof ApiPublicAgentIngestRoute
+  '/api/public/jobs/update-writer': typeof ApiPublicJobsUpdateWriterRoute
 }
 export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
@@ -173,6 +181,7 @@ export interface FileRoutesByTo {
   '/': typeof AuthenticatedIndexRoute
   '/passport/$agentId': typeof AuthenticatedPassportAgentIdRoute
   '/api/public/agent-ingest': typeof ApiPublicAgentIngestRoute
+  '/api/public/jobs/update-writer': typeof ApiPublicJobsUpdateWriterRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -196,6 +205,7 @@ export interface FileRoutesById {
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/passport/$agentId': typeof AuthenticatedPassportAgentIdRoute
   '/api/public/agent-ingest': typeof ApiPublicAgentIngestRoute
+  '/api/public/jobs/update-writer': typeof ApiPublicJobsUpdateWriterRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -219,6 +229,7 @@ export interface FileRouteTypes {
     | '/workspace'
     | '/passport/$agentId'
     | '/api/public/agent-ingest'
+    | '/api/public/jobs/update-writer'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/auth'
@@ -240,6 +251,7 @@ export interface FileRouteTypes {
     | '/'
     | '/passport/$agentId'
     | '/api/public/agent-ingest'
+    | '/api/public/jobs/update-writer'
   id:
     | '__root__'
     | '/_authenticated'
@@ -262,6 +274,7 @@ export interface FileRouteTypes {
     | '/_authenticated/'
     | '/_authenticated/passport/$agentId'
     | '/api/public/agent-ingest'
+    | '/api/public/jobs/update-writer'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -271,6 +284,7 @@ export interface RootRouteChildren {
   OnboardingRoute: typeof OnboardingRoute
   SetPasswordRoute: typeof SetPasswordRoute
   ApiPublicAgentIngestRoute: typeof ApiPublicAgentIngestRoute
+  ApiPublicJobsUpdateWriterRoute: typeof ApiPublicJobsUpdateWriterRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -415,6 +429,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicAgentIngestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/jobs/update-writer': {
+      id: '/api/public/jobs/update-writer'
+      path: '/api/public/jobs/update-writer'
+      fullPath: '/api/public/jobs/update-writer'
+      preLoaderRoute: typeof ApiPublicJobsUpdateWriterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -462,6 +483,7 @@ const rootRouteChildren: RootRouteChildren = {
   OnboardingRoute: OnboardingRoute,
   SetPasswordRoute: SetPasswordRoute,
   ApiPublicAgentIngestRoute: ApiPublicAgentIngestRoute,
+  ApiPublicJobsUpdateWriterRoute: ApiPublicJobsUpdateWriterRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
