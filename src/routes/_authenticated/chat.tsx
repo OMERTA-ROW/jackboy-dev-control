@@ -13,6 +13,7 @@ import { Tool, ToolContent, ToolHeader, ToolInput, ToolOutput } from "@/componen
 import { Shimmer } from "@/components/ai-elements/shimmer";
 import { getAutopilot } from "@/lib/autopilot.functions";
 import { useChatVoice, VoiceButtons } from "@/components/ChatVoice";
+import { orbMode, VoiceOrb } from "@/components/VoiceOrb";
 import { AgentStatusPanel } from "@/components/AgentStatusPanel";
 
 export const Route = createFileRoute("/_authenticated/chat")({
@@ -90,6 +91,11 @@ function ChatPage() {
           </Conversation>
           {voice.error && <p role="alert" className="border-t border-destructive/40 px-4 py-2 text-xs text-destructive">{voice.error}</p>}
           {error && <p role="alert" className="border-t border-destructive/40 px-4 py-2 text-xs text-destructive">{error}</p>}
+          {voice.support.listen !== "none" && (
+            <div className="flex justify-center border-t border-border py-3">
+              <VoiceOrb mode={orbMode(voice.state, busy, voice.speakReplies)} level={voice.level} onTap={() => void voice.toggleListen()} size={64} />
+            </div>
+          )}
           <div className="border-t border-border p-3">
             <PromptInput onSubmit={(msg) => send(msg.text)}>
               <PromptInputBody>
