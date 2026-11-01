@@ -61,7 +61,39 @@ export function analyzeHtml(html: string, url: string): Finding[] {
     if (!/<button\b|type=["']submit["']/i.test(body)) add("high", "forms", "A form has no submit button.");
   }
   if (html.length > 1_500_000) add("medium", "performance", `Large HTML (${Math.round(html.length / 1024)} KB).`);
+  f.push(...detectDemo(html, url));
   return f;
+}
+
+/** Visible-text signs of demo/placeholder UI. A match is a lead for review, never proof the control is fake. */
+export const DEMO_PATTERNS: { re: RegExp; label: string }[] = [
+  { re: /\bdemo mode\b/i, label: "“Demo mode” label" },
+  { re: /\b(demo|sample|mock|fake|dummy) data\b/i, label: "Demo/sample data label" },
+  { re: /\bsimulated\b/i, label: "“Simulated” label" },
+  { re: /\blorem ipsum\b/i, label: "Lorem ipsum placeholder text" },
+  { re: /\b(placeholder|mock(ed)?) (button|control|page|content|feature)\b/i, label: "Placeholder/mock control" },
+  { re: /\bcoming soon\b/i, label: "“Coming soon” placeholder" },
+  { re: /\b(try|view|launch|start) (the )?demo\b/i, label: "Demo-only button or link" },
+  { re: /\bnot (yet )?(connected|implemented)\b/i, label: "“Not connected/implemented” notice" },
+];
+export function visibleText(html: string): string {
+  return html.replace(/<(script|style|noscript|template)\b[\s\S]*?<\/\1>/gi, " ").replace(/<!--[\s\S]*?-->/g, " ").replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ");
+}
+export function detectDemo(html: string, url: string): Finding[] {
+  const text = visibleText(html);
+  const out: Finding[] = [];
+  for (const { re, label } of DEMO_PATTERNS) {
+    const m = text.match(re);
+    if (!m || m.index === undefined) continue;
+    const snippet = text.slice(Math.max(0, m.index - 40), m.index + m[0].length + 40).trim();
+    out.push({ severity: "medium", kind: "demo", url, message: `${label}: “…${snippet}…”` });
+  }
+  return out;
+}
+
+/** Stable identity for a finding so decisions (ignore etc.) survive re-scans. */
+export function findingKey(f: { kind: string; url: string; message: string }): string {
+  return `${f.kind}|${f.url}|${f.message.split(":")[0]}`.slice(0, 500);
 }
 
 export const severityRank: Record<Severity, number> = { high: 0, medium: 1, low: 2 };
