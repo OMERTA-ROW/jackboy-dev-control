@@ -33,7 +33,7 @@ export function nextPatch(latest: string | null): string {
 /** Extracts absolute http(s) link targets from HTML, resolved against the page URL. */
 export function extractLinks(html: string, base: string): string[] {
   const out = new Set<string>();
-  for (const m of html.matchAll(/<a\b[^>]*\bhref\s*=\s*["']([^"'#]+)["']/gi)) {
+  for (const m of html.matchAll(/<a\b[^>]*\bhref\s*=\s*["']([^"']+)["']/gi)) {
     try {
       const u = new URL(m[1]!.trim(), base);
       if (u.protocol === "http:" || u.protocol === "https:") { u.hash = ""; out.add(u.toString()); }
