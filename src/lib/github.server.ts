@@ -1,3 +1,4 @@
+import { assessRepoAccess, type RepoInfo } from "./repo-workspace";
 // Server-only GitHub REST client. Token comes from the GITHUB_TOKEN backend secret; never returned to clients.
 const API = "https://api.github.com";
 
@@ -22,10 +23,11 @@ async function gh<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 const r = (o: string, n: string) => `/repos/${encodeURIComponent(o)}/${encodeURIComponent(n)}`;
 
-/** Refuses any repo that is not private. Every write path calls this first. */
+/** Refuses any repo (public or private) the connected account cannot write. Every write path calls this first. */
 export async function requirePrivateRepo(owner: string, repo: string) {
-  const info = await gh<{ private: boolean; default_branch: string; permissions?: { push?: boolean } }>(r(owner, repo));
-  if (!info.private) throw new GitHubError(403, "Refused: this repository is public. Jackboy only writes to private repos.");
+  const info = await gh<RepoInfo & { default_branch: string }>(r(owner, repo));
+  const a = assessRepoAccess(info);
+  if (!a.canWrite) throw new GitHubError(403, `Refused: ${a.reason}`);
   return info;
 }
 

@@ -26,3 +26,17 @@ export function parseRepo(s: string | null | undefined): { owner: string; repo: 
 }
 
 export const MAX_WRITE_BYTES = 200_000;
+
+export type RepoInfo = { full_name?: string; private: boolean; visibility?: string; archived?: boolean; owner?: { login: string; type: string }; permissions?: { pull?: boolean; push?: boolean; admin?: boolean; maintain?: boolean } };
+export type RepoAccess = { canRead: boolean; canWrite: boolean; visibility: "public" | "private" | "internal"; org: string | null; reason: string | null };
+/** Access comes only from the authenticated account's granted permissions; visibility never grants or denies write. */
+export function assessRepoAccess(info: RepoInfo): RepoAccess {
+  const visibility = (info.visibility === "internal" ? "internal" : info.private ? "private" : "public") as RepoAccess["visibility"];
+  const org = info.owner?.type === "Organization" ? info.owner.login : null;
+  const canRead = Boolean(info.permissions?.pull);
+  const canWrite = canRead && Boolean(info.permissions?.push) && !info.archived;
+  const reason = !canRead ? "The connected GitHub account has no read access to this repository."
+    : info.archived ? "Repository is archived (read-only)."
+    : !canWrite ? "The connected GitHub account can read but has no write (push) permission. Ask the repo/org admin to grant Contents: write and Pull requests: write." : null;
+  return { canRead, canWrite, visibility, org, reason };
+}

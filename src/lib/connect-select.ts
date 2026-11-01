@@ -20,7 +20,7 @@ export function connectRows(projects: P[], inventory: I[]): ConnectRow[] {
   const rows: ConnectRow[] = projects.map((p) => {
     const err = p.connect_state === "error" || Boolean(p.connect_error);
     const status: ConnectRow["status"] = !p.github_repo ? "connected_no_repo" : err ? "repo_error" : "repo_linked";
-    const detail = status === "connected_no_repo" ? "Connected, but no private GitHub repo — coding is blocked."
+    const detail = status === "connected_no_repo" ? "Connected, but no GitHub repo linked — coding is blocked."
       : status === "repo_error" ? `Repo problem: ${p.connect_error ?? "check failed"}` : `Repo ${p.github_repo}`;
     return { key: `p:${p.id}`, name: p.name, projectId: p.id, lovableRef: null, repo: p.github_repo, status, detail, devEnabled: Boolean(p.dev_enabled) };
   });
@@ -43,7 +43,7 @@ export type LoopEligibility = { ok: true } | { ok: false; reason: string };
 /** Coding loop runs only on connected projects with a linked repo; everything else is skipped with the exact fix. */
 export function loopEligible(r: ConnectRow): LoopEligibility {
   if (r.status === "saved_only") return { ok: false, reason: "Connect it first" };
-  if (r.status === "connected_no_repo") return { ok: false, reason: "Link a private GitHub repo" };
+  if (r.status === "connected_no_repo") return { ok: false, reason: "Link a GitHub repo Jackboy can write" };
   if (r.status === "repo_error") return { ok: false, reason: r.detail };
   return { ok: true };
 }
@@ -56,7 +56,7 @@ export type AgentState = { label: "Online" | "Working" | "Blocked" | "Offline"; 
 const WORKING = new Set(["discovered", "analyzing", "patch_prepared", "testing", "approved", "executing", "verifying"]);
 /** Truthful status for one project's coding loop, from real Foundry task states only. */
 export function agentState(repoOk: boolean, tasks: { state: string; blocked_reason?: string | null; paused?: boolean }[]): AgentState {
-  if (!repoOk) return { label: "Offline", reason: "No usable private repo" };
+  if (!repoOk) return { label: "Offline", reason: "No writable repo linked" };
   const blocked = tasks.find((t) => t.state === "blocked" || t.paused);
   const working = tasks.find((t) => WORKING.has(t.state));
   if (working) return { label: "Working", reason: `Task ${working.state.replace("_", " ")}` };

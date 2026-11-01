@@ -82,12 +82,12 @@ export async function handleChat(request: Request) {
       },
     }),
     listRepos: tool({
-      description: "List GitHub repositories the token can reach; only private repos with push access are usable.",
+      description: "List GitHub repositories the token can reach; repos (public or private) are usable only where the account has push permission.",
       inputSchema: z.object({}),
       execute: async () => (await ws()).listAccessibleRepos(),
     }),
     linkRepo: tool({
-      description: "Link a private GitHub repo (owner/repo) to a project. Only when the owner explicitly asks.",
+      description: "Link a GitHub repo (owner/repo) to a project. Only when the owner explicitly asks.",
       inputSchema: z.object({ project: z.string(), repo: z.string() }),
       execute: async ({ project, repo }) => {
         const p = await findProject(project);

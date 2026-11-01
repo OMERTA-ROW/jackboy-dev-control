@@ -1,6 +1,6 @@
 // Server-only repository workspace: tree/search/read/write on jackboy/* branches, diff, draft PR, CI checks.
-// Uses the GITHUB_TOKEN secret; every call re-verifies the repo is private and the token can push.
-import { checkPath, checkWorkBranch, MAX_WRITE_BYTES, parseRepo } from "./repo-workspace";
+// Uses the GITHUB_TOKEN secret; every call re-verifies the account has read+push permission (public or private).
+import { assessRepoAccess, checkPath, checkWorkBranch, MAX_WRITE_BYTES, parseRepo, type RepoInfo } from "./repo-workspace";
 
 const API = "https://api.github.com";
 
@@ -25,16 +25,16 @@ export type Repo = { owner: string; repo: string; base: string; full: string };
 export async function openRepo(full: string): Promise<Repo> {
   const r = parseRepo(full);
   if (!r) throw new Error(`"${full}" is not an owner/repo name.`);
-  const info = await gh<{ private: boolean; default_branch: string; permissions?: { push?: boolean } }>(`/repos/${r.owner}/${r.repo}`);
-  if (!info.private) throw new Error(`Refused: ${full} is public. Jackboy only works in private repositories.`);
-  if (!info.permissions?.push) throw new Error(`The GitHub token cannot push to ${full}.`);
+  const info = await gh<RepoInfo & { default_branch: string }>(`/repos/${r.owner}/${r.repo}`);
+  const a = assessRepoAccess(info);
+  if (!a.canWrite) throw new Error(`Refused for ${full}: ${a.reason}`);
   return { ...r, base: info.default_branch, full };
 }
 const R = (x: Repo) => `/repos/${x.owner}/${x.repo}`;
 
 export async function listAccessibleRepos() {
-  const d = await gh<{ full_name: string; private: boolean; permissions?: { push?: boolean }; default_branch: string }[]>("/user/repos?per_page=100&sort=updated");
-  return d.map((r) => ({ repo: r.full_name, private: r.private, canPush: Boolean(r.permissions?.push), usable: r.private && Boolean(r.permissions?.push) }));
+  const d = await gh<(RepoInfo & { full_name: string })[]>("/user/repos?per_page=100&sort=updated&affiliation=owner,collaborator,organization_member");
+  return d.map((r) => { const a = assessRepoAccess(r); return { repo: r.full_name, private: r.private, visibility: a.visibility, org: a.org, canPush: a.canWrite, usable: a.canWrite }; });
 }
 
 export async function tree(x: Repo, ref: string, filter?: string | null) {

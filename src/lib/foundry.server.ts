@@ -53,7 +53,7 @@ const CHECKS: Check[] = [
 export async function inspectProject(projectId: string, actor: string, source: "manual" | "scheduled", limit = 1) {
   const { data: p } = await supabaseAdmin.from("owner_projects").select("id, name, github_repo").eq("id", projectId).single();
   if (!p) throw new Error("Project not found.");
-  if (!p.github_repo) { await event({ id: null as never, project_id: p.id }, "inspect_blocked", actor, null, null, "No private repo linked."); return { created: 0, blocked: "No private GitHub repo linked to this project." }; }
+  if (!p.github_repo) { await event({ id: null as never, project_id: p.id }, "inspect_blocked", actor, null, null, "No GitHub repo linked."); return { created: 0, blocked: "No GitHub repo linked to this project." }; }
   const { data: rg } = await supabaseAdmin.from("capability_grants").select("status, paused").eq("capability", "github_repo").eq("project_id", p.id).maybeSingle();
   if (rg && (rg.status === "revoked" || rg.paused)) { await event({ id: null as never, project_id: p.id }, "inspect_blocked", actor, null, null, "GitHub repo access revoked or paused in AutoConnect."); return { created: 0, blocked: "GitHub repo access is revoked or paused for this project." }; }
   let repo: ws.Repo;
@@ -258,7 +258,7 @@ async function runBudgeted(actor: string, why: string) {
   if (left === 0) return { skipped: "daily task quota reached" };
   const { data: projects } = await supabaseAdmin.from("owner_projects").select("id").eq("active", true).eq("dev_enabled", true).not("github_repo", "is", null).order("dev_priority").order("name"); // only owner-activated projects, OMNI → JAX → Nano → Jail Release → rest
   const p = nextProject(projects ?? [], s.last_project_id);
-  if (!p) return { skipped: "no authorized projects with a private repo" };
+  if (!p) return { skipped: "no authorized projects with a linked repo" };
   await supabaseAdmin.from("foundry_schedule").update({ last_project_id: p.id, runs_today: b.runsToday + 1, runs_day: today }).eq("id", 1);
   const r = await inspectProject(p.id, actor, "scheduled", 1);
   await event(null, "auto_inspect", actor, null, null, `${why}: inspected next project`, r as Record<string, unknown>);

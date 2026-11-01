@@ -1,3 +1,4 @@
+import { assessRepoAccess, type RepoInfo } from "./repo-workspace";
 // AutoConnect runtime (server-only). Verifies capabilities with real API calls and resumes waiting Foundry work.
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { afterApproval, afterVerify, canVerify, capabilityForTestGap, capById, type CapStatus } from "./autoconnect";
@@ -41,6 +42,7 @@ export async function approveCapability(cap: string, projectId: string, actor: s
 async function realCheck(cap: string, repoFull: string | null): Promise<{ ok: boolean; account: string | null; detail: string }> {
   const token = process.env["GITHUB_TOKEN"];
   const gh = async (path: string) => fetch(`https://api.github.com${path}`, { signal: AbortSignal.timeout(10_000), headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${token}`, "User-Agent": "Jackboy", "X-GitHub-Api-Version": "2022-11-28" } });
+  const post = (path: string, method: string, body?: unknown) => fetch(`https://api.github.com${path}`, { method, signal: AbortSignal.timeout(10_000), body: body ? JSON.stringify(body) : undefined, headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${token}`, "User-Agent": "Jackboy", "X-GitHub-Api-Version": "2022-11-28", "Content-Type": "application/json" } });
   if (cap === "model_provider") {
     const key = process.env["LOVABLE_API_KEY"];
     if (!key) return { ok: false, account: null, detail: "AI key missing on the server." };
@@ -54,8 +56,20 @@ async function realCheck(cap: string, repoFull: string | null): Promise<{ ok: bo
     if (cap === "github_repo") {
       const r = await gh(`/repos/${repoFull}`);
       if (!r.ok) return { ok: false, account: login, detail: `GitHub ${r.status} reading repo.` };
-      const j = (await r.json()) as { private: boolean; permissions?: { push?: boolean } };
-      return j.private && j.permissions?.push ? { ok: true, account: login, detail: "Private repo with push access." } : { ok: false, account: login, detail: j.private ? "Token cannot push." : "Repo is public; Jackboy refuses public repos." };
+      const j = (await r.json()) as RepoInfo & { default_branch: string };
+      const a = assessRepoAccess(j);
+      const who = `${a.visibility} repo${a.org ? ` in org ${a.org}` : ""}`;
+      if (!a.canWrite) return { ok: false, account: login, detail: `${who}: ${a.reason}` };
+      // Prove real branch write: create and delete a throwaway jackboy/ ref.
+      const head = await gh(`/repos/${repoFull}/git/ref/heads/${encodeURIComponent(j.default_branch)}`);
+      if (!head.ok) return { ok: false, account: login, detail: `${who}: read of ${j.default_branch} failed (${head.status}).` };
+      const sha = ((await head.json()) as { object: { sha: string } }).object.sha;
+      const ref = `jackboy/access-check-${Date.now()}`;
+      const mk = await post(`/repos/${repoFull}/git/refs`, "POST", { ref: `refs/heads/${ref}`, sha });
+      if (!mk.ok) return { ok: false, account: login, detail: `${who}: read OK, branch create refused (${mk.status}). Token needs Contents: write.` };
+      await post(`/repos/${repoFull}/git/refs/heads/${ref}`, "DELETE");
+      const pr = await gh(`/repos/${repoFull}/pulls?per_page=1`);
+      return pr.ok ? { ok: true, account: login, detail: `${who}: read, branch write and PR list verified.` } : { ok: false, account: login, detail: `${who}: branch write OK, pull requests unreadable (${pr.status}).` };
     }
     const r = await gh(`/repos/${repoFull}/actions/runs?per_page=1`);
     return r.ok ? { ok: true, account: login, detail: "Actions run list readable." } : { ok: false, account: login, detail: `GitHub ${r.status}: token lacks Actions: Read-only on ${repoFull}.` };
