@@ -91,7 +91,7 @@ export const changeRelease = createServerFn({ method: "POST" }).middleware([requ
     await owner(context);
     const { data: r, error } = await context.supabase.from("releases").select("id, status, version, channel").eq("id", data.id).single();
     if (error) throw new Error(error.message);
-    let patch: Record<string, any>;
+    let patch: { status?: string; rollout_percent?: number; last_step_at?: string; rollback_reason?: string };
     if (data.action === "percent") {
       if (!["rolling", "paused", "draft"].includes(r.status)) throw new Error("Percent can only change before completion.");
       patch = { rollout_percent: data.percent ?? 0, last_step_at: new Date().toISOString() };
