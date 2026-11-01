@@ -49,3 +49,7 @@ The spoken acronym “NLOA” is unconfirmed in Notion. Do not infer a technical
 - [ ] Live Lovable project list — blocked: needs Lovable account connection (Business/Enterprise plan)
 - [x] Scan & Review: demo/placeholder detection, per-finding Remove Demo/Repair/Ignore with undo, per-project automation settings, chat microphone + spoken replies (browser)
 - [ ] Demo removal / repair delivered as code — blocked: GITHUB_TOKEN secret and a project with a private repo
+- [x] Code Foundry slice: task state machine, immutable history, live connection states, approval → one action (draft PR), recurring rotating inspections with quota. First self-repair proven on Jackboy (draft PR #3, not merged).
+- [ ] Foundry on OMNI — blocked: OMNI repo is public; owner must make it private or provide a private repo
+- [ ] Foundry test evidence — blocked: GitHub token needs "Actions: read"; no sandbox runner connected
+- [ ] Notion/Google/MCP adapters — blocked: owner authorization of those connections

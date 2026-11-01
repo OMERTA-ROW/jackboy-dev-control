@@ -20,7 +20,7 @@ export const Route = createFileRoute("/_authenticated/foundry")({
 });
 
 type Data = Awaited<ReturnType<typeof getFoundry>>;
-const tone = (s: string) => s === "completed" || s === "connected" || s === "passed" ? "text-success" : s === "failed" || s === "error" || s === "rolled_back" ? "text-destructive" : s === "blocked" || s === "setup_required" ? "text-warning" : "text-primary";
+const tone = (s: string) => s === "completed" || s === "connected" || s === "passed" ? "text-success" : s === "failed" || s === "error" || s === "rolled_back" ? "text-destructive" : s === "blocked" || s === "setup_required" || s === "not_runnable" || s === "pending" ? "text-warning" : "text-primary";
 
 function Foundry() {
   const get = useServerFn(getFoundry), inspect = useServerFn(foundryInspect), act = useServerFn(foundryAct), sched = useServerFn(foundrySchedule);
