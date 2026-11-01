@@ -17,7 +17,7 @@ export const isConfirmation = (t: string) => /^\s*(yes[,.!]?\s+)?(i\s+)?(confirm
 
 export type Decision = { allow: true } | { allow: false; reason: string };
 
-/** Decide one tool call for the current conversation. Typed messages in an authenticated owner session pass; voice needs an explicit confirm reply and never unlocks sensitive tools. Step-up (passkey) is not available yet, so nothing claims it. */
+/** Decide one tool call for the current conversation. Typed messages in an authenticated owner session pass; voice needs an explicit confirm reply and never unlocks sensitive tools. Passkey step-up exists only for merge/revert (src/lib/step-up.ts); voice never satisfies it. */
 export function decideTool(tool: string, messages: Msg[]): Decision {
   const risk = TOOL_RISK[tool];
   if (!risk) return { allow: true };
