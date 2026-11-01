@@ -198,6 +198,77 @@ export function buildJackboyTools(userId: string) {
         return { project: p.name, autopilot: on };
       },
     }),
+    foundryQueue: tool({
+      description: "List Code Foundry tasks (the durable work queue) with state, branch, PR link, test evidence and blocked reason; optionally for one project.",
+      inputSchema: z.object({ project: z.string().nullable() }),
+      execute: async ({ project }) => {
+        let q = supabaseAdmin.from("foundry_tasks").select("id, title, state, risk, branch, pr_url, blocked_reason, test_evidence, updated_at, owner_projects(name)").order("updated_at", { ascending: false }).limit(15);
+        if (project) q = q.eq("project_id", (await findProject(project)).id);
+        return (await q).data ?? [];
+      },
+    }),
+    foundryInspect: tool({
+      description: "Run a real Code Foundry repository inspection for a project (same as the Inspect button): scans the repo, creates deduplicated tasks, prepares low-risk fixes on jackboy/* branches when allowed.",
+      inputSchema: z.object({ project: z.string() }),
+      execute: async ({ project }) => {
+        const p = await findProject(project);
+        await log(userId, "chat.command", { command: "foundry_inspect", project: p.name });
+        return { project: p.name, ...(await (await import("./foundry.server")).inspectProject(p.id, `owner:${userId}`, "manual", 1)) };
+      },
+    }),
+    foundryDecide: tool({
+      description: "Approve (opens a draft PR only; never merges) or reject one Code Foundry task by id (same as the Approve/Reject buttons). Critical tasks still require passkey on the page.",
+      inputSchema: z.object({ taskId: z.string().uuid(), decision: z.enum(["approve", "reject"]) }),
+      execute: async ({ taskId, decision }) => {
+        const { data: t } = await supabaseAdmin.from("foundry_tasks").select("risk").eq("id", taskId).single();
+        if (t?.risk === "critical" && decision === "approve") return { blocked: true, reason: "Critical task: approve it on the Code Foundry page with your passkey." };
+        await log(userId, "chat.command", { command: "foundry_decide", taskId, decision });
+        const r = await (await import("./foundry.server")).decide(taskId, `owner:${userId}`, decision);
+        const { data: after } = await supabaseAdmin.from("foundry_tasks").select("state, pr_url, blocked_reason").eq("id", taskId).single();
+        return { taskId, result: after ?? r };
+      },
+    }),
+    checkSite: tool({
+      description: "Re-check a project's site address now: DNS + HTTPS reachability (same as Check now). Public reachability is not code access.",
+      inputSchema: z.object({ project: z.string() }),
+      execute: async ({ project }) => {
+        const p = await findProject(project);
+        const { data } = await supabaseAdmin.from("owner_projects").select("id,site_url,site_fail_count,site_status").eq("id", p.id).single();
+        const r = await (await import("./site-monitor.server")).checkAndStore(supabaseAdmin, data as never, `owner:${userId}`);
+        return { project: p.name, status: r.status, evidence: r.evidence };
+      },
+    }),
+    connectionStatus: tool({
+      description: "Real code-connection state for a project: linked repo, verified GitHub permission grant, last error, background-work switch. Connecting or reconnecting needs the passkey button on the project page.",
+      inputSchema: z.object({ project: z.string() }),
+      execute: async ({ project }) => {
+        const p = await findProject(project);
+        const [{ data: proj }, { data: grants }] = await Promise.all([
+          supabaseAdmin.from("owner_projects").select("github_repo, dev_enabled, dev_priority, site_url, site_status").eq("id", p.id).single(),
+          supabaseAdmin.from("capability_grants").select("id, capability, status, last_error, last_verified_at").eq("project_id", p.id),
+        ]);
+        return { project: p.name, ...proj, grants: grants ?? [], connectVia: "Project page → Code connection → Connect (passkey)" };
+      },
+    }),
+    setDevEnabled: tool({
+      description: "Turn Jackboy's routine background work (scan → repair → test → draft PR) on or off for one project. Sensitive: typed request only.",
+      inputSchema: z.object({ project: z.string(), on: z.boolean() }),
+      execute: async ({ project, on }) => {
+        const p = await findProject(project);
+        await supabaseAdmin.from("owner_projects").update({ dev_enabled: on }).eq("id", p.id);
+        await log(userId, "projects.dev_enabled", { project: p.name, on, via: "chat" });
+        return { project: p.name, backgroundWork: on };
+      },
+    }),
   };
+  return tools;
+}
+
+/** GuardianPolicy wrapper shared by text and voice: blocked tools return a refusal instead of running. */
+export function guardTools(tools: Record<string, any>, userId: string, decide: (name: string) => { allow: boolean; reason?: string }, privileged: string[]) {
+  for (const name of privileged) {
+    const t = tools[name]; const d = decide(name);
+    if (t && !d.allow) { const reason = d.reason; t.execute = async () => { await log(userId, "chat.voice_blocked", { tool: name }, "denied"); return { blocked: true, reason }; }; }
+  }
   return tools;
 }
