@@ -1,11 +1,11 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
-import { Check, Search } from "lucide-react";
 import { PageHeader } from "@/components/AppShell";
 import { btn, field, primaryBtn } from "@/components/ProjectBits";
 import { getProjectHub } from "@/lib/project-hub.functions";
-import { availableInventory, lovableUrl, searchByName } from "@/lib/project-hub";
+import { lovableUrl } from "@/lib/project-hub";
+import { MultiSelect } from "@/components/ConnectMultiSelect";
 import { saveProject, testRepo } from "@/lib/update-writer.functions";
 import { connectAndScan } from "@/lib/autopilot.functions";
 
@@ -30,19 +30,11 @@ function Connect() {
   const load = useServerFn(getProjectHub), save = useServerFn(saveProject), test = useServerFn(testRepo), onboard = useServerFn(connectAndScan);
   const navigate = useNavigate();
   const [hub, setHub] = useState<Hub | null>(null);
-  const [q, setQ] = useState("");
-  const [picked, setPicked] = useState<string | null>(null);
   const [form, setForm] = useState({ name: "", lovable_url: "", site_url: "", github_repo: "", github_branch: "main" });
   const [err, setErr] = useState("");
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
   useEffect(() => { load().then(setHub).catch((e) => setErr((e as Error).message)); }, [load]);
-  const choices = hub ? searchByName(availableInventory(hub.inventory, hub.projects), q) : [];
-
-  const pick = (id: string, name: string, ref: string) => {
-    setPicked(id);
-    setForm((f) => ({ ...f, name, lovable_url: lovableUrl(ref) ?? "" }));
-  };
   const submit = async (e: React.FormEvent) => {
     e.preventDefault(); setErr(""); setBusy(true);
     try {
@@ -55,48 +47,11 @@ function Connect() {
 
   return (
     <>
-      <PageHeader title="Connect Project" subtitle="1. Choose a project  ·  2. Add its site address  ·  3. Optionally add its private GitHub repo." />
+      <PageHeader title="Connect Project" subtitle="1. Select projects  ·  2. Add a site address  ·  3. Link a private GitHub repo so Jackboy can code." />
       {err && <p role="alert" className="mb-4 rounded-md border border-destructive/40 p-3 text-sm text-destructive">{err}</p>}
       {msg && <p aria-live="polite" className="mb-4 rounded-md border border-border p-3 text-sm">{msg}</p>}
 
-      <section aria-labelledby="step1" className="panel mb-4 p-5">
-        <h2 id="step1" className="font-semibold">1. Choose a project</h2>
-        <p className="mt-1 text-xs text-muted-foreground">
-          These are the Lovable projects you saved to Jackboy earlier (a one-time list, not live). Pick one, or skip and type a name below.
-        </p>
-        {!hub ? <p className="mt-3 text-sm text-muted-foreground">Loading…</p> : (
-          <>
-            <label className="relative mt-3 block">
-              <span className="sr-only">Search saved projects</span>
-              <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" aria-hidden />
-              <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search saved projects…" className={`${field} pl-9`} />
-            </label>
-            {choices.length === 0 ? <p className="mt-3 text-sm text-muted-foreground">No saved projects left to pick.</p> : (
-              <ul role="listbox" aria-label="Saved Lovable projects" className="mt-3 grid max-h-72 gap-2 overflow-y-auto sm:grid-cols-2">
-                {choices.map((c) => (
-                  <li key={c.id}>
-                    <button type="button" role="option" aria-selected={picked === c.id} onClick={() => pick(c.id, c.name, c.lovable_project_ref!)}
-                      className={`flex w-full items-center justify-between gap-2 rounded-md border p-3 text-left text-sm ${picked === c.id ? "border-electric bg-accent/40" : "border-border hover:border-electric"}`}>
-                      <span className="truncate">{c.name}</span>
-                      {picked === c.id && <Check className="h-4 w-4 text-electric" aria-hidden />}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <div className="mt-4 rounded-md border border-border p-3 text-xs text-muted-foreground">
-              {hub.lovableApiLinked ? (
-                <>A Lovable account connection is linked, but live listing from it isn't built or tested yet, so only the saved list is shown.</>
-              ) : (
-                <>
-                  <strong className="text-foreground">Live list of all your Lovable projects: not connected.</strong> It needs a Lovable account connection, and Lovable only allows it on Business or Enterprise plans.{" "}
-                  <a href={LOVABLE_CONNECT} target="_blank" rel="noreferrer" className="text-electric underline">Set up Lovable connection</a>
-                </>
-              )}
-            </div>
-          </>
-        )}
-      </section>
+      <MultiSelect hub={hub} onPick={(n, ref) => setForm((f) => ({ ...f, name: n, lovable_url: ref ? lovableUrl(ref) ?? "" : "" }))} reload={() => load().then(setHub)} />
 
       <form onSubmit={submit} className="panel grid gap-4 p-5">
         <div>
