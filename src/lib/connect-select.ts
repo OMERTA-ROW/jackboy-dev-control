@@ -52,7 +52,7 @@ export function newProjectInput(r: ConnectRow) {
 }
 
 export type AgentState = { label: "Online" | "Working" | "Blocked" | "Offline"; reason: string };
-const WORKING = new Set(["discovered", "analyzing", "patch_prepared", "testing", "delivering"]);
+const WORKING = new Set(["discovered", "analyzing", "patch_prepared", "testing", "approved", "executing", "verifying"]);
 /** Truthful status for one project's coding loop, from real Foundry task states only. */
 export function agentState(repoOk: boolean, tasks: { state: string; blocked_reason?: string | null; paused?: boolean }[]): AgentState {
   if (!repoOk) return { label: "Offline", reason: "No usable private repo" };
