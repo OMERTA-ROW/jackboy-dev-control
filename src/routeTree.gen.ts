@@ -27,7 +27,9 @@ import { Route as AuthenticatedJaxRouteImport } from './routes/_authenticated/ja
 import { Route as AuthenticatedOmniRouteImport } from './routes/_authenticated/omni'
 import { Route as AuthenticatedProjectsRouteImport } from './routes/_authenticated/projects'
 import { Route as AuthenticatedRazulRouteImport } from './routes/_authenticated/razul'
+import { Route as AuthenticatedReleasesRouteImport } from './routes/_authenticated/releases'
 import { Route as AuthenticatedResearchRouteImport } from './routes/_authenticated/research'
+import { Route as AuthenticatedUpdateDocsRouteImport } from './routes/_authenticated/update-docs'
 import { Route as AuthenticatedUpdatesRouteImport } from './routes/_authenticated/updates'
 import { Route as AuthenticatedWorkspaceRouteImport } from './routes/_authenticated/workspace'
 import { Route as AuthenticatedPassportAgentIdRouteImport } from './routes/_authenticated/passport.$agentId'
@@ -130,9 +132,19 @@ const AuthenticatedRazulRoute = AuthenticatedRazulRouteImport.update({
   path: '/razul',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedReleasesRoute = AuthenticatedReleasesRouteImport.update({
+  id: '/releases',
+  path: '/releases',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedResearchRoute = AuthenticatedResearchRouteImport.update({
   id: '/research',
   path: '/research',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedUpdateDocsRoute = AuthenticatedUpdateDocsRouteImport.update({
+  id: '/update-docs',
+  path: '/update-docs',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedUpdatesRoute = AuthenticatedUpdatesRouteImport.update({
@@ -212,7 +224,9 @@ export interface FileRoutesByFullPath {
   '/omni': typeof AuthenticatedOmniRoute
   '/projects': typeof AuthenticatedProjectsRoute
   '/razul': typeof AuthenticatedRazulRoute
+  '/releases': typeof AuthenticatedReleasesRoute
   '/research': typeof AuthenticatedResearchRoute
+  '/update-docs': typeof AuthenticatedUpdateDocsRoute
   '/updates': typeof AuthenticatedUpdatesRoute
   '/workspace': typeof AuthenticatedWorkspaceRoute
   '/passport/$agentId': typeof AuthenticatedPassportAgentIdRoute
@@ -242,7 +256,9 @@ export interface FileRoutesByTo {
   '/omni': typeof AuthenticatedOmniRoute
   '/projects': typeof AuthenticatedProjectsRoute
   '/razul': typeof AuthenticatedRazulRoute
+  '/releases': typeof AuthenticatedReleasesRoute
   '/research': typeof AuthenticatedResearchRoute
+  '/update-docs': typeof AuthenticatedUpdateDocsRoute
   '/updates': typeof AuthenticatedUpdatesRoute
   '/workspace': typeof AuthenticatedWorkspaceRoute
   '/': typeof AuthenticatedIndexRoute
@@ -275,7 +291,9 @@ export interface FileRoutesById {
   '/_authenticated/omni': typeof AuthenticatedOmniRoute
   '/_authenticated/projects': typeof AuthenticatedProjectsRoute
   '/_authenticated/razul': typeof AuthenticatedRazulRoute
+  '/_authenticated/releases': typeof AuthenticatedReleasesRoute
   '/_authenticated/research': typeof AuthenticatedResearchRoute
+  '/_authenticated/update-docs': typeof AuthenticatedUpdateDocsRoute
   '/_authenticated/updates': typeof AuthenticatedUpdatesRoute
   '/_authenticated/workspace': typeof AuthenticatedWorkspaceRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
@@ -309,7 +327,9 @@ export interface FileRouteTypes {
     | '/omni'
     | '/projects'
     | '/razul'
+    | '/releases'
     | '/research'
+    | '/update-docs'
     | '/updates'
     | '/workspace'
     | '/passport/$agentId'
@@ -339,7 +359,9 @@ export interface FileRouteTypes {
     | '/omni'
     | '/projects'
     | '/razul'
+    | '/releases'
     | '/research'
+    | '/update-docs'
     | '/updates'
     | '/workspace'
     | '/'
@@ -371,7 +393,9 @@ export interface FileRouteTypes {
     | '/_authenticated/omni'
     | '/_authenticated/projects'
     | '/_authenticated/razul'
+    | '/_authenticated/releases'
     | '/_authenticated/research'
+    | '/_authenticated/update-docs'
     | '/_authenticated/updates'
     | '/_authenticated/workspace'
     | '/_authenticated/'
@@ -530,11 +554,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRazulRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/releases': {
+      id: '/_authenticated/releases'
+      path: '/releases'
+      fullPath: '/releases'
+      preLoaderRoute: typeof AuthenticatedReleasesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/research': {
       id: '/_authenticated/research'
       path: '/research'
       fullPath: '/research'
       preLoaderRoute: typeof AuthenticatedResearchRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/update-docs': {
+      id: '/_authenticated/update-docs'
+      path: '/update-docs'
+      fullPath: '/update-docs'
+      preLoaderRoute: typeof AuthenticatedUpdateDocsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/updates': {
@@ -630,7 +668,9 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedOmniRoute: typeof AuthenticatedOmniRoute
   AuthenticatedProjectsRoute: typeof AuthenticatedProjectsRoute
   AuthenticatedRazulRoute: typeof AuthenticatedRazulRoute
+  AuthenticatedReleasesRoute: typeof AuthenticatedReleasesRoute
   AuthenticatedResearchRoute: typeof AuthenticatedResearchRoute
+  AuthenticatedUpdateDocsRoute: typeof AuthenticatedUpdateDocsRoute
   AuthenticatedUpdatesRoute: typeof AuthenticatedUpdatesRoute
   AuthenticatedWorkspaceRoute: typeof AuthenticatedWorkspaceRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
@@ -650,7 +690,9 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedOmniRoute: AuthenticatedOmniRoute,
   AuthenticatedProjectsRoute: AuthenticatedProjectsRoute,
   AuthenticatedRazulRoute: AuthenticatedRazulRoute,
+  AuthenticatedReleasesRoute: AuthenticatedReleasesRoute,
   AuthenticatedResearchRoute: AuthenticatedResearchRoute,
+  AuthenticatedUpdateDocsRoute: AuthenticatedUpdateDocsRoute,
   AuthenticatedUpdatesRoute: AuthenticatedUpdatesRoute,
   AuthenticatedWorkspaceRoute: AuthenticatedWorkspaceRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
