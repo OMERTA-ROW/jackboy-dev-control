@@ -1,4 +1,4 @@
-type AuthError = { message: string; code?: string };
+type AuthError = { message: string; code?: string | undefined };
 export const OWNER_SETUP_REQUIRED = "Owner identity is not configured. In Project Settings → Secrets, add OWNER_EMAIL with your own email address, then return to First-time owner setup. This is not an email-provider credential.";
 
 export function authErrorMessage(error: AuthError): string {
@@ -32,7 +32,7 @@ export async function sendVerificationEmail(auth: MailAuth, email: string, redir
 
 type SignInAuth = {
   signInWithPassword: (credentials: { email: string; password: string }) => Promise<{ error: AuthError | null }>;
-  getUser: () => Promise<{ data: { user: { email_confirmed_at?: string | null } | null }; error: AuthError | null }>;
+  getUser: () => Promise<{ data: { user: { email_confirmed_at?: string | null | undefined } | null }; error: AuthError | null }>;
   signOut: () => Promise<unknown>;
 };
 
