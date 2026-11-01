@@ -59,11 +59,11 @@ function Foundry() {
         {files.length > 0 && <details className="mt-2"><summary className="cursor-pointer text-xs">Diff ({files.length} file)</summary>{files.map((f) => <pre key={f.path} className="mt-1 max-h-60 overflow-auto rounded bg-muted p-2 text-xs">{f.path} +{f.additions ?? 0} −{f.deletions ?? 0}{"\n"}{f.patch}</pre>)}</details>}
         <div className="mt-3 flex flex-wrap gap-2">
           {t.state === "awaiting_approval" && <>
-            <button className="btn-primary" disabled={!!busy} onClick={() => run(t.id, () => act({ data: { id: t.id, op: "approve", action: "open_draft_pr" } }))}>Approve: open draft PR</button>
-            <button className="btn-ghost" disabled={!!busy} onClick={() => run(t.id, () => act({ data: { id: t.id, op: "reject" } }))}>Reject</button>
+            <button className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50" disabled={!!busy} onClick={() => run(t.id, () => act({ data: { id: t.id, op: "approve", action: "open_draft_pr" } }))}>Approve: open draft PR</button>
+            <button className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50" disabled={!!busy} onClick={() => run(t.id, () => act({ data: { id: t.id, op: "reject" } }))}>Reject</button>
           </>}
-          {t.state === "blocked" && t.approved_action && <button className="btn-ghost" disabled={!!busy} onClick={() => run(t.id, () => act({ data: { id: t.id, op: "retry" } }))}>Retry</button>}
-          {!TERMINAL.includes(t.state as State) && <button className="btn-ghost" disabled={!!busy} onClick={() => run(t.id, () => act({ data: { id: t.id, op: t.paused ? "resume" : "pause" } }))}>{t.paused ? "Resume" : "Pause"}</button>}
+          {t.state === "blocked" && t.approved_action && <button className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50" disabled={!!busy} onClick={() => run(t.id, () => act({ data: { id: t.id, op: "retry" } }))}>Retry</button>}
+          {!TERMINAL.includes(t.state as State) && <button className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50" disabled={!!busy} onClick={() => run(t.id, () => act({ data: { id: t.id, op: t.paused ? "resume" : "pause" } }))}>{t.paused ? "Resume" : "Pause"}</button>}
         </div>
       </li>
     );
@@ -80,7 +80,7 @@ function Foundry() {
       <section className="panel mb-4 p-4">
         <h2 className="text-sm font-semibold uppercase tracking-wider text-silver">Inspect a project</h2>
         {repoProjects.length === 0 ? <p className="mt-2 text-sm text-muted-foreground">No project has a private repo linked yet.</p> :
-          <div className="mt-2 flex flex-wrap gap-2">{repoProjects.map((p) => <button key={p.id} className="btn-ghost" disabled={!!busy} onClick={() => run(p.id, () => inspect({ data: { projectId: p.id } }))}>{busy === p.id ? "Inspecting…" : `Inspect ${p.name}`}</button>)}</div>}
+          <div className="mt-2 flex flex-wrap gap-2">{repoProjects.map((p) => <button key={p.id} className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50" disabled={!!busy} onClick={() => run(p.id, () => inspect({ data: { projectId: p.id } }))}>{busy === p.id ? "Inspecting…" : `Inspect ${p.name}`}</button>)}</div>}
         {d.schedule && <Schedule s={d.schedule} onSave={(v) => run("sched", () => sched({ data: v }))} />}
       </section>
       <h2 className="mb-2 text-lg font-semibold">Awaiting your approval ({pending.length})</h2>
@@ -103,7 +103,7 @@ function Schedule({ s, onSave }: { s: NonNullable<Data["schedule"]>; onSave: (v:
       <label className="flex items-center gap-2"><input type="checkbox" checked={v.enabled} onChange={(e) => setV({ ...v, enabled: e.target.checked })} />Recurring inspections</label>
       <label>Every (hours) <input type="number" min={1} max={720} className="w-20 rounded border border-border bg-background p-1" value={v.interval_hours} onChange={(e) => setV({ ...v, interval_hours: Number(e.target.value) })} /></label>
       <label>Max new tasks/day <input type="number" min={0} max={20} className="w-16 rounded border border-border bg-background p-1" value={v.daily_task_quota} onChange={(e) => setV({ ...v, daily_task_quota: Number(e.target.value) })} /></label>
-      <button className="btn-ghost" onClick={() => onSave(v)}>Save schedule</button>
+      <button className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50" onClick={() => onSave(v)}>Save schedule</button>
       <span className="text-xs text-muted-foreground">One project per run, rotating. Scheduled tasks always wait for approval.</span>
     </div>
   );
