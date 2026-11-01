@@ -2,6 +2,7 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { assertTransition, backoffMs, budget, canApprove, canExecute, classifyRisk, idempotencyKey, IN_FLIGHT, isTransient, nextProject, quotaLeft, type ApprovedAction, type State } from "./foundry";
 import * as ws from "./repo-workspace.server";
+import { capabilityForTestGap } from "./autoconnect";
 
 type Task = {
   id: string; project_id: string; state: State; title: string; repo: string | null; branch: string | null;
@@ -93,7 +94,7 @@ async function prepare(task: Task, c: Check, repo: ws.Repo, actor: string) {
   else if (!ck.runs.length) evidence = { status: "pending", reason: "No CI runs reported yet for this branch.", workflows: ck.workflowsConfigured };
   else evidence = { status: ck.runs.every((r) => r.conclusion === "success") ? "passed" : ck.runs.some((r) => r.conclusion === "failure") ? "failed" : "pending", runs: ck.runs };
   const d = await ws.diff(repo, branch);
-  await move(task, "awaiting_approval", actor, `Tests: ${String(evidence["status"])}. Waiting for owner.`, { test_evidence: evidence, files: d.files.map((f) => ({ path: f.file, status: f.status, additions: f.additions, deletions: f.deletions, patch: f.patch })) });
+  await move(task, "awaiting_approval", actor, `Tests: ${String(evidence["status"])}. Waiting for owner.`, { test_evidence: evidence, needs_capability: evidence["status"] === "not_runnable" ? capabilityForTestGap(String(evidence["reason"] ?? "")) : null, files: d.files.map((f) => ({ path: f.file, status: f.status, additions: f.additions, deletions: f.deletions, patch: f.patch })) });
 }
 
 export async function decide(id: string, actor: string, decision: "approve" | "reject", action: ApprovedAction = "open_draft_pr") {
