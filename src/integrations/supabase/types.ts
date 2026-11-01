@@ -14,6 +14,69 @@ export type Database = {
   }
   public: {
     Tables: {
+      action_requests: {
+        Row: {
+          action: string
+          created_at: string
+          decided_at: string | null
+          decided_by: string | null
+          diff_summary: string
+          expires_at: string
+          id: string
+          mode: string | null
+          nonce_hash: string
+          outcome: string | null
+          permissions: string[]
+          project_id: string | null
+          requested_by: string
+          resources: Json
+          risk: string
+          status: string
+          task_id: string | null
+          tier: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          diff_summary?: string
+          expires_at: string
+          id?: string
+          mode?: string | null
+          nonce_hash: string
+          outcome?: string | null
+          permissions?: string[]
+          project_id?: string | null
+          requested_by: string
+          resources?: Json
+          risk?: string
+          status?: string
+          task_id?: string | null
+          tier: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          diff_summary?: string
+          expires_at?: string
+          id?: string
+          mode?: string | null
+          nonce_hash?: string
+          outcome?: string | null
+          permissions?: string[]
+          project_id?: string | null
+          requested_by?: string
+          resources?: Json
+          risk?: string
+          status?: string
+          task_id?: string | null
+          tier?: string
+        }
+        Relationships: []
+      }
       agent_memory: {
         Row: {
           branch: string | null
