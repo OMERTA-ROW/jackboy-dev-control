@@ -3,7 +3,7 @@
 - [x] Technology Discovery UI (opt-in, source registry, ranking, filters, saved ideas, alerts, prototype briefs) — demo data
 - [x] Secure accounts: owner/admin/member roles, invitations (create/revoke/accept), protected pages, sign out / all devices, server audit log
 - [ ] Owner bootstrap — blocked: owner must add OWNER_EMAIL in Project Settings → Secrets, request owner verification, confirm email, set password and explicitly claim owner
-- [ ] Diagnose owner email/sign-in blocker, report configuration separately from delivery, and test failure paths
+- [x] Diagnose owner email/sign-in blocker: OWNER_EMAIL missing; sender failures now propagate, verified sign-in enforced; 12 focused tests and desktop/mobile setup/private-route checks passed
 - [x] Phase 1 server-side research connector + connection test panel
 - [ ] Live search results — blocked: owner must add BRAVE_SEARCH_API_KEY secret
 - [ ] Jackboy account acceptance: automated permission tests and signed-in invitation/revocation checks; remain unpublished with no sensitive integrations
