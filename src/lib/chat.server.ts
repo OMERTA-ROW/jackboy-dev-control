@@ -4,7 +4,7 @@ import { convertToModelMessages, stepCountIs, streamText, tool, type UIMessage }
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { PRIVILEGED_TOOLS, privilegedAllowed } from "./voice-guard";
+import { PRIVILEGED_TOOLS, decideTool } from "./voice-guard";
 import { createLovableAiGatewayRunIdFetch, getLovableAiGatewayRunId, withLovableAiGatewayRunIdHeader } from "./ai/run-id";
 
 const MODEL = "openai/gpt-6-astra";
@@ -226,12 +226,11 @@ export async function handleChat(request: Request) {
     }),
   };
 
-  // Spoken commands never trigger privileged tools on their own: Jackboy must restate and get an explicit "confirm".
-  if (!privilegedAllowed(body.messages as never)) {
-    for (const name of PRIVILEGED_TOOLS) {
-      const t = (tools as Record<string, any>)[name];
-      if (t) t.execute = async () => ({ blocked: true, reason: "This request came from voice. Restate exactly what you will do and ask the owner to reply \"confirm\" (typed or spoken) before running it." });
-    }
+  // GuardianPolicy: voice is intent, not identity. Each privileged tool is re-decided per call.
+  for (const name of PRIVILEGED_TOOLS) {
+    const t = (tools as Record<string, any>)[name];
+    const d = decideTool(name, body.messages as never);
+    if (t && !d.allow) { const reason = d.reason; t.execute = async () => { await log(userId, "chat.voice_blocked", { tool: name }, "denied"); return { blocked: true, reason }; }; }
   }
   const runIdFetch = createLovableAiGatewayRunIdFetch(getLovableAiGatewayRunId(request));
   const provider = createOpenAI({
@@ -246,7 +245,7 @@ export async function handleChat(request: Request) {
       "You are a working coding agent ONLY through your repo tools: to change code, use repoTree/repoSearch/readFile, then writeFile on a branch named jackboy/<short-topic>, then showDiff, then openDraftPR. Never paste code into chat as a substitute for writing it, and never claim a change exists unless writeFile returned a commit.",
       "You cannot run code, tests, builds, a terminal or a browser yourself. For checks, use checkStatus (GitHub Actions); if no workflow exists say so plainly. Never say you tested something unless a tool result shows it.",
       "Workflow for any fix: recallMemory -> inspect -> writeFile -> showDiff -> checkStatus -> openDraftPR -> saveMemory (outcome + next_action). Pick low-risk changes; never touch auth, payments, secrets, migrations or permissions without the owner asking.", "Before saying you can build/edit/test anything, call capabilities. Never merge, deploy or write to the base branch; the owner approves pull requests.",
-      "Messages from the microphone may be misheard: for any change (scan, fix, write, PR, autopilot, repo link) restate the exact action and wait for the owner to reply \"confirm\". ",
+      "Messages from the microphone may be misheard: for any change (scan, fix, write, PR, autopilot, repo link) restate the exact action and wait for the owner to reply \"confirm\" or \"approve\". Spoken approval never covers Autopilot or repo-link changes — ask the owner to type those. Never repeat passwords, tokens or keys aloud or in text. ",
       "Site scans read static HTML only and do not run JavaScript; say so when relevant. Report failures exactly.",
     ].join(" "),
     messages: await convertToModelMessages(body.messages),

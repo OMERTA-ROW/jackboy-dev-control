@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Mic, MicOff, Volume2, VolumeX, Square, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { redactTranscript } from "@/lib/voice-guard";
 
 /**
  * Voice for Jackboy chat. Listening only starts when the owner taps the mic (never in the background).
@@ -53,7 +54,7 @@ export function useChatVoice(onTranscript: (text: string) => void) {
   const speak = useCallback((text: string) => {
     if (!speakReplies || !("speechSynthesis" in window) || !text.trim()) return;
     window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text.replace(/[`*#_>|]/g, "").slice(0, 1500));
+    const u = new SpeechSynthesisUtterance(redactTranscript(text).replace(/[`*#_>|]/g, "").slice(0, 1500));
     u.onend = () => setState("idle"); u.onerror = () => setState("idle");
     setState("speaking");
     window.speechSynthesis.speak(u);
@@ -69,7 +70,7 @@ export function useChatVoice(onTranscript: (text: string) => void) {
       const j = (await res.json().catch(() => ({}))) as { text?: string; error?: string };
       if (!res.ok) return fail(`${j.error ?? "Transcription failed."} You can type instead.`);
       if (!j.text) return fail("I didn't catch any words. Try again or type instead.");
-      onTranscript(j.text); setState("idle"); setError("");
+      onTranscript(redactTranscript(j.text)); setState("idle"); setError("");
     } catch { fail("Couldn't reach the transcription service. Type instead."); }
   }
 
@@ -86,7 +87,7 @@ export function useChatVoice(onTranscript: (text: string) => void) {
       const w = window as any; const R = w.SpeechRecognition || w.webkitSpeechRecognition;
       const r: Rec = new R();
       r.lang = navigator.language || "en-US"; r.interimResults = false; r.continuous = false;
-      r.onresult = (e) => { const t = Array.from(e.results as ArrayLike<any>).map((x) => x[0]?.transcript ?? "").join(" ").trim(); if (t) onTranscript(t); };
+      r.onresult = (e) => { const t = Array.from(e.results as ArrayLike<any>).map((x) => x[0]?.transcript ?? "").join(" ").trim(); if (t) onTranscript(redactTranscript(t)); };
       r.onerror = (e) => fail(e.error === "not-allowed" || e.error === "service-not-allowed" ? "Microphone permission was denied. Allow it in your browser settings, or type instead." : e.error === "no-speech" ? "I didn't hear anything. Try again or type instead." : `Voice input stopped (${e.error}). Type instead.`);
       r.onend = () => { setState((s) => (s === "listening" ? "idle" : s)); rec.current = null; };
       rec.current = r;
