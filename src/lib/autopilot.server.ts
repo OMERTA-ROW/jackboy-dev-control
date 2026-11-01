@@ -93,7 +93,7 @@ export async function writeFix(projectId: string, problem: string, source: "scan
     throw e;
   }
   const files = ctx ? d.files : [];
-  const auto = !opts.forceApproval && s.autopilot_enabled && p.autopilot;
+  const auto = !opts.forceApproval && s.autopilot_enabled && p.autopilot && (p as { repair_policy?: string }).repair_policy !== "approve";
   const { data: row, error } = await supabaseAdmin.from("update_proposals").insert({
     project_id: projectId, title: d.title, what_to_change: d.what_to_change, why: d.why, build_prompt: d.build_prompt,
     files: files as never, model: MODEL, trigger: source === "chat" || source === "demo" ? "manual" : "scheduled", source, delivery_error: note || null,
