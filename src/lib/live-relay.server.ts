@@ -622,7 +622,7 @@ export function bindLiveConnection(
         session: {
           model: config.liveModel,
           instructions: conversationInstructions,
-          audio: { output: { voice: "cedar" } },
+          audio: { output: { voice: "meridian" } },
           delegation: { type: "client" },
         },
         transport: { type: "webrtc", sdp },
