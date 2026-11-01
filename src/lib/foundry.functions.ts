@@ -61,12 +61,24 @@ export const foundryAct = createServerFn({ method: "POST" })
 
 export const foundrySchedule = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { enabled: boolean; interval_hours: number; daily_task_quota: number }) => ({
-    enabled: Boolean(d.enabled), interval_hours: Math.min(720, Math.max(1, Math.round(d.interval_hours))), daily_task_quota: Math.min(20, Math.max(0, Math.round(d.daily_task_quota))),
-  }))
+  .inputValidator((d: { enabled: boolean; interval_hours: number; daily_task_quota: number; max_in_flight: number; max_runs_per_day: number }) => {
+    const n = (x: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, Math.round(Number(x) || lo)));
+    return { enabled: Boolean(d.enabled), interval_hours: n(d.interval_hours, 1, 720), daily_task_quota: n(d.daily_task_quota, 0, 20), max_in_flight: n(d.max_in_flight, 1, 10), max_runs_per_day: n(d.max_runs_per_day, 1, 200) };
+  })
   .handler(async ({ data, context }) => {
     const actor = await owner(context as never);
     const s = await import("./foundry.server");
     await s.setSchedule(actor, data);
     return { ok: true };
+  });
+
+export const foundryControl = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { op: "pause_all" | "resume_all" | "advance" }) => d)
+  .handler(async ({ data, context }) => {
+    const actor = await owner(context as never);
+    const s = await import("./foundry.server");
+    if (data.op === "advance") return { result: await s.advance(actor) };
+    await s.setGlobalPause(actor, data.op === "pause_all");
+    return { result: data.op };
   });

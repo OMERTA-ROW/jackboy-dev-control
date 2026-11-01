@@ -1,6 +1,6 @@
 // Code Foundry runtime (server-only). Uses real repo tools; every state change writes an immutable event.
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { assertTransition, canApprove, canExecute, classifyRisk, idempotencyKey, nextProject, quotaLeft, type ApprovedAction, type State } from "./foundry";
+import { assertTransition, backoffMs, budget, canApprove, canExecute, classifyRisk, idempotencyKey, IN_FLIGHT, isTransient, nextProject, quotaLeft, type ApprovedAction, type State } from "./foundry";
 import * as ws from "./repo-workspace.server";
 
 type Task = {
@@ -28,14 +28,20 @@ async function load(id: string): Promise<Task> {
 }
 
 /** Real rule-based inspections over the repo tree. Each returns a concrete low-risk patch. */
-type Check = { key: string; title: string; summary: string; kind: "docs" | "test" | "repair"; path: string; content: (repo: string) => string };
+type Check = { key: string; title: string; summary: string; kind: "docs" | "test" | "repair"; priority: number; path: string; content: (repo: string) => string };
 const CHECKS: Check[] = [
-  { key: "missing-security-md", kind: "docs", path: "SECURITY.md", title: "Add a security policy (SECURITY.md)",
+  { key: "missing-security-md", kind: "docs", priority: 70, path: "SECURITY.md", title: "Add a security policy (SECURITY.md)",
     summary: "The repository has no SECURITY.md, so there is no documented way to report vulnerabilities privately.",
     content: (repo) => `# Security policy\n\nThis is a private repository (${repo}).\n\n## Reporting a vulnerability\n\nDo not open public issues for security problems. Contact the repository owner privately with steps to reproduce.\n\n## Handling\n\n- Secrets live only in backend secret storage, never in source.\n- Sensitive changes (auth, payments, secrets, permissions) require explicit owner approval.\n` },
-  { key: "missing-editorconfig", kind: "repair", path: ".editorconfig", title: "Add .editorconfig for consistent formatting",
+  { key: "missing-editorconfig", kind: "repair", priority: 40, path: ".editorconfig", title: "Add .editorconfig for consistent formatting",
     summary: "No .editorconfig found; editors may mix indentation and line endings.",
     content: () => `root = true\n\n[*]\ncharset = utf-8\nend_of_line = lf\nindent_style = space\nindent_size = 2\ninsert_final_newline = true\ntrim_trailing_whitespace = true\n` },
+  { key: "missing-readme", kind: "docs", priority: 60, path: "README.md", title: "Add a README",
+    summary: "No README.md; new contributors and agents have no entry point describing the project.",
+    content: (repo) => `# ${repo.split("/")[1]}\n\nPrivate project. See SECURITY.md for reporting issues.\n\n## Development\n\n\`\`\`\nbun install\nbun run dev\nbun run test\n\`\`\`\n` },
+  { key: "missing-gitignore", kind: "repair", priority: 65, path: ".gitignore", title: "Add .gitignore to keep secrets and builds out of git",
+    summary: "No .gitignore; environment files, dependencies or build output could be committed by mistake.",
+    content: () => `node_modules/\ndist/\n.output/\n.env\n.env.*\n!.env.example\n*.log\n.DS_Store\n` },
 ];
 
 export async function inspectProject(projectId: string, actor: string, source: "manual" | "scheduled", limit = 1) {
@@ -47,7 +53,7 @@ export async function inspectProject(projectId: string, actor: string, source: "
   catch (e) { const m = (e as Error).message; await event({ id: null as never, project_id: p.id }, "inspect_blocked", actor, null, null, m); return { created: 0, blocked: m }; }
   const t = await ws.tree(repo, repo.base);
   const have = new Set(t.files);
-  const found = CHECKS.filter((c) => !have.has(c.path));
+  const found = CHECKS.filter((c) => !have.has(c.path)).sort((a, b) => b.priority - a.priority);
   let created = 0; const ids: string[] = [];
   for (const c of found) {
     if (created >= limit) break;
@@ -55,7 +61,7 @@ export async function inspectProject(projectId: string, actor: string, source: "
     if (existing) continue; // dedupe: never re-propose the same finding
     const { data: row, error } = await supabaseAdmin.from("foundry_tasks").insert({
       project_id: p.id, title: c.title, summary: c.summary, kind: c.kind, dedupe_key: c.key, repo: repo.full, source,
-      risk: classifyRisk([{ path: c.path }]), files: [{ path: c.path, action: "create" }] as never,
+      priority: c.priority, risk: classifyRisk([{ path: c.path }]), files: [{ path: c.path, action: "create" }] as never,
     }).select("*").single();
     if (error || !row) continue;
     const task = row as unknown as Task;
@@ -121,11 +127,46 @@ export async function execute(id: string, actor: string) {
     }
   } catch (e) {
     const msg = (e as Error).message.slice(0, 500);
-    const unavailable = /not connected|missing|401|403|Refused/i.test(msg);
-    if (unavailable) await move(t, "blocked", actor, msg, { blocked_reason: msg });
+    if (isTransient(msg) && t.attempts < t.max_attempts) {
+      const at = new Date(Date.now() + backoffMs(t.attempts)).toISOString();
+      await move(t, "blocked", actor, `Temporary error; automatic retry after ${at}. ${msg}`, { blocked_reason: msg, next_attempt_at: at });
+    } else if (/not connected|missing|401|403|Refused/i.test(msg)) await move(t, "blocked", actor, msg, { blocked_reason: msg, next_attempt_at: null });
     else await move(t, "failed", actor, msg, { blocked_reason: msg });
   }
-  return load(id);
+  const done = await load(id);
+  if (done.state === "completed") await advance(actor).catch(() => {});
+  return done;
+}
+
+/** After a completion: report the next task, or inspect the next authorized project within budget. */
+export async function advance(actor: string) {
+  const { data: waiting } = await supabaseAdmin.from("foundry_tasks").select("id, title").eq("state", "awaiting_approval").eq("paused", false).order("priority", { ascending: false }).order("created_at").limit(1);
+  if (waiting?.[0]) { await event(null, "next_task", actor, null, null, `Next: ${waiting[0].title} (awaiting approval)`); return { next: waiting[0].id }; }
+  const r = await runBudgeted(actor, "advance");
+  return r;
+}
+
+/** One bounded inspection of the next project in rotation, charged to the daily budget. */
+async function runBudgeted(actor: string, why: string) {
+  const { data: s } = await supabaseAdmin.from("foundry_schedule").select("*").eq("id", 1).single();
+  if (!s) return { skipped: "no schedule row" };
+  if (s.paused) return { skipped: "paused" };
+  const today = new Date().toISOString().slice(0, 10);
+  const b = budget(s, today);
+  if (!b.allowed) return { skipped: "daily run budget reached" };
+  const { count: inflight } = await supabaseAdmin.from("foundry_tasks").select("id", { count: "exact", head: true }).in("state", IN_FLIGHT);
+  if ((inflight ?? 0) >= s.max_in_flight) return { skipped: "concurrency limit" };
+  const since = new Date(Date.now() - 86400_000).toISOString();
+  const { count } = await supabaseAdmin.from("foundry_tasks").select("id", { count: "exact", head: true }).neq("source", "manual").gte("created_at", since);
+  const left = quotaLeft(s.daily_task_quota, count ?? 0);
+  if (left === 0) return { skipped: "daily task quota reached" };
+  const { data: projects } = await supabaseAdmin.from("owner_projects").select("id").eq("active", true).not("github_repo", "is", null).order("created_at");
+  const p = nextProject(projects ?? [], s.last_project_id);
+  if (!p) return { skipped: "no authorized projects with a private repo" };
+  await supabaseAdmin.from("foundry_schedule").update({ last_project_id: p.id, runs_today: b.runsToday + 1, runs_day: today }).eq("id", 1);
+  const r = await inspectProject(p.id, actor, "scheduled", 1);
+  await event(null, "auto_inspect", actor, null, null, `${why}: inspected next project`, r as Record<string, unknown>);
+  return r;
 }
 
 export async function setPaused(id: string, actor: string, paused: boolean) {
@@ -142,22 +183,49 @@ export async function retryBlocked(id: string, actor: string) {
   return execute(id, actor);
 }
 
-/** Recurring scoped inspection: one project per tick, rotating, under daily quota. Never approves anything. */
+/** Hourly tick: retries due blocked tasks (backoff), then one budgeted inspection when due. Never approves anything. */
 export async function foundryTick() {
   const { data: s } = await supabaseAdmin.from("foundry_schedule").select("*").eq("id", 1).single();
-  if (!s?.enabled) return { skipped: "disabled" };
-  if (s.last_run_at && Date.now() - new Date(s.last_run_at).getTime() < s.interval_hours * 3600_000) return { skipped: "not due" };
-  const since = new Date(Date.now() - 86400_000).toISOString();
-  const { count } = await supabaseAdmin.from("foundry_tasks").select("id", { count: "exact", head: true }).eq("source", "scheduled").gte("created_at", since);
-  const left = quotaLeft(s.daily_task_quota, count ?? 0);
-  const { data: projects } = await supabaseAdmin.from("owner_projects").select("id").eq("active", true).not("github_repo", "is", null).order("created_at");
-  const p = nextProject(projects ?? [], s.last_project_id);
-  await supabaseAdmin.from("foundry_schedule").update({ last_run_at: new Date().toISOString(), last_project_id: p?.id ?? null }).eq("id", 1);
-  if (!p || left === 0) return { skipped: left === 0 ? "quota reached" : "no projects" };
-  return inspectProject(p.id, "scheduler", "scheduled", Math.min(1, left));
+  const result: Record<string, unknown> = {};
+  if (!s) return { skipped: "no schedule row" };
+  if (s.paused) result["skipped"] = "paused";
+  else {
+    const { data: due } = await supabaseAdmin.from("foundry_tasks").select("id").eq("state", "blocked").eq("paused", false).not("approved_action", "is", null).not("next_attempt_at", "is", null).lte("next_attempt_at", new Date().toISOString()).limit(2);
+    const retried: string[] = [];
+    for (const d of due ?? []) { try { await retryBlocked(d.id, "scheduler"); retried.push(d.id); } catch { /* recorded in events */ } }
+    result["retried"] = retried.length;
+    if (!s.enabled) result["inspect"] = "recurring inspections off";
+    else if (s.last_run_at && Date.now() - new Date(s.last_run_at).getTime() < s.interval_hours * 3600_000) result["inspect"] = "not due";
+    else { await supabaseAdmin.from("foundry_schedule").update({ last_run_at: new Date().toISOString() }).eq("id", 1); result["inspect"] = await runBudgeted("scheduler", "scheduled"); }
+  }
+  await supabaseAdmin.from("foundry_schedule").update({ last_tick_at: new Date().toISOString(), last_tick_result: result as never }).eq("id", 1);
+  return result;
 }
 
-export async function setSchedule(actor: string, v: { enabled: boolean; interval_hours: number; daily_task_quota: number }) {
+/** Webhook-triggered scan for a pushed private repo (signature verified by the route). */
+export async function webhookInspect(repoFull: string) {
+  const { data: p } = await supabaseAdmin.from("owner_projects").select("id").eq("active", true).ilike("github_repo", repoFull).maybeSingle();
+  if (!p) return { skipped: "repo not registered" };
+  return runBudgetedFor(p.id);
+}
+async function runBudgetedFor(projectId: string) {
+  const { data: s } = await supabaseAdmin.from("foundry_schedule").select("*").eq("id", 1).single();
+  if (!s || s.paused) return { skipped: "paused" };
+  const today = new Date().toISOString().slice(0, 10);
+  const b = budget(s, today);
+  if (!b.allowed) return { skipped: "daily run budget reached" };
+  await supabaseAdmin.from("foundry_schedule").update({ runs_today: b.runsToday + 1, runs_day: today }).eq("id", 1);
+  const r = await inspectProject(projectId, "webhook", "scheduled", 1);
+  await event({ id: null as never, project_id: projectId }, "webhook_inspect", "webhook", null, null, "Push webhook triggered inspection", r as Record<string, unknown>);
+  return r;
+}
+
+export async function setGlobalPause(actor: string, paused: boolean) {
+  await supabaseAdmin.from("foundry_schedule").update({ paused, updated_at: new Date().toISOString() }).eq("id", 1);
+  await event(null, paused ? "global_pause" : "global_resume", actor, null, null);
+}
+
+export async function setSchedule(actor: string, v: { enabled: boolean; interval_hours: number; daily_task_quota: number; max_in_flight: number; max_runs_per_day: number }) {
   await supabaseAdmin.from("foundry_schedule").update({ ...v, updated_at: new Date().toISOString() }).eq("id", 1);
   await event(null, "schedule_changed", actor, null, null, "", v);
 }
