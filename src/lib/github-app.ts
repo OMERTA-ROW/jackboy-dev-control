@@ -62,7 +62,7 @@ export async function verifyState(token: string, secret: string, now = Date.now(
 }
 
 /** GitHub issues RSA keys as PKCS#1; WebCrypto imports PKCS#8. Wraps the DER in the PKCS#8 envelope. */
-export function pemToPkcs8(pem: string): Uint8Array {
+export function pemToPkcs8(pem: string): Uint8Array<ArrayBuffer> {
   const isPkcs1 = pem.includes("BEGIN RSA PRIVATE KEY");
   const der = Uint8Array.from(atob(pem.replace(/-----[^-]+-----/g, "").replace(/\\n|\s/g, "")), (c) => c.charCodeAt(0));
   if (!isPkcs1) return der;
