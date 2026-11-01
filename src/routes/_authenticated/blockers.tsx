@@ -86,7 +86,7 @@ function Blockers() {
       <h2 className="mb-2 mt-8 text-sm font-semibold uppercase tracking-wider text-silver">History</h2>
       <ul className="panel space-y-1 p-4 font-mono text-xs">
         {!d?.history.length && <li className="text-muted-foreground">No approvals or checks recorded yet.</li>}
-        {d?.history.map((h) => <li key={h.id}>{new Date(h.created_at).toLocaleString()} · <span className={h.status === "ok" ? "text-success" : h.status === "blocked" ? "text-destructive" : ""}>{h.status}</span> · {h.summary}</li>)}
+        {d?.history.map((h) => <li key={h.id}>{new Date(h.at).toLocaleString()} · <span className={h.status === "ok" ? "text-success" : h.status === "blocked" ? "text-destructive" : ""}>{h.status}</span> · {h.summary}</li>)}
       </ul>
     </>
   );
