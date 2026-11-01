@@ -36,7 +36,7 @@ function Updates() {
   const [caps, setCapsForm] = useState({ ai: 100, runs: 60 });
   const refresh = useCallback(() => f.load().then((r) => { setQ(r); if (r.settings) setCapsForm({ ai: r.settings.monthly_ai_cap, runs: r.settings.monthly_run_cap }); }).catch((e) => setErr((e as Error).message)), [f.load]);
   useEffect(() => { refresh(); }, [refresh]);
-  const act = async (p: Promise<unknown>) => { setErr(null); try { await p; await refresh(); } catch (e) { setErr((e as Error).message); } };
+  const act = async (p: Promise<unknown>) => { setErr(null); try { await p; } catch (e) { setErr((e as Error).message); } try { new BroadcastChannel("jackboy-approvals").postMessage("changed"); } catch { /* unsupported */ } await refresh(); };
 
   const runAll = async () => {
     setRunning(true); setErr(null); setMsg(null);
