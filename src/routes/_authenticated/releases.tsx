@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/AppShell";
+import { UpdateTargets } from "@/components/UpdateTargets";
 import { supabase } from "@/integrations/supabase/client";
 import { CHANNELS } from "@/lib/update-server";
 import { changeRelease, createRelease, deleteDraft, deleteFlag, getReleaseData, publishRelease, saveFlag, type FlagRow, type ReleaseRow } from "@/lib/releases.functions";
@@ -71,6 +72,7 @@ function Releases() {
           <select className={input} value={pid} onChange={(e) => setPid(e.target.value)}>{d.projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
           {project && <code className="text-xs text-muted-foreground">client key: {project.client_key}</code>}
         </label>
+        {pid && <UpdateTargets projectId={pid} />}
 
         <form onSubmit={submit} className="hex-panel grid gap-3 rounded-lg border border-border p-4 sm:grid-cols-2">
           <h2 className="sm:col-span-2 font-semibold">New release (saved as draft)</h2>
