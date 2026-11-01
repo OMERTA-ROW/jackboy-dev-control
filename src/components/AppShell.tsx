@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { setState, useJackboy, log } from "@/lib/jackboy-store";
-import { chatWithJackboy, getDashboardFacts, getVoiceChatStatus } from "@/lib/passport.functions";
+import { chatWithJackboy, getDashboardFacts, getVoiceChatStatus, synthesizeJackboy } from "@/lib/passport.functions";
 
 const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutGrid },
@@ -85,14 +85,14 @@ function VoiceControl() {
   const navigate = useNavigate();
   const getStatus = useServerFn(getVoiceChatStatus);
   const chat = useServerFn(chatWithJackboy);
+  const synthesize = useServerFn(synthesizeJackboy);
   const dashboard = useServerFn(getDashboardFacts);
   const [open, setOpen] = useState(false);
   const [available, setAvailable] = useState<boolean | null>(null);
+  const [voiceAvailable, setVoiceAvailable] = useState(false);
   const [mode, setMode] = useState<VoiceMode>("text");
   const [tone, setTone] = useState<Tone>("balanced");
   const [volume, setVolume] = useState(0.8);
-  const [voiceName, setVoiceName] = useState("");
-  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
@@ -100,6 +100,9 @@ function VoiceControl() {
   const [speaking, setSpeaking] = useState(false);
   const [error, setError] = useState("");
   const recognitionRef = useRef<any>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioUrlRef = useRef<string | null>(null);
+  const speechRequestRef = useRef(0);
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -108,61 +111,80 @@ function VoiceControl() {
       if (["voice", "text", "silent"].includes(saved.mode)) setMode(saved.mode);
       if (["direct", "balanced", "witty"].includes(saved.tone)) setTone(saved.tone);
       if (typeof saved.volume === "number" && saved.volume >= 0 && saved.volume <= 1) setVolume(saved.volume);
-      if (typeof saved.voiceName === "string") setVoiceName(saved.voiceName);
     } catch {
       /* Browser storage is optional. */
     }
   }, []);
   useEffect(() => {
     try {
-      localStorage.setItem("jackboy.voice.preferences", JSON.stringify({ mode, tone, volume, voiceName }));
+      localStorage.setItem("jackboy.voice.preferences", JSON.stringify({ mode, tone, volume }));
     } catch {
       /* Browser storage is optional. */
     }
-  }, [mode, tone, volume, voiceName]);
+  }, [mode, tone, volume]);
   useEffect(() => {
     if (!open) return;
     let active = true;
     getStatus()
       .then((result) => {
-        if (active) setAvailable(result.available);
+        if (active) {
+          setAvailable(result.available);
+          setVoiceAvailable(result.voiceAvailable);
+        }
       })
       .catch(() => {
-        if (active) setAvailable(false);
+        if (active) {
+          setAvailable(false);
+          setVoiceAvailable(false);
+        }
       });
     return () => {
       active = false;
     };
   }, [open, getStatus]);
   useEffect(() => {
-    if (!open || typeof window === "undefined" || !window.speechSynthesis) return;
-    const refresh = () => setVoices(window.speechSynthesis.getVoices());
-    refresh();
-    window.speechSynthesis.addEventListener("voiceschanged", refresh);
-    return () => window.speechSynthesis.removeEventListener("voiceschanged", refresh);
-  }, [open]);
-  useEffect(() => {
     endRef.current?.scrollIntoView({ block: "end", behavior: "smooth" });
   }, [messages, busy]);
 
   const stopAudio = () => {
+    speechRequestRef.current += 1;
     recognitionRef.current?.abort();
     recognitionRef.current = null;
     setListening(false);
-    if (typeof window !== "undefined" && window.speechSynthesis) window.speechSynthesis.cancel();
+    audioRef.current?.pause();
+    audioRef.current = null;
+    if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
+    audioUrlRef.current = null;
     setSpeaking(false);
   };
-  const speak = (words: string) => {
-    if (mode !== "voice" || typeof window === "undefined" || !window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(words);
-    utterance.volume = volume;
-    const selected = voices.find((voice) => voice.name === voiceName);
-    if (selected) utterance.voice = selected;
-    utterance.onstart = () => setSpeaking(true);
-    utterance.onend = () => setSpeaking(false);
-    utterance.onerror = () => setSpeaking(false);
-    window.speechSynthesis.speak(utterance);
+  const speak = async (words: string) => {
+    if (mode !== "voice" || !voiceAvailable) return;
+    const request = ++speechRequestRef.current;
+    try {
+      const result = await synthesize({ data: { text: words.slice(0, 900) } });
+      if (request !== speechRequestRef.current) return;
+      const bytes = Uint8Array.from(atob(result.audioBase64), (char) => char.charCodeAt(0));
+      const url = URL.createObjectURL(new Blob([bytes], { type: result.mimeType }));
+      audioUrlRef.current = url;
+      const audio = new Audio(url);
+      audio.volume = volume;
+      audioRef.current = audio;
+      audio.onended = () => {
+        setSpeaking(false);
+        URL.revokeObjectURL(url);
+        audioUrlRef.current = null;
+        audioRef.current = null;
+      };
+      audio.onerror = () => {
+        setSpeaking(false);
+        setError("ElevenLabs audio could not play. Read the text reply above.");
+      };
+      await audio.play();
+      setSpeaking(true);
+    } catch (cause) {
+      if (request === speechRequestRef.current)
+        setError(cause instanceof Error ? cause.message : "ElevenLabs audio failed. Read the text reply above.");
+    }
   };
   const close = () => {
     stopAudio();
@@ -213,13 +235,13 @@ function VoiceControl() {
       const local = await localReply(content);
       if (local) {
         setMessages([...next, { role: "assistant", content: local }]);
-        speak(local);
+        void speak(local);
       } else if (!available) {
         setError("AI conversation is not connected. Local status and navigation commands still work.");
       } else {
         const result = await chat({ data: { messages: next.slice(-12), tone } });
         setMessages([...next, { role: "assistant", content: result.answer }]);
-        speak(result.answer);
+        void speak(result.answer);
       }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Chat failed. Try again.");
@@ -281,10 +303,11 @@ function VoiceControl() {
               <h2 className="text-sm font-semibold text-foreground">Talk with Jackboy</h2>
               <p className="text-xs text-muted-foreground">
                 {available === null
-                  ? "Checking AI chat…"
+                  ? "Checking connections…"
                   : available
                     ? "AI chat configured · model test pending"
-                    : "AI chat not connected · local commands work"}
+                    : "AI chat not connected · local commands work"}{" "}
+                · {voiceAvailable ? "ElevenLabs voice ready to test" : "ElevenLabs voice not connected"}
               </p>
             </div>
             <button
@@ -377,20 +400,10 @@ function VoiceControl() {
                 </>
               )}
             </div>
-            {mode === "voice" && voices.length > 0 && (
-              <select
-                aria-label="Browser voice"
-                value={voiceName}
-                onChange={(event) => setVoiceName(event.target.value)}
-                className="mb-2 w-full rounded border border-border bg-background px-2 py-1 text-xs"
-              >
-                <option value="">Browser default voice</option>
-                {voices.map((voice) => (
-                  <option key={`${voice.name}-${voice.lang}`} value={voice.name}>
-                    {voice.name} ({voice.lang})
-                  </option>
-                ))}
-              </select>
+            {mode === "voice" && !voiceAvailable && (
+              <p className="mb-2 text-xs text-muted-foreground">
+                Spoken replies need the original Jackboy ElevenLabs voice and server connection.
+              </p>
             )}
             <form
               onSubmit={(event) => {
@@ -454,8 +467,8 @@ function VoiceControl() {
               </button>
             </div>
             <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
-              Browser speech recognition may use its speech service. When AI chat is enabled, conversation text goes to
-              OpenAI. This chat has no access to your Mac, agents, or passwords.
+              Browser speech recognition may use its speech service. When enabled, conversation text goes to OpenAI and
+              spoken replies go to ElevenLabs. This chat has no access to your Mac, agents, or passwords.
             </p>
           </div>
         </section>
