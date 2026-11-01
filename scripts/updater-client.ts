@@ -4,12 +4,13 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { verifyPayload } from "../src/lib/update-server";
 
-const base = process.env.JACKBOY_URL!, token = process.env.JACKBOY_TARGET_TOKEN!, dir = process.env.INSTALL_DIR ?? "./installed";
-const FORCE_UNHEALTHY = process.env.FORCE_UNHEALTHY === "1"; // test hook: simulate failed post-install health
+const env = () => ({ base: process.env.JACKBOY_URL!, token: process.env.JACKBOY_TARGET_TOKEN!, dir: process.env.INSTALL_DIR ?? "./installed",
+  forceUnhealthy: process.env.FORCE_UNHEALTHY === "1" }); // FORCE_UNHEALTHY: test hook simulating a failed post-install health check
 const hex = (b: ArrayBuffer) => Array.from(new Uint8Array(b), (x) => x.toString(16).padStart(2, "0")).join("");
-const post = (path: string, body: unknown) => fetch(base + path, { method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: JSON.stringify(body) }).then((r) => r.json());
+const post = (path: string, body: unknown) => fetch(env().base + path, { method: "POST", headers: { authorization: `Bearer ${env().token}`, "content-type": "application/json" }, body: JSON.stringify(body) }).then((r) => r.json());
 
 export async function runOnce(current: string) {
+  const { base, dir, forceUnhealthy: FORCE_UNHEALTHY } = env();
   const res = await post("/api/public/updates/target-check", { version: current });
   if (!res.update) return { action: "none", res };
   const m = res.manifest;
