@@ -183,6 +183,13 @@
       "when": 1793571176459,
       "tag": "0025_site_monitoring",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1793575131450,
+      "tag": "0026_github_app_installations",
+      "breakpoints": true
     }
   ]
 }

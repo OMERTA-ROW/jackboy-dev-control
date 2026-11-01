@@ -992,6 +992,48 @@ export type Database = {
           },
         ]
       }
+      github_installations: {
+        Row: {
+          account_login: string
+          account_type: string
+          approved_by: string | null
+          created_at: string
+          installation_id: number
+          missing_permissions: string[]
+          permissions: Json
+          repositories: string[]
+          revoked: boolean
+          updated_at: string
+          verified_at: string | null
+        }
+        Insert: {
+          account_login: string
+          account_type?: string
+          approved_by?: string | null
+          created_at?: string
+          installation_id: number
+          missing_permissions?: string[]
+          permissions?: Json
+          repositories?: string[]
+          revoked?: boolean
+          updated_at?: string
+          verified_at?: string | null
+        }
+        Update: {
+          account_login?: string
+          account_type?: string
+          approved_by?: string | null
+          created_at?: string
+          installation_id?: number
+          missing_permissions?: string[]
+          permissions?: Json
+          repositories?: string[]
+          revoked?: boolean
+          updated_at?: string
+          verified_at?: string | null
+        }
+        Relationships: []
+      }
       health_reports: {
         Row: {
           channel: string
