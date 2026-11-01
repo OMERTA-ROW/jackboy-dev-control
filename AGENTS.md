@@ -20,3 +20,4 @@
 - Jackboy is the research/evaluation/idea-routing agent; OMNI is the build/test/deploy engine. Handoffs, monetization estimates and provenance live in `src/lib/omni-handoff.ts` + `src/routes/omni.tsx`; publish/pricing/sell stay locked by `canApprove` until the handoff is approved and provenance is cleared. Never show OMNI as connected without verification.
 
 - Subdirectories have their own `AGENTS.md` (feature rules in `src/lib/AGENTS.md`); read it before changing files there.
+- Live voice runs through `src/lib/live-relay.server.ts` at `/api/live` (dispatched in `src/server.ts`, dev via `live-vite-plugin.ts`): owner session verified before any paid voice session, and voice tools stay read-only so sensitive actions keep their passkey path.
