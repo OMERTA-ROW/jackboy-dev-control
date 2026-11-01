@@ -25,28 +25,16 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { setState, useJackboy, log } from "@/lib/jackboy-store";
 import { chatWithJackboy, getDashboardFacts, getVoiceChatStatus, synthesizeJackboy } from "@/lib/passport.functions";
 
+// Simple main menu; advanced pages are listed on /settings.
 const NAV = [
-  { to: "/", label: "Dashboard", icon: LayoutGrid },
-  { to: "/autopilot", label: "Autopilot", icon: Workflow },
-  { to: "/chat", label: "Chat with Jackboy", icon: Bot },
-  { to: "/projects", label: "Projects", icon: LayoutGrid },
-  { to: "/updates", label: "Update Queue", icon: ScrollText },
-  { to: "/releases", label: "Releases", icon: Send },
-  { to: "/update-docs", label: "Update Docs", icon: Code2 },
-  { to: "/feeds", label: "Live Feeds", icon: Radar },
-  { to: "/workspace", label: "Inspect", icon: Code2 },
-  { to: "/discovery", label: "Discovery", icon: Radar },
-  { to: "/research", label: "Research", icon: Globe },
-  { to: "/agents", label: "Agent Hub", icon: Bot },
-  { to: "/fleet", label: "Agent Fleet", icon: Users },
-  { to: "/automation", label: "Automation", icon: Workflow },
-  { to: "/razul", label: "RA'SUL", icon: Library },
-  { to: "/omni", label: "OMNI", icon: Send },
-  { to: "/jax", label: "JAX", icon: Hexagon },
-  { to: "/activity", label: "Logs & Approvals", icon: ScrollText },
-  { to: "/integrations", label: "Integrations", icon: Plug },
-  { to: "/access", label: "Access", icon: ShieldCheck },
+  { to: "/", label: "Home", icon: LayoutGrid },
+  { to: "/projects", label: "Projects", icon: Hexagon },
+  { to: "/connect", label: "Connect", icon: Plug },
+  { to: "/updates", label: "Approvals", icon: ScrollText },
+  { to: "/chat", label: "Chat", icon: Bot },
+  { to: "/settings", label: "Settings", icon: ShieldCheck },
 ] as const;
+void [Radar, Send, Code2, Globe, Workflow, Users, Library];
 
 function Hex({ className = "" }: { className?: string }) {
   return (
