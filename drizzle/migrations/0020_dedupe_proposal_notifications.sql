@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX IF NOT EXISTS owner_notifications_once_per_proposal ON public.owner_notifications (kind, proposal_id) WHERE proposal_id IS NOT NULL;

@@ -10,7 +10,7 @@ async function owner(ctx: Ctx) {
 
 export type HubRow = { id: string; name: string; site_url: string | null; lovable_url: string | null; github_repo: string | null; github_branch: string; autopilot: boolean; connect_state: string; connect_error: string | null; description: string; goals: string; notes: string; frequency_hours: number; active: boolean; connect_pr_url: string | null };
 export type HubScanRow = { id: string; project_id: string; status: string; trigger: string; pages_checked: number; links_checked: number; avg_ms: number | null; findings: { severity: string; kind: string; url: string; message: string }[]; error: string | null; fix_proposal_id: string | null; created_at: string };
-export type HubProposal = { id: string; project_id: string; title: string; status: string; source: string; pr_url: string | null; checks_state: string | null; created_at: string };
+export type HubProposal = { id: string; project_id: string; title: string; status: string; source: string; pr_url: string | null; checks_state: string | null; created_at: string; delivery_error?: string | null; has_files?: boolean; has_repo?: boolean };
 
 /** Owner-only overview: connected projects, latest scans, waiting approvals and the stored Lovable inventory snapshot. */
 export const getProjectHub = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
@@ -18,14 +18,14 @@ export const getProjectHub = createServerFn({ method: "POST" }).middleware([requ
   const [p, s, q, inv] = await Promise.all([
     context.supabase.from("owner_projects").select("*").order("name"),
     context.supabase.from("site_scans").select("id,project_id,status,trigger,pages_checked,links_checked,avg_ms,findings,error,fix_proposal_id,created_at").order("created_at", { ascending: false }).limit(200),
-    context.supabase.from("update_proposals").select("id,project_id,title,status,source,pr_url,checks_state,created_at").in("status", ["draft", "pr_open", "approved"]).order("created_at", { ascending: false }).limit(200),
+    context.supabase.from("update_proposals").select("id,project_id,title,status,source,pr_url,checks_state,delivery_error,files,created_at,owner_projects(github_repo)").in("status", ["draft", "pr_open", "approved"]).order("created_at", { ascending: false }).limit(200),
     context.supabase.from("agent_projects").select("id,name,lovable_project_ref").not("lovable_project_ref", "is", null).order("name"),
   ]);
   for (const r of [p, s, q, inv]) if (r.error) throw new Error(r.error.message);
   return {
     projects: (p.data ?? []) as HubRow[],
     scans: (s.data ?? []) as HubScanRow[],
-    waiting: (q.data ?? []) as HubProposal[],
+    waiting: ((q.data ?? []) as (HubProposal & { files: unknown[]; owner_projects: { github_repo: string | null } | null })[]).map(({ files, owner_projects, ...r }) => ({ ...r, has_files: Array.isArray(files) && files.length > 0, has_repo: Boolean(owner_projects?.github_repo) })),
     inventory: (inv.data ?? []) as { id: string; name: string; lovable_project_ref: string | null }[],
     githubConfigured: Boolean(process.env["GITHUB_TOKEN"]),
     lovableApiLinked: Boolean(process.env["LOVABLE_ACCOUNT_API_KEY"]),

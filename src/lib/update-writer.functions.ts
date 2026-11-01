@@ -115,10 +115,23 @@ export const setProposalStatus = createServerFn({ method: "POST" }).middleware([
     if (!cur) throw new Error("Proposal not found.");
     if (!canTransition(cur.status as ProposalStatus, data.status)) throw new Error(`Can't move from ${cur.status} to ${data.status}.`);
     if (data.status === "rejected") { const s = await import("./update-writer.server"); await s.rejectProposal(data.id, context.userId); return { ok: true }; }
-    const { error } = await context.supabase.from("update_proposals").update({ status: data.status, decided_by: context.userId, decided_at: new Date().toISOString() }).eq("id", data.id);
+    // Conditional on the status we read: a second click or another tab that already moved it changes nothing.
+    const { data: moved, error } = await context.supabase.from("update_proposals").update({ status: data.status, decided_by: context.userId, decided_at: new Date().toISOString(), delivery_error: null }).eq("id", data.id).eq("status", cur.status).select("id, files, owner_projects(github_repo)");
     if (error) throw new Error(error.message);
-    await audit(context, `updates.${data.status}`, { id: data.id, title: cur.title, from: cur.status });
-    return { ok: true };
+    if (!moved?.length) {
+      const { data: now } = await context.supabase.from("update_proposals").select("status").eq("id", data.id).single();
+      if (now?.status === data.status) return { ok: true, already: true, continued: null as string | null };
+      throw new Error(`It changed to ${now?.status} in the meantime. Refresh.`);
+    }
+    await audit(context, `updates.${data.status}`, { id: data.id, title: cur.title, from: cur.status, scope: "update_proposal" });
+    // Approval authorizes the next bounded step: open a DRAFT pull request (never merge/deploy).
+    let continued: string | null = null;
+    const row = moved[0] as { files: unknown[]; owner_projects: { github_repo: string | null } | null };
+    if (data.status === "approved" && Array.isArray(row.files) && row.files.length && row.owner_projects?.github_repo) {
+      const s = await import("./update-writer.server");
+      try { await s.deliver(data.id, context.userId); continued = "pr_open"; } catch (e) { continued = `failed: ${(e as Error).message}`; }
+    }
+    return { ok: true, already: false, continued };
   });
 
 const idOnly = (d: unknown) => z.object({ id: z.string().uuid() }).parse(d);

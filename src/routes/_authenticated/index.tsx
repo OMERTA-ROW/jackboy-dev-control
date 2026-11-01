@@ -1,6 +1,7 @@
+import type React from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 import { PageHeader } from "@/components/AppShell";
@@ -8,6 +9,8 @@ import { StatusPill, btn, primaryBtn } from "@/components/ProjectBits";
 import { scanNow } from "@/lib/autopilot.functions";
 import { getProjectHub } from "@/lib/project-hub.functions";
 import { latestScans, projectStatus } from "@/lib/project-hub";
+import { groupProposals, optimisticApprove } from "@/lib/approval-state";
+import { setProposalStatus } from "@/lib/update-writer.functions";
 
 export const Route = createFileRoute("/_authenticated/")({
   head: () => ({
@@ -33,7 +36,36 @@ function Home() {
   const [busy, setBusy] = useState<string | null>(null);
   const navigate = useNavigate();
   const refresh = useCallback(() => load().then(setHub).catch((e) => setErr((e as Error).message)), [load]);
-  useEffect(() => { void refresh(); }, [refresh]);
+  const approve = useServerFn(setProposalStatus);
+  const [approving, setApproving] = useState<Set<string>>(new Set());
+  const lastClick = useRef(0);
+  useEffect(() => {
+    void refresh();
+    // Revalidate from the server: other tabs, tab focus, and a slow poll. No cached counts.
+    const bc = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel("jackboy-approvals") : null;
+    if (bc) bc.onmessage = () => void refresh();
+    const onVis = () => { if (document.visibilityState === "visible") void refresh(); };
+    document.addEventListener("visibilitychange", onVis);
+    const t = setInterval(() => void refresh(), 30_000);
+    return () => { bc?.close(); document.removeEventListener("visibilitychange", onVis); clearInterval(t); };
+  }, [refresh]);
+  const groups = hub ? groupProposals(hub.waiting) : null;
+  const doApprove = async (id: string, title: string) => {
+    // Duplicate click guard: after an item leaves the list, the next item slides under the pointer, so ignore rapid repeat clicks.
+    if (approving.has(id) || Date.now() - lastClick.current < 800) return;
+    lastClick.current = Date.now();
+    setApproving((s) => new Set(s).add(id)); setErr("");
+    setHub((h) => (h ? { ...h, waiting: optimisticApprove(h.waiting, id) } : h));
+    try {
+      const r = await approve({ data: { id, status: "approved" } });
+      setMsg(r.already ? `${title} was already approved.` : r.continued === "pr_open" ? `${title} approved; draft pull request opened.` : r.continued ? `${title} approved, but the next step ${r.continued}` : `${title} approved.`);
+    } catch (e) { setErr((e as Error).message); }
+    finally {
+      setApproving((s) => { const n = new Set(s); n.delete(id); return n; });
+      try { new BroadcastChannel("jackboy-approvals").postMessage("changed"); } catch { /* unsupported */ }
+      await refresh();
+    }
+  };
   const last = hub ? latestScans(hub.scans) : new Map();
 
   const runScan = async (id: string, name: string) => {
@@ -66,7 +98,7 @@ function Home() {
         ) : (
           <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {hub.projects.slice(0, 9).map((p) => {
-              const waiting = hub.waiting.filter((w) => w.project_id === p.id).length;
+              const waiting = groups!.pending.filter((w) => w.project_id === p.id).length;
               return (
                 <li key={p.id} className="panel flex flex-col gap-3 p-4">
                   <div className="flex items-start justify-between gap-2">
@@ -84,9 +116,30 @@ function Home() {
           </ul>
         )}
       </section>
-      {hub && hub.waiting.length > 0 && (
-        <p className="mt-6 text-sm"><Link to="/updates" className="text-electric underline">{hub.waiting.length} update(s) waiting for your approval</Link></p>
+      {groups && (
+        <section aria-label="Approvals and work" className="mt-6 grid gap-3 lg:grid-cols-3">
+          <WorkList title={`Pending approval (${groups.pending.length})`} rows={groups.pending} empty="Nothing needs your approval."
+            action={(w) => w.status === "draft" ? <button className={btn} disabled={approving.has(w.id)} onClick={() => doApprove(w.id, w.title)}>{approving.has(w.id) ? "Approving…" : "Approve"}</button> : <Link to="/updates" className={btn}>Review</Link>} />
+          <WorkList title={`In progress (${groups.in_progress.length})`} rows={groups.in_progress} empty="Nothing running." />
+          <WorkList title={`Action required (${groups.action_required.length})`} rows={groups.action_required} empty="No problems." />
+        </section>
       )}
+      {groups && <p className="mt-3 text-xs"><Link to="/updates" className="text-electric underline">Full update queue and history</Link></p>}
     </>
+  );
+}
+
+function WorkList({ title, rows, empty, action }: { title: string; rows: { id: string; title: string; status: string; reason: string; pr_url: string | null }[]; empty: string; action?: (r: { id: string; title: string; status: string }) => React.ReactNode }) {
+  return (
+    <div className="panel p-4">
+      <h2 className="mb-2 text-sm font-semibold">{title}</h2>
+      {rows.length === 0 ? <p className="text-xs text-muted-foreground">{empty}</p> : (
+        <ul className="space-y-2">{rows.map((r) => (
+          <li key={r.id} className="flex items-start justify-between gap-2 text-sm">
+            <div className="min-w-0"><p className="truncate">{r.title}</p><p className="text-xs text-muted-foreground">{r.reason}{r.pr_url && <> · <a href={r.pr_url} target="_blank" rel="noreferrer" className="text-electric">PR</a></>}</p></div>
+            {action?.(r)}
+          </li>))}</ul>
+      )}
+    </div>
   );
 }
