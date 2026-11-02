@@ -75,7 +75,9 @@ function Detail() {
             Autopilot for this project
           </label>
           <div className="mt-4 flex flex-wrap gap-2">
-            <button className={primaryBtn} disabled={!p.site_url || busy !== null} onClick={() => act("scan", async () => { const r = await scan({ data: { id: p.id } }); return `Checked ${r.pages} page(s): ${r.findings} finding(s). Review them below.`; })}>{busy === "scan" ? "Scanning…" : waiting.some((w) => w.status === "approved") || d.proposals.some((x) => x.status === "merged") ? "Scan again to verify" : "Scan & Review"}</button>
+            {p.site_url
+              ? <button className={primaryBtn} disabled={busy !== null} aria-busy={busy === "scan"} onClick={() => act("scan", async () => { const r = await scan({ data: { id: p.id } }); return `Checked ${r.pages} page(s): ${r.findings} finding(s). ${r.findings ? "Review them below." : "Nothing to review."}`; })}>{busy === "scan" ? "Scanning…" : waiting.some((w) => w.status === "approved") || d.proposals.some((x) => x.status === "merged") ? "Scan again to verify" : "Scan & Review"}</button>
+              : <button className={primaryBtn} onClick={() => setEdit(true)}>Add site address to scan</button>}
             <button className={btn} disabled={busy !== null} onClick={() => act("run", async () => { const r = await run({ data: { projectId: p.id } }); return r.skipped ? `Skipped: ${r.skipped}` : r.created ? "Update written to the approval queue." : `Failed: ${r.errors.join("; ")}`; })}>{busy === "run" ? "Writing…" : "Write update now"}</button>
             <button className={btn} onClick={() => setEdit((v) => !v)}>{edit ? "Close edit" : "Edit details"}</button>
           </div>
