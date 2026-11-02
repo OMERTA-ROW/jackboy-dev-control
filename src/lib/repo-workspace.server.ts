@@ -27,8 +27,15 @@ export async function openRepo(full: string): Promise<Repo> {
   const r = parseRepo(full);
   if (!r) throw new Error(`"${full}" is not an owner/repo name.`);
   const info = await gh<RepoInfo & { default_branch: string }>(`/repos/${r.owner}/${r.repo}`);
-  const a = assessRepoAccess(info);
-  if (!a.canWrite) throw new Error(`Refused for ${full}: ${a.reason}`);
+  const { githubTokenFor, appAccessFor } = await import("./github-app.server");
+  if ((await githubTokenFor(full))?.via === "app") {
+    const acc = await appAccessFor(full);
+    if (!acc) throw new Error(`Refused for ${full}: the Jackboy GitHub App is not installed on this repository.`);
+    if (!acc.canWrite) throw new Error(`Refused for ${full}: the Jackboy GitHub App installation lacks Contents: write.`);
+  } else {
+    const a = assessRepoAccess(info);
+    if (!a.canWrite) throw new Error(`Refused for ${full}: ${a.reason}`);
+  }
   return { ...r, base: info.default_branch, full };
 }
 const R = (x: Repo) => `/repos/${x.owner}/${x.repo}`;

@@ -81,6 +81,14 @@ export async function githubTokenFor(repoFull: string | null): Promise<{ token: 
   return t && tokenAllowedFor(repoFull) ? { token: t, via: "token" } : null;
 }
 
+/** Access for app-covered repos comes from the recorded installation: GitHub reports the repo's user-style `permissions` field as all-false for app installation tokens. */
+export async function appAccessFor(repoFull: string): Promise<{ canWrite: boolean; permissions: Record<string, string> } | null> {
+  const { data } = await supabaseAdmin.from("github_installations").select("permissions").eq("revoked", false).contains("repositories", [repoFull]).limit(1);
+  const p = data?.[0]?.permissions as Record<string, string> | undefined;
+  if (!p) return null;
+  return { canWrite: p["contents"] === "write", permissions: p };
+}
+
 export function repoFromPath(path: string): string | null {
   const m = path.match(/^\/repos\/([^/]+)\/([^/?]+)/);
   return m ? `${decodeURIComponent(m[1]!)}/${decodeURIComponent(m[2]!)}` : null;
