@@ -42,7 +42,9 @@ async function verify(p: { repo: string; ref: string; workflowSha: string }) {
 /** Configuration alone never means the model runner has executed successfully. */
 export async function codeCapability(): Promise<{ verified: boolean; detail: string }> {
   if (!process.env["CODE_GITHUB_TOKEN"]) return { verified: false, detail: "CODE requires a separately authorized GitHub Actions credential and an approved workflow." };
-  for (const [repo, target] of Object.entries(targets()).slice(0, 5)) {
+  let approved: Record<string, Target>;
+  try { approved = targets(); } catch { return { verified: false, detail: "CODE runner configuration is invalid; owner review is required." }; }
+  for (const [repo, target] of Object.entries(approved).slice(0, 5)) {
     try {
       await verify({ repo, ...target });
       const r = await gh<{ workflow_runs: Run[] }>(repo, `/actions/workflows/${CODE_WORKFLOW}/runs?event=workflow_dispatch&per_page=100`);
@@ -97,6 +99,10 @@ export async function getCode(id: string, userId: string): Promise<CodeCard> {
   if (r.status !== "allowed") return card;
   const run = await findRun(s);
   if (!run) return { ...card, outcome: "Awaiting GitHub run registration. If dispatch was interrupted, reconcile here before requesting another job." };
+  if (!s.runId) {
+    const persisted = await db.from("action_requests").update({ resources: { ...s, runId: run.id } as never }).eq("id", id).eq("action", CODE_ACTION).eq("requested_by", userId);
+    if (persisted.error) throw new Error("CODE run was found but its durable run ID could not be saved. Refresh to reconcile.");
+  }
   const [jobs, artifacts, prs] = await Promise.all([
     gh<{ jobs: { name: string; status: string; conclusion: string | null }[] }>(s.repo, `/actions/runs/${run.id}/jobs?per_page=100`),
     gh<{ artifacts: { id: number; name: string; expired: boolean }[] }>(s.repo, `/actions/runs/${run.id}/artifacts?per_page=100`),

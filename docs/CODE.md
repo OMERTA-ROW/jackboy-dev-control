@@ -49,7 +49,7 @@ Supported integration evidence checked on 2026-11-02:
 - [Audited official action inputs and implementation](https://github.com/openai/codex-action/blob/13e9c17417b29e9a276f73ec6ed7fb574137d3c3/action.yml), pinned in the workflow.
 - [Official SDK](https://github.com/openai/codex/tree/main/sdk/typescript), assessed as an alternative; it is not installed or claimed as the app runner.
 
-Local isolated command: `node --test --test-isolation=none tests/code-*.test.mjs` (Node 24). Covers command/voice binding, identity/session/expiry/nonce/replay checks, concurrent decisions, dispatch reconciliation, denial, cancellation, retry approvals, workflow mismatch, disabled development, missing credentials, failed audit, validated links and real Git patch checking. Database and GitHub transport are mocked; this proves the application control path, not a live Codex run.
+Local isolated suite (14 tests): `node --test --test-isolation=none tests/code-*.test.mjs` (Node 24). Covers command/voice binding, identity/session/expiry/nonce/replay checks, concurrent decisions, dispatch reconciliation, denial, cancellation, retry approvals, workflow mismatch, disabled development, missing credentials, failed audit, validated links and real Git patch checking. Database and GitHub transport are mocked; this proves the application control path, not a live Codex run.
 
 `Verify` CI adds the same isolated suite plus the app's Vitest suite and production build, without model or production credentials. Component tests cover approval actions, expiry and the discreet accessible hang-up button. Existing voice guard tests now reject unbound confirmation.
 

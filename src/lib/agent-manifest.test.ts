@@ -5,6 +5,8 @@ const ok: Checks = { ai: true, githubRepo: { ok: true, usable: 1 }, actionsRead:
 const cap = (c: Checks, id: string) => buildJackboyManifest(c).capabilities.find((x) => x.id === id)!;
 
 describe("agent manifest", () => {
+  it("CODE stays blocked without live execution evidence", () => expect(cap(ok, "code").status).toBe("blocked"));
+  it("CODE is operational only when the server supplies verified execution evidence", () => expect(cap({ ...ok, code: { verified: true, detail: "A real runner succeeded" } }, "code").status).toBe("operational"));
   it("marks repo editing operational only with a usable private repo", () => {
     expect(cap(ok, "repo_edit").status).toBe("operational");
     expect(cap({ ...ok, githubRepo: { ok: true, usable: 0 } }, "repo_edit").status).toBe("blocked");
@@ -26,3 +28,4 @@ describe("agent manifest", () => {
   ]));
   it("never includes secret-looking text", () => expect(JSON.stringify(buildJackboyManifest(ok))).not.toMatch(/ghp_|sk_|eyJ/));
 });
+

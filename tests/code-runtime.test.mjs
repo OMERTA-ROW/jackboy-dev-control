@@ -70,6 +70,7 @@ test('voice/text intent → pending approval → real server dispatch path → e
   assert.equal(card.status, 'pending'); assert.equal(dispatches, 0); assert.ok(card.nonce);
   const after = await decideCode(card.id, card.nonce, 'allow', 'owner', 'session');
   assert.equal(dispatches, 1); assert.equal(after.run.id, 42); assert.equal(after.nonce, undefined);
+  assert.equal(records.action_requests.find(r => r.id === card.id).resources.runId, 42);
   run.status = 'completed'; run.conclusion = 'success';
   const finished = await getCode(card.id, 'owner');
   assert.equal(finished.run.pr, 'https://github.com/owner/repo/pull/8');

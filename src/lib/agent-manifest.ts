@@ -51,7 +51,6 @@ export function buildJackboyManifest(c: Checks, now = new Date()): AgentManifest
     agent: { id: "jackboy", name: "Jackboy", role: "Code quality and repair agent for the owner's projects" },
     generatedAt: now.toISOString(),
     capabilities: [
-      cap({ id: "code", label: "CODE development jobs", risk: "bounded", status: c.code?.verified ? "operational" : "blocked", detail: c.code?.detail ?? "No live CODE runner has been verified", fix: "Review CODE setup and complete an owner-approved live acceptance run" }),
       cap({ id: "chat", label: "Talk and answer questions about your projects", risk: "read", status: c.ai ? "operational" : "blocked", detail: c.ai ? "AI model reachable" : "AI model not reachable", ...(c.ai ? {} : { fix: "Check AI credits in Settings" }) }),
       cap({ id: "scan", label: "Scan project websites for broken links, errors and demo leftovers", risk: "bounded", tool: "scanSite", status: c.projectsWithSite > 0 ? "operational" : "blocked", detail: c.projectsWithSite > 0 ? `${c.projectsWithSite} project(s) have a site address; static HTML only, no JavaScript` : "No project has a site address", ...(c.projectsWithSite > 0 ? {} : { fix: "Add a site address under Projects → Manage" }) }),
       cap({ id: "repo_edit", label: "Read code and write fixes on a work branch", risk: "bounded", tool: "writeFile", status: c.githubRepo.ok && c.githubRepo.usable > 0 ? "operational" : "blocked", detail: c.githubRepo.ok ? `${c.githubRepo.usable} private repo(s) usable` : c.githubRepo.error ?? "GitHub not connected", ...(c.githubRepo.ok && c.githubRepo.usable > 0 ? {} : { fix: "Connect GitHub on the Connections page" }) }),
@@ -62,6 +61,7 @@ export function buildJackboyManifest(c: Checks, now = new Date()): AgentManifest
       cap({ id: "report_out", label: "Send activity reports to Razoo/OMNI", risk: "read", status: c.outboxTargets > 0 ? "operational" : "blocked", detail: c.outboxTargets > 0 ? `${c.outboxTargets} target(s) configured` : "Reports wait in the outbox; no target endpoint configured", ...(c.outboxTargets > 0 ? {} : { fix: "Provide a Razoo or OMNI endpoint" }) }),
       cap({ id: "omni_delegate", label: "Hand tasks to OMNI", risk: "bounded", status: c.omniVerified ? "operational" : "blocked", detail: c.omniVerified ? "OMNI verified" : "OMNI not connected; tasks stay queued", fix: "Connect OMNI with an authenticated endpoint" }),
       cap({ id: "deploy", label: "Merge or deploy to production", risk: "production", status: "not_built", detail: "Merge/revert need your passkey each time; Jackboy has no publish/deploy integration" }),
+      cap({ id: "code", label: "CODE development jobs", risk: "bounded", status: c.code?.verified ? "operational" : "blocked", detail: c.code?.detail ?? "No live CODE runner has been verified", fix: "Review CODE setup and complete an owner-approved live acceptance run" }),
     ],
   };
 }
