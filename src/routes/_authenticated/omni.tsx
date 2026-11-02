@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { Download, Trash2, ShieldAlert, CheckCircle2, XCircle } from "lucide-react";
+import { Download, Trash2, CheckCircle2, XCircle } from "lucide-react";
 import { GuidanceTip, PageHeader } from "@/components/AppShell";
 import {
   canApprove,
