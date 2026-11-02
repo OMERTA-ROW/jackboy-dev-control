@@ -480,6 +480,8 @@ function VoiceControl() {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const path = useRouterState({ select: (r) => r.location.pathname });
+  // The conversation is a dedicated full-screen view without dashboard chrome.
+  if (path === "/chat") return <>{children}</>;
   if (path === "/auth" || path === "/onboarding") {
     return (
       <div className="min-h-screen px-4 py-6">
@@ -548,8 +550,11 @@ export function AppShell({ children }: { children: ReactNode }) {
           </Link>
         ))}
       </nav>
-      {/* One conversation: the floating mini-chat is hidden on the full chat page. */}
-      {path !== "/chat" && <VoiceControl />}
+      {/* One conversation: a single unobtrusive bubble opens the full-screen chat (the old mini-chat panel is retired). */}
+      <Link to="/chat" aria-label="Open chat with Jackboy" title="Chat with Jackboy"
+        className="fixed bottom-20 right-4 z-30 flex size-14 items-center justify-center rounded-full border border-electric/50 bg-sidebar text-electric shadow-xl hover:bg-muted focus-visible:outline-2 focus-visible:outline-electric md:bottom-6 md:right-6">
+        <Hex className="h-7 w-7" />
+      </Link>
     </div>
   );
 }
