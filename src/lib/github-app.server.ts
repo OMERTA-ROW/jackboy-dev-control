@@ -67,7 +67,7 @@ export async function syncInstallations(approvedBy: string | null) {
 let lastSync = 0;
 /** Personal GITHUB_TOKEN is used only for these repos; everything else must go through the GitHub App. */
 export const PERSONAL_TOKEN_REPOS = ["street-tech666/jackboy-dev-control"];
-export const tokenAllowedFor = (repoFull: string | null) => !!repoFull && PERSONAL_TOKEN_REPOS.includes(repoFull.toLowerCase());
+export const tokenAllowedFor = (repoFull: string | null) => !repoFull || PERSONAL_TOKEN_REPOS.includes(repoFull.toLowerCase());
 
 /** App installation token for repos it covers; personal GITHUB_TOKEN only for PERSONAL_TOKEN_REPOS. */
 export async function githubTokenFor(repoFull: string | null): Promise<{ token: string; via: "app" | "token" } | null> {
