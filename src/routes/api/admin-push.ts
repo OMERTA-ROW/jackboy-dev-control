@@ -16,7 +16,7 @@ export const Route = createFileRoute("/api/admin-push")({
         const repo = await ws.openRepo(body.repo);
         const result = await ws.write(repo, body.branch, body.path, body.content, body.message);
         const { logSite } = await import("@/lib/site-log.server");
-        await logSite(userId, "admin.push_file", { repo: repo.full, branch: body.branch, path: body.path, action: result.action, commit: result.commit });
+        await logSite({ actor: `owner:${userId}`, action: "admin.push_file", summary: `${result.action} ${body.path} on ${repo.full}@${body.branch}`, repo: repo.full, branch: body.branch, detail: { path: body.path, action: result.action, commit: result.commit } });
         return Response.json(result);
       },
     },
