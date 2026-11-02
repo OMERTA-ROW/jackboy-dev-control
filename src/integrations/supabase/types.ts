@@ -1230,40 +1230,112 @@ export type Database = {
         }
         Relationships: []
       }
+      omni_callback_nonces: {
+        Row: {
+          nonce: string
+          received_at: string
+        }
+        Insert: {
+          nonce: string
+          received_at?: string
+        }
+        Update: {
+          nonce?: string
+          received_at?: string
+        }
+        Relationships: []
+      }
+      omni_connection: {
+        Row: {
+          capabilities: Json
+          id: boolean
+          last_checked_at: string | null
+          last_error: string | null
+          omni_version: string | null
+          verified: boolean
+          verified_at: string | null
+        }
+        Insert: {
+          capabilities?: Json
+          id?: boolean
+          last_checked_at?: string | null
+          last_error?: string | null
+          omni_version?: string | null
+          verified?: boolean
+          verified_at?: string | null
+        }
+        Update: {
+          capabilities?: Json
+          id?: boolean
+          last_checked_at?: string | null
+          last_error?: string | null
+          omni_version?: string | null
+          verified?: boolean
+          verified_at?: string | null
+        }
+        Relationships: []
+      }
       omni_jobs: {
         Row: {
+          attempts: number
+          code_request_id: string | null
+          completed_at: string | null
           created_at: string
           created_by: string
           guardian_verdict: string
           id: string
           instructions: string
           kind: string
-          project_id: string
+          last_error: string | null
+          next_attempt_at: string
+          omni_job_ref: string | null
+          pr_url: string | null
+          project_id: string | null
+          repo: string | null
           report_id: string | null
+          result: Json | null
           sent_at: string | null
           status: string
         }
         Insert: {
+          attempts?: number
+          code_request_id?: string | null
+          completed_at?: string | null
           created_at?: string
           created_by: string
           guardian_verdict?: string
           id?: string
           instructions?: string
           kind: string
-          project_id: string
+          last_error?: string | null
+          next_attempt_at?: string
+          omni_job_ref?: string | null
+          pr_url?: string | null
+          project_id?: string | null
+          repo?: string | null
           report_id?: string | null
+          result?: Json | null
           sent_at?: string | null
           status?: string
         }
         Update: {
+          attempts?: number
+          code_request_id?: string | null
+          completed_at?: string | null
           created_at?: string
           created_by?: string
           guardian_verdict?: string
           id?: string
           instructions?: string
           kind?: string
-          project_id?: string
+          last_error?: string | null
+          next_attempt_at?: string
+          omni_job_ref?: string | null
+          pr_url?: string | null
+          project_id?: string | null
+          repo?: string | null
           report_id?: string | null
+          result?: Json | null
           sent_at?: string | null
           status?: string
         }

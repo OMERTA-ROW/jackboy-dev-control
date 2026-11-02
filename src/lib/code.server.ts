@@ -127,6 +127,18 @@ export async function decideCode(id: string, nonce: string, decision: "allow" | 
   if (won.error || !won.data) throw new Error("CODE approval is stale, expired, or already used.");
   await audit(userId, decision, id);
   if (decision === "allow") {
+    // A handshake-verified OMNI takes the approved job; otherwise the existing GitHub runner path is used.
+    const omni = await import("./omni-link.server");
+    if (scope.operation === "dispatch" && (await omni.isOmniVerified())) {
+      try {
+        await omni.queueCodeForOmni(id, scope.repo, scope.instruction, userId);
+        await db.from("action_requests").update({ outcome: "Queued for OMNI; waiting for OMNI to accept it" }).eq("id", id);
+        await omni.dispatchOmniJobs(3).catch(() => null);
+      } catch (e) {
+        await db.from("action_requests").update({ outcome: `Could not queue for OMNI: ${(e as Error).message.slice(0, 160)}` }).eq("id", id);
+      }
+      return getCode(id, userId);
+    }
     try {
       if (scope.operation === "retry") {
         const run = await findRun(scope);

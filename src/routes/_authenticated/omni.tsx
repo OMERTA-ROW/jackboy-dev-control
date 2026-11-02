@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { Download, Trash2, ShieldAlert, CheckCircle2, XCircle } from "lucide-react";
+import { Download, Trash2, CheckCircle2, XCircle } from "lucide-react";
 import { GuidanceTip, PageHeader } from "@/components/AppShell";
 import {
   canApprove,
@@ -15,6 +15,7 @@ import {
   type Revenue,
 } from "@/lib/omni-handoff";
 import { getOmniQueue, requestOmniJob } from "@/lib/passport.functions";
+import { OmniLinkPanel } from "@/components/OmniLinkPanel";
 
 export const Route = createFileRoute("/_authenticated/omni")({
   head: () => ({
@@ -58,13 +59,7 @@ function OmniPage() {
         title="OMNI Handoffs"
         subtitle="Jackboy researches and evaluates. OMNI builds, tests and ships — only after you approve."
       />
-      <div className="mb-4 flex items-center gap-2 rounded-md border border-warning/40 bg-muted p-3 text-sm">
-        <ShieldAlert className="h-4 w-4 shrink-0 text-warning" />
-        <span>
-          <strong className="text-warning">OMNI integration not connected or verified.</strong> Approved handoffs can be
-          exported as briefs for manual handoff.
-        </span>
-      </div>
+      <OmniLinkPanel />
       <GuidanceTip>
         Approve a handoff, then clear the provenance checklist. Publishing, pricing and selling stay locked until both
         are done.

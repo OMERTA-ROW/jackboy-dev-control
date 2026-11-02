@@ -12,7 +12,11 @@ const audit = (ctx: Ctx, action: string, detail: Record<string, unknown>, outcom
   ctx.supabase.rpc("write_audit", { _action: action, _detail: detail, _outcome: outcome });
 
 /** OMNI has no verified authenticated API yet: jobs stay queued locally and are never marked sent. */
-const OMNI_VERIFIED = false;
+// OMNI counts as verified only after the server handshake proved both shared keys (omni_connection row).
+async function omniVerified(ctx: { supabase: { from: (t: "omni_connection") => any } }): Promise<boolean> {
+  const { data } = await ctx.supabase.from("omni_connection").select("verified").eq("id", true).maybeSingle();
+  return Boolean(data?.verified);
+}
 
 export const getPassport = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -49,7 +53,7 @@ export const getPassport = createServerFn({ method: "POST" })
       reports: reports.data ?? [],
       jobs: jobs.data ?? [],
       trail: trail.data ?? [],
-      omniVerified: OMNI_VERIFIED,
+      omniVerified: (await omniVerified(context)),
     };
   });
 
@@ -151,8 +155,8 @@ export const requestOmniJob = createServerFn({ method: "POST" })
     await audit(
       context,
       "omni.job.queue",
-      { agent: data.agentId, project: data.projectId, kind: data.kind, sent: OMNI_VERIFIED },
-      OMNI_VERIFIED ? "ok" : "queued_not_sent",
+      { agent: data.agentId, project: data.projectId, kind: data.kind, omniVerified: await omniVerified(context) },
+      "queued_not_sent",
     );
     return { ok: true, sent: false };
   });
@@ -172,7 +176,7 @@ export const getOmniQueue = createServerFn({ method: "POST" })
         .limit(50),
     ]);
     if (projects.error || jobs.error) throw new Error("Could not load the OMNI task queue.");
-    return { role: currentRole, projects: projects.data ?? [], jobs: jobs.data ?? [], omniVerified: OMNI_VERIFIED };
+    return { role: currentRole, projects: projects.data ?? [], jobs: jobs.data ?? [], omniVerified: (await omniVerified(context)) };
   });
 
 /** Dashboard facts come only from authenticated, RLS-scoped records. */
@@ -208,7 +212,7 @@ export const getDashboardFacts = createServerFn({ method: "POST" })
       reports: reports.data ?? [],
       proposals: proposals.data ?? [],
       events: events.data ?? [],
-      omniVerified: OMNI_VERIFIED,
+      omniVerified: (await omniVerified(context)),
     };
   });
 
