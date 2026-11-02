@@ -1,10 +1,10 @@
 // Server-only WebAuthn ceremonies and single-use step-up grants.
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { CHALLENGE_TTL_MS, GRANT_TTL_MS, grantUsable } from "./step-up";
+import { passkeyOrigin } from "./passkey-origin";
 
 export function rp(request: Request) {
-  const origin = request.headers.get("origin") ?? new URL(request.url).origin;
-  return { origin, rpID: new URL(origin).hostname };
+  return passkeyOrigin(request.headers.get("origin") ?? new URL(request.url).origin);
 }
 
 export async function saveChallenge(userId: string, challenge: string, purpose: "register" | "stepup", action?: string, target?: string) {
