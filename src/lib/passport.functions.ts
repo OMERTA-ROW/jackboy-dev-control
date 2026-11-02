@@ -155,8 +155,8 @@ export const requestOmniJob = createServerFn({ method: "POST" })
     await audit(
       context,
       "omni.job.queue",
-      { agent: data.agentId, project: data.projectId, kind: data.kind, sent: (await omniVerified(context)) },
-      (await omniVerified(context)) ? "ok" : "queued_not_sent",
+      { agent: data.agentId, project: data.projectId, kind: data.kind, omniVerified: await omniVerified(context) },
+      "queued_not_sent",
     );
     return { ok: true, sent: false };
   });
