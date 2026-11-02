@@ -155,6 +155,7 @@ export const decideAction = createServerFn({ method: "POST" }).middleware([requi
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const A = await import("./action-approval");
     const { data: r } = await supabaseAdmin.from("action_requests").select("*").eq("id", data.id).maybeSingle();
+    if (r?.action === "code_workflow") throw new Error("Decide CODE requests through their session-bound CODE card.");
     const bad = A.canDecide(r as never, context.userId, data.decision, Boolean(data.grantId));
     if (bad) { if (r?.status === "pending" && /expired/.test(bad)) await supabaseAdmin.from("action_requests").update({ status: "expired" }).eq("id", data.id).eq("status", "pending"); throw new Error(bad); }
     if (r!.tier === "critical" && data.decision !== "deny") await (await import("./passkey.server")).consumeGrant(data.grantId, context.userId, "critical_change", data.id);
@@ -183,3 +184,4 @@ export const listActionRequests = createServerFn({ method: "GET" }).middleware([
   const { data } = await context.supabase.from("action_requests").select("id, task_id, action, tier, status, mode, outcome, expires_at, decided_at, created_at").order("created_at", { ascending: false }).limit(30);
   return data ?? [];
 });
+

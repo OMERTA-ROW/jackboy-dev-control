@@ -14,7 +14,9 @@ export async function jackboyManifest() {
     supabaseAdmin.from("log_subscriptions").select("target").eq("enabled", true),
   ]);
   const outboxTargets = (subs.data ?? []).filter((s: { target: string }) => process.env[`${s.target.toUpperCase()}_API_URL`] && process.env[`${s.target.toUpperCase()}_API_KEY`]).length;
+  const code = await (await import("./code.server")).codeCapability();
   return buildJackboyManifest({
+    code,
     ai: Boolean(process.env["LOVABLE_API_KEY"]),
     githubRepo,
     actionsRead: (actions.data ?? []).length > 0,
@@ -24,3 +26,4 @@ export async function jackboyManifest() {
     omniVerified: false,
   });
 }
+

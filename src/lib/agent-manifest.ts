@@ -33,6 +33,7 @@ export type AgentMessage = {
 };
 
 export type Checks = {
+  code?: { verified: boolean; detail: string };
   ai: boolean;
   githubRepo: { ok: boolean; usable: number; error?: string };
   actionsRead: boolean | null;     // null = not checked
@@ -60,6 +61,7 @@ export function buildJackboyManifest(c: Checks, now = new Date()): AgentManifest
       cap({ id: "report_out", label: "Send activity reports to Razoo/OMNI", risk: "read", status: c.outboxTargets > 0 ? "operational" : "blocked", detail: c.outboxTargets > 0 ? `${c.outboxTargets} target(s) configured` : "Reports wait in the outbox; no target endpoint configured", ...(c.outboxTargets > 0 ? {} : { fix: "Provide a Razoo or OMNI endpoint" }) }),
       cap({ id: "omni_delegate", label: "Hand tasks to OMNI", risk: "bounded", status: c.omniVerified ? "operational" : "blocked", detail: c.omniVerified ? "OMNI verified" : "OMNI not connected; tasks stay queued", fix: "Connect OMNI with an authenticated endpoint" }),
       cap({ id: "deploy", label: "Merge or deploy to production", risk: "production", status: "not_built", detail: "Merge/revert need your passkey each time; Jackboy has no publish/deploy integration" }),
+      cap({ id: "code", label: "CODE development jobs", risk: "bounded", status: c.code?.verified ? "operational" : "blocked", detail: c.code?.detail ?? "No live CODE runner has been verified", fix: "Review CODE setup and complete an owner-approved live acceptance run" }),
     ],
   };
 }
@@ -76,3 +78,4 @@ export function nextActions(m: AgentManifest): string[] {
   if (firstFix) out.push(`Unblock: ${firstFix.fix}`);
   return out.slice(0, 3);
 }
+

@@ -2,6 +2,13 @@ import { describe, expect, it } from "vitest";
 import { parseRepo, providerAuthFor } from "./provider-auth";
 
 describe("provider auth links", () => {
+  it("explains backend storage and provides the actual Jackboy editor before approval", () => {
+    const a = providerAuthFor("github_repo", "OMERTA-ROW/Omni")!;
+    expect(a.setupSteps.join(" ")).toContain("backend Secrets as GITHUB_TOKEN");
+    expect(a.setupSteps.join(" ")).toContain("Approve with passkey & check");
+    expect(a.backendSetupUrl).toBe("https://lovable.dev/projects/72823346-c174-4e90-9e17-671e197837c5");
+    expect(a.note).not.toContain("checks access automatically when you come back");
+  });
   it("targets the OMERTA-ROW org with write scopes for code access", () => {
     const a = providerAuthFor("github_repo", "OMERTA-ROW/Omni")!;
     const u = new URL(a.links[0]!.url);
@@ -22,3 +29,4 @@ describe("provider auth links", () => {
     expect(parseRepo("evil.com/x?y")).toBeNull();
   });
 });
+

@@ -1,6 +1,7 @@
 // Owner-only AutoConnect API.
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { approvalTarget, capRisk } from "./blockers";
 
 async function owner(ctx: { supabase: { rpc: (n: "my_role") => PromiseLike<{ data: unknown }> }; userId: string }) {
   const { data } = await ctx.supabase.rpc("my_role");
@@ -26,16 +27,23 @@ export const getAutoConnect = createServerFn({ method: "GET" })
 
 export const autoConnectAct = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { cap: string; projectId: string; op: "approve" | "verify" | "pause" | "resume" | "revoke" }) => {
+  .inputValidator((d: { cap: string; projectId: string; op: "approve" | "verify" | "pause" | "resume" | "revoke"; grantId?: string | undefined }) => {
     if (!CAP_RE.test(d.cap) || !UUID_RE.test(d.projectId)) throw new Error("Bad input.");
     if (!["approve", "verify", "pause", "resume", "revoke"].includes(d.op)) throw new Error("Bad op.");
+    if (d.grantId !== undefined && !UUID_RE.test(d.grantId)) throw new Error("Bad passkey grant.");
     return d;
   })
   .handler(async ({ data, context }) => {
     const actor = await owner(context as never);
     const s = await import("./autoconnect.server");
-    if (data.op === "approve") return s.approveCapability(data.cap, data.projectId, actor, context.userId);
+    if (data.op === "approve") {
+      if (capRisk(data.cap) === "Critical") await (await import("./passkey.server")).consumeGrant(data.grantId, context.userId, "approve_integration", approvalTarget(data.cap, data.projectId));
+      const approved = await s.approveCapability(data.cap, data.projectId, actor, context.userId);
+      if (approved.status === "unavailable") return { ...approved, detail: "No supported adapter exists yet.", resumed: 0 };
+      return s.verifyCapability(data.cap, data.projectId, actor);
+    }
     if (data.op === "verify") return s.verifyCapability(data.cap, data.projectId, actor);
     await s.setGrant(data.cap, data.projectId, actor, data.op);
     return { ok: true };
   });
+

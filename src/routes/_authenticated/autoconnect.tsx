@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { PageHeader } from "@/components/AppShell";
 import { autoConnectAct, getAutoConnect } from "@/lib/autoconnect.functions";
 import { bucket, capById, effectiveStatus, type Bucket, type CapStatus } from "@/lib/autoconnect";
+import { approvalTarget, capRisk } from "@/lib/blockers";
+import { useStepUp } from "@/lib/step-up-client";
 
 export const Route = createFileRoute("/_authenticated/autoconnect")({
   head: () => ({
@@ -25,6 +27,7 @@ const primary = "rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-prim
 const BUCKETS: Bucket[] = ["Connected", "Needs Approval", "Missing/Blocked"];
 
 function AutoConnect() {
+  const stepUp = useStepUp();
   const get = useServerFn(getAutoConnect), act = useServerFn(autoConnectAct);
   const [d, setD] = useState<D | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -35,9 +38,10 @@ function AutoConnect() {
   const run = async (key: string, cap: string, projectId: string, op: "approve" | "verify" | "pause" | "resume" | "revoke") => {
     setBusy(key); setMsg(null);
     try {
-      const r = await act({ data: { cap, projectId, op } }) as { status?: string; detail?: string; resumed?: number };
+      const grantId = op === "approve" && capRisk(cap) === "Critical" ? await stepUp("approve_integration", approvalTarget(cap, projectId)) : undefined;
+      const r = await act({ data: { cap, projectId, op, grantId } }) as { status?: string; detail?: string; resumed?: number };
       if (op === "verify") setMsg(`${r.status === "connected" ? "Connected" : "Not connected"}: ${r.detail}${r.resumed ? ` · resumed ${r.resumed} waiting task(s)` : ""}`);
-      if (op === "approve") { setMsg(r.status === "unavailable" ? "Approved, but no supported adapter exists yet." : "Approved. Finish the provider setup below, then press Verify now."); setOpen(key); }
+      if (op === "approve") { setMsg(r.status === "connected" ? `Connected. ${r.resumed ?? 0} waiting task(s) resumed.` : `Approved, but not connected: ${r.detail ?? "Finish provider setup and press Verify now."}`); setOpen(key); }
     } catch (e) { setMsg((e as Error).message); } finally { setBusy(null); void load(); }
   };
   if (!d) return <><PageHeader title="AutoConnect" subtitle="Checking what each project needs…" />{msg && <p className="text-destructive">{msg}</p>}</>;
@@ -76,7 +80,7 @@ function AutoConnect() {
                       {c.setupUrl && <li><a className="text-primary underline" href={c.setupUrl} target="_blank" rel="noreferrer">Open provider setup</a></li>}</ol>
                   )}
                   <div className="mt-3 flex flex-wrap gap-2">
-                    {(g.eff === "needs_approval" || g.eff === "missing" || g.eff === "revoked" || g.eff === "expired") && c?.verifiable && <button className={primary} disabled={!!busy} onClick={() => run(key, g.capability, g.project_id, "approve")}>Approve & Connect</button>}
+                    {(g.eff === "needs_approval" || g.eff === "missing" || g.eff === "revoked" || g.eff === "expired") && c?.verifiable && <button className={primary} disabled={!!busy} onClick={() => run(key, g.capability, g.project_id, "approve")}>{capRisk(g.capability) === "Critical" ? "Approve with passkey & check" : "Approve & check"}</button>}
                     {(g.eff === "awaiting_setup" || g.eff === "error" || g.eff === "connected") && <button className={btn} disabled={!!busy || g.paused} onClick={() => run(key, g.capability, g.project_id, "verify")}>{busy === key ? "Checking…" : "Verify now"}</button>}
                     {g.eff !== "unavailable" && g.eff !== "revoked" && <button className={btn} disabled={!!busy} onClick={() => run(key, g.capability, g.project_id, g.paused ? "resume" : "pause")}>{g.paused ? "Resume" : "Pause"}</button>}
                     {(g.eff === "connected" || g.eff === "awaiting_setup") && <button className={btn} disabled={!!busy} onClick={() => run(key, g.capability, g.project_id, "revoke")}>Revoke</button>}
@@ -91,3 +95,4 @@ function AutoConnect() {
     </>
   );
 }
+

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { AudioLines, Mic, MicOff, PhoneOff, Play, RotateCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useLiveVoice, type LiveEvent } from "@/hooks/use-live-voice";
-import { VoiceOrb, type OrbMode } from "@/components/VoiceOrb";
+import type { OrbMode } from "@/components/VoiceOrb";
 
 export type LiveRow = { role: "user" | "assistant"; text: string };
 const STATUS: Record<string, string> = { idle: "Voice off", connecting: "Connecting…", connected: "Listening", stopping: "Ending…", closed: "Voice off" };
@@ -12,7 +12,7 @@ const STATUS: Record<string, string> = { idle: "Voice off", connecting: "Connect
  * Captions stream into the chat via onLiveRows; when the call ends they are committed via onTranscript.
  * Voice can only read Jackboy's state; approvals, merges, deploys and permission changes stay on screens with passkey step-up.
  */
-export function useLiveCall({ chatContext, onLiveRows, onTranscript }: { chatContext: () => string; onLiveRows: (rows: LiveRow[]) => void; onTranscript: (rows: LiveRow[]) => void }) {
+export function useLiveCall({ chatContext, onLiveRows, onTranscript, onCodeCard }: { chatContext: () => string; onLiveRows: (rows: LiveRow[]) => void; onTranscript: (rows: LiveRow[]) => void; onCodeCard?: (card: import("@/lib/code").CodeCard) => void }) {
   const token = useRef<string | null>(null);
   useEffect(() => {
     void supabase.auth.getSession().then(({ data }) => { token.current = data.session?.access_token ?? null; });
@@ -30,6 +30,7 @@ export function useLiveCall({ chatContext, onLiveRows, onTranscript }: { chatCon
   };
   const commit = () => { if (rowsRef.current.length) onTranscript(rowsRef.current); rowsRef.current = []; onLiveRows([]); };
   const onEvent = (e: LiveEvent) => {
+    if (e.type === "app.code.card" && e["card"] && typeof e["card"] === "object") onCodeCard?.(e["card"] as import("@/lib/code").CodeCard);
     const delta = typeof e["delta"] === "string" ? (e["delta"] as string) : "";
     if (e.type === "session.input_transcript.delta" && delta) { push("user", delta); setActivity("listening"); level.current = 0.8; }
     else if (e.type === "session.output_transcript.delta" && delta) {
@@ -75,15 +76,15 @@ export function LiveCallBar({ v }: { v: LiveCall }) {
   if (!v.live && !call.error) return audio;
   return (
     <div className="mb-2 flex flex-wrap items-center gap-2 rounded-full border border-border bg-card/80 py-1 pl-1 pr-2 backdrop-blur">
-      <VoiceOrb mode={v.mode} level={v.level} onTap={v.live ? v.end : v.start} size={36} />
       <span className="min-w-0 flex-1 truncate text-xs" aria-live="polite">
         {call.error ? <span role="alert" className="text-destructive">{call.error}</span> : call.muted ? "Muted" : v.mode === "speaking" ? "Jackboy is speaking — just talk to interrupt" : v.mode === "thinking" ? "Thinking…" : STATUS[call.status] ?? call.status}
       </span>
       {call.playbackBlocked && <button type="button" onClick={call.resumePlayback} className={pill}><Play className="size-4" />Play audio</button>}
       {call.error && !v.live && <button type="button" onClick={v.start} className={pill}><RotateCw className="size-4" />Reconnect</button>}
       {v.live && <button type="button" disabled={call.status !== "connected"} onClick={() => call.setMuted(!call.muted)} aria-pressed={call.muted} aria-label={call.muted ? "Unmute microphone" : "Mute microphone"} className={pill}>{call.muted ? <MicOff className="size-4" /> : <Mic className="size-4" />}</button>}
-      {v.live && <button type="button" onClick={v.end} aria-label="End voice conversation" className={`${pill} border-destructive/50 text-destructive`}><PhoneOff className="size-4" />End</button>}
+      {v.live && <button type="button" onClick={v.end} aria-label="End voice conversation" title="End voice conversation" className="inline-flex size-10 items-center justify-center rounded-full text-muted-foreground hover:bg-muted focus-visible:outline-2 focus-visible:outline-electric"><PhoneOff className="size-4" /></button>}
       {audio}
     </div>
   );
 }
+

@@ -13,7 +13,7 @@ export const CAPABILITIES: Capability[] = [
     steps: ["Open GitHub → Fine-grained tokens and edit the token Jackboy already uses.", "Under Repository permissions set “Actions” to Read-only. Leave everything else unchanged.", "Save. If GitHub issues a new token value, replace GITHUB_TOKEN in Project Settings → Secrets (never paste it in chat).", "Come back and press “Verify now”."] },
   { id: "github_repo", name: "GitHub repository (branches + draft PRs)", method: "Fine-grained GitHub token", scopes: "Contents: Read & write, Pull requests: Read & write — private repos only", manual: true,
     setupUrl: "https://github.com/settings/personal-access-tokens", verifiable: true,
-    steps: ["Give the token access to this repo with Contents and Pull requests read & write.", "Save, then press “Verify now”."] },
+    steps: ["Give the token access to this repo with Contents and Pull requests read & write.", "GitHub shows the secret token value only once. Its name (for example Jackboy code access) is not the secret.", "Save the secret value in the Jackboy Lovable project's backend Secrets as GITHUB_TOKEN, not GITHUB_KEY. Never put it in chat.", "Return to Blocker Queue to approve with a passkey and check access, or press Verify now if already approved."] },
   { id: "model_provider", name: "AI model", method: "Built-in Lovable AI (no key needed)", scopes: "Text generation for this app", manual: false, setupUrl: null, verifiable: true, steps: ["Nothing to set up; press “Verify now”."] },
   { id: "browser_runner", name: "Browser test runner", method: "No supported adapter yet", scopes: "-", manual: true, setupUrl: null, verifiable: false, steps: ["Not available: no isolated browser runner can be connected yet."] },
   { id: "deploy_api", name: "Deployment", method: "No supported adapter yet", scopes: "-", manual: true, setupUrl: null, verifiable: false, steps: ["Not available: Jackboy stops at draft PRs."] },
@@ -61,3 +61,4 @@ export function capabilityForTestGap(reason: string): string | null {
   if (/sandbox runner|browser runner/i.test(reason)) return "browser_runner";
   return null;
 }
+

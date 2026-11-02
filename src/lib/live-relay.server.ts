@@ -148,13 +148,45 @@ async function readJackboyStatus(token: string) {
 }
 
 /** Same real backend tools as typed chat and the dashboard, guarded for spoken input (confirm for bounded, typed-only for sensitive). */
-async function voiceTools(token: string, messages: ModelMessage[]) {
+async function voiceTools(token: string, messages: ModelMessage[], cards: Map<string, import("./code").CodeCard>, onCard: (card: import("./code").CodeCard) => void) {
   const { data } = await ownerClient(token).auth.getUser(token);
   if (!data.user) throw new Error("Your session expired. Sign in again.");
   const { buildJackboyTools, guardTools } = await import("./jackboy-tools.server");
   const { decideTool, liveMessagesForGuard, PRIVILEGED_TOOLS } = await import("./voice-guard");
   const guardMsgs = liveMessagesForGuard(messages as never);
-  return guardTools(buildJackboyTools(data.user.id), data.user.id, (n) => decideTool(n, guardMsgs), PRIVILEGED_TOOLS);
+  const tools = guardTools(buildJackboyTools(data.user.id), data.user.id, (n) => decideTool(n, guardMsgs), PRIVILEGED_TOOLS);
+  return { ...tools,
+    requestCODE: tool({
+      description: "Request a CODE development job for the owner's named project and task. Creates an in-chat scoped approval card only; never executes until that exact card is allowed.",
+      inputSchema: z.object({ project: z.string().min(1).max(120), instruction: z.string().min(1).max(2000) }),
+      execute: async ({ project, instruction }) => {
+        const c = await import("./code.server");
+        const card = await c.requestCode(await c.codeProjectId(project), instruction, data.user!.id, c.codeSessionHash(token));
+        cards.set(card.id, card); onCard(card);
+        return { requestId: card.id, status: card.status, expiresAt: card.expiresAt, permissions: card.permissions, instruction: card.instruction, next: "Review the CODE card. Say Allow CODE followed by its full request ID, or use Allow once / Deny. No job has run yet." };
+      },
+    }),
+    decideCODE: tool({
+      description: "Decide only a CODE request shown in this live session. The owner's latest utterance must exactly name Allow CODE or Deny CODE followed by that request's full ID. Generic yes/confirm is refused.",
+      inputSchema: z.object({ requestId: z.string().uuid() }),
+      execute: async ({ requestId }) => {
+        const card = cards.get(requestId);
+        if (!card?.nonce) return { blocked: "No pending CODE card in this session. Use the visible card." };
+        // Consecutive user entries are transcript deltas, not separate authorizations.
+        const latest: string[] = [];
+        let end = messages.length - 1;
+        while (end >= 0 && messages[end]!.role !== "user") end--;
+        for (let i = end; i >= 0; i--) { const m = messages[i]!; if (m.role !== "user") break; latest.unshift(typeof m.content === "string" ? m.content : ""); }
+        const { codeVoiceDecision } = await import("./code");
+        const decision = codeVoiceDecision(latest.join(""), requestId);
+        if (!decision) return { blocked: "The latest spoken response does not exactly name this CODE approval request." };
+        const c = await import("./code.server");
+        const after = await c.decideCode(requestId, card.nonce, decision, data.user!.id, c.codeSessionHash(token));
+        cards.delete(requestId); onCard(after);
+        return { requestId, status: after.status, outcome: after.outcome, run: after.run ?? null };
+      },
+    }),
+  };
 }
 
 function ownerClient(token: string) {
@@ -186,6 +218,8 @@ async function answerQuestion(
   consumeInput: () => void,
   onPlan: (plan: JackboyStatus) => void,
   token: string,
+  codeCards: Map<string, import("./code").CodeCard>,
+  onCodeCard: (card: import("./code").CodeCard) => void,
 ) {
   signal.throwIfAborted();
   const provider = createOpenAI({
@@ -237,12 +271,12 @@ async function answerQuestion(
       "Transcripts may be incomplete or corrected; use the latest correction. " +
       "Use tools for every fact and action; answer only from tool results and read back the actual result or error. " +
       "Use get_jackboy_status for overview, foundryQueue/foundryInspect/foundryDecide for the work queue, scanSite/scanResults for site scans, checkSite for reachability, connectionStatus for repo access, repo tools (repoTree, readFile, writeFile on jackboy/* branches, showDiff, checkStatus, openDraftPR) for code. " +
-      "Input is spoken and may be misheard: before any change tool, restate exactly what you will do (project, action) and ask the owner to say confirm; only call it after they confirm. If a tool returns blocked, read the reason. If a project name is ambiguous, ask which one. " +
+      "Input is spoken and may be misheard. Generic confirm never authorizes changes. For CODE tasks use requestCODE to present a scoped approval card, then decideCODE only if the latest utterance says Allow CODE or Deny CODE with the full pending request ID. Never invent or infer consent. If a tool returns blocked, read the reason. If a project name is ambiguous, ask which one. " +
       "Never claim a connection, fix, test, merge or deployment that a result does not show. Voice cannot merge, deploy, connect repos, change permissions or toggle automation. " +
       "Never output secrets. Answer in at most 90 spoken words, plain sentences, no markdown.",
     messages,
     tools: {
-      ...(await voiceTools(token, messages)),
+      ...(await voiceTools(token, messages, codeCards, onCodeCard)),
       get_jackboy_status: tool({
         description: "Read-only: Jackboy's development queue, open Code Foundry tasks, blockers and pending approval count.",
         inputSchema: statusInput,
@@ -339,6 +373,7 @@ export function bindLiveConnection(
   }, 5000);
   const transcripts: Transcript[] = [];
   const delegations = new Set<string>();
+  const codeCards = new Map<string, import("./code").CodeCard>();
 
   function emit(event: object) {
     if (browser.readyState !== 1) return;
@@ -488,6 +523,8 @@ export function bindLiveConnection(
           pending.plan = plan;
         },
         ownerToken ?? "",
+        codeCards,
+        (card) => emit({ type: "app.code.card", card }),
       );
       if (closing || controller.signal.aborted) return;
       if (taskRevision !== revision) return;
@@ -684,3 +721,4 @@ export function bindLiveConnection(
   browser.onClose(stop);
   browser.onError(stop);
 }
+

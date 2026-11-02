@@ -32,18 +32,21 @@ const STATUS: Record<Blocker["status"], [string, string]> = {
 const btn = "rounded-md border border-border px-3 py-1.5 text-xs hover:border-electric disabled:opacity-50";
 type Data = Awaited<ReturnType<typeof getBlockers>>;
 
-function Blockers() {
+export function Blockers() {
   const load = useServerFn(getBlockers), act = useServerFn(actOnBlocker), stepUp = useStepUp();
   const [d, setD] = useState<Data | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
   const refresh = useCallback(() => load().then(setD).catch((e) => setErr((e as Error).message)), [load]);
   useEffect(() => { void refresh(); }, [refresh]);
   // After the owner returns from the provider's own page, re-run the real verification (never assume success).
   const [waiting, setWaiting] = useState<string | null>(null);
-  const openAuth = (b: Blocker, url: string) => {
+  const [waitingKind, setWaitingKind] = useState<"token" | "app">("token");
+  const openAuth = (b: Blocker, url: string, kind: "token" | "app" = "token") => {
     window.open(url, "jackboy-provider-auth", "popup,width=980,height=820,noopener");
     setWaiting(b.id);
+    setWaitingKind(kind);
   };
   useEffect(() => {
     if (!waiting || !d) return;
@@ -51,31 +54,43 @@ function Blockers() {
       const b = d.blockers.find((x) => x.id === waiting);
       setWaiting(null);
       if (!b?.action || b.action.kind === "link_repo") return;
+      if (waitingKind === "app") {
+        setMessage("Returned from GitHub. The GitHub App callback verifies the installation and resumes eligible work. This blocker clears only after verification succeeds.");
+        void refresh(); return;
+      }
+      if (b.action.kind === "approve") {
+        setMessage("GitHub setup is separate from Jackboy approval. Save the key in Lovable backend Secrets as GITHUB_TOKEN, then use Approve with passkey & check on the blocker below. If needed, add a passkey in Settings first.");
+        void refresh();
+        return;
+      }
       void act({ data: { cap: b.action.cap, projectId: b.projectId, op: "verify" } })
-        .then((r) => r.status === "connected" ? toast.success(`Verified on GitHub. ${r.resumed} waiting task(s) resumed.`) : toast.error(`Still not connected: ${r.detail}`))
-        .catch((e) => toast.error((e as Error).message)).finally(() => void refresh());
+        .then((r) => { const text = r.status === "connected" ? `Verified on GitHub. ${r.resumed} waiting task(s) resumed.` : `Still not connected: ${r.detail}`; setMessage(text); if (r.status === "connected") toast.success(text); else toast.error(text); })
+        .catch((e) => { setErr((e as Error).message); toast.error((e as Error).message); }).finally(() => void refresh());
     };
     window.addEventListener("focus", onFocus, { once: true });
     return () => window.removeEventListener("focus", onFocus);
-  }, [waiting, d, act, refresh]);
+  }, [waiting, waitingKind, d, act, refresh]);
 
   const run = async (b: Blocker) => {
     if (!b.action || b.action.kind === "link_repo") return;
     const a = b.action;
+    setErr(null); setMessage(null);
     setBusy(b.id);
     try {
       const grantId = a.kind === "approve" && a.passkey ? await stepUp("approve_integration", approvalTarget(a.cap, b.projectId)) : undefined;
       const r = await act({ data: { cap: a.cap, projectId: b.projectId, op: a.kind, grantId } });
-      if (r.status === "connected") toast.success(`Verified. ${r.resumed} waiting task(s) resumed.`);
-      else toast.error(`Not connected yet: ${r.detail}`);
-    } catch (e) { toast.error((e as Error).message); }
+      const text = r.status === "connected" ? `Verified. ${r.resumed} waiting task(s) resumed.` : `Not connected yet: ${r.detail}`;
+      setMessage(text);
+      if (r.status === "connected") toast.success(text); else toast.error(text);
+    } catch (e) { setErr((e as Error).message); toast.error((e as Error).message); }
     setBusy(null); void refresh();
   };
 
   return (
     <>
       <PageHeader title="Blocker Queue" subtitle="Everything stopping your connected projects, worked out from real connection checks and queued tasks." />
-      {err && <p className="panel mb-4 p-4 text-sm text-destructive">{err}</p>}
+      {err && <p role="alert" className="panel mb-4 p-4 text-sm text-destructive">{err}</p>}
+      {message && <p role="status" className="panel mb-4 p-4 text-sm">{message}</p>}
       {!d && !err && <p className="text-sm text-muted-foreground">Checking projects…</p>}
       {d && d.blockers.length === 0 && <p className="panel p-5 text-sm text-success">No blockers on connected projects.</p>}
       {d && d.blockers.length > 0 && (
@@ -96,11 +111,21 @@ function Blockers() {
               {b.action && b.action.kind !== "link_repo" && (() => {
                 const auth = providerAuthFor(b.action.cap, d.repos[b.projectId]);
                 if (!auth) return null;
+                const native = d.nativeAuthorizations?.[b.projectId];
                 return (
                   <div className="mt-3 rounded-md border border-electric/40 p-3 text-xs">
+                    {native && <details className="mb-3 rounded border border-border p-2" open={native.state === "needs_install" || native.state === "needs_more_permissions"}>
+                      <summary className="cursor-pointer font-semibold">Connect with a GitHub App · owner sets up once</summary>
+                      <p className="mt-2">{native.detail}</p>
+                      <p className="mt-1">Invited users do not create their own keys for this connection. Access stays within their assigned roles and the repositories approved by the owner.</p>
+                      <ul className="mt-2 list-disc pl-4">{native.ownerMust.map(step => <li key={step}>{step}</li>)}</ul>
+                      <div className="mt-2 flex flex-wrap gap-2">{native.links.map(link => <button type="button" key={link.url} className={btn} onClick={() => openAuth(b, link.url, "app")}>{link.label} ↗</button>)}</div>
+                    </details>}
                     <p><span className="text-muted-foreground">Missing on {auth.provider}:</span> <strong>{auth.permission}</strong></p>
+                    <ol className="mt-2 list-decimal space-y-1 pl-5">{auth.setupSteps.map(step => <li key={step}>{step}</li>)}</ol>
                     <div className="mt-2 flex flex-wrap gap-2">
                       {auth.links.map((l) => <button key={l.url} type="button" className={btn} onClick={() => openAuth(b, l.url)}>{l.label} ↗</button>)}
+                      <a href={auth.backendSetupUrl} target="_blank" rel="noopener noreferrer" className={btn}>Open Jackboy in Lovable ↗</a>
                     </div>
                     <p className="mt-2 text-muted-foreground">{auth.note}</p>
                     {waiting === b.id && <p className="mt-1 text-electric" aria-live="polite">Waiting for you on GitHub — Jackboy will check when you return.</p>}
@@ -109,6 +134,7 @@ function Blockers() {
               })()}
               <div className="mt-3 flex flex-wrap gap-2">
                 {b.action?.kind === "approve" && <button className={btn} disabled={busy !== null} onClick={() => run(b)}>{busy === b.id ? "Working…" : b.action.passkey ? "Approve with passkey & check" : "Approve & check"}</button>}
+                {b.action?.kind === "approve" && b.action.passkey && <Link to="/settings" hash="passkeys" className={btn}>Set up a passkey</Link>}
                 {b.action?.kind === "verify" && <button className={btn} disabled={busy !== null} onClick={() => run(b)}>{busy === b.id ? "Checking…" : "Check again"}</button>}
                 {b.action?.kind === "link_repo" && <Link to="/project/$id" params={{ id: b.projectId }} className={btn}>Link repo</Link>}
                 {b.id.startsWith("task:") && <Link to="/foundry" className={btn}>Open Code Foundry</Link>}
@@ -125,3 +151,4 @@ function Blockers() {
     </>
   );
 }
+
