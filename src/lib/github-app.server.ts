@@ -8,7 +8,8 @@ const H = { Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022
 
 /** App credentials: Project Secrets first; otherwise the encrypted record saved by the one-click manifest flow. */
 export async function appConfig(): Promise<{ id: string; slug: string; key: string; webhookSecret: string | null; source: "secrets" | "manifest" } | null> {
-  const id = process.env["GITHUB_APP_ID"], slug = process.env["GITHUB_APP_SLUG"], key = process.env["GITHUB_APP_PRIVATE_KEY"];
+  // GITHUB_APP_PIVATE_KEY: tolerated misspelling of the owner-saved secret name; whitespace-flattened PEMs are handled by pemToPkcs8.
+  const id = process.env["GITHUB_APP_ID"], slug = process.env["GITHUB_APP_SLUG"], key = process.env["GITHUB_APP_PRIVATE_KEY"] ?? process.env["GITHUB_APP_PIVATE_KEY"];
   if (id && slug && key) return { id, slug, key, webhookSecret: process.env["GITHUB_APP_WEBHOOK_SECRET"] ?? null, source: "secrets" };
   const enc = process.env["GITHUB_APP_ENCRYPTION_KEY"];
   if (!enc) return null;
@@ -54,15 +55,30 @@ export async function recordInstallation(installationId: number, approvedBy: str
   return row;
 }
 
-/** Prefers a verified App installation covering the repo (short-lived token); falls back to GITHUB_TOKEN. */
+/** Re-reads every installation of the app from GitHub and records it (used when no webhook/setup callback ran). */
+export async function syncInstallations(approvedBy: string | null) {
+  if (!(await appConfig())) return [];
+  const list = await call<{ id: number }[]>(`/app/installations?per_page=100`, await appJwt());
+  const out = [];
+  for (const i of list) out.push(await recordInstallation(i.id, approvedBy ?? "owner-manual-install"));
+  return out;
+}
+
+let lastSync = 0;
+/** Personal GITHUB_TOKEN is used only for these repos; everything else must go through the GitHub App. */
+export const PERSONAL_TOKEN_REPOS = ["street-tech666/jackboy-dev-control"];
+export const tokenAllowedFor = (repoFull: string | null) => !!repoFull && PERSONAL_TOKEN_REPOS.includes(repoFull.toLowerCase());
+
+/** App installation token for repos it covers; personal GITHUB_TOKEN only for PERSONAL_TOKEN_REPOS. */
 export async function githubTokenFor(repoFull: string | null): Promise<{ token: string; via: "app" | "token" } | null> {
   if (repoFull && (await appConfig())) {
-    const { data } = await supabaseAdmin.from("github_installations").select("installation_id, repositories").eq("revoked", false).contains("repositories", [repoFull]).limit(1);
-    const id = data?.[0]?.installation_id;
+    const find = async () => (await supabaseAdmin.from("github_installations").select("installation_id, repositories").eq("revoked", false).contains("repositories", [repoFull]).limit(1)).data?.[0]?.installation_id;
+    let id = await find();
+    if (!id && Date.now() - lastSync > 10 * 60_000) { lastSync = Date.now(); await syncInstallations(null).catch((e) => console.error("installation sync failed", (e as Error).message)); id = await find(); }
     if (id) { try { return { token: await installationToken(Number(id)), via: "app" }; } catch (e) { console.error("installation token failed", (e as Error).message); } }
   }
   const t = process.env["GITHUB_TOKEN"];
-  return t ? { token: t, via: "token" } : null;
+  return t && tokenAllowedFor(repoFull) ? { token: t, via: "token" } : null;
 }
 
 export function repoFromPath(path: string): string | null {
