@@ -24,6 +24,10 @@ Pending single-use nonces and job IDs survive reloads only in user-scoped browse
 
 ## Owner setup — separate from this PR
 
+The Blocker Queue now links directly to this Jackboy Lovable project and shows the three-step GitHub-key setup. A token's label (for example `Jackboy code access`) is not its secret; GitHub shows the value once. Existing repository access uses backend `GITHUB_TOKEN`, not `GITHUB_KEY`. This is distinct from CODE's separately scoped `CODE_GITHUB_TOKEN` below. Returning from key creation never grants approval: complete the visible passkey approval and real verification. Settings has passkey enrollment, linked directly from the blocker.
+
+For a reusable owner-managed connection, the Blocker Queue also exposes the existing GitHub App's signed, provider-native installation flow, or its one-time owner setup instructions if unconfigured. Its callback verifies the installation and resumes eligible work. Invited users do not provision shared credentials or gain owner permissions. GitHub's manual token page provides no safe secret-transfer/return callback to Lovable; the guided fallback therefore has an explicit Lovable step and never pretends it installed the token automatically. Both AutoConnect and Blocker Queue require a scoped passkey for critical manual approvals and verify the configured connection before clearing blockers.
+
 Do not enable or run the paid CODE workflow, merge this PR, provision credentials, broaden permissions, or deploy without owner approval. This PR performs none of those actions.
 
 1. Review `.github/workflows/code.yml`, the pinned official Codex action and `scripts/code-patch.mjs`. The workflow must be reviewed onto the repository's protected default branch before dispatch is possible. Copying it to another project is a separate authorized change, not an automatic handoff.

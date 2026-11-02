@@ -22,7 +22,11 @@ export const getBlockers = createServerFn({ method: "GET" })
       context.supabase.from("site_log").select("id, at, action, status, summary, project_id").in("action", ["capability_approved", "capability_verified", "blocker_resolved", "foundry.resumed_tests"]).order("at", { ascending: false }).limit(30),
     ]);
     const repos: Record<string, string | null> = Object.fromEntries((p.data ?? []).map((x) => [x.id, x.github_repo]));
-    return { blockers: deriveBlockers((p.data ?? []) as never, (g.data ?? []) as never, (t.data ?? []) as never), history: h.data ?? [], repos };
+    const blockers = deriveBlockers((p.data ?? []) as never, (g.data ?? []) as never, (t.data ?? []) as never);
+    const ids = [...new Set(blockers.filter(b => b.action && b.action.kind !== "link_repo" && ["github_repo", "github_actions_read"].includes(b.action.cap)).map(b => b.projectId))];
+    const { githubAuthorization } = await import("./github-app.server");
+    const nativeAuthorizations = Object.fromEntries(await Promise.all(ids.map(async id => [id, await githubAuthorization(repos[id] ?? null, context.userId, id, null)] as const)));
+    return { blockers, history: h.data ?? [], repos, nativeAuthorizations };
   });
 
 export const actOnBlocker = createServerFn({ method: "POST" })
@@ -46,3 +50,4 @@ export const actOnBlocker = createServerFn({ method: "POST" })
     }
     return r;
   });
+
