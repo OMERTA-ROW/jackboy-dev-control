@@ -88,3 +88,4 @@ The spoken acronym “NLOA” is unconfirmed in Notion. Do not infer a technical
 - [ ] 2. Build out / optimize Mothership
 - [ ] 3. Honeycomb Terminal working + connected to same flow
 - [ ] 4. Jackboy site flow + more efficient, secure key/secret handling
+- [ ] Fix "verify isolated CODE push" check (one-line test fix ready: add omni_connection to fake DB in tests/code-runtime.test.mjs) — blocked: no token has Contents: write on street-Tech666/jackboy-dev-control
