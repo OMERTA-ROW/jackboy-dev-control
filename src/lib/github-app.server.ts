@@ -44,7 +44,7 @@ async function installationToken(id: number): Promise<string> {
 }
 
 /** Verifies an installation with GitHub itself, records repos/permissions, returns what is still missing. */
-export async function recordInstallation(installationId: number, approvedBy: string) {
+export async function recordInstallation(installationId: number, approvedBy: string | null) {
   const inst = await call<{ account: { login: string; type: string }; permissions: Record<string, string> }>(`/app/installations/${installationId}`, await appJwt());
   const tok = await installationToken(installationId);
   const repos = await call<{ repositories: { full_name: string }[] }>(`/installation/repositories?per_page=100`, tok);
@@ -60,7 +60,7 @@ export async function syncInstallations(approvedBy: string | null) {
   if (!(await appConfig())) return [];
   const list = await call<{ id: number }[]>(`/app/installations?per_page=100`, await appJwt());
   const out = [];
-  for (const i of list) out.push(await recordInstallation(i.id, approvedBy ?? "owner-manual-install"));
+  for (const i of list) out.push(await recordInstallation(i.id, approvedBy));
   return out;
 }
 
