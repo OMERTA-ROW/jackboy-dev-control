@@ -117,7 +117,7 @@ function ChatPage() {
       </header>
 
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 pb-6 select-text" aria-live="polite" aria-busy={busy}>
-        {live.live && <div className="flex justify-center py-6"><VoiceOrb mode={live.mode} level={live.level} size={96} onTap={() => live.call.setMuted(!live.call.muted)} /></div>}
+        {live.live && <div className="flex justify-center py-6"><VoiceOrb mode={live.mode} level={live.level} size={96} onTap={() => live.call.setMuted(!live.call.muted)} actionLabel={live.call.muted ? "Unmute microphone" : "Mute microphone"} /></div>}
         {banner && <p role="status" className={`mb-4 text-sm ${banner.ok ? "text-success" : "text-warning"}`}>{banner.text} <button className="ml-2 underline" onClick={() => setBanner(null)}>Dismiss</button></p>}
         {messages.length === 0 && liveRows.length === 0 ? (
           <div className="flex min-h-[55dvh] flex-col items-center justify-center text-center">

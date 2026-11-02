@@ -28,7 +28,7 @@ Do not enable or run the paid CODE workflow, merge this PR, provision credential
 
 1. Review `.github/workflows/code.yml`, the pinned official Codex action and `scripts/code-patch.mjs`. The workflow must be reviewed onto the repository's protected default branch before dispatch is possible. Copying it to another project is a separate authorized change, not an automatic handoff.
 2. Create the GitHub environment named `CODE` with required owner reviewers. Put the model's `OPENAI_API_KEY` in that environment's secret storage. The API key is passed only to the official action's protected proxy, not as a job-level environment variable. Follow the provider's native authorization and confirmation flow. Do not put any key in chat, code, database rows or logs.
-3. Separately authorize a repository-selected fine-grained token for **Actions: write** and **Contents: read**. Store it as Jackboy's backend `CODE_GITHUB_TOKEN`. Do not reuse the source-write `GITHUB_TOKEN`, share another agent's credential, or expand the existing App installation without approval. Revoke this token at GitHub to stop new job dispatches.
+3. Separately authorize a repository-selected fine-grained token for **Actions: write**, **Contents: read**, and **Pull requests: read** (never PR write for the app credential). Store it as Jackboy's backend `CODE_GITHUB_TOKEN`. Do not reuse the source-write `GITHUB_TOKEN`, share another agent's credential, or expand the existing App installation without approval. Revoke this token at GitHub to stop new job dispatches.
 4. Set backend `CODE_TARGETS` to the reviewed mapping. Example shape (the hash below is a placeholder and must be replaced with the real GitHub contents/blob SHA of the reviewed workflow):
 
    ```json

@@ -13,7 +13,7 @@ export function orbMode(voice: VoiceState, chatBusy: boolean, speakReplies: bool
   return speakReplies ? "idle" : "muted";
 }
 
-export function VoiceOrb({ mode, level, onTap, size = 72 }: { mode: OrbMode; level: { current: number }; onTap?: () => void; size?: number }) {
+export function VoiceOrb({ mode, level, onTap, size = 72, actionLabel }: { mode: OrbMode; level: { current: number }; onTap?: () => void; size?: number; actionLabel?: string }) {
   const el = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (mode !== "listening" && mode !== "speaking") { el.current?.style.setProperty("--orb-level", "0"); return; }
@@ -30,9 +30,10 @@ export function VoiceOrb({ mode, level, onTap, size = 72 }: { mode: OrbMode; lev
   }, [mode, level]);
   return (
     <div className="flex flex-col items-center gap-1">
-      <button ref={el} type="button" onClick={onTap} data-mode={mode} aria-label={`Jackboy voice: ${LABEL[mode]}. ${mode === "listening" ? "Tap to stop" : "Tap to speak"}`}
+      <button ref={el} type="button" onClick={onTap} data-mode={mode} aria-label={`Jackboy voice: ${LABEL[mode]}. ${actionLabel ?? (mode === "listening" ? "Tap to stop" : "Tap to speak")}`}
         className="jb-orb focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-electric" style={{ width: size }} />
       <span aria-live="polite" data-orb-mode={mode} className="text-[11px] font-medium text-foreground">{LABEL[mode]}</span>
     </div>
   );
 }
+
