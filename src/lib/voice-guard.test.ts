@@ -8,8 +8,8 @@ const a = { role: "assistant", parts: [] };
 describe("voice guard", () => {
   it("allows privileged tools for typed messages", () => expect(privilegedAllowed([u("fix the footer")])).toBe(true));
   it("blocks bounded tools for a spoken command", () => expect(decideTool("scanSite", [u("scan jackboy", true)]).allow).toBe(false));
-  it("spoken confirm releases bounded tools", () => expect(decideTool("scanSite", [u("scan jackboy", true), a, u("confirm", true)]).allow).toBe(true));
-  it("spoken approve releases bounded tools", () => expect(decideTool("openDraftPR", [u("open the PR", true), a, u("approve", true)]).allow).toBe(true));
+  it("unbound spoken confirm never releases bounded tools", () => expect(decideTool("scanSite", [u("scan jackboy", true), a, u("confirm", true)]).allow).toBe(false));
+  it("unbound spoken approve never releases bounded tools", () => expect(decideTool("openDraftPR", [u("open the PR", true), a, u("approve", true)]).allow).toBe(false));
   it("spoken approve never releases sensitive tools", () => expect(decideTool("setAutopilot", [u("turn off autopilot", true), a, u("approve", true)]).allow).toBe(false));
   it("typed request releases sensitive tools", () => expect(decideTool("setAutopilot", [u("turn off autopilot")]).allow).toBe(true));
   it("does not accept a spoken confirm with no prior request", () => expect(privilegedAllowed([u("confirm", true)])).toBe(false));
@@ -28,3 +28,4 @@ describe("policy contract", () => {
   it("forbids sensitive actions by voice", () => expect(jackboyPolicy.requiredStepUp("sensitive", "voice")).toBe("forbidden"));
   it("production deploys need passkey step-up", () => expect(jackboyPolicy.requiredStepUp("production", "text")).toBe("passkey"));
 });
+

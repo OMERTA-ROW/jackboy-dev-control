@@ -22,7 +22,7 @@ export type Req = { status: string; expires_at: string; tier: Tier; requested_by
 export function canDecide(r: Req | null, userId: string, decision: Decision, hasPasskeyGrant: boolean, now = Date.now()): string | null {
   if (!r) return "Request not found.";
   if (r.status !== "pending") return `Already ${r.status}.`;
-  if (new Date(r.expires_at).getTime() <= now) return "This request expired. Ask again.";
+  if (!Number.isFinite(Date.parse(r.expires_at)) || Date.parse(r.expires_at) <= now) return "This request expired. Ask again.";
   if (r.requested_by !== userId) return "This request belongs to another session user.";
   if (decision === "deny") return null;
   if (r.tier === "critical" && !hasPasskeyGrant) return "Critical action: passkey confirmation required (voice or a click alone is not enough).";
@@ -34,3 +34,4 @@ export function canDecide(r: Req | null, userId: string, decision: Decision, has
 export function coveredByTask(prior: { task_id: string | null; mode: string | null; status: string; tier: Tier }[], taskId: string, tier: Tier): boolean {
   return tier !== "critical" && prior.some((p) => p.task_id === taskId && p.mode === "task" && p.status === "allowed");
 }
+

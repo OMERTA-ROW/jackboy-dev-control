@@ -5,7 +5,7 @@
 
 export type ToolRisk = "read" | "bounded" | "sensitive" | "destructive" | "production" | "physical";
 export type InputChannel = "text" | "voice";
-export type StepUp = "none" | "session" | "passkey"; // passkey/WebAuthn not implemented yet
+export type StepUp = "none" | "session" | "passkey";
 
 export interface VoiceGateway {
   /** Starts only on an explicit user gesture; never listens in the background. */
@@ -40,8 +40,9 @@ export interface AgentRuntime {
 export const jackboyPolicy: GuardianPolicy = {
   requiredStepUp(risk, channel) {
     if (risk === "read") return "session";
-    if (risk === "bounded") return "session"; // voice additionally needs an explicit spoken confirm (voice-guard.ts)
+    if (risk === "bounded") return "session"; // voice additionally needs a server-bound scoped CODE approval
     if (risk === "sensitive") return channel === "voice" ? "forbidden" : "session";
-    return "passkey"; // destructive/production/physical: not available until WebAuthn step-up exists → effectively blocked
+    return "passkey"; // No generic voice response satisfies this requirement.
   },
 };
+

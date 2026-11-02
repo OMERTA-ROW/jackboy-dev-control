@@ -1,0 +1,107 @@
+name: CODE
+run-name: CODE ${{ inputs.request_id }}
+on:
+  workflow_dispatch:
+    inputs:
+      request_id:
+        description: Authenticated, scoped Jackboy approval request ID
+        required: true
+        type: string
+      instruction:
+        description: Owner-approved development task
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: code-${{ inputs.request_id }}
+  cancel-in-progress: false
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Owner-created environment: configure OPENAI_API_KEY and required reviewers before enabling CODE.
+    environment: CODE
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.3'
+      - name: Validate request and prepare dependencies
+        env:
+          CODE_REQUEST: ${{ inputs.request_id }}
+        run: |
+          node -e 'if (!/^[a-f0-9-]{36}$/.test(process.env.CODE_REQUEST)) process.exit(1)'
+          bun install --frozen-lockfile
+          git rev-parse HEAD > "$RUNNER_TEMP/code-base"
+      - name: Codex prepares the scoped change
+        # Official integration, pinned to the audited upstream commit (2026-11-02).
+        uses: openai/codex-action@13e9c17417b29e9a276f73ec6ed7fb574137d3c3
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          sandbox: workspace-write
+          safety-strategy: drop-sudo
+          output-file: ${{ runner.temp }}/code-report.md
+          prompt: |
+            Implement this owner-approved CODE task in this repository:
+            ${{ inputs.instruction }}
+
+            Preserve the existing application, full-screen conversation and project memory.
+            Follow AGENTS.md. Make a small reviewable diff and run relevant tests.
+            Do not merge, deploy, push, change credentials/permissions, contact other agents,
+            or edit auth, passkeys, workflow files, dependencies, migrations or CODE itself.
+            Do not commit. Report actual tests and blockers; never invent successful results.
+      - name: Capture diff and independent validation evidence
+        # No API key or repository-write credential is present in this step.
+        run: |
+          mkdir -p "$RUNNER_TEMP/code-output"
+          git add -N .
+          git diff --binary "$(cat "$RUNNER_TEMP/code-base")" > "$RUNNER_TEMP/code-output/code.patch"
+          git diff --check "$(cat "$RUNNER_TEMP/code-base")"
+          cp "$RUNNER_TEMP/code-report.md" "$RUNNER_TEMP/code-output/report.md"
+          bun run test > "$RUNNER_TEMP/code-output/tests.txt" 2>&1
+          bun run build > "$RUNNER_TEMP/code-output/build.txt" 2>&1
+      - name: Preserve real diff and test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-evidence
+          path: ${{ runner.temp }}/code-output/
+          retention-days: 14
+          if-no-files-found: error
+  draft_pr:
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Separate host/job: repository write access never enters the Codex process.
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: code-evidence
+          path: ${{ runner.temp }}/code-evidence
+      - name: Validate with the pristine CODE gate, then apply
+        run: |
+          node scripts/code-patch.mjs "$RUNNER_TEMP/code-evidence/code.patch"
+          git apply --index "$RUNNER_TEMP/code-evidence/code.patch"
+      - name: Open a draft PR only
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CODE_REQUEST: ${{ inputs.request_id }}
+        run: |
+          branch="jackboy/code-$CODE_REQUEST"
+          git -c core.hooksPath=/dev/null -c user.name=Jackboy -c user.email=jackboy@users.noreply.github.com commit -m "CODE: scoped development task $CODE_REQUEST"
+          git -c core.hooksPath=/dev/null push --no-verify "https://x-access-token:$GH_TOKEN@github.com/$GITHUB_REPOSITORY.git" "HEAD:refs/heads/$branch"
+          cat > "$RUNNER_TEMP/code-pr.md" <<'BODY'
+          CODE prepared this change after a scoped owner approval. Review the code and workflow evidence before merging.
+
+          The CODE workflow contains the real patch, model report, test output and build output as downloadable artifacts. No merge or deployment was performed. Roll back by closing this draft PR and deleting its work branch; if merged by the owner later, revert that merge through the existing passkey-protected path.
+          BODY
+          gh pr create --repo "$GITHUB_REPOSITORY" --base "${GITHUB_REF_NAME}" --head "$branch" --draft --title "CODE: scoped development task $CODE_REQUEST" --body-file "$RUNNER_TEMP/code-pr.md"

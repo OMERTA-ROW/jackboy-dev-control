@@ -8,9 +8,9 @@ describe("live voice → same tools, guarded", () => {
     expect(decideTool("connectionStatus", live("what's OMNI's connection status")).allow).toBe(true);
     expect(decideTool("foundryQueue", live("what's in the queue")).allow).toBe(true);
   });
-  it("a spoken change needs an explicit confirm turn", () => {
+  it("a generic confirmation cannot authorize a spoken change", () => {
     expect(decideTool("foundryInspect", live("inspect OMNI")).allow).toBe(false);
-    expect(decideTool("foundryInspect", live("inspect OMNI", "I'll run a Code Foundry inspection on OMNI. Say confirm.", "confirm")).allow).toBe(true);
+    expect(decideTool("foundryInspect", live("inspect OMNI", "I'll run a Code Foundry inspection on OMNI. Say confirm.", "confirm")).allow).toBe(false);
   });
   it("approving a task by voice also needs confirm", () => {
     expect(decideTool("foundryDecide", live("approve that task")).allow).toBe(false);
@@ -22,3 +22,4 @@ describe("live voice → same tools, guarded", () => {
     expect(liveMessagesForGuard([{ role: "user", content: [{ type: "text", text: "confirm" }] }])[0]!.parts![0]!.text).toBe("confirm");
   });
 });
+

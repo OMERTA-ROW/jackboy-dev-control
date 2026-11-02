@@ -10,6 +10,8 @@ import { MessageResponse } from "@/components/ai-elements/message";
 import { Shimmer } from "@/components/ai-elements/shimmer";
 import { useChatVoice, VoiceButtons } from "@/components/ChatVoice";
 import { LiveCallBar, StartVoiceButton, useLiveCall, type LiveRow } from "@/components/LiveVoiceCall";
+import { CodeTasks, useCodeTasks } from "@/components/CodeTasks";
+import { VoiceOrb } from "@/components/VoiceOrb";
 
 export const Route = createFileRoute("/_authenticated/chat")({
   head: () => ({
@@ -29,6 +31,7 @@ const STORE = "jackboy.chat.session";
 const SUGGESTIONS = ["How are my projects doing?", "What needs my attention?", "What did you work on today?"];
 
 function ChatPage() {
+  const code = useCodeTasks();
   const [error, setError] = useState<string | null>(null);
   const [text, setText] = useState("");
   const transport = useMemo(() => new DefaultChatTransport<UIMessage>({
@@ -68,11 +71,15 @@ function ChatPage() {
   const [liveRows, setLiveRows] = useState<LiveRow[]>([]);
   const addVoiceTranscript = (rows: LiveRow[]) =>
     setMessages((cur) => [...cur, ...rows.filter((r) => r.text.trim()).map((r, i) => ({ id: `voice-${Date.now()}-${i}`, role: r.role, metadata: { voice: true }, parts: [{ type: "text" as const, text: r.text.trim() }] }))]);
-  const live = useLiveCall({ chatContext, onLiveRows: setLiveRows, onTranscript: addVoiceTranscript });
+  const live = useLiveCall({ chatContext, onLiveRows: setLiveRows, onTranscript: addVoiceTranscript, onCodeCard: code.receive });
 
-  const send = (t: string) => {
+  const send = async (t: string) => {
     if (!t.trim() || busy) return;
     setError(null); jackboyVoice.stop(); voice.stopSpeaking();
+    if (await code.submit(t)) {
+      setMessages(cur => [...cur, { id: crypto.randomUUID(), role: "user", parts: [{ type: "text", text: t }] }]);
+      setText(""); setFromVoice(false); return;
+    }
     sendMessage(fromVoice ? { text: t, metadata: { voice: true } } : { text: t });
     setText(""); setFromVoice(false);
   };
@@ -110,11 +117,13 @@ function ChatPage() {
       </header>
 
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 pb-6 select-text" aria-live="polite" aria-busy={busy}>
+        {live.live && <div className="flex justify-center py-6"><VoiceOrb mode={live.mode} level={live.level} size={96} onTap={() => live.call.setMuted(!live.call.muted)} /></div>}
         {banner && <p role="status" className={`mb-4 text-sm ${banner.ok ? "text-success" : "text-warning"}`}>{banner.text} <button className="ml-2 underline" onClick={() => setBanner(null)}>Dismiss</button></p>}
         {messages.length === 0 && liveRows.length === 0 ? (
           <div className="flex min-h-[55dvh] flex-col items-center justify-center text-center">
             <Hexagon className="size-10 text-electric" aria-hidden />
             <p className="mt-4 text-2xl font-semibold text-silver">What are we working on?</p>
+            <p className="mt-2 text-sm text-muted-foreground">For development, say or type “CODE Project name: describe the change”.</p>
             <div className="mt-6 flex flex-wrap justify-center gap-2">
               {SUGGESTIONS.map((s) => <button key={s} onClick={() => send(s)} className="rounded-full border border-border px-4 py-2 text-sm hover:border-electric">{s}</button>)}
             </div>
@@ -127,6 +136,7 @@ function ChatPage() {
           </ol>
         )}
         <div ref={end} />
+        <CodeTasks tasks={code} />
       </main>
 
       <footer className="sticky bottom-0 bg-gradient-to-t from-background via-background to-background/0 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-4 sm:px-6">
@@ -134,7 +144,7 @@ function ChatPage() {
           <LiveCallBar v={live} />
           {(error || voice.error || jackboyVoice.error) && <p role="alert" className="mb-2 px-2 text-xs text-destructive">{error ?? voice.error ?? jackboyVoice.error}</p>}
           <form onSubmit={(e) => { e.preventDefault(); send(text); }} className="flex items-end gap-2 rounded-3xl border border-border bg-card px-3 py-2 focus-within:border-electric">
-            <label htmlFor="jb-msg" className="sr-only">Message Jackboy</label>
+            <label htmlFor="jb-msg" className="sr-only">Message Jackboy. For development say CODE, the exact project name, a colon, then the task.</label>
             <textarea id="jb-msg" ref={textarea} rows={1} value={text} placeholder="Message Jackboy"
               onChange={(e) => { setText(e.target.value); if (!e.target.value.trim()) setFromVoice(false); }}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(text); } }}
@@ -213,3 +223,4 @@ function ToolLine({ name, state, output, errorText }: { name: string; state: str
   if (failed) return <p role="alert" className="my-1 text-sm text-destructive">{human(name)} didn't work{errorText ? `: ${errorText.slice(0, 200)}` : "."}</p>;
   return null;
 }
+
