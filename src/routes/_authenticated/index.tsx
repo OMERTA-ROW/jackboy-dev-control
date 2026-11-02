@@ -107,7 +107,9 @@ function Home() {
                   </div>
                   <p className="truncate text-xs text-muted-foreground">{p.site_url ?? "No site address"}{waiting ? ` · ${waiting} waiting for approval` : ""}</p>
                   <div className="mt-auto flex gap-2">
-                    <button className={btn} disabled={!p.site_url || busy !== null} onClick={() => runScan(p.id, p.name)}>{busy === p.id ? "Scanning…" : "Scan & Review"}</button>
+                    {p.site_url
+                      ? <button className={btn} disabled={busy !== null} aria-busy={busy === p.id} onClick={() => runScan(p.id, p.name)}>{busy === p.id ? "Scanning…" : "Scan & Review"}</button>
+                      : <Link to="/project/$id" params={{ id: p.id }} className={btn} title="Scanning needs the live site address">Add site address to scan</Link>}
                     <Link to="/project/$id" params={{ id: p.id }} className={btn}>Manage</Link>
                   </div>
                 </li>
