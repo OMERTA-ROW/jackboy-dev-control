@@ -71,7 +71,8 @@ export function StartVoiceButton({ v }: { v: LiveCall }) {
 /** Slim bar above the composer while a voice conversation is running. */
 export function LiveCallBar({ v }: { v: LiveCall }) {
   const { call } = v;
-  if (!v.live && !call.error) return null;
+  const audio = <audio ref={call.audioRef} className="hidden" aria-label="Jackboy voice audio" />;
+  if (!v.live && !call.error) return audio;
   return (
     <div className="mb-2 flex flex-wrap items-center gap-2 rounded-full border border-border bg-card/80 py-1 pl-1 pr-2 backdrop-blur">
       <VoiceOrb mode={v.mode} level={v.level} onTap={v.live ? v.end : v.start} size={36} />
@@ -82,7 +83,7 @@ export function LiveCallBar({ v }: { v: LiveCall }) {
       {call.error && !v.live && <button type="button" onClick={v.start} className={pill}><RotateCw className="size-4" />Reconnect</button>}
       {v.live && <button type="button" disabled={call.status !== "connected"} onClick={() => call.setMuted(!call.muted)} aria-pressed={call.muted} aria-label={call.muted ? "Unmute microphone" : "Mute microphone"} className={pill}>{call.muted ? <MicOff className="size-4" /> : <Mic className="size-4" />}</button>}
       {v.live && <button type="button" onClick={v.end} aria-label="End voice conversation" className={`${pill} border-destructive/50 text-destructive`}><PhoneOff className="size-4" />End</button>}
-      <audio ref={call.audioRef} className="hidden" aria-label="Jackboy voice audio" />
+      {audio}
     </div>
   );
 }
