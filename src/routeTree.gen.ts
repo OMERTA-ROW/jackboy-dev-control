@@ -43,6 +43,7 @@ import { Route as AuthenticatedUpdateDocsRouteImport } from './routes/_authentic
 import { Route as AuthenticatedUpdatesRouteImport } from './routes/_authenticated/updates'
 import { Route as AuthenticatedWorkspaceRouteImport } from './routes/_authenticated/workspace'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
+import { Route as ApiCodeRouteImport } from './routes/api/code'
 import { Route as ApiTranscribeRouteImport } from './routes/api/transcribe'
 import { Route as AuthenticatedPassportAgentIdRouteImport } from './routes/_authenticated/passport.$agentId'
 import { Route as AuthenticatedProjectIdRouteImport } from './routes/_authenticated/project.$id'
@@ -232,6 +233,11 @@ const ApiChatRoute = ApiChatRouteImport.update({
   path: '/api/chat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCodeRoute = ApiCodeRouteImport.update({
+  id: '/api/code',
+  path: '/api/code',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiTranscribeRoute = ApiTranscribeRouteImport.update({
   id: '/api/transcribe',
   path: '/api/transcribe',
@@ -358,6 +364,7 @@ export interface FileRoutesByFullPath {
   '/updates': typeof AuthenticatedUpdatesRoute
   '/workspace': typeof AuthenticatedWorkspaceRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/code': typeof ApiCodeRoute
   '/api/transcribe': typeof ApiTranscribeRoute
   '/passport/$agentId': typeof AuthenticatedPassportAgentIdRoute
   '/project/$id': typeof AuthenticatedProjectIdRoute
@@ -409,6 +416,7 @@ export interface FileRoutesByTo {
   '/updates': typeof AuthenticatedUpdatesRoute
   '/workspace': typeof AuthenticatedWorkspaceRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/code': typeof ApiCodeRoute
   '/api/transcribe': typeof ApiTranscribeRoute
   '/': typeof AuthenticatedIndexRoute
   '/passport/$agentId': typeof AuthenticatedPassportAgentIdRoute
@@ -463,6 +471,7 @@ export interface FileRoutesById {
   '/_authenticated/updates': typeof AuthenticatedUpdatesRoute
   '/_authenticated/workspace': typeof AuthenticatedWorkspaceRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/code': typeof ApiCodeRoute
   '/api/transcribe': typeof ApiTranscribeRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/passport/$agentId': typeof AuthenticatedPassportAgentIdRoute
@@ -518,6 +527,7 @@ export interface FileRouteTypes {
     | '/updates'
     | '/workspace'
     | '/api/chat'
+    | '/api/code'
     | '/api/transcribe'
     | '/passport/$agentId'
     | '/project/$id'
@@ -569,6 +579,7 @@ export interface FileRouteTypes {
     | '/updates'
     | '/workspace'
     | '/api/chat'
+    | '/api/code'
     | '/api/transcribe'
     | '/'
     | '/passport/$agentId'
@@ -622,6 +633,7 @@ export interface FileRouteTypes {
     | '/_authenticated/updates'
     | '/_authenticated/workspace'
     | '/api/chat'
+    | '/api/code'
     | '/api/transcribe'
     | '/_authenticated/'
     | '/_authenticated/passport/$agentId'
@@ -649,6 +661,7 @@ export interface RootRouteChildren {
   OnboardingRoute: typeof OnboardingRoute
   SetPasswordRoute: typeof SetPasswordRoute
   ApiChatRoute: typeof ApiChatRoute
+  ApiCodeRoute: typeof ApiCodeRoute
   ApiTranscribeRoute: typeof ApiTranscribeRoute
   ApiAgentManifestRoute: typeof ApiAgentManifestRoute
   ApiPublicAgentIngestRoute: typeof ApiPublicAgentIngestRoute
@@ -906,6 +919,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiChatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/code': {
+      id: '/api/code'
+      path: '/api/code'
+      fullPath: '/api/code'
+      preLoaderRoute: typeof ApiCodeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/transcribe': {
       id: '/api/transcribe'
       path: '/api/transcribe'
@@ -1104,6 +1124,7 @@ const rootRouteChildren: RootRouteChildren = {
   OnboardingRoute: OnboardingRoute,
   SetPasswordRoute: SetPasswordRoute,
   ApiChatRoute: ApiChatRoute,
+  ApiCodeRoute: ApiCodeRoute,
   ApiTranscribeRoute: ApiTranscribeRoute,
   ApiAgentManifestRoute: ApiAgentManifestRoute,
   ApiPublicAgentIngestRoute: ApiPublicAgentIngestRoute,
