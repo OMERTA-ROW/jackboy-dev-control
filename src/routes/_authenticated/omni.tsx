@@ -15,6 +15,7 @@ import {
   type Revenue,
 } from "@/lib/omni-handoff";
 import { getOmniQueue, requestOmniJob } from "@/lib/passport.functions";
+import { OmniLinkPanel } from "@/components/OmniLinkPanel";
 
 export const Route = createFileRoute("/_authenticated/omni")({
   head: () => ({
