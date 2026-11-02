@@ -86,7 +86,9 @@ function AutopilotPage() {
                 </div>
                 <div className="mt-2 text-xs text-muted-foreground">{last ? `Last scan ${new Date(last.created_at).toLocaleString()}: ${last.status === "done" ? `${last.findings.length} findings on ${last.pages_checked} pages` : last.status}` : "Not scanned yet"}</div>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <button className={btn} disabled={!!busy || !p.site_url} onClick={() => act(`s${p.id}`, async () => { const r = await scan({ data: { id: p.id } }); return `Scanned ${r.pages} pages: ${r.findings} findings.`; })}>{busy === `s${p.id}` ? "Scanning…" : "Scan now"}</button>
+                  {p.site_url
+                    ? <button className={btn} disabled={!!busy} onClick={() => act(`s${p.id}`, async () => { const r = await scan({ data: { id: p.id } }); return `Scanned ${r.pages} pages: ${r.findings} findings.`; })}>{busy === `s${p.id}` ? "Scanning…" : "Scan now"}</button>
+                    : <Link to="/project/$id" params={{ id: p.id }} className={btn}>Add site address to scan</Link>}
                   <button className={btn} disabled={!!busy} onClick={() => act(`c${p.id}`, async () => (await connect({ data: { id: p.id } })).steps.join(" · "))}>{busy === `c${p.id}` ? "Connecting…" : "Connect + scan + fix"}</button>
                 </div>
               </li>
