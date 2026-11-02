@@ -3,7 +3,7 @@ import { dispatchBackoffMs, hmacHex, nextStatus, parseHandshake, parseResult, si
 
 const SECRET = "test-secret";
 // Same vector is asserted in OMNI's Go tests (inbox/internal/inbox/sign_test.go).
-const VECTOR = "f2b3a5d1b0c4b8c0f1c7d0f5a3b3e9d2";
+const VECTOR = "8797526ca23119cd7fe313d6c824069756534bdb50782ea449d7cf62f1374d91";
 
 describe("omni link", () => {
   it("accepts a fresh correctly signed callback and refuses tampering, staleness and missing headers", async () => {
@@ -16,8 +16,7 @@ describe("omni link", () => {
     expect(await verifyCallback(SECRET, { signature: null, timestamp: ts, nonce }, body, now)).toBe("missing signature headers");
   });
   it("matches the shared HMAC vector used by OMNI", async () => {
-    expect((await hmacHex(SECRET, "jackboy-omni-vector")).length).toBe(64);
-    expect(VECTOR.length).toBe(32);
+    expect(await hmacHex(SECRET, "jackboy-omni-vector")).toBe(VECTOR);
   });
   it("backs off exponentially up to six hours", () => {
     expect(dispatchBackoffMs(1)).toBe(60_000);
