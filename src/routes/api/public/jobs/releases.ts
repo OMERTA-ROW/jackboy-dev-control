@@ -22,7 +22,14 @@ export const Route = createFileRoute("/api/public/jobs/releases")({
         const { deliverOutbox } = await import("@/lib/site-log.server");
         let outbox: unknown;
         try { outbox = await deliverOutbox(); } catch (e) { outbox = { error: (e as Error).message }; }
-        return Response.json({ releases, autopilot, foundry, autoconnect, outbox });
+        // OMNI: re-prove the link each hour (a failure turns "verified" off), then send due jobs.
+        let omni: unknown;
+        try {
+          const o = await import("@/lib/omni-link.server");
+          const hs = o.omniConfigState().configured ? await o.omniHandshake("jackboy-cron") : { verified: false, error: "not configured" };
+          omni = { handshake: hs, dispatch: await o.dispatchOmniJobs() };
+        } catch (e) { omni = { error: (e as Error).message }; }
+        return Response.json({ releases, autopilot, foundry, autoconnect, outbox, omni });
       },
     },
   },
