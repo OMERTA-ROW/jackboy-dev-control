@@ -79,6 +79,10 @@ The spoken acronym “NLOA” is unconfirmed in Notion. Do not infer a technical
 
 ## Owner roadmap (Nov 2, 2026) — draft PRs only, owner approves merges/deploys/permissions
 - [ ] OMNI inbox/worker draft PR — branch pushed; blocked: GitHub token lacks "Pull requests: write"
+- [ ] Razul 1: authenticated API (makes RAZUL_API_URL/KEY) — blocked: Razul project has no GitHub repo
+- [ ] Razul 2: AI model (Lovable AI)
+- [ ] Razul 3: OMNI worker ↔ Razul
+- [ ] Razul 4: Razul as Mothership central intelligence
 - [ ] Mothership .env security — audited (publishable values only); branch jackboy/gitignore-env pushed; PR blocked (same permission)
 - [ ] 1. Mothership endpoint/handshake for OMNI Terminal → Bridge → Mothership
 - [ ] 2. Build out / optimize Mothership
