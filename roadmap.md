@@ -76,3 +76,11 @@ The spoken acronym “NLOA” is unconfirmed in Notion. Do not infer a technical
 - [ ] Live voice verified on a real call/device — blocked: sandbox network can't complete voice setup; needs owner test on phone/iPad
 - [ ] OMNI GitHub write + Actions read — blocked: owner must install Jackboy GitHub App on OMERTA-ROW
 - [ ] Safe test runner, Razul/OMNI live handoff, AI cost optimizations — not started
+
+## Owner roadmap (Nov 2, 2026) — draft PRs only, owner approves merges/deploys/permissions
+- [ ] OMNI inbox/worker draft PR — branch pushed; blocked: GitHub token lacks "Pull requests: write"
+- [ ] Mothership .env security — audited (publishable values only); branch jackboy/gitignore-env pushed; PR blocked (same permission)
+- [ ] 1. Mothership endpoint/handshake for OMNI Terminal → Bridge → Mothership
+- [ ] 2. Build out / optimize Mothership
+- [ ] 3. Honeycomb Terminal working + connected to same flow
+- [ ] 4. Jackboy site flow + more efficient, secure key/secret handling
