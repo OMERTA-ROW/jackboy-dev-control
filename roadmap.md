@@ -69,3 +69,10 @@ The spoken acronym “NLOA” is unconfirmed in Notion. Do not infer a technical
 - [ ] First low-risk auto-fix verified end to end — no low-risk defect exists in Jackboy's repo; needs another connected private repo (OMNI repo is public → refused)
 - [x] Whole-workspace project list (19) with priority OMNI → JAX → Nano → Jail Release, per-project background-work activation (off by default)
 - [ ] JAX, Nano, Jail Release and other projects coding — blocked: each needs its private GitHub repo linked (and OMNI's repo made private)
+
+## Repair & Activation update (Nov 2)
+- [x] Scan buttons: projects without a site address get "Add site address to scan" instead of a dead button
+- [x] Chat redesign: one floating bubble → full-screen conversation, page scroll, simple composer, voice bar, tab-session continuity
+- [ ] Live voice verified on a real call/device — blocked: sandbox network can't complete voice setup; needs owner test on phone/iPad
+- [ ] OMNI GitHub write + Actions read — blocked: owner must install Jackboy GitHub App on OMERTA-ROW
+- [ ] Safe test runner, Razul/OMNI live handoff, AI cost optimizations — not started
