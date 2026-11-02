@@ -6,14 +6,21 @@ import { appRegistrationUrl, installUrl, missingPermissions, pemToPkcs8, signSta
 const API = "https://api.github.com";
 const H = { Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "Jackboy" };
 
-export function appConfig() {
+/** App credentials: Project Secrets first; otherwise the encrypted record saved by the one-click manifest flow. */
+export async function appConfig(): Promise<{ id: string; slug: string; key: string; webhookSecret: string | null; source: "secrets" | "manifest" } | null> {
   const id = process.env["GITHUB_APP_ID"], slug = process.env["GITHUB_APP_SLUG"], key = process.env["GITHUB_APP_PRIVATE_KEY"];
-  return id && slug && key ? { id, slug, key } : null;
+  if (id && slug && key) return { id, slug, key, webhookSecret: process.env["GITHUB_APP_WEBHOOK_SECRET"] ?? null, source: "secrets" };
+  const enc = process.env["GITHUB_APP_ENCRYPTION_KEY"];
+  if (!enc) return null;
+  const { data } = await supabaseAdmin.from("github_app_credentials").select("app_id, slug, private_key_enc, webhook_secret_enc").eq("id", "jackboy").maybeSingle();
+  if (!data) return null;
+  const { decryptText } = await import("./github-app-manifest");
+  return { id: data.app_id, slug: data.slug, key: await decryptText(data.private_key_enc, enc), webhookSecret: data.webhook_secret_enc ? await decryptText(data.webhook_secret_enc, enc) : null, source: "manifest" };
 }
 
 const b64u = (b: Uint8Array) => btoa(String.fromCharCode(...b)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 async function appJwt(): Promise<string> {
-  const c = appConfig(); if (!c) throw new Error("GitHub App is not set up yet.");
+  const c = await appConfig(); if (!c) throw new Error("GitHub App is not set up yet.");
   const key = await crypto.subtle.importKey("pkcs8", pemToPkcs8(c.key), { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"]);
   const now = Math.floor(Date.now() / 1000);
   const enc = (o: unknown) => b64u(new TextEncoder().encode(JSON.stringify(o)));
