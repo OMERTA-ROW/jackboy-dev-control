@@ -1,0 +1,1 @@
+ALTER TABLE public.owner_passkeys ADD COLUMN IF NOT EXISTS rp_id text;

@@ -1323,6 +1323,7 @@ export type Database = {
           label: string
           last_used_at: string | null
           public_key: string
+          rp_id: string | null
           transports: string[]
           user_id: string
         }
@@ -1334,6 +1335,7 @@ export type Database = {
           label?: string
           last_used_at?: string | null
           public_key: string
+          rp_id?: string | null
           transports?: string[]
           user_id: string
         }
@@ -1345,6 +1347,7 @@ export type Database = {
           label?: string
           last_used_at?: string | null
           public_key?: string
+          rp_id?: string | null
           transports?: string[]
           user_id?: string
         }

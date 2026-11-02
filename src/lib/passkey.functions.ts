@@ -8,8 +8,10 @@ type Ctx = { supabase: any; userId: string };
 async function role(ctx: Ctx): Promise<string | null> { const { data } = await ctx.supabase.rpc("my_role"); return (data as string) ?? null; }
 
 export const listPasskeys = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
-  const { data } = await context.supabase.from("owner_passkeys").select("id, label, created_at, last_used_at").order("created_at");
-  return { passkeys: data ?? [], actions: Object.entries(STEP_UP_ACTIONS).map(([id, a]) => ({ id, label: a.label, unavailable: "unavailable" in a ? a.unavailable : null })) };
+  const { data } = await context.supabase.from("owner_passkeys").select("id, label, created_at, last_used_at, rp_id").order("created_at");
+  let host: string | null = null; let hostError: string | null = null;
+  try { const s = await import("./passkey.server"); host = s.rp(getRequest()).rpID; } catch (e) { hostError = (e as Error).message; }
+  return { passkeys: data ?? [], host, hostError, actions: Object.entries(STEP_UP_ACTIONS).map(([id, a]) => ({ id, label: a.label, unavailable: "unavailable" in a ? a.unavailable : null })) };
 });
 
 export const passkeyRegisterOptions = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
@@ -17,7 +19,7 @@ export const passkeyRegisterOptions = createServerFn({ method: "POST" }).middlew
   const { generateRegistrationOptions } = await import("@simplewebauthn/server");
   const s = await import("./passkey.server");
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { data: existing } = await supabaseAdmin.from("owner_passkeys").select("credential_id, transports").eq("user_id", context.userId);
+  const { data: existing } = await supabaseAdmin.from("owner_passkeys").select("credential_id, transports").eq("user_id", context.userId).eq("rp_id", s.rp(getRequest()).rpID);
   const { rpID } = s.rp(getRequest());
   const opts = await generateRegistrationOptions({
     rpName: "Jackboy", rpID, userName: String((context as { claims?: { email?: string } }).claims?.email ?? context.userId),
@@ -41,9 +43,9 @@ export const passkeyRegisterVerify = createServerFn({ method: "POST" }).middlewa
     const c = v.registrationInfo.credential;
     const { isoBase64URL } = await import("@simplewebauthn/server/helpers");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { error } = await supabaseAdmin.from("owner_passkeys").insert({ user_id: context.userId, credential_id: c.id, public_key: isoBase64URL.fromBuffer(c.publicKey), counter: c.counter, transports: c.transports ?? [], label: data.label || "Passkey" });
+    const { error } = await supabaseAdmin.from("owner_passkeys").insert({ user_id: context.userId, credential_id: c.id, public_key: isoBase64URL.fromBuffer(c.publicKey), counter: c.counter, transports: c.transports ?? [], label: data.label || "Passkey", rp_id: rpID });
     if (error) throw new Error(error.message);
-    await supabaseAdmin.from("audit_logs").insert({ actor: context.userId, action: "passkey.registered", detail: { label: data.label ?? "Passkey" } as never, outcome: "ok" });
+    await supabaseAdmin.from("audit_logs").insert({ actor: context.userId, action: "passkey.registered", detail: { label: data.label ?? "Passkey", site: rpID } as never, outcome: "ok" });
     return { ok: true };
   });
 
@@ -57,9 +59,10 @@ export const stepUpOptions = createServerFn({ method: "POST" }).middleware([requ
     const { generateAuthenticationOptions } = await import("@simplewebauthn/server");
     const s = await import("./passkey.server");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: keys } = await supabaseAdmin.from("owner_passkeys").select("credential_id, transports").eq("user_id", context.userId);
-    if (!keys?.length) throw new Error("No passkey registered. Add one in Settings → Security first.");
-    const opts = await generateAuthenticationOptions({ rpID: s.rp(getRequest()).rpID, userVerification: "required", allowCredentials: keys.map((k) => ({ id: k.credential_id, transports: k.transports as never })) });
+    const { rpID } = s.rp(getRequest());
+    const { data: keys } = await supabaseAdmin.from("owner_passkeys").select("credential_id, transports").eq("user_id", context.userId).eq("rp_id", rpID);
+    if (!keys?.length) throw new Error(`No passkey registered for ${rpID}. Add one in Settings → Security on this address first.`);
+    const opts = await generateAuthenticationOptions({ rpID, userVerification: "required", allowCredentials: keys.map((k) => ({ id: k.credential_id, transports: k.transports as never })) });
     return { challengeId: await s.saveChallenge(context.userId, opts.challenge, "stepup", data.action, data.target), options: opts };
   });
 
@@ -85,4 +88,37 @@ export const stepUpVerify = createServerFn({ method: "POST" }).middleware([requi
     await supabaseAdmin.from("owner_passkeys").update({ counter: v.authenticationInfo.newCounter, last_used_at: new Date().toISOString() }).eq("id", key.id);
     const g = await s.issueGrant(context.userId, ch.action!, ch.target!, key.credential_id);
     return { grantId: g.id as string, expiresAt: g.expires_at as string };
+  });
+
+/** Real sign-in check: asks the device for the passkey and verifies it, without granting any action. */
+export const passkeyTestOptions = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
+  if ((await role(context)) !== "owner") throw new Error("Owner only.");
+  const { generateAuthenticationOptions } = await import("@simplewebauthn/server");
+  const s = await import("./passkey.server");
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { rpID } = s.rp(getRequest());
+  const { data: keys } = await supabaseAdmin.from("owner_passkeys").select("credential_id, transports").eq("user_id", context.userId).eq("rp_id", rpID);
+  if (!keys?.length) throw new Error(`No passkey registered for ${rpID} yet.`);
+  const opts = await generateAuthenticationOptions({ rpID, userVerification: "required", allowCredentials: keys.map((k) => ({ id: k.credential_id, transports: k.transports as never })) });
+  return { challengeId: await s.saveChallenge(context.userId, opts.challenge, "stepup", "passkey.test", "self"), options: opts };
+});
+
+export const passkeyTestVerify = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ challengeId: z.string().uuid(), response: z.any() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { verifyAuthenticationResponse } = await import("@simplewebauthn/server");
+    const { isoBase64URL } = await import("@simplewebauthn/server/helpers");
+    const s = await import("./passkey.server");
+    const ch = await s.takeChallenge(data.challengeId, context.userId, "stepup");
+    if (ch.action !== "passkey.test") throw new Error("Wrong passkey request.");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { origin, rpID } = s.rp(getRequest());
+    const { data: key } = await supabaseAdmin.from("owner_passkeys").select("*").eq("user_id", context.userId).eq("rp_id", rpID).eq("credential_id", data.response?.id ?? "").maybeSingle();
+    if (!key) throw new Error("Unknown passkey for this account on this address.");
+    const v = await verifyAuthenticationResponse({ response: data.response, expectedChallenge: ch.challenge, expectedOrigin: origin, expectedRPID: rpID, requireUserVerification: true,
+      credential: { id: key.credential_id, publicKey: isoBase64URL.toBuffer(key.public_key), counter: Number(key.counter), transports: key.transports as never } });
+    if (!v.verified) throw new Error("Passkey check failed.");
+    await supabaseAdmin.from("owner_passkeys").update({ counter: v.authenticationInfo.newCounter, last_used_at: new Date().toISOString() }).eq("id", key.id);
+    await supabaseAdmin.from("audit_logs").insert({ actor: context.userId, action: "passkey.tested", detail: { site: rpID } as never, outcome: "ok" });
+    return { ok: true, label: key.label as string };
   });
