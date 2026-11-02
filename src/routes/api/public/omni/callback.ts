@@ -7,7 +7,7 @@ export const Route = createFileRoute("/api/public/omni/callback")({
     handlers: {
       POST: async ({ request }) => {
         const secret = process.env["OMNI_CALLBACK_SECRET"];
-        if (!secret) return new Response("OMNI callback not configured", { status: 503 });
+        if (!secret) return new Response("OMNI callback not configured", { status: 401 }); // refuse; never a server error
         const body = await request.text();
         if (body.length > 64_000) return new Response("too large", { status: 413 });
         const nonce = request.headers.get("x-omni-nonce");
