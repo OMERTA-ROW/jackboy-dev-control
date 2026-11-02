@@ -4,13 +4,16 @@ import { useServerFn } from "@tanstack/react-start";
 import { useCallback } from "react";
 import { browserSupportsWebAuthn, startAuthentication } from "@simplewebauthn/browser";
 import { stepUpOptions, stepUpVerify } from "./passkey.functions";
+import { passkeyErrorText } from "./passkey-origin";
 
 export function useStepUp() {
   const opts = useServerFn(stepUpOptions), verify = useServerFn(stepUpVerify);
   return useCallback(async (action: string, target: string) => {
     if (!browserSupportsWebAuthn()) throw new Error("This browser doesn't support passkeys, so this action is blocked here.");
     const o = await opts({ data: { action, target } });
-    const response = await startAuthentication({ optionsJSON: o.options });
+    let response;
+    try { response = await startAuthentication({ optionsJSON: o.options }); }
+    catch (e) { throw new Error(passkeyErrorText(e, window.self !== window.top)); }
     const g = await verify({ data: { challengeId: o.challengeId, response } });
     return g.grantId;
   }, [opts, verify]);
