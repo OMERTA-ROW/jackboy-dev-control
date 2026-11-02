@@ -42,6 +42,7 @@ import { Route as AuthenticatedSiteLogRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedUpdateDocsRouteImport } from './routes/_authenticated/update-docs'
 import { Route as AuthenticatedUpdatesRouteImport } from './routes/_authenticated/updates'
 import { Route as AuthenticatedWorkspaceRouteImport } from './routes/_authenticated/workspace'
+import { Route as ApiAdminPushRouteImport } from './routes/api/admin-push'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as ApiCodeRouteImport } from './routes/api/code'
 import { Route as ApiTranscribeRouteImport } from './routes/api/transcribe'
@@ -231,6 +232,11 @@ const AuthenticatedWorkspaceRoute = AuthenticatedWorkspaceRouteImport.update({
   path: '/workspace',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const ApiAdminPushRoute = ApiAdminPushRouteImport.update({
+  id: '/api/admin-push',
+  path: '/api/admin-push',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiChatRoute = ApiChatRouteImport.update({
   id: '/api/chat',
   path: '/api/chat',
@@ -381,6 +387,7 @@ export interface FileRoutesByFullPath {
   '/update-docs': typeof AuthenticatedUpdateDocsRoute
   '/updates': typeof AuthenticatedUpdatesRoute
   '/workspace': typeof AuthenticatedWorkspaceRoute
+  '/api/admin-push': typeof ApiAdminPushRoute
   '/api/chat': typeof ApiChatRoute
   '/api/code': typeof ApiCodeRoute
   '/api/transcribe': typeof ApiTranscribeRoute
@@ -436,6 +443,7 @@ export interface FileRoutesByTo {
   '/update-docs': typeof AuthenticatedUpdateDocsRoute
   '/updates': typeof AuthenticatedUpdatesRoute
   '/workspace': typeof AuthenticatedWorkspaceRoute
+  '/api/admin-push': typeof ApiAdminPushRoute
   '/api/chat': typeof ApiChatRoute
   '/api/code': typeof ApiCodeRoute
   '/api/transcribe': typeof ApiTranscribeRoute
@@ -494,6 +502,7 @@ export interface FileRoutesById {
   '/_authenticated/update-docs': typeof AuthenticatedUpdateDocsRoute
   '/_authenticated/updates': typeof AuthenticatedUpdatesRoute
   '/_authenticated/workspace': typeof AuthenticatedWorkspaceRoute
+  '/api/admin-push': typeof ApiAdminPushRoute
   '/api/chat': typeof ApiChatRoute
   '/api/code': typeof ApiCodeRoute
   '/api/transcribe': typeof ApiTranscribeRoute
@@ -553,6 +562,7 @@ export interface FileRouteTypes {
     | '/update-docs'
     | '/updates'
     | '/workspace'
+    | '/api/admin-push'
     | '/api/chat'
     | '/api/code'
     | '/api/transcribe'
@@ -608,6 +618,7 @@ export interface FileRouteTypes {
     | '/update-docs'
     | '/updates'
     | '/workspace'
+    | '/api/admin-push'
     | '/api/chat'
     | '/api/code'
     | '/api/transcribe'
@@ -665,6 +676,7 @@ export interface FileRouteTypes {
     | '/_authenticated/update-docs'
     | '/_authenticated/updates'
     | '/_authenticated/workspace'
+    | '/api/admin-push'
     | '/api/chat'
     | '/api/code'
     | '/api/transcribe'
@@ -696,6 +708,7 @@ export interface RootRouteChildren {
   InviteRoute: typeof InviteRoute
   OnboardingRoute: typeof OnboardingRoute
   SetPasswordRoute: typeof SetPasswordRoute
+  ApiAdminPushRoute: typeof ApiAdminPushRoute
   ApiChatRoute: typeof ApiChatRoute
   ApiCodeRoute: typeof ApiCodeRoute
   ApiTranscribeRoute: typeof ApiTranscribeRoute
@@ -951,6 +964,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedWorkspaceRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/admin-push': {
+      id: '/api/admin-push'
+      path: '/api/admin-push'
+      fullPath: '/api/admin-push'
+      preLoaderRoute: typeof ApiAdminPushRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/chat': {
       id: '/api/chat'
       path: '/api/chat'
@@ -1183,6 +1203,7 @@ const rootRouteChildren: RootRouteChildren = {
   InviteRoute: InviteRoute,
   OnboardingRoute: OnboardingRoute,
   SetPasswordRoute: SetPasswordRoute,
+  ApiAdminPushRoute: ApiAdminPushRoute,
   ApiChatRoute: ApiChatRoute,
   ApiCodeRoute: ApiCodeRoute,
   ApiTranscribeRoute: ApiTranscribeRoute,
