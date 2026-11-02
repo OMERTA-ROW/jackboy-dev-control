@@ -56,7 +56,7 @@ export async function recordInstallation(installationId: number, approvedBy: str
 
 /** Prefers a verified App installation covering the repo (short-lived token); falls back to GITHUB_TOKEN. */
 export async function githubTokenFor(repoFull: string | null): Promise<{ token: string; via: "app" | "token" } | null> {
-  if (repoFull && appConfig()) {
+  if (repoFull && (await appConfig())) {
     const { data } = await supabaseAdmin.from("github_installations").select("installation_id, repositories").eq("revoked", false).contains("repositories", [repoFull]).limit(1);
     const id = data?.[0]?.installation_id;
     if (id) { try { return { token: await installationToken(Number(id)), via: "app" }; } catch (e) { console.error("installation token failed", (e as Error).message); } }
@@ -77,7 +77,7 @@ export function appOrigin() {
 /** Real, actionable GitHub authorization for a repo: install link with signed state, or the official app-registration page. */
 export async function githubAuthorization(repoFull: string | null, userId: string, projectId: string | null, lastError: string | null) {
   const owner = repoFull?.split("/")[0] ?? null;
-  const c = appConfig();
+  const c = await appConfig();
   const { data: inst } = repoFull ? await supabaseAdmin.from("github_installations").select("account_login, repositories, missing_permissions, verified_at").eq("revoked", false).contains("repositories", [repoFull]).limit(1) : { data: [] };
   const have = inst?.[0];
   const automatic = ["Verify the grant with real GitHub calls (read, temporary branch create/delete, PR list)", "Retry the queued task that was waiting on this access", "Log the approval in the Site Log"];

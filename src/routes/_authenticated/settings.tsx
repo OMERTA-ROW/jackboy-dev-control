@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { PasskeyPanel } from "@/components/PasskeyPanel";
 import { GitHubTokenPanel } from "@/components/GitHubTokenPanel";
+import { GitHubAppPanel } from "@/components/GitHubAppPanel";
 import { PageHeader } from "@/components/AppShell";
 
 export const Route = createFileRoute("/_authenticated/settings")({
@@ -55,6 +56,7 @@ function Settings() {
     <>
       <PageHeader title="Settings & Advanced" subtitle="Every advanced Jackboy tool, grouped. Your everyday flow lives on Home and Projects." />
       <PasskeyPanel />
+      <GitHubAppPanel />
       <GitHubTokenPanel />
       <div className="grid gap-4 md:grid-cols-2">
         {ADVANCED.map((g) => (
