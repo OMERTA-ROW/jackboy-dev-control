@@ -12,7 +12,11 @@ async function role(ctx: Ctx) {
 const audit = (ctx: Ctx, action: string, detail: Record<string, unknown>, outcome = "ok") =>
   ctx.supabase.rpc("write_audit", { _action: action, _detail: detail, _outcome: outcome });
 // Neither OMNI nor Guardian has a verified authenticated API yet; these stay false until a real check passes.
-const OMNI_VERIFIED = false;
+// OMNI counts as verified only after the server handshake proved both shared keys (omni_connection row).
+async function omniVerified(ctx: { supabase: { from: (t: "omni_connection") => any } }): Promise<boolean> {
+  const { data } = await ctx.supabase.from("omni_connection").select("verified").eq("id", true).maybeSingle();
+  return Boolean(data?.verified);
+}
 
 export const getAutomation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -25,7 +29,7 @@ export const getAutomation = createServerFn({ method: "POST" })
       context.supabase.from("agent_projects").select("id, name").order("name"),
       context.supabase.from("audit_logs").select("*").like("action", "automation.%").order("at", { ascending: false }).limit(30),
     ]);
-    return { role: r, policy: pol.data, events: ev.data ?? [], playbooks: pb.data ?? [], projects: pj.data ?? [], decisions: log.data ?? [], omniVerified: OMNI_VERIFIED };
+    return { role: r, policy: pol.data, events: ev.data ?? [], playbooks: pb.data ?? [], projects: pj.data ?? [], decisions: log.data ?? [], omniVerified: (await omniVerified(context)) };
   });
 
 export const setPolicy = createServerFn({ method: "POST" })
@@ -83,7 +87,7 @@ export const evaluateChange = createServerFn({ method: "POST" })
     const { data: p } = await context.supabase.from("automation_policy").select("*").eq("id", 1).single();
     if (!p) throw new Error("Automation policy not found.");
     const decision = routeApproval(data, { tier: p.tier as 0 | 1 | 2, paused: p.paused, guardianVerified: p.guardian_verified, maxFiles: p.max_files, maxLines: p.max_lines });
-    const dispatch = canDispatch({ paused: p.paused }, OMNI_VERIFIED);
+    const dispatch = canDispatch({ paused: p.paused }, (await omniVerified(context)));
     await audit(context, "automation.decision", { change: data, route: decision.route, reasons: decision.reasons, dispatch: dispatch.reason }, decision.route);
     return { decision, dispatch };
   });
