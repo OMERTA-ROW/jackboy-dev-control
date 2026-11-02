@@ -992,6 +992,45 @@ export type Database = {
           },
         ]
       }
+      github_app_credentials: {
+        Row: {
+          app_id: string
+          created_at: string
+          created_by: string
+          html_url: string | null
+          id: string
+          owner_login: string
+          permissions: Json
+          private_key_enc: string
+          slug: string
+          webhook_secret_enc: string | null
+        }
+        Insert: {
+          app_id: string
+          created_at?: string
+          created_by: string
+          html_url?: string | null
+          id?: string
+          owner_login: string
+          permissions?: Json
+          private_key_enc: string
+          slug: string
+          webhook_secret_enc?: string | null
+        }
+        Update: {
+          app_id?: string
+          created_at?: string
+          created_by?: string
+          html_url?: string | null
+          id?: string
+          owner_login?: string
+          permissions?: Json
+          private_key_enc?: string
+          slug?: string
+          webhook_secret_enc?: string | null
+        }
+        Relationships: []
+      }
       github_installations: {
         Row: {
           account_login: string

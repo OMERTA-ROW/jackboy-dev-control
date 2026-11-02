@@ -51,7 +51,9 @@ import { Route as ApiAgentManifestRouteImport } from './routes/api/agent/manifes
 import { Route as ApiPublicAgentIngestRouteImport } from './routes/api/public/agent-ingest'
 import { Route as ApiPublicFeedsSourceIdRouteImport } from './routes/api/public/feeds.$sourceId'
 import { Route as ApiPublicFoundryWebhookRouteImport } from './routes/api/public/foundry/webhook'
+import { Route as ApiPublicGithubManifestRouteImport } from './routes/api/public/github/manifest'
 import { Route as ApiPublicGithubSetupRouteImport } from './routes/api/public/github/setup'
+import { Route as ApiPublicGithubWebhookRouteImport } from './routes/api/public/github/webhook'
 import { Route as ApiPublicJobsReleasesRouteImport } from './routes/api/public/jobs/releases'
 import { Route as ApiPublicJobsSiteMonitorRouteImport } from './routes/api/public/jobs/site-monitor'
 import { Route as ApiPublicJobsUpdateWriterRouteImport } from './routes/api/public/jobs/update-writer'
@@ -275,9 +277,19 @@ const ApiPublicFoundryWebhookRoute = ApiPublicFoundryWebhookRouteImport.update({
   path: '/api/public/foundry/webhook',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicGithubManifestRoute = ApiPublicGithubManifestRouteImport.update({
+  id: '/api/public/github/manifest',
+  path: '/api/public/github/manifest',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicGithubSetupRoute = ApiPublicGithubSetupRouteImport.update({
   id: '/api/public/github/setup',
   path: '/api/public/github/setup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicGithubWebhookRoute = ApiPublicGithubWebhookRouteImport.update({
+  id: '/api/public/github/webhook',
+  path: '/api/public/github/webhook',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicJobsReleasesRoute = ApiPublicJobsReleasesRouteImport.update({
@@ -378,7 +390,9 @@ export interface FileRoutesByFullPath {
   '/api/public/agent-ingest': typeof ApiPublicAgentIngestRoute
   '/api/public/feeds/$sourceId': typeof ApiPublicFeedsSourceIdRoute
   '/api/public/foundry/webhook': typeof ApiPublicFoundryWebhookRoute
+  '/api/public/github/manifest': typeof ApiPublicGithubManifestRoute
   '/api/public/github/setup': typeof ApiPublicGithubSetupRoute
+  '/api/public/github/webhook': typeof ApiPublicGithubWebhookRoute
   '/api/public/jobs/releases': typeof ApiPublicJobsReleasesRoute
   '/api/public/jobs/site-monitor': typeof ApiPublicJobsSiteMonitorRoute
   '/api/public/jobs/update-writer': typeof ApiPublicJobsUpdateWriterRoute
@@ -432,7 +446,9 @@ export interface FileRoutesByTo {
   '/api/public/agent-ingest': typeof ApiPublicAgentIngestRoute
   '/api/public/feeds/$sourceId': typeof ApiPublicFeedsSourceIdRoute
   '/api/public/foundry/webhook': typeof ApiPublicFoundryWebhookRoute
+  '/api/public/github/manifest': typeof ApiPublicGithubManifestRoute
   '/api/public/github/setup': typeof ApiPublicGithubSetupRoute
+  '/api/public/github/webhook': typeof ApiPublicGithubWebhookRoute
   '/api/public/jobs/releases': typeof ApiPublicJobsReleasesRoute
   '/api/public/jobs/site-monitor': typeof ApiPublicJobsSiteMonitorRoute
   '/api/public/jobs/update-writer': typeof ApiPublicJobsUpdateWriterRoute
@@ -488,7 +504,9 @@ export interface FileRoutesById {
   '/api/public/agent-ingest': typeof ApiPublicAgentIngestRoute
   '/api/public/feeds/$sourceId': typeof ApiPublicFeedsSourceIdRoute
   '/api/public/foundry/webhook': typeof ApiPublicFoundryWebhookRoute
+  '/api/public/github/manifest': typeof ApiPublicGithubManifestRoute
   '/api/public/github/setup': typeof ApiPublicGithubSetupRoute
+  '/api/public/github/webhook': typeof ApiPublicGithubWebhookRoute
   '/api/public/jobs/releases': typeof ApiPublicJobsReleasesRoute
   '/api/public/jobs/site-monitor': typeof ApiPublicJobsSiteMonitorRoute
   '/api/public/jobs/update-writer': typeof ApiPublicJobsUpdateWriterRoute
@@ -544,7 +562,9 @@ export interface FileRouteTypes {
     | '/api/public/agent-ingest'
     | '/api/public/feeds/$sourceId'
     | '/api/public/foundry/webhook'
+    | '/api/public/github/manifest'
     | '/api/public/github/setup'
+    | '/api/public/github/webhook'
     | '/api/public/jobs/releases'
     | '/api/public/jobs/site-monitor'
     | '/api/public/jobs/update-writer'
@@ -598,7 +618,9 @@ export interface FileRouteTypes {
     | '/api/public/agent-ingest'
     | '/api/public/feeds/$sourceId'
     | '/api/public/foundry/webhook'
+    | '/api/public/github/manifest'
     | '/api/public/github/setup'
+    | '/api/public/github/webhook'
     | '/api/public/jobs/releases'
     | '/api/public/jobs/site-monitor'
     | '/api/public/jobs/update-writer'
@@ -653,7 +675,9 @@ export interface FileRouteTypes {
     | '/api/public/agent-ingest'
     | '/api/public/feeds/$sourceId'
     | '/api/public/foundry/webhook'
+    | '/api/public/github/manifest'
     | '/api/public/github/setup'
+    | '/api/public/github/webhook'
     | '/api/public/jobs/releases'
     | '/api/public/jobs/site-monitor'
     | '/api/public/jobs/update-writer'
@@ -679,7 +703,9 @@ export interface RootRouteChildren {
   ApiPublicAgentIngestRoute: typeof ApiPublicAgentIngestRoute
   ApiPublicFeedsSourceIdRoute: typeof ApiPublicFeedsSourceIdRoute
   ApiPublicFoundryWebhookRoute: typeof ApiPublicFoundryWebhookRoute
+  ApiPublicGithubManifestRoute: typeof ApiPublicGithubManifestRoute
   ApiPublicGithubSetupRoute: typeof ApiPublicGithubSetupRoute
+  ApiPublicGithubWebhookRoute: typeof ApiPublicGithubWebhookRoute
   ApiPublicJobsReleasesRoute: typeof ApiPublicJobsReleasesRoute
   ApiPublicJobsSiteMonitorRoute: typeof ApiPublicJobsSiteMonitorRoute
   ApiPublicJobsUpdateWriterRoute: typeof ApiPublicJobsUpdateWriterRoute
@@ -988,11 +1014,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicFoundryWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/github/manifest': {
+      id: '/api/public/github/manifest'
+      path: '/api/public/github/manifest'
+      fullPath: '/api/public/github/manifest'
+      preLoaderRoute: typeof ApiPublicGithubManifestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/github/setup': {
       id: '/api/public/github/setup'
       path: '/api/public/github/setup'
       fullPath: '/api/public/github/setup'
       preLoaderRoute: typeof ApiPublicGithubSetupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/github/webhook': {
+      id: '/api/public/github/webhook'
+      path: '/api/public/github/webhook'
+      fullPath: '/api/public/github/webhook'
+      preLoaderRoute: typeof ApiPublicGithubWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/jobs/releases': {
@@ -1150,7 +1190,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicAgentIngestRoute: ApiPublicAgentIngestRoute,
   ApiPublicFeedsSourceIdRoute: ApiPublicFeedsSourceIdRoute,
   ApiPublicFoundryWebhookRoute: ApiPublicFoundryWebhookRoute,
+  ApiPublicGithubManifestRoute: ApiPublicGithubManifestRoute,
   ApiPublicGithubSetupRoute: ApiPublicGithubSetupRoute,
+  ApiPublicGithubWebhookRoute: ApiPublicGithubWebhookRoute,
   ApiPublicJobsReleasesRoute: ApiPublicJobsReleasesRoute,
   ApiPublicJobsSiteMonitorRoute: ApiPublicJobsSiteMonitorRoute,
   ApiPublicJobsUpdateWriterRoute: ApiPublicJobsUpdateWriterRoute,
