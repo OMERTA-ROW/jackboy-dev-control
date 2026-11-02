@@ -8,8 +8,8 @@ const H = { Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022
 
 /** App credentials: Project Secrets first; otherwise the encrypted record saved by the one-click manifest flow. */
 export async function appConfig(): Promise<{ id: string; slug: string; key: string; webhookSecret: string | null; source: "secrets" | "manifest" } | null> {
-  // GITHUB_APP_PIVATE_KEY: tolerated misspelling of the owner-saved secret name; whitespace-flattened PEMs are handled by pemToPkcs8.
-  const id = process.env["GITHUB_APP_ID"], slug = process.env["GITHUB_APP_SLUG"], key = process.env["GITHUB_APP_PRIVATE_KEY"] ?? process.env["GITHUB_APP_PIVATE_KEY"];
+  // Tolerated owner-saved secret names: GITHUB_APP_PIVATE_KEY (misspelling) and GITHUB_PRIVATE_KEY; whitespace-flattened PEMs are handled by pemToPkcs8.
+  const id = process.env["GITHUB_APP_ID"], slug = process.env["GITHUB_APP_SLUG"], key = process.env["GITHUB_APP_PRIVATE_KEY"] ?? process.env["GITHUB_APP_PIVATE_KEY"] ?? process.env["GITHUB_PRIVATE_KEY"];
   if (id && slug && key) return { id, slug, key, webhookSecret: process.env["GITHUB_APP_WEBHOOK_SECRET"] ?? null, source: "secrets" };
   const enc = process.env["GITHUB_APP_ENCRYPTION_KEY"];
   if (!enc) return null;
@@ -79,6 +79,14 @@ export async function githubTokenFor(repoFull: string | null): Promise<{ token: 
   }
   const t = process.env["GITHUB_TOKEN"];
   return t && tokenAllowedFor(repoFull) ? { token: t, via: "token" } : null;
+}
+
+/** Access for app-covered repos comes from the recorded installation: GitHub reports the repo's user-style `permissions` field as all-false for app installation tokens. */
+export async function appAccessFor(repoFull: string): Promise<{ canWrite: boolean; permissions: Record<string, string> } | null> {
+  const { data } = await supabaseAdmin.from("github_installations").select("permissions").eq("revoked", false).contains("repositories", [repoFull]).limit(1);
+  const p = data?.[0]?.permissions as Record<string, string> | undefined;
+  if (!p) return null;
+  return { canWrite: p["contents"] === "write", permissions: p };
 }
 
 export function repoFromPath(path: string): string | null {
