@@ -8,11 +8,23 @@ type Ctx = { supabase: any; userId: string };
 async function role(ctx: Ctx): Promise<string | null> { const { data } = await ctx.supabase.rpc("my_role"); return (data as string) ?? null; }
 
 export const listPasskeys = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
-  const { data } = await context.supabase.from("owner_passkeys").select("id, label, created_at, last_used_at, rp_id").order("created_at");
+  if ((await role(context)) !== "owner") throw new Error("Owner only.");
+  const { data, error } = await context.supabase.from("owner_passkeys").select("id, label, created_at, last_used_at, rp_id").eq("user_id", context.userId).order("created_at");
+  if (error) throw new Error(error.message);
   let host: string | null = null; let hostError: string | null = null;
   try { const s = await import("./passkey.server"); host = s.rp(getRequest()).rpID; } catch (e) { hostError = (e as Error).message; }
   return { passkeys: data ?? [], host, hostError, actions: Object.entries(STEP_UP_ACTIONS).map(([id, a]) => ({ id, label: a.label, unavailable: "unavailable" in a ? a.unavailable : null })) };
 });
+
+export const removePasskey = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), grantId: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    if ((await role(context)) !== "owner") throw new Error("Owner only.");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const result = await supabaseAdmin.rpc("remove_owner_passkey", { _actor: context.userId, _key: data.id, _grant: data.grantId });
+    if (result.error) throw new Error(result.error.message);
+    return { removed: true };
+  });
 
 export const passkeyRegisterOptions = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
   if ((await role(context)) !== "owner") throw new Error("Owner only.");

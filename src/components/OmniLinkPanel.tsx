@@ -32,6 +32,7 @@ export function OmniLinkPanel() {
         </div>
       </div>
       {d && !d.config.configured && <p className="mt-2 text-muted-foreground">Waiting for these secrets: {d.config.missing.join(", ")}.</p>}
+      {d && !d.config.keyConfigured && <p role="alert" className="mt-2 text-destructive">OMNI key not configured. Add OMNI_API_KEY in Project Settings → Secrets and the same value on the OMNI worker host; this is separate from GITHUB_TOKEN. Add OMNI_API_URL and matching OMNI_CALLBACK_SECRET, then check the connection.</p>}
       {d?.connection?.last_error && <p className="mt-2 text-destructive">Last check: {d.connection.last_error}</p>}
       {d && <p className="mt-1 text-xs text-muted-foreground">OMNI reports results to {d.config.callbackUrl}</p>}
       {msg && <p className="mt-2 break-words text-xs text-muted-foreground" role="status">{msg}</p>}

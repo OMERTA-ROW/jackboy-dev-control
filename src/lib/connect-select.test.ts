@@ -8,6 +8,14 @@ const projects = [
 const inv = [{ id: "x", name: "jackboy", lovable_project_ref: "r1" }, { id: "y", name: "OMNI", lovable_project_ref: "r2" }];
 
 describe("connect multi-select", () => {
+  it("missing or moved references cannot remain active coding targets before owner review", () => {
+    for (const repo_sync_status of ["deleted", "moved"]) {
+      const row = connectRows([{ id: "omni", name: "OMNI", github_repo: "OMERTA-ROW/Omni", repo_sync_status }], [])[0];
+      if (!row) throw new Error("Missing connected row");
+      expect(row.status).toBe("repo_error");
+      expect(loopEligible(row).ok).toBe(false);
+    }
+  });
   it("lists every project once with truthful status", () => {
     const r = connectRows(projects, inv);
     expect(r.map((x) => [x.name, x.status, x.devEnabled])).toEqual([["OMNI", "saved_only", false], ["Jackboy", "repo_linked", false], ["Mothership", "connected_no_repo", false]]);

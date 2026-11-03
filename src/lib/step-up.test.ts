@@ -3,6 +3,13 @@ import { grantUsable, mayRequest } from "./step-up";
 
 const g = { user_id: "u", action: "merge_update", target: "p1", expires_at: new Date(Date.now() + 60_000).toISOString(), used_at: null };
 describe("passkey step-up", () => {
+  it("removing an owner device needs owner permission and its exact scoped grant", () => {
+    expect(mayRequest("remove_passkey", "owner").ok).toBe(true);
+    expect(mayRequest("remove_passkey", "member").ok).toBe(false);
+    const removal = { ...g, action: "remove_passkey", target: "passkey:device1" };
+    expect(grantUsable(removal, "u", "remove_passkey", "passkey:device1")).toBe(true);
+    expect(grantUsable(removal, "u", "remove_passkey", "passkey:device2")).toBe(false);
+  });
   it("owner may request a merge step-up", () => expect(mayRequest("merge_update", "owner").ok).toBe(true));
   it("admins and members may not, even with a passkey", () => {
     expect(mayRequest("merge_update", "admin").ok).toBe(false);

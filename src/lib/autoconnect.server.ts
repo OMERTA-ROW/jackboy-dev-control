@@ -58,7 +58,8 @@ async function realCheck(cap: string, repoFull: string | null): Promise<{ ok: bo
       const r = await gh(`/repos/${repoFull}`);
       if (!r.ok) return { ok: false, account: login, detail: `GitHub ${r.status} reading repo.` };
       const j = (await r.json()) as RepoInfo & { default_branch: string };
-      const a = assessRepoAccess(j);
+      const appAccess = auth?.via === "app" ? await (await import("./github-app.server")).appAccessFor(repoFull) : null;
+      const a = appAccess ? { ...assessRepoAccess(j), canWrite: appAccess.canWrite, reason: appAccess.canWrite ? "GitHub App grant allows Contents write" : "GitHub App requires Contents: write" } : assessRepoAccess(j);
       const who = `${a.visibility} repo${a.org ? ` in org ${a.org}` : ""}`;
       if (!a.canWrite) return { ok: false, account: login, detail: `${who}: ${a.reason}` };
       // Prove real branch write: create and delete a throwaway jackboy/ ref.

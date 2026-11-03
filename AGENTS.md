@@ -10,6 +10,7 @@
 <!-- LOVABLE:END -->
 
 ## Jackboy rules
+- Per-project permission refresh stores live read results and provider-declared write grants separately for GITHUB_TOKEN and the actual App work credential; never prove write by launching jobs or auto-resuming work. Passkey removal atomically consumes an owner/device-scoped grant and invalidates unused grants from that credential.
 - Repository drift is read-only evidence checked through GITHUB_TOKEN; batch relink/unlink uses an owner/passkey-bound review and atomic RPC, preserves immutable history and blocks running/approval-bound targets so resync cannot redirect existing work.
 - Owner identity configuration and mail delivery are separate states; auth helpers revalidate confirmed sign-in and propagate sender failures, so configuration gaps never become fake email success or owner access.
 - All private pages live under `src/routes/_authenticated/` (client gate checks session + `my_role`, else `/onboarding`); server functions and RLS re-check roles. Owner bootstrap only via `claimOwner` matching the `OWNER_EMAIL` secret; others join only via `accept_invitation` RPC (email match). Roles live in `user_roles`.
