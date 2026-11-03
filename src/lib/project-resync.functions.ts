@@ -31,9 +31,11 @@ export async function resyncOne(projectId: string, actor: string): Promise<Proje
     const repo = normalizeRepo(p.github_repo);
     const cred = await app.githubTokenFor(repo).catch(() => null);
     out.credential = cred?.via === "app" ? "GitHub App installation" : cred?.via === "token" ? "GITHUB_TOKEN" : "none";
-    if (!cred) out.notes.push("No credential covers this repo: install the GitHub App on its owner or link a repo the App can reach.");
-    else {
-      const r = await fetch(`https://api.github.com/repos/${repo}`, { headers: { Authorization: `Bearer ${cred.token}`, Accept: "application/vnd.github+json", "User-Agent": "Jackboy" }, redirect: "follow", signal: AbortSignal.timeout(10_000) });
+    // Existence-only read may use GITHUB_TOKEN even where it isn't allowed for work; nothing is written with it.
+    const readToken = cred?.token ?? process.env["GITHUB_TOKEN"]?.trim();
+    if (!cred) out.notes.push("No work credential covers this repo: install the GitHub App on its owner or link a repo the App can reach.");
+    if (readToken) {
+      const r = await fetch(`https://api.github.com/repos/${repo}`, { headers: { Authorization: `Bearer ${readToken}`, Accept: "application/vnd.github+json", "User-Agent": "Jackboy" }, redirect: "follow", signal: AbortSignal.timeout(10_000) });
       if (r.status === 404) { out.repoState = "gone"; out.notes.push("GitHub reports this repo as not found. You can remove the project from the list; its history is kept."); }
       else if (!r.ok) out.notes.push(`GitHub ${r.status} while checking the repo; nothing changed.`);
       else {
