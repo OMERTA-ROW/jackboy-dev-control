@@ -28,7 +28,7 @@ export const getProviderPermissionDashboard = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const github = await import("./github-app.server");
     const configured = Boolean(await github.appConfig());
-    if (configured) await github.syncInstallations(context.userId);
+    if (configured) await github.syncInstallations(null);
     const [
       { data: app },
       { data: installations, error: installationError },
