@@ -1779,6 +1779,39 @@ export type Database = {
           },
         ]
       }
+      repository_resync_reviews: {
+        Row: {
+          approved_at: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          inventory: Json
+          references_snapshot: Json
+          replacements: Json | null
+          requested_by: string
+        }
+        Insert: {
+          approved_at?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          inventory: Json
+          references_snapshot: Json
+          replacements?: Json | null
+          requested_by: string
+        }
+        Update: {
+          approved_at?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          inventory?: Json
+          references_snapshot?: Json
+          replacements?: Json | null
+          requested_by?: string
+        }
+        Relationships: []
+      }
       site_log: {
         Row: {
           action: string
@@ -2247,6 +2280,10 @@ export type Database = {
         Args: never
         Returns: Database["public"]["Enums"]["app_role"]
       }
+      apply_repository_resync: {
+        Args: { actor_id: string; changes: Json; review_id: string }
+        Returns: Json
+      }
       approve_passport: {
         Args: { _approve: boolean; _id: string }
         Returns: undefined
@@ -2269,6 +2306,7 @@ export type Database = {
       is_manager: { Args: { _user_id: string }; Returns: boolean }
       my_role: { Args: never; Returns: Database["public"]["Enums"]["app_role"] }
       remove_member: { Args: { _user_id: string }; Returns: undefined }
+      repository_reference_inventory: { Args: never; Returns: Json }
       revoke_invitation: { Args: { _id: string }; Returns: undefined }
       set_automation_policy: {
         Args: {
