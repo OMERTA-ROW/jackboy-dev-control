@@ -225,6 +225,13 @@
       "when": 1793677216566,
       "tag": "0031_repository_resync_drift_removals",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1793677598409,
+      "tag": "0032_project_github_permission_evidence_passkey_remove",
+      "breakpoints": true
     }
   ]
 }

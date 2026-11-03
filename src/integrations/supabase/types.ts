@@ -1599,6 +1599,35 @@ export type Database = {
         }
         Relationships: []
       }
+      project_github_checks: {
+        Row: {
+          checked_at: string
+          evidence: Json
+          project_id: string
+          repo: string
+        }
+        Insert: {
+          checked_at?: string
+          evidence: Json
+          project_id: string
+          repo: string
+        }
+        Update: {
+          checked_at?: string
+          evidence?: Json
+          project_id?: string
+          repo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_github_checks_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: true
+            referencedRelation: "owner_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       razul_feedback: {
         Row: {
           created_at: string
@@ -2316,6 +2345,10 @@ export type Database = {
       is_manager: { Args: { _user_id: string }; Returns: boolean }
       my_role: { Args: never; Returns: Database["public"]["Enums"]["app_role"] }
       remove_member: { Args: { _user_id: string }; Returns: undefined }
+      remove_owner_passkey: {
+        Args: { _actor: string; _grant: string; _key: string }
+        Returns: Json
+      }
       repository_reference_inventory: { Args: never; Returns: Json }
       revoke_invitation: { Args: { _id: string }; Returns: undefined }
       set_automation_policy: {
