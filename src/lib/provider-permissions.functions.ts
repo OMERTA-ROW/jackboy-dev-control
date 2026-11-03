@@ -25,7 +25,7 @@ export const getProviderPermissionDashboard = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     await requireOwnerOrAdmin(context);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const supabaseAdmin = (await import("./untyped-db")).untyped((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const github = await import("./github-app.server");
     const configured = Boolean(await github.appConfig());
     if (configured) await github.syncInstallations(null);
@@ -88,7 +88,7 @@ export const requestProviderPermission = createServerFn({ method: "POST" })
     await requireOwnerOrAdmin(context);
     if (!isGitHubPermission(data.permission))
       throw new Error("That permission is not in Jackboy's supported GitHub App request catalog.");
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const supabaseAdmin = (await import("./untyped-db")).untyped((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const { data: installation, error } = await supabaseAdmin
       .from("github_installations")
       .select("account_login,permissions")
@@ -151,7 +151,7 @@ export const decideProviderPermission = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await requireOwnerOrAdmin(context);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const supabaseAdmin = (await import("./untyped-db")).untyped((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const { data: rows, error } = await supabaseAdmin
       .from("provider_permission_events")
       .select("*")

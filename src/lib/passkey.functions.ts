@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { mayRequest, STEP_UP_ACTIONS } from "./step-up";
+import { mayRequest, recentEligible, recentVerificationValid, STEP_UP_ACTIONS } from "./step-up";
 
 type Ctx = { supabase: any; userId: string };
 async function role(ctx: Ctx): Promise<string | null> { const { data } = await ctx.supabase.rpc("my_role"); return (data as string) ?? null; }
@@ -127,6 +127,26 @@ export const stepUpVerify = createServerFn({ method: "POST" }).middleware([requi
     }
     await supabaseAdmin.from("owner_passkeys").update({ counter: v.authenticationInfo.newCounter, last_used_at: new Date().toISOString() }).eq("id", key.id);
     const g = await s.issueGrant(context.userId, ch.action!, ch.target!, key.credential_id);
+    return { grantId: g.id as string, expiresAt: g.expires_at as string };
+  });
+
+/** Reuse a passkey check from the last 10 minutes for routine connection reviews only.
+ * Mints a fresh single-use grant for the exact action+target; returns null when a new passkey check is needed. */
+export const stepUpRecent = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => scope.parse(d))
+  .handler(async ({ data, context }) => {
+    if (!recentEligible(data.action, data.target)) return null;
+    const p = mayRequest(data.action, await role(context));
+    if (!p.ok) throw new Error(p.reason);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    // Only grants backed by a real device ceremony count; reused grants are tagged "recent:" and never extend the window.
+    const { data: last } = await supabaseAdmin.from("step_up_grants").select("created_at, credential_id").eq("user_id", context.userId)
+      .not("credential_id", "like", "recent:%").order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (!last) return null;
+    const { data: key } = await supabaseAdmin.from("owner_passkeys").select("id").eq("user_id", context.userId).eq("credential_id", last.credential_id).maybeSingle();
+    if (!recentVerificationValid(last, !!key)) return null;
+    const s = await import("./passkey.server");
+    const g = await s.issueGrant(context.userId, data.action, data.target, `recent:${last.credential_id}`);
     return { grantId: g.id as string, expiresAt: g.expires_at as string };
   });
 

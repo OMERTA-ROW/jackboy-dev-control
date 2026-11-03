@@ -53,9 +53,9 @@ function Dashboard() {
           {error}
         </p>
       )}
-      {state.mode === "assist" && (
-        <section aria-label="Assist controls" className={card + " mb-5"}>
-          <h2 className="text-sm font-semibold">Jackboy Assist</h2>
+      {(
+        <section aria-label="Assistance settings" className={card + " mb-5"}>
+          <h2 className="text-sm font-semibold">Assistance</h2>
           <p className="mt-1 text-xs text-muted-foreground">
             Optional guidance and layout suggestions are stored in this browser.
           </p>

@@ -22,7 +22,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { setState, useJackboy, log } from "@/lib/jackboy-store";
+import { useJackboy } from "@/lib/jackboy-store";
 import { chatWithJackboy, getDashboardFacts, getVoiceChatStatus, synthesizeJackboy } from "@/lib/passport.functions";
 
 // Simple main menu; advanced pages are listed on /settings.
@@ -40,34 +40,6 @@ function Hex({ className = "" }: { className?: string }) {
     <svg viewBox="0 0 24 24" className={className} aria-hidden>
       <path d="M12 2l8.66 5v10L12 22l-8.66-5V7z" fill="none" stroke="currentColor" strokeWidth="1.5" />
     </svg>
-  );
-}
-
-export function ModeToggle() {
-  const { mode } = useJackboy();
-  const set = (m: "classic" | "assist") => {
-    if (m === mode) return;
-    setState((s) => ({ ...s, mode: m }));
-    log("info", `Switched to ${m === "classic" ? "Classic View" : "Jackboy Assist"}.`);
-  };
-  return (
-    <div
-      role="radiogroup"
-      aria-label="View mode"
-      className="inline-flex rounded-md border border-border bg-muted p-0.5 text-xs font-medium"
-    >
-      {(["classic", "assist"] as const).map((m) => (
-        <button
-          key={m}
-          role="radio"
-          aria-checked={mode === m}
-          onClick={() => set(m)}
-          className={`rounded px-3 py-1.5 transition-colors ${mode === m ? (m === "assist" ? "bg-primary text-primary-foreground" : "bg-secondary text-silver") : "text-muted-foreground hover:text-foreground"}`}
-        >
-          {m === "classic" ? "Classic View" : "Jackboy Assist"}
-        </button>
-      ))}
-    </div>
   );
 }
 
@@ -522,13 +494,11 @@ export function AppShell({ children }: { children: ReactNode }) {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col pb-20 md:pb-0">
-        <header className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-border bg-background/85 px-4 py-3 backdrop-blur md:px-8">
+        <header className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b md:hidden border-border bg-background/85 px-4 py-3 backdrop-blur md:px-8">
           <div className="flex items-center gap-2 md:hidden">
             <Hex className="h-6 w-6 text-silver" />
             <span className="text-metal font-display text-lg font-bold tracking-wider">JACKBOY</span>
           </div>
-          <span className="hidden text-xs text-muted-foreground md:inline">Private workspace</span>
-          <ModeToggle />
         </header>
         <main className="flex-1 px-4 py-6 md:px-8">{children}</main>
       </div>
@@ -569,8 +539,8 @@ export function PageHeader({ title, subtitle }: { title: string; subtitle: strin
 }
 
 export function GuidanceTip({ children }: { children: ReactNode }) {
-  const { mode, guidance } = useJackboy();
-  if (mode !== "assist" || !guidance) return null;
+  const { guidance } = useJackboy();
+  if (!guidance) return null;
   return (
     <div
       role="note"

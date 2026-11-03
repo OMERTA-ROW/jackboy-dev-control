@@ -14,6 +14,7 @@ import { CodeTasks, useCodeTasks } from "@/components/CodeTasks";
 import { VoiceOrb } from "@/components/VoiceOrb";
 import { safeEvidenceUrl, type EvidenceLink } from "@/lib/chat-action";
 import { CREDIT_HELP_URL } from "@/lib/work-policy";
+import { getProjectHub } from "@/lib/project-hub.functions";
 
 export const Route = createFileRoute("/_authenticated/chat")({
   head: () => ({
@@ -34,6 +35,19 @@ const SUGGESTIONS = ["How are my projects doing?", "What needs my attention?", "
 
 function ChatPage() {
   const code = useCodeTasks();
+  // Chat / CODE switch. CODE only builds the existing "CODE Project: task" request; the backend admission gate decides.
+  const [view, setView] = useState<"chat" | "code">("chat");
+  useEffect(() => { try { if (sessionStorage.getItem("jackboy.chat.view") === "code") setView("code"); } catch { /* ignore */ } }, []);
+  const switchView = (v: "chat" | "code") => { setView(v); try { sessionStorage.setItem("jackboy.chat.view", v); } catch { /* ignore */ } };
+  const hub = useServerFn(getProjectHub);
+  const [repos, setRepos] = useState<{ id: string; name: string; repo: string }[] | null>(null);
+  const [repoErr, setRepoErr] = useState<string | null>(null);
+  const [target, setTarget] = useState("");
+  useEffect(() => {
+    if (view !== "code" || repos) return;
+    hub().then((h) => { const list = h.projects.filter((p) => p.github_repo).map((p) => ({ id: p.id, name: p.name, repo: p.github_repo! })); setRepos(list); if (list[0]) setTarget((t) => t || list[0]!.name); })
+      .catch((e) => setRepoErr((e as Error).message));
+  }, [view, repos, hub]);
   const [error, setError] = useState<string | null>(null);
   const [text, setText] = useState("");
   const transport = useMemo(() => new DefaultChatTransport<UIMessage>({
@@ -78,6 +92,13 @@ function ChatPage() {
   const send = async (t: string) => {
     if (!t.trim() || busy) return;
     setError(null); jackboyVoice.stop(); voice.stopSpeaking();
+    if (view === "code") {
+      // Allow/Deny phrases still go to the pending card; anything else becomes a request for the selected repo.
+      const direct = /^\s*(CODE\s+[^:\n]+:|(allow|deny)\s+CODE\s)/i.test(t);
+      if (!direct && !target) { setError("Pick a repository first."); return; }
+      if (await code.submit(direct ? t : `CODE ${target}: ${t.trim()}`)) { setText(""); setFromVoice(false); }
+      return;
+    }
     if (await code.submit(t)) {
       setMessages(cur => [...cur, { id: crypto.randomUUID(), role: "user", parts: [{ type: "text", text: t }] }]);
       setText(""); setFromVoice(false); return;
@@ -115,13 +136,31 @@ function ChatPage() {
         <Link to="/" aria-label="Back to dashboard" className="inline-flex size-10 items-center justify-center rounded-full hover:bg-muted"><ArrowLeft className="size-5" /></Link>
         <Hexagon className="size-4 text-electric" aria-hidden />
         <h1 className="text-sm font-semibold">Jackboy</h1>
+        <div role="tablist" aria-label="Chat or CODE" className="ml-3 inline-flex rounded-full border border-border p-0.5 text-xs">
+          {(["chat", "code"] as const).map((v) => <button key={v} type="button" role="tab" aria-selected={view === v} onClick={() => switchView(v)}
+            className={`min-h-8 rounded-full px-3 ${view === v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>{v === "chat" ? "Chat" : "CODE"}</button>)}
+        </div>
         <button type="button" onClick={newChat} aria-label="New conversation" title="New conversation" className="ml-auto inline-flex size-10 items-center justify-center rounded-full hover:bg-muted"><SquarePen className="size-5" /></button>
       </header>
 
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 pb-6 select-text" aria-live="polite" aria-busy={busy}>
         {live.live && <div className="flex justify-center py-6"><VoiceOrb mode={live.mode} level={live.level} size={96} onTap={() => live.call.setMuted(!live.call.muted)} actionLabel={live.call.muted ? "Unmute microphone" : "Mute microphone"} /></div>}
         {banner && <p role="status" className={`mb-4 text-sm ${banner.ok ? "text-success" : "text-warning"}`}>{banner.text} <button className="ml-2 underline" onClick={() => setBanner(null)}>Dismiss</button></p>}
-        {messages.length === 0 && liveRows.length === 0 ? (
+        {view === "code" ? (
+          <section aria-label="CODE workspace" className="pt-4">
+            <label htmlFor="code-repo" className="text-xs text-muted-foreground">Repository</label>
+            {repoErr ? <p role="alert" className="text-sm text-destructive">{repoErr}</p> : !repos ? <p className="text-sm text-muted-foreground">Loading repositories…</p> : repos.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No project has a linked repo yet. <Link to="/projects" className="text-primary underline">Connect one in Projects</Link>.</p>
+            ) : (
+              <select id="code-repo" value={target} onChange={(e) => setTarget(e.target.value)} className="mt-1 block min-h-10 w-full rounded-xl border border-border bg-card px-3 text-sm">
+                {repos.map((r) => <option key={r.id} value={r.name}>{r.name} — {r.repo}</option>)}
+              </select>
+            )}
+            <p className="mt-2 text-xs text-muted-foreground">Describe the change below. CODE checks access and asks for your approval before anything runs; results open as a draft PR only.</p>
+            {!code.cards.length && !code.busy && !code.error && <p className="mt-6 text-sm text-muted-foreground">No CODE jobs in this session yet.</p>}
+            <CodeTasks tasks={code} />
+          </section>
+        ) : messages.length === 0 && liveRows.length === 0 ? (
           <div className="flex min-h-[55dvh] flex-col items-center justify-center text-center">
             <Hexagon className="size-10 text-electric" aria-hidden />
             <p className="mt-4 text-2xl font-semibold text-silver">What are we working on?</p>
@@ -138,7 +177,7 @@ function ChatPage() {
           </ol>
         )}
         <div ref={end} />
-        <CodeTasks tasks={code} />
+        {view === "chat" && <CodeTasks tasks={code} />}
       </main>
 
       <footer className="sticky bottom-0 bg-gradient-to-t from-background via-background to-background/0 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-4 sm:px-6">
@@ -148,7 +187,7 @@ function ChatPage() {
           {error && /credits|402/i.test(error) && <a href={CREDIT_HELP_URL} target="_blank" rel="noopener noreferrer" className="block px-2 text-xs text-primary underline">Paused: out of credits — open credit setup instructions</a>}
           <form onSubmit={(e) => { e.preventDefault(); send(text); }} className="flex items-end gap-2 rounded-3xl border border-border bg-card px-3 py-2 focus-within:border-electric">
             <label htmlFor="jb-msg" className="sr-only">Message Jackboy. For development say CODE, the exact project name, a colon, then the task.</label>
-            <textarea id="jb-msg" ref={textarea} rows={1} value={text} placeholder="Message Jackboy"
+            <textarea id="jb-msg" ref={textarea} rows={1} value={text} placeholder={view === "code" ? "Describe the code change" : "Message Jackboy"}
               onChange={(e) => { setText(e.target.value); if (!e.target.value.trim()) setFromVoice(false); }}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(text); } }}
               className="max-h-[200px] min-h-9 flex-1 resize-none bg-transparent py-1.5 text-[15px] outline-none placeholder:text-muted-foreground" />

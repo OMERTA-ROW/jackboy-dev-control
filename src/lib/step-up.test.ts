@@ -36,3 +36,25 @@ describe("passkey step-up", () => {
     expect(grantUsable({ ...g, expires_at: new Date(Date.now() - 1).toISOString() }, "u", "merge_update", "p1")).toBe(false);
   });
 });
+
+import { recentEligible, recentVerificationValid, RECENT_VERIFICATION_MS } from "./step-up";
+describe("recent passkey verification", () => {
+  it("only routine connection reviews may reuse a recent check", () => {
+    expect(recentEligible("approve_integration", "repository_resync:abc")).toBe(true);
+    expect(recentEligible("approve_integration", "github_repo:p1")).toBe(true);
+    expect(recentEligible("merge_update", "github_repo:p1")).toBe(false);
+    expect(recentEligible("production_deploy", "x")).toBe(false);
+    expect(recentEligible("remove_passkey", "x")).toBe(false);
+    expect(recentEligible("critical_change", "x")).toBe(false);
+    expect(recentEligible("approve_integration", "github_actions:p1")).toBe(false);
+  });
+  it("expires after 10 minutes and needs a still-registered key", () => {
+    const now = Date.now();
+    const at = (ms: number) => ({ created_at: new Date(now - ms).toISOString() });
+    expect(recentVerificationValid(at(60_000), true, now)).toBe(true);
+    expect(recentVerificationValid(at(RECENT_VERIFICATION_MS + 1), true, now)).toBe(false);
+    expect(recentVerificationValid(at(60_000), false, now)).toBe(false);
+    expect(recentVerificationValid({ ...at(60_000), recent: true }, true, now)).toBe(false);
+    expect(recentVerificationValid(null, true, now)).toBe(false);
+  });
+});

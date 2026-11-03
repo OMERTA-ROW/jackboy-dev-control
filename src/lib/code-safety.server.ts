@@ -1,4 +1,6 @@
-import { supabaseAdmin as db } from "@/integrations/supabase/client.server";
+import { supabaseAdmin as typedDb } from "@/integrations/supabase/client.server";
+import { untyped } from "./untyped-db";
+const db = untyped(typedDb);
 import {
   codeStartBlockReason,
   parseCodeTargets,

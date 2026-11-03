@@ -1,6 +1,8 @@
 // Server-only GitHub App client: app JWT (RS256), installation lookup and short-lived installation tokens.
 // Secrets: GITHUB_APP_ID, GITHUB_APP_SLUG, GITHUB_APP_PRIVATE_KEY. Tokens never leave the server.
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { supabaseAdmin as typedAdmin } from "@/integrations/supabase/client.server";
+import { untyped } from "./untyped-db";
+const supabaseAdmin = untyped(typedAdmin);
 import { appRegistrationUrl, installUrl, missingPermissions, pemToPkcs8, signState } from "./github-app";
 import { permissionAtLeast, permissionLevel } from "./provider-permissions";
 

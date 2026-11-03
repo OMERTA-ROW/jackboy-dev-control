@@ -28,3 +28,17 @@ export type Grant = { user_id: string; action: string; target: string; expires_a
 export function grantUsable(g: Grant | null, userId: string, action: string, target: string, now = Date.now()): boolean {
   return !!g && g.user_id === userId && g.action === action && g.target === target && !g.used_at && new Date(g.expires_at).getTime() > now;
 }
+
+/** Recent verification: after a real passkey check, routine connection reviews can reuse it briefly.
+ * Every reuse still mints a fresh single-use grant for the exact action+target; privileged actions
+ * (merge, revert, deploy, critical changes, passkey removal, permission raises, package decisions) never qualify. */
+export const RECENT_VERIFICATION_MS = 10 * 60_000;
+const RECENT_TARGET_PREFIXES = ["repository_resync:", "github_repo:"] as const;
+export function recentEligible(action: string, target: string): boolean {
+  return action === "approve_integration" && RECENT_TARGET_PREFIXES.some((p) => target.startsWith(p));
+}
+/** True when the user's latest ceremony-backed grant is recent and its passkey is still registered. */
+export function recentVerificationValid(last: { created_at: string; recent?: boolean } | null, keyStillRegistered: boolean, now = Date.now()): boolean {
+  if (!last || !keyStillRegistered || last.recent) return false;
+  return now - new Date(last.created_at).getTime() < RECENT_VERIFICATION_MS;
+}
