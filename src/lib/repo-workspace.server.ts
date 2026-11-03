@@ -12,7 +12,10 @@ async function gh<T>(path: string, init: RequestInit = {}, tokenOverride?: strin
     ...init,
     headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${token}`, "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "Jackboy", ...(init.body ? { "Content-Type": "application/json" } : {}) },
   });
-  if (!res.ok) throw new Error(`GitHub ${res.status}: ${(await res.text()).slice(0, 300)}`);
+  if (!res.ok) {
+    await (await import("./repository-resync.server")).invalidateRepositoryReview(res.status).catch(() => {});
+    throw new Error(`GitHub ${res.status}: ${(await res.text()).slice(0, 300)}`);
+  }
   return (res.status === 204 ? null : await res.json()) as T;
 }
 

@@ -31,7 +31,10 @@ async function appJwt(): Promise<string> {
 
 async function call<T>(path: string, auth: string, method = "GET"): Promise<T> {
   const r = await fetch(`${API}${path}`, { method, headers: { ...H, Authorization: `Bearer ${auth}` }, signal: AbortSignal.timeout(10_000) });
-  if (!r.ok) throw new Error(`GitHub ${r.status}: ${(await r.text()).slice(0, 200)}`);
+  if (!r.ok) {
+    await (await import("./repository-resync.server")).invalidateRepositoryReview(r.status).catch(() => {});
+    throw new Error(`GitHub ${r.status}: ${(await r.text()).slice(0, 200)}`);
+  }
   return (await r.json()) as T;
 }
 

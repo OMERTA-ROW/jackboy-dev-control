@@ -22,8 +22,9 @@ export const getProjectHub = createServerFn({ method: "POST" }).middleware([requ
     context.supabase.from("agent_projects").select("id,name,lovable_project_ref").order("name"),
   ]);
   for (const r of [p, s, q, inv]) if (r.error) throw new Error(r.error.message);
+  const statuses = await (await import("./repository-resync.server")).repositoryDriftStatuses(context.userId);
   return {
-    projects: (p.data ?? []) as HubRow[],
+    projects: (p.data ?? []).map((r) => ({ ...r, repo_sync_status: r.github_repo ? statuses[r.github_repo.toLowerCase()] : undefined })) as HubRow[],
     scans: (s.data ?? []) as HubScanRow[],
     waiting: ((q.data ?? []) as (HubProposal & { files: unknown[]; owner_projects: { github_repo: string | null } | null })[]).map(({ files, owner_projects, ...r }) => ({ ...r, has_files: Array.isArray(files) && files.length > 0, has_repo: Boolean(owner_projects?.github_repo) })),
     inventory: (inv.data ?? []) as { id: string; name: string; lovable_project_ref: string | null }[],
@@ -42,6 +43,8 @@ export const getProjectDetail = createServerFn({ method: "POST" }).middleware([r
       context.supabase.from("update_proposals").select("id,project_id,title,status,source,pr_url,checks_state,created_at").eq("project_id", data.id).order("created_at", { ascending: false }).limit(30),
     ]);
     for (const r of [p, s, q]) if (r.error) throw new Error(r.error.message);
+    const statuses = await (await import("./repository-resync.server")).repositoryDriftStatuses(context.userId);
+    if (p.data?.github_repo) Object.assign(p.data, { repo_sync_status: statuses[p.data.github_repo.toLowerCase()] });
     return { project: (p.data ?? null) as HubRow | null, scans: (s.data ?? []) as HubScanRow[], proposals: (q.data ?? []) as HubProposal[], githubConfigured: Boolean(process.env["GITHUB_TOKEN"]) };
   });
 

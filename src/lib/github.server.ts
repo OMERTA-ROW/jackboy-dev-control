@@ -15,6 +15,7 @@ async function gh<T>(path: string, init: RequestInit = {}): Promise<T> {
     headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${token}`, "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "Jackboy", ...(init.body ? { "Content-Type": "application/json" } : {}), ...(init.headers ?? {}) },
   });
   if (!res.ok) {
+    await (await import("./repository-resync.server")).invalidateRepositoryReview(res.status).catch(() => {});
     let msg = `GitHub ${res.status}`;
     try { msg = `GitHub ${res.status}: ${((await res.json()) as { message?: string }).message ?? ""}`; } catch { /* ignore */ }
     throw new GitHubError(res.status, msg);

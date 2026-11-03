@@ -1,5 +1,11 @@
 # Jackboy roadmap
 
+## Repository resync follow-up (Nov 3)
+- [x] Permanent resync action and last checked time; owner-only load/15-minute/failure-triggered drift checks.
+- [x] Token identity and honest permissions; grouped linked/moved/not-found review with atomic approved unlinking, preserving history and running work.
+- [x] 329 tests passed, including PostgreSQL atomic rollback/unlink/idempotency; signed-in desktop/phone repeated resync verified. Actual reference changes await owner/passkey approval.
+- [ ] Unrelated existing OMNI session schema absent: migration tool reported 0030_omni_sessions skipped due timestamp ordering; omni_link_sessions/omni_inbound_jobs not present. Left untouched to preserve current OMNI work.
+
 - [x] Foundation: dashboard, Classic/Assist, inspect, logs/approvals, integrations, access
 - [x] Technology Discovery UI (opt-in, source registry, ranking, filters, saved ideas, alerts, prototype briefs) — demo data
 - [x] Secure accounts: owner/admin/member roles, invitations (create/revoke/accept), protected pages, sign out / all devices, server audit log
