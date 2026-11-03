@@ -18,6 +18,10 @@ describe("activity indicator", () => {
     expect(deriveActivity({ cards: [run("Run tests")] })).toBe("testing");
     expect(deriveActivity({ cards: [run("Apply patch")] })).toBe("coding");
   });
+  it("working only while a real tool call runs", () => {
+    expect(deriveActivity({ toolRunning: true, chatStatus: "streaming" })).toBe("working");
+    expect(deriveActivity({ toolRunning: false, chatStatus: "streaming" })).toBe("thinking");
+  });
   it("error and listening take priority", () => {
     expect(deriveActivity({ error: true, listening: true })).toBe("error");
     expect(deriveActivity({ listening: true, chatStatus: "streaming" })).toBe("listening");

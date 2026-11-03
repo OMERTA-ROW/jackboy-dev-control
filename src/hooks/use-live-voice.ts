@@ -309,6 +309,9 @@ function createLiveVoice(options: LiveOptions) {
     state = "starting";
     window.addEventListener("pagehide", stop);
     try {
+      if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia || typeof RTCPeerConnection === "undefined") {
+        throw Object.assign(new Error("unsupported"), { name: "NotSupportedError" });
+      }
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true },
       });
@@ -400,9 +403,19 @@ function createLiveVoice(options: LiveOptions) {
         release();
       };
     } catch (error) {
-      fail(error instanceof Error ? error.message : "Microphone startup failed");
+      fail(micErrorMessage(error));
     }
   }
 
   return { start, stop, setMuted, resumePlayback };
+}
+
+/** Plain-language microphone/device failures; never a silent failure. */
+export function micErrorMessage(error: unknown): string {
+  const name = (error as { name?: string } | null)?.name ?? "";
+  if (name === "NotAllowedError" || name === "SecurityError") return "Microphone access is blocked. Allow the microphone for this site in your browser settings, then try again. You can keep typing meanwhile.";
+  if (name === "NotFoundError" || name === "OverconstrainedError") return "No microphone was found. Connect one or use typed chat.";
+  if (name === "NotReadableError" || name === "AbortError") return "The microphone is in use by another app. Close it and try again.";
+  if (name === "NotSupportedError") return "This browser can't run two-way voice (needs a secure page, microphone access and WebRTC). Use typed chat.";
+  return error instanceof Error && error.message ? error.message : "Microphone startup failed. Try again or use typed chat.";
 }
