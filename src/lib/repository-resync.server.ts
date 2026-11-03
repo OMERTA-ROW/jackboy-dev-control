@@ -6,13 +6,27 @@ export async function invalidateRepositoryReview(status: number) {
   if (status !== 403 && status !== 404) return;
   await supabaseAdmin.from("repository_resync_reviews").update({ invalidated: true }).eq("invalidated", false).is("approved_at", null);
 }
+/** Grants that failed only because no credential covered the repo go back to "awaiting_setup" once one does; the owner re-verifies them. */
+async function clearStaleCoverageErrors() {
+  const { githubTokenFor } = await import("./github-app.server");
+  const { data } = await supabaseAdmin.from("capability_grants").select("id, last_error, owner_projects(github_repo)").eq("status", "error").like("last_error", "No GitHub App installation or GITHUB_TOKEN covers%");
+  for (const g of data ?? []) {
+    const repo = (g.owner_projects as unknown as { github_repo: string | null } | null)?.github_repo;
+    if (repo && (await githubTokenFor(repo))) await supabaseAdmin.from("capability_grants").update({ status: "awaiting_setup", last_error: null, updated_at: new Date().toISOString() }).eq("id", g.id);
+  }
+}
 export async function repositoryDriftStatuses(userId: string): Promise<Record<string, string>> {
   const { data } = await supabaseAdmin.from("repository_resync_reviews").select("report,invalidated").eq("requested_by", userId).order("created_at", { ascending: false }).limit(1).maybeSingle();
   const rows = (data?.report as unknown as { rows?: { repo: string; group: string }[] } | null)?.rows ?? [];
   return Object.fromEntries(rows.map((r) => [r.repo.toLowerCase(), data?.invalidated ? "needs_review" : r.group]));
 }
 export async function scanRepositories(userId: string) {
-  const token = process.env["GITHUB_TOKEN"];
+  const token = process.env["GITHUB_TOKEN"]; // read fresh on every scan
+  // Re-read App installations live first, so org coverage and stale grant errors reflect GitHub now.
+  const app = await import("./github-app.server");
+  let appOwners: string[] = [];
+  try { await app.syncInstallations(null); appOwners = await app.appInstallationOwners(); } catch (e) { console.error("installation sync failed", (e as Error).message); }
+  await clearStaleCoverageErrors();
   if (!token) throw new Error("GITHUB_TOKEN is missing. Add it in Project Settings → Secrets.");
   const gh = (path: string) => fetch(`https://api.github.com${path}`, { headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "Jackboy" }, signal: AbortSignal.timeout(15000) });
   const me = await gh("/user");
@@ -85,7 +99,7 @@ export async function scanRepositories(userId: string) {
   for (const row of rows) if (row.profiles?.some((p) => protectedProjects.has(p.projectId)) || refs.some((r) => r.table === "owner_projects" && normalizeRepo(r.value).toLowerCase() === row.repo.toLowerCase() && protectedProjects.has(r.id))) {
     row.canApply = false; if (row.group !== "linked") row.reason += " Approval-bound or running work exists: resolve it before changing this target.";
   }
-  const report = { login, scopes, permissions, warning: tokenOwnerWarning(login, saved), rows, inventoryCount: inventory.length };
+  const report = { login, scopes, permissions, warning: tokenOwnerWarning(login, saved, appOwners), appInstallations: appOwners, rows, inventoryCount: inventory.length };
   const inserted = await supabaseAdmin.from("repository_resync_reviews").insert({ requested_by: userId, inventory, references_snapshot: refs as never, report: report as never }).select("id,created_at,expires_at,approved_at,report,invalidated").single();
   if (inserted.error) throw new Error(inserted.error.message);
   return inserted.data;

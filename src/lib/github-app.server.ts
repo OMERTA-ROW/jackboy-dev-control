@@ -50,9 +50,14 @@ async function installationToken(id: number): Promise<string> {
 export async function recordInstallation(installationId: number, approvedBy: string | null) {
   const inst = await call<{ account: { login: string; type: string }; permissions: Record<string, string> }>(`/app/installations/${installationId}`, await appJwt());
   const tok = await installationToken(installationId);
-  const repos = await call<{ repositories: { full_name: string }[] }>(`/installation/repositories?per_page=100`, tok);
+  const names: string[] = [];
+  for (let page = 1; page <= 20; page++) {
+    const repos = await call<{ repositories: { full_name: string }[] }>(`/installation/repositories?per_page=100&page=${page}`, tok);
+    names.push(...repos.repositories.map((r) => r.full_name));
+    if (repos.repositories.length < 100) break;
+  }
   const missing = missingPermissions(inst.permissions);
-  const row = { installation_id: installationId, account_login: inst.account.login, account_type: inst.account.type, repositories: repos.repositories.map((r) => r.full_name), permissions: inst.permissions, missing_permissions: missing, approved_by: approvedBy, verified_at: new Date().toISOString(), revoked: false, updated_at: new Date().toISOString() };
+  const row = { installation_id: installationId, account_login: inst.account.login, account_type: inst.account.type, repositories: names, permissions: inst.permissions, missing_permissions: missing, approved_by: approvedBy, verified_at: new Date().toISOString(), revoked: false, updated_at: new Date().toISOString() };
   const { error } = await supabaseAdmin.from("github_installations").upsert(row);
   if (error) throw new Error(`Could not store installation: ${error.message}`);
   return row;
@@ -62,25 +67,42 @@ export async function recordInstallation(installationId: number, approvedBy: str
 export async function syncInstallations(approvedBy: string | null) {
   if (!(await appConfig())) return [];
   const list = await call<{ id: number }[]>(`/app/installations?per_page=100`, await appJwt());
+  cache.clear();
   const out = [];
   for (const i of list) out.push(await recordInstallation(i.id, approvedBy));
+  // Installations GitHub no longer reports (e.g. an old personal-account install) are marked revoked, never deleted.
+  const live = list.map((i) => i.id);
+  const stale = supabaseAdmin.from("github_installations").update({ revoked: true, updated_at: new Date().toISOString() }).eq("revoked", false);
+  await (live.length ? stale.not("installation_id", "in", `(${live.join(",")})`) : stale);
   return out;
 }
 
-let lastSync = 0;
 /** Personal GITHUB_TOKEN is used only for these repos; everything else must go through the GitHub App. */
 export const PERSONAL_TOKEN_REPOS = ["street-tech666/jackboy-dev-control"];
 export const tokenAllowedFor = (repoFull: string | null) => !repoFull || PERSONAL_TOKEN_REPOS.includes(repoFull.toLowerCase());
 
+/** Case-insensitive lookup of the live installation covering a repo. */
+export async function installationIdFor(repoFull: string): Promise<number | null> {
+  const want = repoFull.toLowerCase();
+  const { data } = await supabaseAdmin.from("github_installations").select("installation_id, repositories").eq("revoked", false);
+  const hit = (data ?? []).find((r) => (r.repositories as string[] | null)?.some((x) => x.toLowerCase() === want));
+  return hit ? Number(hit.installation_id) : null;
+}
+/** Account logins with a live App installation (used to tell whether org work is covered by the App). */
+export async function appInstallationOwners(): Promise<string[]> {
+  const { data } = await supabaseAdmin.from("github_installations").select("account_login").eq("revoked", false);
+  return (data ?? []).map((r) => r.account_login as string);
+}
+
 /** App installation token for repos it covers; personal GITHUB_TOKEN only for PERSONAL_TOKEN_REPOS. */
 export async function githubTokenFor(repoFull: string | null): Promise<{ token: string; via: "app" | "token" } | null> {
   if (repoFull && (await appConfig())) {
-    const find = async () => (await supabaseAdmin.from("github_installations").select("installation_id, repositories").eq("revoked", false).contains("repositories", [repoFull]).limit(1)).data?.[0]?.installation_id;
-    let id = await find();
-    if (!id && Date.now() - lastSync > 10 * 60_000) { lastSync = Date.now(); await syncInstallations(null).catch((e) => console.error("installation sync failed", (e as Error).message)); id = await find(); }
+    let id = await installationIdFor(repoFull);
+    // No throttle cache: a miss re-reads installations from GitHub so a new/expanded install is picked up immediately.
+    if (!id) { await syncInstallations(null).catch((e) => console.error("installation sync failed", (e as Error).message)); id = await installationIdFor(repoFull); }
     if (id) { try { return { token: await installationToken(Number(id)), via: "app" }; } catch (e) { console.error("installation token failed", (e as Error).message); } }
   }
-  const t = process.env["GITHUB_TOKEN"];
+  const t = process.env["GITHUB_TOKEN"]; // read per call; never cached
   return t && tokenAllowedFor(repoFull) ? { token: t, via: "token" } : null;
 }
 
@@ -88,13 +110,7 @@ export async function githubTokenFor(repoFull: string | null): Promise<{ token: 
 export async function refreshGithubTokenFor(repoFull: string): Promise<{ token: string; via: "app" | "token" } | null> {
   const current = await githubTokenFor(repoFull);
   if (current?.via !== "app") return current;
-  const { data } = await supabaseAdmin
-    .from("github_installations")
-    .select("installation_id")
-    .eq("revoked", false)
-    .contains("repositories", [repoFull])
-    .limit(1);
-  const id = data?.[0]?.installation_id;
+  const id = await installationIdFor(repoFull);
   if (!id) return null;
   cache.delete(Number(id));
   return { token: await installationToken(Number(id)), via: "app" };

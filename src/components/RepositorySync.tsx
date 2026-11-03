@@ -18,11 +18,11 @@ export function RepositorySyncProvider({ children }: { children: ReactNode }) {
   const [busy, setBusy] = useState(false), [error, setError] = useState("");
   const running = useRef(false);
   const run = useCallback(async (force = false) => {
-    if (running.current) return;
+    if (running.current) { if (force) setError("A check is already running — results will appear when it finishes."); return; }
     const { data } = await supabase.auth.getUser();
     if (!data.user) { setReview(null); return; }
     const { data: role } = await supabase.rpc("my_role");
-    if (role !== "owner") return;
+    if (role !== "owner") { if (force) setError("Only the owner can resync repositories."); return; }
     running.current = true; setBusy(true); setError("");
     try {
       const next = await check({ data: { force } });
