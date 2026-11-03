@@ -15,9 +15,15 @@
   },
   "overrides": {
     "rolldown": "1.2.1",
-    "source-map-js": "1.2.2",
-    "js-yaml": "4.3.2",
-    "seroval": "1.6.11"
+    "brace-expansion@^1.1.7": "^1.1.21",
+    "brace-expansion@^5.0.8": "^5.0.12",
+    "js-yaml": "^4.3.2",
+    "launch-editor": "^2.14.2",
+    "nanoid@^3.3.16": "^3.3.18",
+    "seroval": "^1.6.11",
+    "shell-quote": "^1.11.0",
+    "source-map-js": "^1.2.2",
+    "zod@^4.5.4": "^4.6.6"
   },
   "dependencies": {
     "@ai-sdk/openai": "^4.0.106",
@@ -86,7 +92,7 @@
     "use-stick-to-bottom": "^1.1.6",
     "vaul": "^1.1.2",
     "vite-tsconfig-paths": "^6.0.2",
-    "zod": "^3.25.76"
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.14",
@@ -113,8 +119,8 @@
     "prettier": "^3.7.3",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.56.1",
-    "vite": "8.1.5",
-    "vitest": "^4.1.10",
+    "vite": "8.3.5",
+    "vitest": "4.1.12",
     "ws": "^8.22.1"
   }
 }

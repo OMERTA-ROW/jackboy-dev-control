@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { dispatchBackoffMs, hmacHex, nextStatus, parseHandshake, parseResult, signedString, verifyCallback } from "./omni-link";
+import {
+  dispatchBackoffMs,
+  hmacHex,
+  nextStatus,
+  omniEndpointFingerprint,
+  parseHandshake,
+  parseResult,
+  signedString,
+  verifyCallback,
+} from "./omni-link";
 
 const SECRET = "test-secret";
 // Same vector is asserted in OMNI's Go tests (inbox/internal/inbox/sign_test.go).
@@ -17,6 +26,12 @@ describe("omni link", () => {
   });
   it("matches the shared HMAC vector used by OMNI", async () => {
     expect(await hmacHex(SECRET, "jackboy-omni-vector")).toBe(VECTOR);
+  });
+  it("fingerprints only the non-secret OMNI endpoint configuration", async () => {
+    const fingerprint = await omniEndpointFingerprint("https://omni.example");
+    expect(fingerprint).toMatch(/^[a-f0-9]{64}$/);
+    expect(fingerprint).toBe(await omniEndpointFingerprint("https://omni.example"));
+    expect(fingerprint).not.toBe(await omniEndpointFingerprint("https://other.example"));
   });
   it("backs off exponentially up to six hours", () => {
     expect(dispatchBackoffMs(1)).toBe(60_000);

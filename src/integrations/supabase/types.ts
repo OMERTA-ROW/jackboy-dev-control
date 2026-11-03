@@ -14,6 +14,93 @@ export type Database = {
   }
   public: {
     Tables: {
+      code_runtime_controls: {
+        Row: {
+          active_request_id: string | null
+          active_run_id: number | null
+          allowed_targets: Json
+          cancellation_status: string
+          consecutive_failures: number
+          daily_spend_limit_usd: number
+          enabled: boolean
+          kill_switch: boolean
+          paused_reason: string | null
+          provider_costs_synced_at: string | null
+          provider_hard_cap_verified: boolean
+          provider_usage_at: string | null
+          singleton: boolean
+          stop_requested_at: string | null
+          updated_at: string
+          usage_spike: boolean
+        }
+        Insert: {
+          active_request_id?: string | null
+          active_run_id?: number | null
+          allowed_targets?: Json
+          cancellation_status?: string
+          consecutive_failures?: number
+          daily_spend_limit_usd?: number
+          enabled?: boolean
+          kill_switch?: boolean
+          paused_reason?: string | null
+          provider_costs_synced_at?: string | null
+          provider_hard_cap_verified?: boolean
+          provider_usage_at?: string | null
+          singleton?: boolean
+          stop_requested_at?: string | null
+          updated_at?: string
+          usage_spike?: boolean
+        }
+        Update: {
+          active_request_id?: string | null
+          active_run_id?: number | null
+          allowed_targets?: Json
+          cancellation_status?: string
+          consecutive_failures?: number
+          daily_spend_limit_usd?: number
+          enabled?: boolean
+          kill_switch?: boolean
+          paused_reason?: string | null
+          provider_costs_synced_at?: string | null
+          provider_hard_cap_verified?: boolean
+          provider_usage_at?: string | null
+          singleton?: boolean
+          stop_requested_at?: string | null
+          updated_at?: string
+          usage_spike?: boolean
+        }
+        Relationships: []
+      }
+      code_usage_events: {
+        Row: {
+          cost_usd: number
+          created_at: string
+          id: string
+          occurred_at: string
+          provider_event_id: string
+          request_id: string | null
+          source: string
+        }
+        Insert: {
+          cost_usd: number
+          created_at?: string
+          id?: string
+          occurred_at: string
+          provider_event_id: string
+          request_id?: string | null
+          source: string
+        }
+        Update: {
+          cost_usd?: number
+          created_at?: string
+          id?: string
+          occurred_at?: string
+          provider_event_id?: string
+          request_id?: string | null
+          source?: string
+        }
+        Relationships: []
+      }
       action_requests: {
         Row: {
           action: string
@@ -29,8 +116,15 @@ export type Database = {
           permissions: string[]
           project_id: string | null
           requested_by: string
+          revoked_at: string | null;
           resources: Json
           risk: string
+          runner_claimed_at: string | null;
+          runner_publish_claimed_at: string | null;
+          runner_revision: string | null;
+          runner_run_attempt: number | null;
+          runner_run_id: number | null;
+          runner_workflow_sha: string | null;
           status: string
           task_id: string | null
           tier: string
@@ -49,8 +143,15 @@ export type Database = {
           permissions?: string[]
           project_id?: string | null
           requested_by: string
+          revoked_at?: string | null;
           resources?: Json
           risk?: string
+          runner_claimed_at?: string | null;
+          runner_publish_claimed_at?: string | null;
+          runner_revision?: string | null;
+          runner_run_attempt?: number | null;
+          runner_run_id?: number | null;
+          runner_workflow_sha?: string | null;
           status?: string
           task_id?: string | null
           tier: string
@@ -69,8 +170,15 @@ export type Database = {
           permissions?: string[]
           project_id?: string | null
           requested_by?: string
+          revoked_at?: string | null;
           resources?: Json
           risk?: string
+          runner_claimed_at?: string | null;
+          runner_publish_claimed_at?: string | null;
+          runner_revision?: string | null;
+          runner_run_attempt?: number | null;
+          runner_run_id?: number | null;
+          runner_workflow_sha?: string | null;
           status?: string
           task_id?: string | null
           tier?: string
@@ -1296,6 +1404,7 @@ export type Database = {
       omni_connection: {
         Row: {
           capabilities: Json
+          config_hash: string | null;
           id: boolean
           last_checked_at: string | null
           last_error: string | null
@@ -1305,6 +1414,7 @@ export type Database = {
         }
         Insert: {
           capabilities?: Json
+          config_hash?: string | null;
           id?: boolean
           last_checked_at?: string | null
           last_error?: string | null
@@ -1314,6 +1424,7 @@ export type Database = {
         }
         Update: {
           capabilities?: Json
+          config_hash?: string | null;
           id?: boolean
           last_checked_at?: string | null
           last_error?: string | null
@@ -2323,6 +2434,62 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      claim_code_runtime_slot: {
+        Args: {
+          p_request_id: string
+          p_repository: string
+          p_ref: string
+          p_workflow_sha: string
+          p_run_id: number
+        }
+        Returns: boolean
+      }
+      claim_code_runner: {
+        Args: {
+          p_operation: string;
+          p_owner_id: string;
+          p_ref: string;
+          p_repository: string;
+          p_request_id: string;
+          p_revision: string;
+          p_run_attempt: number;
+          p_run_id: number;
+          p_session_hash: string;
+          p_stage: string;
+          p_workflow_blob_sha: string;
+        };
+        Returns: {
+          approved_ref: string;
+          base_sha: string;
+          instruction: string;
+          operation: string;
+          owner_id: string;
+          repository: string;
+          request_id: string;
+          session_hash: string;
+        }[];
+      };
+      engage_code_kill_switch: {
+        Args: { p_actor: string }
+        Returns: { active_request_id: string | null; active_run_id: number | null }[]
+      }
+      finish_code_runtime_slot: {
+        Args: {
+          p_request_id: string
+          p_run_id: number
+          p_run_attempt: number
+          p_outcome: string
+        }
+        Returns: undefined
+      }
+      record_code_cancellation_status: {
+        Args: { p_actor: string; p_status: string }
+        Returns: undefined
+      }
+      record_code_provider_costs: {
+        Args: { p_actor: string; p_rows: Json; p_synced_at: string }
+        Returns: undefined
+      }
       accept_invitation: {
         Args: never
         Returns: Database["public"]["Enums"]["app_role"]

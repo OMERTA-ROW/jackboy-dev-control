@@ -4,6 +4,7 @@ import { PasskeyPanel } from "@/components/PasskeyPanel";
 import { GitHubTokenPanel } from "@/components/GitHubTokenPanel";
 import { GitHubAppPanel } from "@/components/GitHubAppPanel";
 import { RepositorySyncPanel } from "@/components/RepositorySync";
+import { CodeSafetyPanel } from "@/components/CodeSafetyPanel";
 import { PageHeader } from "@/components/AppShell";
 
 export const Route = createFileRoute("/_authenticated/settings")({
@@ -68,6 +69,7 @@ function Settings() {
       <GitHubAppPanel />
       <GitHubTokenPanel />
       <RepositorySyncPanel />
+      <CodeSafetyPanel />
       <div className="grid gap-4 md:grid-cols-2">
         {ADVANCED.map((g) => (
           <section key={g.group} className="panel p-5" aria-labelledby={`g-${g.group}`}>

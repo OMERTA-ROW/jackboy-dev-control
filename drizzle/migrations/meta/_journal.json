@@ -253,6 +253,27 @@
       "when": 1793719168033,
       "tag": "0035_task_limits_and_usage_spike",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1793720000000,
+      "tag": "0036_code_runner_claims",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1793720001000,
+      "tag": "0037_code_safety_controls",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1793720002000,
+      "tag": "0038_code_provider_costs",
+      "breakpoints": true
     }
   ]
 }
