@@ -15,6 +15,15 @@ async function clearStaleCoverageErrors() {
     if (repo && (await githubTokenFor(repo))) await supabaseAdmin.from("capability_grants").update({ status: "awaiting_setup", last_error: null, updated_at: new Date().toISOString() }).eq("id", g.id);
   }
 }
+/** Foundry tasks blocked by an old personal-token 403 on a repo the App now covers get a current, honest reason. State stays blocked; the owner retries. */
+async function clearStaleTokenTaskErrors() {
+  const { githubTokenFor } = await import("./github-app.server");
+  const { data } = await supabaseAdmin.from("foundry_tasks").select("id, owner_projects(github_repo)").eq("state", "blocked").like("blocked_reason", "%not accessible by personal access token%");
+  for (const t of data ?? []) {
+    const repo = (t.owner_projects as unknown as { github_repo: string | null } | null)?.github_repo;
+    if (repo && (await githubTokenFor(repo).catch(() => null))?.via === "app") await supabaseAdmin.from("foundry_tasks").update({ blocked_reason: "Earlier personal-token error no longer applies: the GitHub App installation now covers this repo. Press Retry to run it again with your approval." }).eq("id", t.id);
+  }
+}
 export async function repositoryDriftStatuses(userId: string): Promise<Record<string, string>> {
   const { data } = await supabaseAdmin.from("repository_resync_reviews").select("report,invalidated").eq("requested_by", userId).order("created_at", { ascending: false }).limit(1).maybeSingle();
   const rows = (data?.report as unknown as { rows?: { repo: string; group: string }[] } | null)?.rows ?? [];
@@ -32,6 +41,7 @@ export async function scanRepositories(userId: string) {
   try { await app.syncInstallations(null); appOwners = await app.appInstallationOwners(); appRepos = await app.appRepositoryCandidates(); }
   catch (e) { appError = (e as Error).message; console.error("installation sync failed", appError); }
   await clearStaleCoverageErrors();
+  await clearStaleTokenTaskErrors().catch((e) => console.error("task error refresh failed", (e as Error).message));
   const gh = (path: string, auth = token) => fetch(`https://api.github.com${path}`, { headers: { Authorization: `Bearer ${auth}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "Jackboy" }, signal: AbortSignal.timeout(15000) });
   let tokenState: TokenState = token ? "set" : "missing";
   let login = "No GITHUB_TOKEN set";
