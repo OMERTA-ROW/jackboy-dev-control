@@ -211,6 +211,13 @@
       "when": 1793639298222,
       "tag": "0029_github_app_credentials",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1793669645898,
+      "tag": "0030_omni_sessions",
+      "breakpoints": true
     }
   ]
 }
