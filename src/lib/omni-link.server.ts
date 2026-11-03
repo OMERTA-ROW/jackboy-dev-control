@@ -10,11 +10,11 @@ import {
   JOB_CONTRACT,
   MAX_DISPATCH_ATTEMPTS,
   nextStatus,
+  omniEndpointFingerprint,
   parseHandshake,
   safeEqual,
   type JobResult,
 } from "./omni-link";
-import { createHmac } from "node:crypto";
 
 function config() {
   const url = process.env["OMNI_API_URL"], key = process.env["OMNI_API_KEY"], secret = process.env["OMNI_CALLBACK_SECRET"];
@@ -27,9 +27,9 @@ export function omniConfigState() {
   return { configured: c.missing.length === 0, keyConfigured: Boolean(c.key), missing: c.missing, callbackUrl: c.callbackUrl };
 }
 
-function configHash(c = config()) {
+async function configHash(c = config()) {
   if (c.missing.length) return null;
-  return createHmac("sha256", c.secret!).update(`${c.url}\n${c.key}`).digest("hex");
+  return omniEndpointFingerprint(c.url!);
 }
 
 async function setConnection(patch: Record<string, unknown>) {
@@ -64,7 +64,7 @@ export async function omniHandshake(actor: string) {
     await setConnection({
       verified: true,
       verified_at: new Date().toISOString(),
-      config_hash: configHash(c),
+      config_hash: await configHash(c),
       omni_version: h.version,
       capabilities: h.capabilities,
       last_error: null,
@@ -82,13 +82,17 @@ export async function omniHandshake(actor: string) {
 /** Sends due queued jobs to OMNI. Never sends unless the handshake has verified OMNI. */
 export async function dispatchOmniJobs(limit = 10) {
   const c = config();
-  if (!(await isOmniVerified()) || c.missing.length) return { sent: 0, failed: 0, skipped: "OMNI verification is missing, stale, or invalid" };
+  if (c.missing.length) {
+    await isOmniVerified();
+    return { sent: 0, failed: 0, skipped: "OMNI configuration is incomplete" };
+  }
   const { data: due } = await supabaseAdmin.from("omni_jobs").select("id, kind, instructions, repo, project_id, attempts, code_request_id")
     .eq("status", "queued").is("code_request_id", null).lte("next_attempt_at", new Date().toISOString()).order("created_at").limit(limit);
   const out = { sent: 0, failed: 0 };
   for (const j of due ?? []) {
     try {
-      if (!(await isOmniVerified())) throw new Error("OMNI verification expired before dispatch.");
+      const handshake = await omniHandshake("jackboy");
+      if (!handshake.verified) throw new Error("OMNI handshake failed before dispatch.");
       const r = await fetch(`${c.url}/jackboy/jobs`, {
         method: "POST", signal: AbortSignal.timeout(15_000),
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${c.key}`, "Idempotency-Key": j.id },
@@ -129,7 +133,7 @@ export async function applyOmniResult(nonce: string, r: JobResult) {
 }
 
 export async function isOmniVerified() {
-  const c = config(), expectedHash = configHash(c);
+  const c = config(), expectedHash = await configHash(c);
   if (!expectedHash) {
     await setConnection({ verified: false, verified_at: null, config_hash: null });
     return false;

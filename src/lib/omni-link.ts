@@ -15,6 +15,10 @@ export async function hmacHex(secret: string, message: string): Promise<string> 
   return hex(await crypto.subtle.sign("HMAC", key, te.encode(message)));
 }
 
+export async function omniEndpointFingerprint(endpoint: string): Promise<string> {
+  return hex(await crypto.subtle.digest("SHA-256", te.encode(endpoint)));
+}
+
 /** Signed string for callbacks: `${timestamp}.${nonce}.${rawBody}` (same as OMNI's Go signer). */
 export const signedString = (ts: string, nonce: string, body: string) => `${ts}.${nonce}.${body}`;
 
