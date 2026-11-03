@@ -4,6 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/AppShell";
 import { passwordProblem } from "@/lib/account-auth";
+import { useServerFn } from "@tanstack/react-start";
+import { generateRecoveryCodes, recentSecurityActivity, recordRecoveryEvent, recoveryStatus } from "@/lib/recovery.functions";
 
 export const Route = createFileRoute("/_authenticated/security")({
   head: () => ({
@@ -29,11 +31,18 @@ function SecurityPage() {
   const [cur, setCur] = useState(""); const [pw, setPw] = useState(""); const [pw2, setPw2] = useState("");
   const [msg, setMsg] = useState<{ ok: boolean; t: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const statusFn = useServerFn(recoveryStatus); const genFn = useServerFn(generateRecoveryCodes);
+  const actFn = useServerFn(recentSecurityActivity); const recFn = useServerFn(recordRecoveryEvent);
+  const [rec, setRec] = useState<{ ready: boolean; message: string | null; remaining: number; total: number } | null>(null);
+  const [shown, setShown] = useState<string[] | null>(null);
+  const [activity, setActivity] = useState<{ action: string; outcome: string; at: string }[]>([]);
 
   async function load() {
     const { data, error } = await supabase.auth.mfa.listFactors();
     if (error) return setMsg({ ok: false, t: error.message });
     setFactors(data.totp as Factor[]);
+    statusFn().then(setRec).catch(() => setRec(null));
+    actFn().then(setActivity).catch(() => undefined);
   }
   useEffect(() => { void load(); }, []);
 
@@ -55,7 +64,9 @@ function SecurityPage() {
     const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId: enroll.id, code: code.trim() });
     if (error) throw new Error("That code didn't match. Check your phone's clock and enter the current code.");
     setEnroll(null); setCode("");
-    return "Authenticator added. You'll be asked for a code each time you sign in.";
+    await supabase.auth.refreshSession();
+    try { setShown((await genFn()).codes); } catch { /* shown in Recovery codes section */ }
+    return "Authenticator added. Save your recovery codes below now; they are shown only once.";
   });
   const remove = (id: string) => run(async () => {
     if (!confirm("Remove this authenticator? Sign-in will no longer ask for its code.")) return;
@@ -97,6 +108,33 @@ function SecurityPage() {
             <div className="flex gap-2"><Button disabled={busy || code.length !== 6} onClick={() => void verifyEnroll()}>Verify and turn on</Button><Button variant="ghost" onClick={() => setEnroll(null)}>Cancel</Button></div>
           </div>
         )}
+      </section>
+
+      <section className="panel p-5">
+        <h2 className="font-semibold text-silver">Recovery codes</h2>
+        <p className="mt-1 text-xs text-muted-foreground">Use one if you lose your authenticator. Each works once. They're stored only as scrambled fingerprints, so we can't show them again.</p>
+        {rec && !rec.ready && <p className="mt-2 text-xs text-warning">{rec.message}</p>}
+        {rec?.ready && <p className="mt-2 text-sm">{rec.total ? `${rec.remaining} of ${rec.total} unused` : "None generated yet"}</p>}
+        {shown && <div className="mt-3 rounded-md border border-electric/50 p-3">
+          <p className="text-xs text-warning">Save these now. They will not be shown again.</p>
+          <ul className="mt-2 grid grid-cols-2 gap-1 font-mono text-sm">{shown.map((c) => <li key={c}>{c}</li>)}</ul>
+          <div className="mt-2 flex gap-2"><Button size="sm" variant="outline" onClick={() => void navigator.clipboard.writeText(shown.join("\n"))}>Copy</Button><Button size="sm" variant="ghost" onClick={() => setShown(null)}>I've saved them</Button></div>
+        </div>}
+        {verified.length > 0 && <Button className="mt-3" variant="outline" disabled={busy || rec?.ready === false} onClick={() => void run(async () => { if (rec?.total && !confirm("Replace your recovery codes? Old codes stop working.")) return; setShown((await genFn()).codes); return "New recovery codes generated."; })}>{rec?.total ? "Generate new codes" : "Generate recovery codes"}</Button>}
+      </section>
+
+      <section className="panel p-5">
+        <h2 className="font-semibold text-silver">Devices and sessions</h2>
+        <p className="mt-1 text-xs text-muted-foreground">Lost a device or suspect someone else signed in? Sign out everywhere except here.</p>
+        <Button className="mt-3" variant="outline" disabled={busy} onClick={() => void run(async () => {
+          if (!confirm("Sign out all other devices?")) return;
+          const { error } = await supabase.auth.signOut({ scope: "others" }); if (error) throw new Error(error.message);
+          await recFn({ data: { kind: "sessions_revoked" } });
+          return "All other devices were signed out.";
+        })}>Sign out other devices</Button>
+        {activity.length > 0 && <><h3 className="mt-4 text-xs font-semibold text-silver">Recent recovery activity</h3>
+          <ul className="mt-1 space-y-1 text-xs text-muted-foreground">{activity.map((a, i) => <li key={i}>{new Date(a.at).toLocaleString()} · {a.action.replace("recovery.", "")} · {a.outcome}</li>)}</ul></>}
+        <p className="mt-3 text-xs"><Link to="/recover" className="text-electric underline">Account recovery help</Link></p>
       </section>
 
       <section className="panel p-5">
