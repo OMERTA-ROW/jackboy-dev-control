@@ -2064,6 +2064,7 @@ export type Database = {
           pr_number: number | null
           pr_url: string | null
           project_id: string
+          rejection_reason: string | null
           revert_pr_url: string | null
           source: string
           status: string
@@ -2091,6 +2092,7 @@ export type Database = {
           pr_number?: number | null
           pr_url?: string | null
           project_id: string
+          rejection_reason?: string | null
           revert_pr_url?: string | null
           source?: string
           status?: string
@@ -2118,6 +2120,7 @@ export type Database = {
           pr_number?: number | null
           pr_url?: string | null
           project_id?: string
+          rejection_reason?: string | null
           revert_pr_url?: string | null
           source?: string
           status?: string
