@@ -15,7 +15,7 @@ it("atomic approved unlink preserves records, logs once, and rolls back stale ba
       CREATE TABLE audit_logs(actor uuid,action text,outcome text,detail jsonb);
       CREATE TABLE site_log(actor text,action text,category text,status text,summary text,detail jsonb);
       CREATE FUNCTION repository_reference_inventory() RETURNS jsonb LANGUAGE sql AS $$ SELECT coalesce(jsonb_agg(jsonb_build_object('table','owner_projects','id',id::text,'field','github_repo','value',github_repo,'mutable',true)),'[]') FROM owner_projects WHERE github_repo IS NOT NULL $$;`);
-    await db.exec(await readFile(new URL("../../drizzle/migrations/0031_repository_resync_drift_removals.sql", import.meta.url), "utf8"));
+    await db.exec(await readFile("drizzle/migrations/0031_repository_resync_drift_removals.sql", "utf8"));
     const actor = "11111111-1111-4111-8111-111111111111", id = "22222222-2222-4222-8222-222222222222", review = "33333333-3333-4333-8333-333333333333";
     await db.query("INSERT INTO user_roles VALUES ($1,'owner');", [actor]);
     await db.query("INSERT INTO owner_projects VALUES ($1,'OMERTA-ROW/Honeycomb',true,now())", [id]);
