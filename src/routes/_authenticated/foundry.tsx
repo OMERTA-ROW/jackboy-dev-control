@@ -88,6 +88,7 @@ function Foundry() {
       {msg && <p role="status" className="mb-4 text-sm text-warning">{msg}</p>}
       <section className="panel mb-4 grid gap-3 p-4 md:grid-cols-3" aria-label="Live work status">
         <div><p className="text-xs uppercase text-muted-foreground">Pipeline</p><p className={`font-semibold ${sc?.paused ? "text-warning" : "text-success"}`}>{sc?.paused ? "Paused" : "Running when triggered"}</p>
+          {sc?.spike_reason && <p role="alert" className="text-xs text-warning">{sc.spike_reason} Check the audit trail, then Resume all.</p>}
           <button className="mt-1 rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50" disabled={!!busy} onClick={() => run("ctl", () => ctl({ data: { op: sc?.paused ? "resume_all" : "pause_all" } }))}>{sc?.paused ? "Resume all" : "Stop all"}</button></div>
         <div><p className="text-xs uppercase text-muted-foreground">Scheduler</p><p className="text-sm">{tickAge === null ? "Has not run this code yet (hourly job runs on the published app)." : `Last ran ${tickAge < 1 ? "under an hour" : `${Math.round(tickAge)} h`} ago: ${JSON.stringify(sc?.last_tick_result).slice(0, 120)}`}</p>
           <p className="text-xs text-muted-foreground">Runs today {sc?.runs_day === new Date().toISOString().slice(0, 10) ? sc?.runs_today : 0}/{sc?.max_runs_per_day} · max {sc?.max_in_flight} in flight</p></div>
@@ -117,8 +118,8 @@ function Foundry() {
   );
 }
 
-function Schedule({ s, onSave }: { s: NonNullable<Data["schedule"]>; onSave: (v: { enabled: boolean; interval_hours: number; daily_task_quota: number; max_in_flight: number; max_runs_per_day: number }) => void }) {
-  const [v, setV] = useState({ enabled: s.enabled, interval_hours: s.interval_hours, daily_task_quota: s.daily_task_quota, max_in_flight: s.max_in_flight, max_runs_per_day: s.max_runs_per_day });
+function Schedule({ s, onSave }: { s: NonNullable<Data["schedule"]>; onSave: (v: { enabled: boolean; interval_hours: number; daily_task_quota: number; max_in_flight: number; max_runs_per_day: number; spike_limit_per_hour: number }) => void }) {
+  const [v, setV] = useState({ enabled: s.enabled, interval_hours: s.interval_hours, daily_task_quota: s.daily_task_quota, max_in_flight: s.max_in_flight, max_runs_per_day: s.max_runs_per_day, spike_limit_per_hour: s.spike_limit_per_hour });
   return (
     <div className="mt-4 flex flex-wrap items-end gap-3 text-sm">
       <label className="flex items-center gap-2"><input type="checkbox" checked={v.enabled} onChange={(e) => setV({ ...v, enabled: e.target.checked })} />Recurring inspections</label>
@@ -126,8 +127,9 @@ function Schedule({ s, onSave }: { s: NonNullable<Data["schedule"]>; onSave: (v:
       <label>Max new tasks/day <input type="number" min={0} max={20} className="w-16 rounded border border-border bg-background p-1" value={v.daily_task_quota} onChange={(e) => setV({ ...v, daily_task_quota: Number(e.target.value) })} /></label>
       <label>Max runs/day <input type="number" min={1} max={200} className="w-16 rounded border border-border bg-background p-1" value={v.max_runs_per_day} onChange={(e) => setV({ ...v, max_runs_per_day: Number(e.target.value) })} /></label>
       <label>Max in flight <input type="number" min={1} max={10} className="w-14 rounded border border-border bg-background p-1" value={v.max_in_flight} onChange={(e) => setV({ ...v, max_in_flight: Number(e.target.value) })} /></label>
+      <label>Stop if runs/hour exceed <input type="number" min={1} max={500} className="w-16 rounded border border-border bg-background p-1" value={v.spike_limit_per_hour} onChange={(e) => setV({ ...v, spike_limit_per_hour: Number(e.target.value) })} /></label>
       <button className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50" onClick={() => onSave(v)}>Save schedule</button>
-      <span className="text-xs text-muted-foreground">One project per run, rotating. Scheduled tasks always wait for approval.</span>
+      <span className="text-xs text-muted-foreground">One project per run, rotating. Scheduled tasks always wait for approval. One active task per project; others wait their turn.</span>
     </div>
   );
 }
