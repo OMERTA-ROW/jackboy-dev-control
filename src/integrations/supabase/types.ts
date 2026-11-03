@@ -855,6 +855,9 @@ export type Database = {
           paused: boolean
           runs_day: string | null
           runs_today: number
+          spike_limit_per_hour: number
+          spike_paused_at: string | null
+          spike_reason: string | null
           updated_at: string
         }
         Insert: {
@@ -871,6 +874,9 @@ export type Database = {
           paused?: boolean
           runs_day?: string | null
           runs_today?: number
+          spike_limit_per_hour?: number
+          spike_paused_at?: string | null
+          spike_reason?: string | null
           updated_at?: string
         }
         Update: {
@@ -887,6 +893,9 @@ export type Database = {
           paused?: boolean
           runs_day?: string | null
           runs_today?: number
+          spike_limit_per_hour?: number
+          spike_paused_at?: string | null
+          spike_reason?: string | null
           updated_at?: string
         }
         Relationships: []
