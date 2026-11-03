@@ -4,9 +4,9 @@ import { assessRepoAccess, checkPath, checkWorkBranch, MAX_WRITE_BYTES, parseRep
 
 const API = "https://api.github.com";
 
-async function gh<T>(path: string, init: RequestInit = {}): Promise<T> {
+async function gh<T>(path: string, init: RequestInit = {}, tokenOverride?: string): Promise<T> {
   const { githubTokenFor, repoFromPath } = await import("./github-app.server");
-  const token = (await githubTokenFor(repoFromPath(path)))?.token;
+  const token = tokenOverride ?? (await githubTokenFor(repoFromPath(path)))?.token;
   if (!token) throw new Error("GitHub is not connected: install the Jackboy GitHub App or add the GITHUB_TOKEN secret.");
   const res = await fetch(`${API}${path}`, {
     ...init,
@@ -107,7 +107,36 @@ export async function openDraftPr(x: Repo, branch: string, title: string, body: 
   const be = checkWorkBranch(branch, x.base); if (be) throw new Error(be);
   const existing = await gh<{ number: number; html_url: string }[]>(`${R(x)}/pulls?head=${encodeURIComponent(`${x.owner}:${branch}`)}&state=open`);
   if (existing[0]) return { number: existing[0].number, url: existing[0].html_url, existed: true };
-  const pr = await gh<{ number: number; html_url: string }>(`${R(x)}/pulls`, { method: "POST", body: JSON.stringify({ title: title.slice(0, 200), head: branch, base: x.base, body: `${body.slice(0, 4000)}\n\n_Opened by Jackboy as a draft. Owner review required; Jackboy does not merge._`, draft: true }) });
+  const { githubTokenFor, appAccessFor } = await import("./github-app.server");
+  if ((await githubTokenFor(x.full))?.via === "app") {
+    const access = await appAccessFor(x.full);
+    if (!access) {
+      throw new Error(`Draft PR refused: the Jackboy GitHub App installation could not be verified for ${x.full}. Branch ${branch} is unchanged and preserved.`);
+    }
+    if (!access.canCreatePullRequests) {
+      throw new Error(`Draft PR refused: GitHub App installation lacks Pull requests: write on ${x.full}. Branch ${branch} was already pushed and remains unchanged. Update and approve the app permission, then verify the installation in Jackboy.`);
+    }
+  }
+  let pr: { number: number; html_url: string };
+  const payload = JSON.stringify({ title: title.slice(0, 200), head: branch, base: x.base, body: `${body.slice(0, 4000)}\n\n_Opened by Jackboy as a draft. Owner review required; Jackboy does not merge._`, draft: true });
+  try {
+    pr = await gh<{ number: number; html_url: string }>(`${R(x)}/pulls`, { method: "POST", body: payload });
+  } catch (error) {
+    if (/GitHub 403:.*(?:resource not accessible|pull requests?: write|permission.*pull request)/i.test((error as Error).message)) {
+      try {
+        const { refreshGithubTokenFor } = await import("./github-app.server");
+        const fresh = await refreshGithubTokenFor(x.full);
+        if (fresh?.via === "app") {
+          pr = await gh<{ number: number; html_url: string }>(`${R(x)}/pulls`, { method: "POST", body: payload }, fresh.token);
+          return { number: pr.number, url: pr.html_url, existed: false };
+        }
+      } catch {
+        // The permission denial below remains the actionable failure; no branch operation is retried.
+      }
+      throw new Error(`Draft PR refused: GitHub denied Pull requests: write on ${x.full}. Branch ${branch} was already pushed and remains unchanged. Verify the Jackboy GitHub App permission and its installation grant for this repository.`);
+    }
+    throw error;
+  }
   return { number: pr.number, url: pr.html_url, existed: false };
 }
 
