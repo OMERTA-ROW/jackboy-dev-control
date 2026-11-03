@@ -218,6 +218,13 @@
       "when": 1793676210009,
       "tag": "0030_repository_resync_review",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1793676303585,
+      "tag": "0031_repository_resync_guard_bound_work",
+      "breakpoints": true
     }
   ]
 }
