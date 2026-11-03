@@ -3,8 +3,9 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { buildJackboyManifest, type Checks } from "./agent-manifest";
 
 export async function jackboyManifest() {
-  const githubRepo: Checks["githubRepo"] = { ok: false, usable: 0, ...(process.env["GITHUB_TOKEN"] ? {} : { error: "GitHub token not configured" }) };
-  if (process.env["GITHUB_TOKEN"]) {
+  const gha = await (await import("./github-app.server")).githubAvailable();
+  const githubRepo: Checks["githubRepo"] = { ok: false, usable: 0, ...(gha.ok ? {} : { error: "No GitHub App installation or GITHUB_TOKEN" }) };
+  if (gha.ok) {
     try { const ws = await import("./repo-workspace.server"); const r = await ws.listAccessibleRepos(); githubRepo.ok = true; githubRepo.usable = r.filter((x) => x.usable).length; }
     catch (e) { githubRepo.error = (e as Error).message.slice(0, 200); }
   }

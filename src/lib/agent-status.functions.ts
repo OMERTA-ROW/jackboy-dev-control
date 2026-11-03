@@ -29,13 +29,14 @@ export const getAgentStatus = createServerFn({ method: "GET" })
       model = r?.ok ? { ...model, connected: true, detail: "AI service reachable." } : { ...model, detail: `AI service check failed (${r?.status ?? "network"}).` };
     }
 
-    let github = { connected: false, detail: "GITHUB_TOKEN secret missing.", usableRepos: 0 };
+    let github = { connected: false, detail: "No GitHub App installation and no GITHUB_TOKEN fallback.", usableRepos: 0 };
     let ci = { readable: false, detail: "Needs GitHub connection." };
-    if (process.env["GITHUB_TOKEN"]) {
+    const gha = await (await import("./github-app.server")).githubAvailable();
+    if (gha.ok) {
       try {
         const ws = await import("./repo-workspace.server");
         const repos = await ws.listAccessibleRepos();
-        github = { connected: true, detail: "Token valid.", usableRepos: repos.filter((x) => x.usable).length };
+        github = { connected: true, detail: gha.via === "app" ? "GitHub App installation active." : "GITHUB_TOKEN fallback valid.", usableRepos: repos.filter((x) => x.usable).length };
         const { data: p } = await sb.from("owner_projects").select("github_repo").not("github_repo", "is", null).limit(1);
         if (p?.[0]?.github_repo) {
           const c = await ws.checks(await ws.openRepo(p[0].github_repo), "main");

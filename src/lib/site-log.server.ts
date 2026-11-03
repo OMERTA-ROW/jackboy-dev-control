@@ -54,7 +54,7 @@ export async function deliverOutbox(limit = 25) {
 }
 
 async function gh<T>(path: string): Promise<T> {
-  const token = process.env["GITHUB_TOKEN"];
+  const token = (await (await import("./github-app.server")).anyInstallationToken().catch(() => null)) ?? process.env["GITHUB_TOKEN"];
   if (!token) throw new Error("GitHub is not connected.");
   const r = await fetch(`https://api.github.com${path}`, { signal: AbortSignal.timeout(10_000), headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${token}`, "User-Agent": "Jackboy", "X-GitHub-Api-Version": "2022-11-28" } });
   if (!r.ok) throw new Error(`GitHub ${r.status}: ${(await r.text()).slice(0, 200)}`);

@@ -77,6 +77,21 @@ export async function syncInstallations(approvedBy: string | null) {
   return out;
 }
 
+/** True when GitHub work can run at all: a live App installation is primary, GITHUB_TOKEN only an optional fallback. */
+export async function githubAvailable(): Promise<{ ok: boolean; via: "app" | "token" | "none" }> {
+  if (await appConfig().catch(() => null)) {
+    const { count } = await supabaseAdmin.from("github_installations").select("installation_id", { count: "exact", head: true }).eq("revoked", false);
+    if ((count ?? 0) > 0) return { ok: true, via: "app" };
+  }
+  return process.env["GITHUB_TOKEN"] ? { ok: true, via: "token" } : { ok: false, via: "none" };
+}
+/** Any live installation token (for non-repo calls such as code search) when no personal token is set. */
+export async function anyInstallationToken(): Promise<string | null> {
+  if (!(await appConfig().catch(() => null))) return null;
+  const { data } = await supabaseAdmin.from("github_installations").select("installation_id").eq("revoked", false).limit(1);
+  return data?.[0] ? installationToken(Number(data[0].installation_id)) : null;
+}
+
 /** Personal GITHUB_TOKEN is used only for these repos; everything else must go through the GitHub App. */
 export const PERSONAL_TOKEN_REPOS = ["street-tech666/jackboy-dev-control"];
 export const tokenAllowedFor = (repoFull: string | null) => !repoFull || PERSONAL_TOKEN_REPOS.includes(repoFull.toLowerCase());

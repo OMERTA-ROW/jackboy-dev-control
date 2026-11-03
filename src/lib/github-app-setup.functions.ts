@@ -35,12 +35,14 @@ export const githubAppStatus = createServerFn({ method: "POST" })
     const { data: inst } = await supabaseAdmin.from("github_installations").select("installation_id, account_login, repositories, missing_permissions, verified_at").eq("revoked", false);
     const secret = process.env["JACKBOY_SIGNING_SECRET"];
     const install = c && secret ? installUrl(c.slug, await signState({ u: context.userId, p: null, exp: Date.now() + 30 * 60_000 }, secret)) : null;
-    const covered = new Set((inst ?? []).flatMap((i) => i.repositories as string[]));
+    const covered = new Set((inst ?? []).flatMap((i) => (i.repositories as string[]).map((x) => x.toLowerCase())));
+    const { tokenAllowedFor } = await import("./github-app.server");
     const { data: projects } = await supabaseAdmin.from("owner_projects").select("name, github_repo").not("github_repo", "is", null);
     return {
       created: !!c, source: c?.source ?? null, slug: c?.slug ?? null, owner: row?.owner_login ?? null, appUrl: row?.html_url ?? null, createdAt: row?.created_at ?? null,
       installUrl: install,
       installations: (inst ?? []).map((i) => ({ account: i.account_login, repos: i.repositories as string[], missing: i.missing_permissions as string[], verifiedAt: i.verified_at })),
-      repos: (projects ?? []).map((p) => ({ name: p.name, repo: p.github_repo as string, via: covered.has(p.github_repo as string) && c ? "app" : process.env["GITHUB_TOKEN"] ? "personal token" : "none" })),
+      repos: (projects ?? []).map((p) => ({ name: p.name, repo: p.github_repo as string, via: c && covered.has(String(p.github_repo).toLowerCase()) ? "app" : process.env["GITHUB_TOKEN"] && tokenAllowedFor(String(p.github_repo)) ? "personal token" : "none" })),
+      tokenSet: Boolean(process.env["GITHUB_TOKEN"]),
     };
   });
