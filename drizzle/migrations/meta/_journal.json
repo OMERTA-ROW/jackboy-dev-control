@@ -211,6 +211,27 @@
       "when": 1793639298222,
       "tag": "0029_github_app_credentials",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1793676210009,
+      "tag": "0030_repository_resync_review",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1793676303585,
+      "tag": "0031_repository_resync_guard_bound_work",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1793676319226,
+      "tag": "0032_scope_repository_resync_transaction_guard",
+      "breakpoints": true
     }
   ]
 }

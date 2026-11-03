@@ -22,4 +22,5 @@
 - Subdirectories have their own `AGENTS.md` (feature rules in `src/lib/AGENTS.md`); read it before changing files there.
 - Live voice runs through `src/lib/live-relay.server.ts` at `/api/live` (dispatched in `src/server.ts`, dev via `live-vite-plugin.ts`): owner session verified before any paid voice session, and legacy voice change tools stay blocked; opt-in CODE requests use scoped session-bound cards, while sensitive actions keep their passkey/provider-native path.
 - Site monitoring lives in `src/lib/site-monitor*.ts` (DNS-over-HTTPS + one HTTPS GET, stored on owner_projects with backoff, 15-min cron at /api/public/jobs/site-monitor); reachability never implies coding access.
+- Repository resync uses a token-only paginated inventory, durable owner review and passkey-scoped atomic RPC; only current mappings and unstarted unapproved work may change, while history, provider inventory, runner policy and credential allowlists stay intact to prevent authorization drift.
 
