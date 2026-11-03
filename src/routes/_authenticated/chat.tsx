@@ -236,7 +236,7 @@ function ChatPage() {
           <nav aria-label="Secondary" className="flex flex-col gap-1 text-sm">
             <Link to="/projects" className="rounded-lg px-3 py-2 hover:bg-muted">Projects and repositories</Link>
             <Link to="/connect" className="rounded-lg px-3 py-2 hover:bg-muted">Connections</Link>
-            <Link to="/approvals" className="rounded-lg px-3 py-2 hover:bg-muted">Approvals</Link>
+            <Link to="/updates" className="rounded-lg px-3 py-2 hover:bg-muted">Approvals</Link>
             <Link to="/site-log" className="rounded-lg px-3 py-2 hover:bg-muted">Logs</Link>
             <Link to="/settings" className="rounded-lg px-3 py-2 hover:bg-muted">Settings</Link>
           </nav>
