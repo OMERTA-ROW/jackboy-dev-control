@@ -1,5 +1,10 @@
 # Jackboy roadmap
 
+## Connected Projects / OMNI follow-up (Nov 3)
+- [ ] Fresh per-repo token/App permission evidence and timestamps; reconcile only proven obsolete permission errors without executing jobs.
+- [ ] OMNI key-specific setup state; missing repositories remain in the shared owner-approved review.
+- [ ] Named multiple passkeys, list/remove with owner-scoped fresh confirmation and audit; tests and live read-only checks.
+
 ## Repository resync follow-up (Nov 3)
 - [x] Permanent resync action and last checked time; owner-only load/15-minute/failure-triggered drift checks.
 - [x] Token identity and honest permissions; grouped linked/moved/not-found review with atomic approved unlinking, preserving history and running work.
