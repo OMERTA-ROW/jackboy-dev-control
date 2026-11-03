@@ -1,3 +1,4 @@
+import { GUIDELINES } from "@/lib/guidelines";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { PasskeyPanel } from "@/components/PasskeyPanel";
 import { GitHubTokenPanel } from "@/components/GitHubTokenPanel";
@@ -56,6 +57,13 @@ function Settings() {
   return (
     <>
       <PageHeader title="Settings & Advanced" subtitle="Every advanced Jackboy tool, grouped. Your everyday flow lives on Home and Projects." />
+      <section aria-labelledby="guidelines" className="mb-6 rounded-lg border border-border bg-card p-4">
+        <h2 id="guidelines" className="text-sm font-semibold uppercase tracking-wider text-silver">Guidelines</h2>
+        <p className="mt-1 text-xs text-muted-foreground">Jackboy's autonomous operating rules. If a task conflicts with them, the rules win.</p>
+        <ol className="mt-3 space-y-2 text-sm">
+          {GUIDELINES.map((g, i) => <li key={g.title}><span className="font-medium">{i + 1}. {g.title}.</span> <span className="text-muted-foreground">{g.rule}</span></li>)}
+        </ol>
+      </section>
       <PasskeyPanel />
       <GitHubAppPanel />
       <GitHubTokenPanel />

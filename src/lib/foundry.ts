@@ -1,3 +1,4 @@
+import { MAX_TASK_FAILURES } from "./guidelines";
 // Code Foundry pure rules: durable task state machine, approval gating, quotas. Tested in foundry.test.ts.
 
 export const STATES = [
@@ -47,7 +48,7 @@ export function canExecute(t: { state: State; approved_action: string | null; pa
   if (t.paused) return "Task is paused.";
   if (t.state !== "approved") return `Task must be approved first (is ${t.state}).`;
   if (t.approved_action !== "open_draft_pr" && t.approved_action !== "read_checks") return "No specific approved action.";
-  if (t.attempts >= t.max_attempts) return "Retry limit reached.";
+  if (t.attempts >= Math.min(t.max_attempts, MAX_TASK_FAILURES)) return "Stopped: this task failed twice — waiting for the owner (guideline 7).";
   return null;
 }
 
