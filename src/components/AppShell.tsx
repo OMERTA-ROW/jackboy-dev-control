@@ -22,7 +22,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { setState, useJackboy, log } from "@/lib/jackboy-store";
+import { useJackboy } from "@/lib/jackboy-store";
 import { chatWithJackboy, getDashboardFacts, getVoiceChatStatus, synthesizeJackboy } from "@/lib/passport.functions";
 
 // Simple main menu; advanced pages are listed on /settings.
