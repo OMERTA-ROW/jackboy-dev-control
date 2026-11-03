@@ -16,6 +16,7 @@ export function ProjectCleanup({ onChange }: { onChange: () => void }) {
   const [dead, setDead] = useState<Dead[] | null>(null);
   const [pick, setPick] = useState<string[]>([]);
   const [msg, setMsg] = useState("");
+  const [note, setNote] = useState("");
 
   async function go<T>(k: string, f: () => Promise<T>) {
     setBusy(k); setMsg("");
@@ -28,6 +29,7 @@ export function ProjectCleanup({ onChange }: { onChange: () => void }) {
         <button type="button" className={btn} disabled={!!busy} onClick={async () => { const r = await go("sites", () => detect()); if (r) { setSites(r); onChange(); } }}>{busy === "sites" ? "Detecting…" : "Detect site addresses"}</button>
         <button type="button" className={btn} disabled={!!busy} onClick={async () => { const r = await go("dead", () => find()); if (r) { setDead(r); setPick(r.map((d) => d.id)); } }}>{busy === "dead" ? "Checking repos…" : "Archive dead projects"}</button>
       </div>
+      {note && <p aria-live="polite" className="text-sm">{note}</p>}
       {msg && <p role="alert" className="text-sm text-destructive">{msg}</p>}
       {sites && (
         <div className="text-sm" aria-live="polite">
@@ -43,7 +45,7 @@ export function ProjectCleanup({ onChange }: { onChange: () => void }) {
               <li key={d.id}><label className="flex items-center gap-2"><input type="checkbox" checked={pick.includes(d.id)} onChange={() => setPick(pick.includes(d.id) ? pick.filter((x) => x !== d.id) : [...pick, d.id])} /><span>{d.name}{d.repo ? ` · ${d.repo}` : ""} — <span className="text-muted-foreground">{d.reason}</span></span></label></li>
             ))}</ul>
             <div className="mt-2 flex gap-2">
-              <button type="button" className={primaryBtn} disabled={!!busy || !pick.length} onClick={async () => { const r = await go("arch", () => archive({ data: { ids: pick } })); if (r) { setMsg(""); setDead(null); setSites(null); onChange(); alert(r.map((x) => `${x.name}: ${x.archived ? "archived" : x.reason}`).join("\n")); } }}>Archive {pick.length} selected</button>
+              <button type="button" className={primaryBtn} disabled={!!busy || !pick.length} onClick={async () => { const r = await go("arch", () => archive({ data: { ids: pick } })); if (r) { setDead(null); onChange(); setNote(r.map((x) => `${x.name}: ${x.archived ? "archived" : x.reason}`).join(" · ")); } }}>Archive {pick.length} selected</button>
               <button type="button" className={btn} onClick={() => setDead(null)}>Cancel</button>
             </div>
           </>}

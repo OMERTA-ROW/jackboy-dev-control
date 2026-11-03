@@ -14,6 +14,7 @@ import { MAX_CONCURRENCY, approvedUndelivered, eligible, runBounded, sanitizeSel
 import { supabase } from "@/integrations/supabase/client";
 import { ProjectConnectButtons, ProjectResyncIcon } from "@/components/ProjectCardActions";
 import { restoreProject } from "@/lib/project-resync.functions";
+import { ProjectCleanup } from "@/components/ProjectCleanup";
 
 export const Route = createFileRoute("/_authenticated/projects")({
   head: () => ({
@@ -63,6 +64,7 @@ function Projects() {
   const [busy, setBusy] = useState(false);
   const [gone, setGone] = useState<Set<string>>(new Set());
   const [note, setNote] = useState("");
+  const [view, setView] = useState<"active" | "archived">("active");
   const restore = useServerFn(restoreProject);
 
   const refresh = useCallback(() => load().then(setHub).catch((e) => setErr((e as Error).message)), [load]);
@@ -122,6 +124,14 @@ function Projects() {
         </p>
       ) : (
         <>
+          <div className="mb-4 flex gap-2" role="tablist" aria-label="Project view">
+            <button type="button" role="tab" aria-selected={view === "active"} className={view === "active" ? primaryBtn : btn} onClick={() => setView("active")}>Active ({hub.projects.length})</button>
+            <button type="button" role="tab" aria-selected={view === "archived"} className={view === "archived" ? primaryBtn : btn} onClick={() => setView("archived")}>Archived ({hub.archived.length})</button>
+          </div>
+          {view === "archived" ? (hub.archived.length === 0 ? <p className="text-sm text-muted-foreground">No archived projects.</p> :
+            <ul className="divide-y divide-border rounded-lg border border-border text-sm">{hub.archived.map((a) => <li key={a.id} className="flex items-center justify-between gap-2 p-4"><span>{a.name}{a.github_repo ? ` · ${a.github_repo}` : ""} <span className="text-xs text-muted-foreground">— history kept</span></span><button type="button" className={btn} onClick={async () => { try { await restore({ data: { id: a.id } }); setNote(`${a.name} restored.`); void refresh(); } catch (e) { setErr((e as Error).message); } }}>Restore</button></li>)}</ul>) : <>
+          <ProjectCleanup onChange={() => void refresh()} />
+          {hub.projects.some((p) => !p.site_url) && <p className="mb-3 text-sm text-muted-foreground">Missing a site address: {hub.projects.filter((p) => !p.site_url).map((p) => p.name).join(", ")}.</p>}
           <div className="panel mb-4 flex flex-col gap-3 p-4" aria-label="Selected projects actions">
             <div className="flex flex-wrap items-center gap-2 text-sm">
               <span className="font-medium" aria-live="polite">{sel.length} of {hub.projects.length} selected</span>
@@ -155,7 +165,7 @@ function Projects() {
                     </label>
                     <div className="flex flex-wrap items-center gap-2">
                       <StatusPill status={projectStatus(p, last.get(p.id))} />
-                      {!p.site_url && <Link to="/project/$id" params={{ id: p.id }} className={btn}>Add site address to scan</Link>}
+                      {!p.site_url && <Link to="/project/$id" params={{ id: p.id }} className={btn}>Add site address</Link>}
                       <ProjectConnectButtons p={p} gone={gone.has(p.id)} onRemoved={(m) => { setNote(m); void refresh(); }} />
                       <Link to="/project/$id" params={{ id: p.id }} className={btn}>Manage</Link>
                       <ProjectResyncIcon p={p} onDone={(m, g) => { setNote(m); if (g) setGone((s) => new Set(s).add(p.id)); void refresh(); }} />
@@ -165,9 +175,7 @@ function Projects() {
               })}
             </ul>
           )}
-          {hub.archived.length > 0 && <details className="mt-4 text-sm"><summary className="cursor-pointer text-muted-foreground">Removed projects ({hub.archived.length}) — history kept</summary>
-            <ul className="mt-2 space-y-1">{hub.archived.map((a) => <li key={a.id} className="flex items-center gap-2"><span>{a.name}{a.github_repo ? ` · ${a.github_repo}` : ""}</span><button type="button" className={btn} onClick={async () => { try { await restore({ data: { id: a.id } }); setNote(`${a.name} restored.`); void refresh(); } catch (e) { setErr((e as Error).message); } }}>Restore</button></li>)}</ul>
-          </details>}
+          </>}
         </>
       )}
     </>
