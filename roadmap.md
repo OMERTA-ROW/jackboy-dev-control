@@ -1,10 +1,11 @@
 # Jackboy roadmap
 
 ## Repository resync (Nov 3)
-- [ ] Audit repository references across records, settings, source and environment configuration.
-- [ ] Add token-only accessible-repository inventory and owner-reviewed replacement proposals.
-- [ ] Apply approved mutable references atomically; preserve history, invalidate stale authorization and report manual configuration blockers.
-- [ ] Verify token inventory, approval boundary, transaction rollback and signed-in mobile/desktop review.
+- [x] Audit repository references across records, settings, source and environment configuration (docs/repository-reference-audit.md).
+- [x] Add token-only accessible-repository inventory and owner-reviewed replacement proposals; real token lists 24 OMERTA-ROW repos.
+- [x] Implement atomic approved mutable-reference updates; preserve history, invalidate stale authorization and report manual configuration blockers.
+- [x] Verify real token inventory, no changes before approval, name proposals and signed-in mobile/desktop review; regression suite passing.
+- [ ] Real owner-approved replacement / passkey / transaction outcome — waits for owner approval; no saved references changed during this task.
 
 - [x] Foundation: dashboard, Classic/Assist, inspect, logs/approvals, integrations, access
 - [x] Technology Discovery UI (opt-in, source registry, ranking, filters, saved ideas, alerts, prototype briefs) — demo data

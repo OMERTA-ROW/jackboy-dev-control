@@ -49,6 +49,8 @@ export function RepositoryResyncPanel() {
       })}</ul>
       {Object.values(choices).some(Boolean) && <div><p className="mb-2 text-warning">Approval replaces selected current references together. Development is disabled, unstarted tasks paused, and unsent jobs cancelled for fresh approval. History and existing approval scopes stay unchanged.</p><Button onClick={apply} disabled={busy}><Check />Approve selected replacements</Button></div>}
       {fixed.length > 0 && <p role="status" className="text-success">{fixed.length} repository replacement(s) saved. Reconnect and review affected work before resuming.</p>}
+      <h3 className="font-medium">All repositories visible to this token</h3>
+      <ul className="grid gap-1 text-xs md:grid-cols-2">{result.inventory.map(repo => <li key={repo} className="break-words"><a className="text-primary underline" href={`https://github.com/${repo}`} target="_blank" rel="noopener noreferrer">{repo}</a></li>)}</ul>
       <h3 className="font-medium">Separate owner review</h3>
       <ul className="space-y-2 text-xs text-muted-foreground">{result.manual.map(m => <li key={`${m.location}:${m.repo}`} className="break-words">{m.location} · {m.repo}: {m.reason}</li>)}<li>GitHub App inventory comes from GitHub, not name matching. Repository URLs in prior PRs, packages, research, logs and conversations remain historical evidence.</li></ul>
     </div>}
