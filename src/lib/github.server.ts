@@ -64,7 +64,7 @@ export async function commitToNewBranch(owner: string, repo: string, base: strin
 }
 
 export async function openPullRequest(owner: string, repo: string, head: string, base: string, title: string, body: string) {
-  return gh<{ number: number; html_url: string }>(`${r(owner, repo)}/pulls`, { method: "POST", body: JSON.stringify({ title, head, base, body }) });
+  return gh<{ number: number; html_url: string }>(`${r(owner, repo)}/pulls`, { method: "POST", body: JSON.stringify({ title, head, base, body, draft: true }) });
 }
 
 export async function closePullRequest(owner: string, repo: string, n: number) {
@@ -85,5 +85,6 @@ export async function checksState(owner: string, repo: string, sha: string): Pro
   if (!all.length && !status.total_count) return "none";
   if (all.some((c) => c.conclusion && ["failure", "timed_out", "cancelled", "action_required"].includes(c.conclusion)) || status.state === "failure" || status.state === "error") return "failure";
   if (all.some((c) => c.status !== "completed") || (status.total_count && status.state === "pending")) return "pending";
+  if (all.some((c) => c.conclusion !== "success")) return "pending";
   return "success";
 }

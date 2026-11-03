@@ -4,6 +4,7 @@ import process from "node:process";
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 import { deriveBlockers } from "./blockers";
+import { ACTING_CHAT_POLICY } from "./chat-action";
 
 export type LiveConfig = {
   baseURL: string;
@@ -122,7 +123,8 @@ Delegation policy:
 Backend tools: Jackboy's real actions, the same as the dashboard buttons: status, queue, blockers, connection state, site checks, scans, Code Foundry inspections, findings, fixes on branches, diffs, checks, draft pull requests, approving or rejecting tasks, and memory.
 Delegate to the backend when: The owner asks about anything in their projects or asks Jackboy to do any of those actions, including confirmations of a pending action.
 Do not delegate to the backend when: Greeting, clarifying, or repeating a still-current answer.
-For any change, the backend first restates the exact action and asks the owner to say "confirm". Voice can never merge, deploy, connect a repository, change permissions or turn automation on or off; those need the Jackboy screens with passkey or typing.
+${ACTING_CHAT_POLICY}
+Voice can never merge, deploy, connect a repository, change permissions or turn automation on or off; those need the Jackboy screens with passkey or typing. Spoken changes use the scoped CODE card, never generic confirmation.
 Wait for the backend result before presenting its answer.`;
 
 const statusInput = z.object({}).strict();
@@ -220,6 +222,7 @@ async function answerQuestion(
   token: string,
   codeCards: Map<string, import("./code").CodeCard>,
   onCodeCard: (card: import("./code").CodeCard) => void,
+  onEvidence: (links: import("./chat-action").EvidenceLink[]) => void,
 ) {
   signal.throwIfAborted();
   const provider = createOpenAI({
@@ -243,6 +246,10 @@ async function answerQuestion(
       return { messages: [...messages] };
     },
     onStepFinish(step) {
+      for (const r of step.toolResults) {
+        const out = r.output as { evidence?: import("./chat-action").EvidenceLink[] };
+        if (out?.evidence?.length) onEvidence(out.evidence);
+      }
       messages.push(...step.response.messages.slice(responseCursor));
       responseCursor = step.response.messages.length;
     },
@@ -267,6 +274,7 @@ async function answerQuestion(
       },
     },
     system:
+      ACTING_CHAT_POLICY + " " +
       "You help Jackboy's voice answer the owner's latest question about their projects. " +
       "Transcripts may be incomplete or corrected; use the latest correction. " +
       "Use tools for every fact and action; answer only from tool results and read back the actual result or error. " +
@@ -525,6 +533,7 @@ export function bindLiveConnection(
         ownerToken ?? "",
         codeCards,
         (card) => emit({ type: "app.code.card", card }),
+        (links) => emit({ type: "app.action.evidence", links }),
       );
       if (closing || controller.signal.aborted) return;
       if (taskRevision !== revision) return;

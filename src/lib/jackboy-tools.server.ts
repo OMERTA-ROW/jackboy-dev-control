@@ -2,6 +2,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { safeEvidenceUrl, type EvidenceLink } from "./chat-action";
 
 const log = (actor: string, action: string, detail: Record<string, unknown>, outcome = "ok") =>
   supabaseAdmin.from("audit_logs").insert({ actor, action, detail: detail as never, outcome });
@@ -29,6 +30,28 @@ export function buildJackboyTools(userId: string) {
     await supabaseAdmin.from("agent_memory").insert({ project_id: pid, kind, summary: summary.slice(0, 2000), created_by: userId, ...extra } as never);
   };
   const tools = {
+    createTask: tool({
+      description: "Create a durable owner-requested feature/fix task without executing code. Use for requests to implement a change; reports its stored queue link. Sensitive execution still needs separate scoped approval.",
+      inputSchema: z.object({ project: z.string(), instruction: z.string().min(5).max(2000) }),
+      execute: async ({ project, instruction }) => {
+        const p = await findProject(project);
+        const { standaloneTestTask } = await import("./work-policy");
+        if (standaloneTestTask(instruction, [])) throw new Error("Standalone test work is not queued. Name the real feature and failing existing check it blocks.");
+        const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${p.id}:${instruction.trim()}`));
+        const key = `owner-request:${Array.from(new Uint8Array(bytes), (n) => n.toString(16).padStart(2, "0")).join("")}`;
+        const { data: current } = await supabaseAdmin.from("foundry_tasks").select("id,state").eq("project_id", p.id).eq("dedupe_key", key).maybeSingle();
+        if (current) return { taskId: current.id, state: current.state, note: "Existing request found; not duplicated. No code execution started." };
+        const { data: task, error } = await supabaseAdmin.from("foundry_tasks").insert({ project_id: p.id, title: instruction.slice(0, 200), summary: instruction, dedupe_key: key, kind: "repair", risk: "sensitive", source: "manual", created_by: userId }).select("id,state").single();
+        if (error || !task) throw new Error(error?.message ?? "Could not save request");
+        await log(userId, "chat.task.created", { project: p.id, task: task.id });
+        return { taskId: task.id, state: task.state, note: "Request stored for scoped review. No code execution started." };
+      },
+    }),
+    verifyPermissions: tool({
+      description: "Reverify live GitHub contents, PR and Actions permissions for one named project; does not run jobs or change access.",
+      inputSchema: z.object({ project: z.string() }),
+      execute: async ({ project }) => { const p = await findProject(project); return { project: p.name, ...(await (await import("./project-permissions.server")).checkProjectPermissions(p.id, `owner:${userId}`)) }; },
+    }),
     recallMemory: tool({
       description: "Read Jackboy's persistent memory (past inspections, edits, PRs, test results, failures, next actions) for a project, or all projects when null. Call before starting work on a project.",
       inputSchema: z.object({ project: z.string().nullable() }),
@@ -274,6 +297,36 @@ export function buildJackboyTools(userId: string) {
       },
     }),
   };
+  for (const [name, t] of Object.entries(tools as Record<string, any>)) {
+    const execute = t.execute;
+    if (!execute) continue;
+    t.execute = async (input: Record<string, unknown>, options: any) => {
+      try {
+        const result = await execute(input, options);
+        const evidence: EvidenceLink[] = [];
+        let project: Awaited<ReturnType<typeof findProject>> | null = null;
+        if (typeof input["project"] === "string") project = await findProject(input["project"]);
+        if (project) {
+          evidence.push({ label: "Open project", url: `/project/${project.id}` });
+          const { data: p } = await supabaseAdmin.from("owner_projects").select("github_repo").eq("id", project.id).single();
+          if (p?.github_repo) {
+            const { githubTokenFor } = await import("./github-app.server"); const auth = await githubTokenFor(p.github_repo);
+            if (auth) {
+              const r = await fetch(`https://api.github.com/repos/${p.github_repo}`, { headers: { Authorization: `Bearer ${auth.token}`, Accept: "application/vnd.github+json", "User-Agent": "Jackboy" }, signal: AbortSignal.timeout(5000) }).catch(() => null);
+              if (r?.ok) evidence.push({ label: "Repository", url: `https://github.com/${p.github_repo}` });
+            }
+          }
+        }
+        if (/foundry|createTask/i.test(name)) evidence.push({ label: "Work queue", url: "/foundry" });
+        if (/Updates|fixIssue|projectStatus/i.test(name)) evidence.push({ label: "Update queue", url: "/updates" });
+        if (!evidence.length) evidence.push({ label: "Projects and permissions", url: "/settings" });
+        return { result, evidence: evidence.filter((l) => safeEvidenceUrl(l.url)), ...(result && typeof result === "object" && !Array.isArray(result) ? result : {}) };
+      } catch (e) {
+        await (await import("./credit-pause.server")).recordCreditPause(e);
+        return { blocked: true, reason: e instanceof Error ? e.message : "Action failed", evidence: [{ label: "Review blockers and permissions", url: "/settings" }] };
+      }
+    };
+  }
   return tools;
 }
 

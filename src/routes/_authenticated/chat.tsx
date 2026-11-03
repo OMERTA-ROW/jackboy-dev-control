@@ -12,6 +12,8 @@ import { useChatVoice, VoiceButtons } from "@/components/ChatVoice";
 import { LiveCallBar, StartVoiceButton, useLiveCall, type LiveRow } from "@/components/LiveVoiceCall";
 import { CodeTasks, useCodeTasks } from "@/components/CodeTasks";
 import { VoiceOrb } from "@/components/VoiceOrb";
+import { safeEvidenceUrl, type EvidenceLink } from "@/lib/chat-action";
+import { CREDIT_HELP_URL } from "@/lib/work-policy";
 
 export const Route = createFileRoute("/_authenticated/chat")({
   head: () => ({
@@ -70,7 +72,7 @@ function ChatPage() {
   const chatContext = () => messages.slice(-12).map((m) => `${m.role === "user" ? "Owner" : "Jackboy"}: ${textOf(m)}`).join("\n").slice(-6000);
   const [liveRows, setLiveRows] = useState<LiveRow[]>([]);
   const addVoiceTranscript = (rows: LiveRow[]) =>
-    setMessages((cur) => [...cur, ...rows.filter((r) => r.text.trim()).map((r, i) => ({ id: `voice-${Date.now()}-${i}`, role: r.role, metadata: { voice: true }, parts: [{ type: "text" as const, text: r.text.trim() }] }))]);
+    setMessages((cur) => [...cur, ...rows.filter((r) => r.text.trim() || r.evidence?.length).map((r, i) => ({ id: `voice-${Date.now()}-${i}`, role: r.role, metadata: { voice: true, evidence: r.evidence ?? [] }, parts: [{ type: "text" as const, text: r.text.trim() }] }))]);
   const live = useLiveCall({ chatContext, onLiveRows: setLiveRows, onTranscript: addVoiceTranscript, onCodeCard: code.receive });
 
   const send = async (t: string) => {
@@ -131,7 +133,7 @@ function ChatPage() {
         ) : (
           <ol className="flex flex-col gap-6 pt-4">
             {messages.map((m) => <Bubble key={m.id} m={m} streaming={busy && m === tail && m.role === "assistant"} />)}
-            {liveRows.map((r, i) => <li key={`live-${i}`} className={r.role === "user" ? "self-end max-w-[85%] rounded-3xl bg-muted px-4 py-2.5 text-[15px]" : "text-[15px] leading-relaxed"}>{r.text}</li>)}
+            {liveRows.map((r, i) => <li key={`live-${i}`} className={r.role === "user" ? "self-end max-w-[85%] rounded-3xl bg-muted px-4 py-2.5 text-[15px]" : "text-[15px] leading-relaxed"}>{r.text}{r.evidence?.filter((l) => safeEvidenceUrl(l.url)).map((l) => <a key={l.url} href={l.url} className="mr-3 text-xs text-primary underline">{l.label}</a>)}</li>)}
             {status === "submitted" && <li><Shimmer className="text-sm">Thinking…</Shimmer></li>}
           </ol>
         )}
@@ -143,6 +145,7 @@ function ChatPage() {
         <div className="mx-auto max-w-3xl">
           <LiveCallBar v={live} />
           {(error || voice.error || jackboyVoice.error) && <p role="alert" className="mb-2 px-2 text-xs text-destructive">{error ?? voice.error ?? jackboyVoice.error}</p>}
+          {error && /credits|402/i.test(error) && <a href={CREDIT_HELP_URL} target="_blank" rel="noopener noreferrer" className="block px-2 text-xs text-primary underline">Paused: out of credits — open credit setup instructions</a>}
           <form onSubmit={(e) => { e.preventDefault(); send(text); }} className="flex items-end gap-2 rounded-3xl border border-border bg-card px-3 py-2 focus-within:border-electric">
             <label htmlFor="jb-msg" className="sr-only">Message Jackboy. For development say CODE, the exact project name, a colon, then the task.</label>
             <textarea id="jb-msg" ref={textarea} rows={1} value={text} placeholder="Message Jackboy"
@@ -165,14 +168,16 @@ const textOf = (m: UIMessage) => m.parts.filter((x) => x.type === "text").map((x
 function Bubble({ m, streaming }: { m: UIMessage; streaming: boolean }) {
   if (m.role === "user") return <li className="self-end max-w-[85%] whitespace-pre-wrap rounded-3xl bg-muted px-4 py-2.5 text-[15px]">{textOf(m).replace(/^🎙\s*/, "")}</li>;
   const words = textOf(m);
+  const retainedLinks = (m.metadata as { evidence?: EvidenceLink[] } | undefined)?.evidence?.filter((l) => safeEvidenceUrl(l.url)) ?? [];
   return (
     <li className="group text-[15px] leading-relaxed">
       {m.parts.map((part, i) => {
-        if (part.type === "text") return <MessageResponse key={i}>{part.text}</MessageResponse>;
+        if (part.type === "text") return <MessageResponse key={i} components={{ a: ({ children }) => <span>{children}</span> }}>{part.text}</MessageResponse>;
         if (isToolUIPart(part)) return <ToolLine key={i} name={part.type === "dynamic-tool" ? part.toolName : part.type.slice(5)} state={part.state} output={part.output} errorText={part.errorText} />;
         return null;
       })}
       {!streaming && words.trim() && <CopyButton text={words} />}
+      {retainedLinks.map((l) => <a key={l.url} href={l.url} className="mr-3 text-xs text-primary underline">{l.label}</a>)}
     </li>
   );
 }
@@ -214,6 +219,8 @@ function ToolLine({ name, state, output, errorText }: { name: string; state: str
   const running = state === "input-streaming" || state === "input-available";
   const failed = state === "output-error" || state === "output-denied";
   const auth = (output as { authorizations?: Authorization[] } | null)?.authorizations?.find((a) => a.state !== "authorized");
+  const value = output as { blocked?: boolean; reason?: string; evidence?: EvidenceLink[] } | null;
+  const evidence = value?.evidence?.filter((l) => safeEvidenceUrl(l.url)) ?? [];
   if (running) return <Shimmer className="my-1 block text-sm">{`${human(name)}…`}</Shimmer>;
   if (auth) {
     const link = auth.links.find((l) => l.primary && l.url.startsWith("https://github.com/")) ?? auth.links.find((l) => l.url.startsWith("https://github.com/"));
@@ -221,6 +228,7 @@ function ToolLine({ name, state, output, errorText }: { name: string; state: str
   }
   if (state === "approval-requested") return <p className="my-1 text-sm text-warning">{human(name)} is waiting for your approval.</p>;
   if (failed) return <p role="alert" className="my-1 text-sm text-destructive">{human(name)} didn't work{errorText ? `: ${errorText.slice(0, 200)}` : "."}</p>;
+  if (value?.blocked || evidence.length) return <div className="my-2 text-sm">{value?.blocked && <p role="alert" className="text-destructive">Blocked: {value.reason}</p>}<div className="flex flex-wrap gap-3">{evidence.map((l) => <a key={l.url} href={l.url} className="inline-flex items-center gap-1 text-xs text-primary underline"><ExternalLink className="size-3.5" />{l.label}</a>)}</div></div>;
   return null;
 }
 

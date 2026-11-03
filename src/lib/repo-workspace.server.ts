@@ -110,6 +110,11 @@ export async function openDraftPr(x: Repo, branch: string, title: string, body: 
   const be = checkWorkBranch(branch, x.base); if (be) throw new Error(be);
   const existing = await gh<{ number: number; html_url: string }[]>(`${R(x)}/pulls?head=${encodeURIComponent(`${x.owner}:${branch}`)}&state=open`);
   if (existing[0]) return { number: existing[0].number, url: existing[0].html_url, existed: true };
+  const check = await checks(x, branch);
+  const { existingTestsPassed } = await import("./work-policy");
+  const head = await gh<{ object: { sha: string } }>(`${R(x)}/git/ref/heads/${branch.split("/").map(enc).join("/")}`);
+  const currentRuns = check.runs.filter((r) => r.headSha === head.object.sha);
+  if (!existingTestsPassed(currentRuns, check.workflowsConfigured, "error" in check ? check.error : undefined)) throw new Error(`Draft PR blocked on ${x.full}, branch ${branch}: existing tests must finish successfully for current commit ${head.object.sha}. ${"error" in check && check.error ? check.error : check.workflowsConfigured === 0 ? "No test workflow or isolated runner is connected." : "Checks are absent, pending or failed."} Branch preserved; no PR opened.`);
   const { githubTokenFor, appAccessFor } = await import("./github-app.server");
   if ((await githubTokenFor(x.full))?.via === "app") {
     const access = await appAccessFor(x.full);
@@ -148,7 +153,7 @@ export async function checks(x: Repo, ref: string) {
   if (wf.total_count === 0) return { workflowsConfigured: 0, runs: [], note: "This repository has no GitHub Actions workflows, so no automated checks run yet." };
   try {
     const d = await gh<{ workflow_runs: { name: string; status: string; conclusion: string | null; html_url: string; head_sha: string; head_branch: string }[] }>(`${R(x)}/actions/runs?branch=${encodeURIComponent(ref)}&per_page=10`);
-    return { workflowsConfigured: wf.total_count, runs: d.workflow_runs.map((r) => ({ name: r.name, status: r.status, conclusion: r.conclusion, commit: r.head_sha.slice(0, 7), url: r.html_url })) };
+    return { workflowsConfigured: wf.total_count, runs: d.workflow_runs.map((r) => ({ name: r.name, status: r.status, conclusion: r.conclusion, commit: r.head_sha.slice(0, 7), headSha: r.head_sha, url: r.html_url })) };
   } catch (e) {
     return { workflowsConfigured: wf.total_count, runs: [], error: `Cannot read check results: ${(e as Error).message.slice(0, 160)}. The GitHub token needs "Actions: read" permission.` };
   }

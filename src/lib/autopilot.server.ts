@@ -89,7 +89,8 @@ export async function writeFix(projectId: string, problem: string, source: "scan
   let d;
   try { d = await callAI(input); }
   catch (e) {
-    if (e instanceof GatewayError && [401, 402, 403].includes(e.status)) await supabaseAdmin.from("update_writer_settings").update({ paused_reason: e.message }).eq("id", 1);
+    if (await (await import("./credit-pause.server")).recordCreditPause(e)) { /* durable credit pause */ }
+    else if (e instanceof GatewayError && [401, 403].includes(e.status)) await supabaseAdmin.from("update_writer_settings").update({ paused_reason: e.message }).eq("id", 1);
     throw e;
   }
   const files = ctx ? d.files : [];
