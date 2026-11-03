@@ -5,6 +5,7 @@ import { GitHubTokenPanel } from "@/components/GitHubTokenPanel";
 import { GitHubAppPanel } from "@/components/GitHubAppPanel";
 import { RepositorySyncPanel } from "@/components/RepositorySync";
 import { CodeSafetyPanel } from "@/components/CodeSafetyPanel";
+import { CapabilitiesPanel } from "@/components/CapabilitiesPanel";
 import { PageHeader } from "@/components/AppShell";
 
 export const Route = createFileRoute("/_authenticated/settings")({
@@ -75,6 +76,7 @@ function Settings() {
           {GUIDELINES.map((g, i) => <li key={g.title}><span className="font-medium">{i + 1}. {g.title}.</span> <span className="text-muted-foreground">{g.rule}</span></li>)}
         </ol>
       </section>
+      <CapabilitiesPanel />
       <PasskeyPanel />
       <GitHubAppPanel />
       <GitHubTokenPanel />
