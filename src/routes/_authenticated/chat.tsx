@@ -3,18 +3,20 @@ import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, isToolUIPart, type UIMessage } from "ai";
 import { useServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ArrowUp, Check, Copy, ExternalLink, Hexagon, Square, SquarePen } from "lucide-react";
+import { ArrowLeft, ArrowUp, Check, ChevronDown, ChevronUp, Copy, ExternalLink, Hexagon, History, SlidersHorizontal, Square, SquarePen, Trash2 } from "lucide-react";
 import { getVoiceChatStatus, synthesizeJackboy } from "@/lib/passport.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { MessageResponse } from "@/components/ai-elements/message";
-import { Shimmer } from "@/components/ai-elements/shimmer";
 import { useChatVoice, VoiceButtons } from "@/components/ChatVoice";
 import { LiveCallBar, StartVoiceButton, useLiveCall, type LiveRow } from "@/components/LiveVoiceCall";
 import { CodeTasks, useCodeTasks } from "@/components/CodeTasks";
 import { VoiceOrb } from "@/components/VoiceOrb";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { safeEvidenceUrl, type EvidenceLink } from "@/lib/chat-action";
 import { CREDIT_HELP_URL } from "@/lib/work-policy";
 import { getProjectHub } from "@/lib/project-hub.functions";
+import { ACTIVITY_LABEL, deriveActivity } from "@/lib/chat-status";
+import { loadConversations, saveConversations, titleFrom, upsertConversation, type ChatMode, type Conversation, type StoredMessage } from "@/lib/chat-history";
 
 export const Route = createFileRoute("/_authenticated/chat")({
   head: () => ({
@@ -30,22 +32,29 @@ export const Route = createFileRoute("/_authenticated/chat")({
   component: ChatPage,
 });
 
-const STORE = "jackboy.chat.session";
 const SUGGESTIONS = ["How are my projects doing?", "What needs my attention?", "What did you work on today?"];
+const KEEP_VISIBLE = 2;
 
 function ChatPage() {
   const code = useCodeTasks();
-  // Chat / CODE switch. CODE only builds the existing "CODE Project: task" request; the backend admission gate decides.
-  const [view, setView] = useState<"chat" | "code">("chat");
-  useEffect(() => { try { if (sessionStorage.getItem("jackboy.chat.view") === "code") setView("code"); } catch { /* ignore */ } }, []);
-  const switchView = (v: "chat" | "code") => { setView(v); try { sessionStorage.setItem("jackboy.chat.view", v); } catch { /* ignore */ } };
+  // Chat and CODE are separate modes with separate conversations. CODE only builds the existing
+  // "CODE Project: task" request; the backend admission gate and approval cards decide everything.
+  const [view, setView] = useState<ChatMode>("chat");
+  const [userId, setUserId] = useState<string | null>(null);
+  const [convos, setConvos] = useState<Conversation[]>([]);
+  const [activeId, setActiveId] = useState<string>(() => crypto.randomUUID());
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [toolsOpen, setToolsOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+
   const hub = useServerFn(getProjectHub);
-  const [repos, setRepos] = useState<{ id: string; name: string; repo: string }[] | null>(null);
+  const [repos, setRepos] = useState<{ id: string; name: string }[] | null>(null);
   const [repoErr, setRepoErr] = useState<string | null>(null);
   const [target, setTarget] = useState("");
   useEffect(() => {
     if (view !== "code" || repos) return;
-    hub().then((h) => { const list = h.projects.filter((p) => p.github_repo).map((p) => ({ id: p.id, name: p.name, repo: p.github_repo! })); setRepos(list); if (list[0]) setTarget((t) => t || list[0]!.name); })
+    // Only project names reach the browser view; repository paths stay in Projects.
+    hub().then((h) => { const list = h.projects.filter((p) => p.github_repo).map((p) => ({ id: p.id, name: p.name })); setRepos(list); if (list[0]) setTarget((t) => t || list[0]!.name); })
       .catch((e) => setRepoErr((e as Error).message));
   }, [view, repos, hub]);
   const [error, setError] = useState<string | null>(null);
@@ -60,13 +69,46 @@ function ChatPage() {
   const { messages, sendMessage, setMessages, status, stop } = useChat({ transport, onError: (e) => setError(e.message.includes("402") ? "AI credits are used up. Add credits in Settings → Plans & credits." : e.message) });
   const busy = status === "submitted" || status === "streaming";
 
-  // Session continuity: the conversation survives reloads and navigation within this browser tab only.
-  const restored = useRef(false);
+  // History is keyed by the signed-in account; switching accounts reloads a different list.
   useEffect(() => {
-    if (restored.current) return; restored.current = true;
-    try { const s = sessionStorage.getItem(STORE); if (s) setMessages(JSON.parse(s) as UIMessage[]); } catch { /* ignore */ }
+    const load = (uid: string | null) => {
+      setUserId(uid);
+      const list = uid ? loadConversations(localStorage, uid) : [];
+      setConvos(list);
+      let mode: ChatMode = "chat";
+      try { if (sessionStorage.getItem("jackboy.chat.view") === "code") mode = "code"; } catch { /* ignore */ }
+      setView(mode);
+      const latest = list.find((c) => c.mode === mode);
+      setActiveId(latest?.id ?? crypto.randomUUID());
+      setMessages((latest?.messages ?? []) as UIMessage[]);
+    };
+    void supabase.auth.getSession().then(({ data }) => load(data.session?.user.id ?? null));
+    const { data } = supabase.auth.onAuthStateChange((e, s) => { if (e === "SIGNED_IN" || e === "SIGNED_OUT") load(s?.user.id ?? null); });
+    return () => data.subscription.unsubscribe();
   }, [setMessages]);
-  useEffect(() => { if (restored.current && status === "ready") try { sessionStorage.setItem(STORE, JSON.stringify(messages.slice(-60))); } catch { /* full */ } }, [messages, status]);
+  useEffect(() => {
+    if (!userId || status !== "ready" || !messages.length) return;
+    setConvos((list) => {
+      const next = upsertConversation(list, { id: activeId, mode: view, title: titleFrom(messages as StoredMessage[]), updatedAt: Date.now(), messages: messages as StoredMessage[] });
+      saveConversations(localStorage, userId, next);
+      return next;
+    });
+  }, [messages, status, userId, activeId, view]);
+
+  const openConversation = (c: Conversation | null, mode: ChatMode = c?.mode ?? view) => {
+    stop(); setError(null); setCollapsed(false);
+    setView(mode); try { sessionStorage.setItem("jackboy.chat.view", mode); } catch { /* ignore */ }
+    setActiveId(c?.id ?? crypto.randomUUID());
+    setMessages((c?.messages ?? []) as UIMessage[]);
+    setHistoryOpen(false);
+  };
+  const switchView = (v: ChatMode) => { if (v !== view) openConversation(convos.find((c) => c.mode === v) ?? null, v); };
+  const deleteConversation = (id: string) => {
+    if (!userId) return;
+    const next = convos.filter((c) => c.id !== id);
+    setConvos(next); saveConversations(localStorage, userId, next);
+    if (id === activeId) openConversation(null);
+  };
 
   const [fromVoice, setFromVoice] = useState(false);
   const voice = useChatVoice((t) => { setFromVoice(true); setText((cur) => (cur.trim() ? `${cur.trim()} ${t}` : t)); });
@@ -89,20 +131,18 @@ function ChatPage() {
     setMessages((cur) => [...cur, ...rows.filter((r) => r.text.trim() || r.evidence?.length).map((r, i) => ({ id: `voice-${Date.now()}-${i}`, role: r.role, metadata: { voice: true, evidence: r.evidence ?? [] }, parts: [{ type: "text" as const, text: r.text.trim() }] }))]);
   const live = useLiveCall({ chatContext, onLiveRows: setLiveRows, onTranscript: addVoiceTranscript, onCodeCard: code.receive });
 
+  const addUser = (t: string) => setMessages((cur) => [...cur, { id: crypto.randomUUID(), role: "user", parts: [{ type: "text", text: t }] }]);
   const send = async (t: string) => {
     if (!t.trim() || busy) return;
     setError(null); jackboyVoice.stop(); voice.stopSpeaking();
     if (view === "code") {
-      // Allow/Deny phrases still go to the pending card; anything else becomes a request for the selected repo.
+      // Allow/Deny phrases still go to the pending card; anything else becomes a request for the selected project.
       const direct = /^\s*(CODE\s+[^:\n]+:|(allow|deny)\s+CODE\s)/i.test(t);
-      if (!direct && !target) { setError("Pick a repository first."); return; }
-      if (await code.submit(direct ? t : `CODE ${target}: ${t.trim()}`)) { setText(""); setFromVoice(false); }
+      if (!direct && !target) { setError("Pick a project first."); setToolsOpen(true); return; }
+      if (await code.submit(direct ? t : `CODE ${target}: ${t.trim()}`)) { addUser(direct ? t : `${target}: ${t.trim()}`); setText(""); setFromVoice(false); }
       return;
     }
-    if (await code.submit(t)) {
-      setMessages(cur => [...cur, { id: crypto.randomUUID(), role: "user", parts: [{ type: "text", text: t }] }]);
-      setText(""); setFromVoice(false); return;
-    }
+    if (await code.submit(t)) { addUser(t); setText(""); setFromVoice(false); return; }
     sendMessage(fromVoice ? { text: t, metadata: { voice: true } } : { text: t });
     setText(""); setFromVoice(false);
   };
@@ -128,56 +168,108 @@ function ChatPage() {
 
   const textarea = useRef<HTMLTextAreaElement>(null);
   useEffect(() => { const t = textarea.current; if (t) { t.style.height = "auto"; t.style.height = `${Math.min(t.scrollHeight, 200)}px`; } }, [text]);
-  const newChat = () => { stop(); setMessages([]); try { sessionStorage.removeItem(STORE); } catch { /* ignore */ } };
+  useEffect(() => { textarea.current?.focus(); }, [activeId, view, status]);
+
+  const activity = deriveActivity({
+    error: Boolean(error || voice.error || jackboyVoice.error || live.call.error),
+    listening: voice.listening || (live.live && live.mode === "listening" && !live.call.muted),
+    speaking: voice.speaking || jackboyVoice.speaking || (live.live && live.mode === "speaking"),
+    chatStatus: status, liveThinking: live.live && live.mode === "thinking", codeBusy: code.busy,
+    cards: view === "code" ? code.cards : code.cards.filter((c) => c.status === "pending"),
+  });
+  const hidden = collapsed ? Math.max(0, messages.length - KEEP_VISIBLE) : 0;
+  const shown = hidden ? messages.slice(hidden) : messages;
+  const modeConvos = convos.filter((c) => c.mode === view);
+  const iconBtn = "inline-flex size-10 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-electric";
 
   return (
     <div className="flex min-h-dvh flex-col bg-background">
-      <header className="sticky top-0 z-10 flex items-center gap-2 bg-background/90 px-3 py-2 backdrop-blur sm:px-6">
-        <Link to="/" aria-label="Back to dashboard" className="inline-flex size-10 items-center justify-center rounded-full hover:bg-muted"><ArrowLeft className="size-5" /></Link>
-        <Hexagon className="size-4 text-electric" aria-hidden />
-        <h1 className="text-sm font-semibold">Jackboy</h1>
-        <div role="tablist" aria-label="Chat or CODE" className="ml-3 inline-flex rounded-full border border-border p-0.5 text-xs">
+      <header className="sticky top-0 z-10 flex items-center gap-1 bg-background/90 px-2 py-2 backdrop-blur sm:gap-2 sm:px-6">
+        <Link to="/" aria-label="Back to dashboard" className={iconBtn}><ArrowLeft className="size-5" /></Link>
+        <button type="button" onClick={() => setHistoryOpen(true)} aria-label="Conversations" title="Conversations" className={iconBtn}><History className="size-5" /></button>
+        <div role="tablist" aria-label="Mode" className="ml-1 inline-flex rounded-full border border-border p-0.5 text-xs">
           {(["chat", "code"] as const).map((v) => <button key={v} type="button" role="tab" aria-selected={view === v} onClick={() => switchView(v)}
-            className={`min-h-8 rounded-full px-3 ${view === v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>{v === "chat" ? "Chat" : "CODE"}</button>)}
+            className={`min-h-8 rounded-full px-3 font-medium ${view === v ? "bg-secondary text-foreground" : "text-muted-foreground hover:text-foreground"}`}>{v === "chat" ? "Chat" : "CODE"}</button>)}
         </div>
-        <button type="button" onClick={newChat} aria-label="New conversation" title="New conversation" className="ml-auto inline-flex size-10 items-center justify-center rounded-full hover:bg-muted"><SquarePen className="size-5" /></button>
+        {activity && <span role="status" aria-live="polite" data-activity={activity}
+          className={`ml-1 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs ${activity === "error" ? "text-destructive" : activity === "awaiting_approval" ? "text-warning" : "text-electric"}`}>
+          <span className={`size-1.5 rounded-full bg-current ${activity !== "error" && activity !== "awaiting_approval" ? "motion-safe:animate-pulse" : ""}`} aria-hidden />{ACTIVITY_LABEL[activity]}
+        </span>}
+        <div className="ml-auto flex items-center">
+          <button type="button" onClick={() => setToolsOpen(true)} aria-label={view === "code" ? "Project and connections" : "Shortcuts"} title="Projects, connections and settings" className={iconBtn}><SlidersHorizontal className="size-5" /></button>
+          <button type="button" onClick={() => openConversation(null)} aria-label="New conversation" title="New conversation" className={iconBtn}><SquarePen className="size-5" /></button>
+        </div>
       </header>
 
-      <main className="mx-auto w-full max-w-3xl flex-1 px-4 pb-6 select-text" aria-live="polite" aria-busy={busy}>
-        {live.live && <div className="flex justify-center py-6"><VoiceOrb mode={live.mode} level={live.level} size={96} onTap={() => live.call.setMuted(!live.call.muted)} actionLabel={live.call.muted ? "Unmute microphone" : "Mute microphone"} /></div>}
-        {banner && <p role="status" className={`mb-4 text-sm ${banner.ok ? "text-success" : "text-warning"}`}>{banner.text} <button className="ml-2 underline" onClick={() => setBanner(null)}>Dismiss</button></p>}
-        {view === "code" ? (
-          <section aria-label="CODE workspace" className="pt-4">
-            <label htmlFor="code-repo" className="text-xs text-muted-foreground">Repository</label>
-            {repoErr ? <p role="alert" className="text-sm text-destructive">{repoErr}</p> : !repos ? <p className="text-sm text-muted-foreground">Loading repositories…</p> : repos.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No project has a linked repo yet. <Link to="/projects" className="text-primary underline">Connect one in Projects</Link>.</p>
+      <Sheet open={historyOpen} onOpenChange={setHistoryOpen}>
+        <SheetContent side="left" className="w-80 max-w-[85vw]">
+          <SheetHeader><SheetTitle>{view === "code" ? "CODE conversations" : "Conversations"}</SheetTitle><SheetDescription>Saved privately for your account on this device.</SheetDescription></SheetHeader>
+          <ul className="mt-4 space-y-1 overflow-y-auto">
+            {modeConvos.length === 0 && <li className="px-2 text-sm text-muted-foreground">No saved conversations yet.</li>}
+            {modeConvos.map((c) => (
+              <li key={c.id} className={`group flex items-center gap-1 rounded-lg ${c.id === activeId ? "bg-muted" : ""}`}>
+                <button type="button" onClick={() => openConversation(c)} className="min-w-0 flex-1 truncate px-3 py-2 text-left text-sm hover:text-foreground" aria-current={c.id === activeId}>
+                  {c.title}<span className="block text-[11px] text-muted-foreground">{new Date(c.updatedAt).toLocaleString()}</span>
+                </button>
+                <button type="button" onClick={() => deleteConversation(c.id)} aria-label={`Delete conversation ${c.title}`} className="mr-1 inline-flex size-8 items-center justify-center rounded-full text-muted-foreground hover:text-destructive"><Trash2 className="size-4" /></button>
+              </li>
+            ))}
+          </ul>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={toolsOpen} onOpenChange={setToolsOpen}>
+        <SheetContent side="right" className="w-80 max-w-[85vw] space-y-5">
+          <SheetHeader><SheetTitle>{view === "code" ? "CODE target" : "Shortcuts"}</SheetTitle><SheetDescription>Repositories, connections and logs live here, off the conversation.</SheetDescription></SheetHeader>
+          {view === "code" && <div>
+            <label htmlFor="code-repo" className="text-xs text-muted-foreground">Project</label>
+            {repoErr ? <p role="alert" className="text-sm text-destructive">{repoErr}</p> : !repos ? <p className="text-sm text-muted-foreground">Loading projects…</p> : repos.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No project has a linked repo yet.</p>
             ) : (
               <select id="code-repo" value={target} onChange={(e) => setTarget(e.target.value)} className="mt-1 block min-h-10 w-full rounded-xl border border-border bg-card px-3 text-sm">
-                {repos.map((r) => <option key={r.id} value={r.name}>{r.name} — {r.repo}</option>)}
+                {repos.map((r) => <option key={r.id} value={r.name}>{r.name}</option>)}
               </select>
             )}
-            <p className="mt-2 text-xs text-muted-foreground">Describe the change below. CODE checks access and asks for your approval before anything runs; results open as a draft PR only.</p>
-            {!code.cards.length && !code.busy && !code.error && <p className="mt-6 text-sm text-muted-foreground">No CODE jobs in this session yet.</p>}
-            <CodeTasks tasks={code} />
-          </section>
-        ) : messages.length === 0 && liveRows.length === 0 ? (
+            <p className="mt-2 text-xs text-muted-foreground">CODE checks access and asks for your approval before anything runs; results open as a draft PR only.</p>
+          </div>}
+          <nav aria-label="Secondary" className="flex flex-col gap-1 text-sm">
+            <Link to="/projects" className="rounded-lg px-3 py-2 hover:bg-muted">Projects and repositories</Link>
+            <Link to="/connect" className="rounded-lg px-3 py-2 hover:bg-muted">Connections</Link>
+            <Link to="/approvals" className="rounded-lg px-3 py-2 hover:bg-muted">Approvals</Link>
+            <Link to="/site-log" className="rounded-lg px-3 py-2 hover:bg-muted">Logs</Link>
+            <Link to="/settings" className="rounded-lg px-3 py-2 hover:bg-muted">Settings</Link>
+          </nav>
+        </SheetContent>
+      </Sheet>
+
+      <main className="mx-auto w-full max-w-3xl flex-1 px-4 pb-6 select-text" aria-label={view === "code" ? "CODE conversation" : "Chat conversation"} aria-busy={busy}>
+        {live.live && <div className="flex justify-center py-6"><VoiceOrb mode={live.mode} level={live.level} size={96} onTap={() => live.call.setMuted(!live.call.muted)} actionLabel={live.call.muted ? "Unmute microphone" : "Mute microphone"} /></div>}
+        {banner && <p role="status" className="mb-4 text-sm text-muted-foreground">{banner.text} <button className="ml-2 underline" onClick={() => setBanner(null)}>Dismiss</button></p>}
+        {messages.length === 0 && liveRows.length === 0 && !(view === "code" && code.cards.length) ? (
           <div className="flex min-h-[55dvh] flex-col items-center justify-center text-center">
-            <Hexagon className="size-10 text-electric" aria-hidden />
-            <p className="mt-4 text-2xl font-semibold text-silver">What are we working on?</p>
-            <p className="mt-2 text-sm text-muted-foreground">For development, say or type “CODE Project name: describe the change”.</p>
-            <div className="mt-6 flex flex-wrap justify-center gap-2">
-              {SUGGESTIONS.map((s) => <button key={s} onClick={() => send(s)} className="rounded-full border border-border px-4 py-2 text-sm hover:border-electric">{s}</button>)}
-            </div>
+            <Hexagon className="size-10 text-silver" aria-hidden />
+            <p className="mt-4 text-2xl font-semibold text-silver">{view === "code" ? "What should we change?" : "What are we working on?"}</p>
+            <p className="mt-2 max-w-sm text-sm text-muted-foreground">{view === "code"
+              ? <>Describe a change{target ? <> for <button type="button" className="text-foreground underline" onClick={() => setToolsOpen(true)}>{target}</button></> : ""}. Nothing runs until you approve it.</>
+              : "Type or tap the microphone to talk."}</p>
+            {view === "chat" && <div className="mt-6 flex flex-wrap justify-center gap-2">
+              {SUGGESTIONS.map((s) => <button key={s} onClick={() => send(s)} className="rounded-full border border-border px-4 py-2 text-sm hover:border-silver">{s}</button>)}
+            </div>}
           </div>
         ) : (
           <ol className="flex flex-col gap-6 pt-4">
-            {messages.map((m) => <Bubble key={m.id} m={m} streaming={busy && m === tail && m.role === "assistant"} />)}
+            {messages.length > KEEP_VISIBLE + 2 && <li className="self-center">
+              <button type="button" onClick={() => setCollapsed(!collapsed)} aria-expanded={!collapsed} className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1 text-xs text-muted-foreground hover:text-foreground">
+                {collapsed ? <><ChevronDown className="size-3.5" />Show {hidden} earlier messages</> : <><ChevronUp className="size-3.5" />Hide earlier messages</>}
+              </button>
+            </li>}
+            {shown.map((m) => <Bubble key={m.id} m={m} streaming={busy && m === tail && m.role === "assistant"} />)}
             {liveRows.map((r, i) => <li key={`live-${i}`} className={r.role === "user" ? "self-end max-w-[85%] rounded-3xl bg-muted px-4 py-2.5 text-[15px]" : "text-[15px] leading-relaxed"}>{r.text}{r.evidence?.filter((l) => safeEvidenceUrl(l.url)).map((l) => <a key={l.url} href={l.url} className="mr-3 text-xs text-primary underline">{l.label}</a>)}</li>)}
-            {status === "submitted" && <li><Shimmer className="text-sm">Thinking…</Shimmer></li>}
           </ol>
         )}
+        {/* CODE approval/execution controls stay intact; in Chat only cards needing a decision surface. */}
+        <CodeTasks tasks={view === "code" ? code : { ...code, cards: code.cards.filter((c) => c.status === "pending") }} />
         <div ref={end} />
-        {view === "chat" && <CodeTasks tasks={code} />}
       </main>
 
       <footer className="sticky bottom-0 bg-gradient-to-t from-background via-background to-background/0 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-4 sm:px-6">
@@ -185,9 +277,10 @@ function ChatPage() {
           <LiveCallBar v={live} />
           {(error || voice.error || jackboyVoice.error) && <p role="alert" className="mb-2 px-2 text-xs text-destructive">{error ?? voice.error ?? jackboyVoice.error}</p>}
           {error && /credits|402/i.test(error) && <a href={CREDIT_HELP_URL} target="_blank" rel="noopener noreferrer" className="block px-2 text-xs text-primary underline">Paused: out of credits — open credit setup instructions</a>}
-          <form onSubmit={(e) => { e.preventDefault(); send(text); }} className="flex items-end gap-2 rounded-3xl border border-border bg-card px-3 py-2 focus-within:border-electric">
-            <label htmlFor="jb-msg" className="sr-only">Message Jackboy. For development say CODE, the exact project name, a colon, then the task.</label>
-            <textarea id="jb-msg" ref={textarea} rows={1} value={text} placeholder={view === "code" ? "Describe the code change" : "Message Jackboy"}
+          {jackboyVoice.speaking && <button type="button" onClick={jackboyVoice.stop} className="mb-2 ml-2 inline-flex items-center gap-1 text-xs text-muted-foreground underline"><Square className="size-3" />Stop speaking</button>}
+          <form onSubmit={(e) => { e.preventDefault(); send(text); }} className="flex items-end gap-2 rounded-3xl border border-border bg-card px-3 py-2 focus-within:border-silver">
+            <label htmlFor="jb-msg" className="sr-only">{view === "code" ? "Describe the code change" : "Message Jackboy"}</label>
+            <textarea id="jb-msg" ref={textarea} rows={1} value={text} placeholder={view === "code" ? (target ? `Change for ${target}…` : "Describe the code change") : "Message Jackboy"}
               onChange={(e) => { setText(e.target.value); if (!e.target.value.trim()) setFromVoice(false); }}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(text); } }}
               className="max-h-[200px] min-h-9 flex-1 resize-none bg-transparent py-1.5 text-[15px] outline-none placeholder:text-muted-foreground" />
@@ -232,6 +325,7 @@ function useJackboyVoice() {
   const synth = useServerFn(synthesizeJackboy);
   const [available, setAvailable] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [speaking, setSpeaking] = useState(false);
   const audio = useRef<HTMLAudioElement | null>(null);
   useEffect(() => { status().then((s) => setAvailable(s.voiceAvailable)).catch(() => setAvailable(false)); }, [status]);
   const speak = useCallback(async (words: string) => {
@@ -241,11 +335,14 @@ function useJackboyVoice() {
       audio.current?.pause();
       const a = new Audio(`data:${r.mimeType};base64,${r.audioBase64}`);
       audio.current = a;
+      // Speaking status follows real playback events only.
+      a.onplaying = () => setSpeaking(true);
+      a.onended = a.onpause = a.onerror = () => setSpeaking(false);
       await a.play();
     } catch (e) { setError(e instanceof Error ? e.message : "Jackboy's voice failed; the reply is still here as text."); throw e; }
   }, [synth]);
-  const stop = useCallback(() => { audio.current?.pause(); audio.current = null; }, []);
-  return useMemo(() => ({ available, error, speak, stop }), [available, error, speak, stop]);
+  const stop = useCallback(() => { audio.current?.pause(); audio.current = null; setSpeaking(false); }, []);
+  return useMemo(() => ({ available, error, speaking, speak, stop }), [available, error, speaking, speak, stop]);
 }
 
 type AuthLink = { label: string; url: string; primary?: boolean };
