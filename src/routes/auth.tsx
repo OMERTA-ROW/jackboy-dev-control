@@ -185,7 +185,6 @@ function AuthPage() {
           {mode !== "in" && <Button variant="link" size="sm" onClick={() => go("in")}>Back to sign in</Button>}
           {mode !== "up" && <Button variant="link" size="sm" onClick={() => go("up")}>Create account</Button>}
           {mode !== "forgot" && <Button variant="link" size="sm" onClick={() => go("forgot")}>Forgot password?</Button>}
-          <Link to="/recover" className="inline-flex h-8 items-center px-3 text-electric underline-offset-4 hover:underline">Account recovery help</Link>
           {setup && !setup.ownerExists && mode !== "owner" && <Button variant="link" size="sm" onClick={() => go("owner")}>First-time owner setup</Button>}
         </>}
       </div>
