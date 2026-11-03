@@ -8,6 +8,7 @@ import { lovableUrl } from "@/lib/project-hub";
 import { MultiSelect } from "@/components/ConnectMultiSelect";
 import { saveProject, testRepo } from "@/lib/update-writer.functions";
 import { connectAndScan } from "@/lib/autopilot.functions";
+import { ProjectPermissionsPanel } from "@/components/ProjectPermissionsPanel";
 
 export const Route = createFileRoute("/_authenticated/connect")({
   head: () => ({
@@ -51,6 +52,7 @@ function Connect() {
       {msg && <p aria-live="polite" className="mb-4 rounded-md border border-border p-3 text-sm">{msg}</p>}
 
       <MultiSelect hub={hub} onPick={(n, ref) => setForm((f) => ({ ...f, name: n, lovable_url: ref ? lovableUrl(ref) ?? "" : "" }))} reload={() => load().then(setHub)} />
+      <ProjectPermissionsPanel onChecked={() => void load().then(setHub)} />
 
       <form onSubmit={submit} className="panel grid gap-4 p-5">
         <div>

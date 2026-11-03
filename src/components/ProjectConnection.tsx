@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { StatusPill, btn, field, primaryBtn } from "@/components/ProjectBits";
 import { connectProject, getProjectConnection } from "@/lib/project-connect.functions";
 import { useStepUp } from "@/lib/step-up-client";
+import { ProjectPermissionsPanel } from "@/components/ProjectPermissionsPanel";
 
 type D = Awaited<ReturnType<typeof getProjectConnection>>;
 const TONE = { connected: "ok", not_connected: "muted", needs_approval: "warn", verifying: "muted", blocked: "error" } as const;
@@ -44,6 +45,7 @@ export function ProjectConnection({ projectId, onChanged }: { projectId: string;
         <dt className="text-muted-foreground">Background work</dt><dd>{d.project.dev_enabled ? "On (routine work runs without asking; merges, deploys and new permissions still need you)" : "Off"}</dd>
       </dl>
       {d.reposError && <p className="mt-2 text-sm text-destructive">GitHub: {d.reposError}</p>}
+      {d.project.github_repo && <div className="mt-4"><ProjectPermissionsPanel projectId={projectId} onChecked={() => void refresh()} /></div>}
       <div className="mt-3 flex flex-wrap items-end gap-2">
         <label className="min-w-0 flex-1 text-sm">Repository Jackboy can write
           <select className={`${field} mt-1 w-full`} value={repo} onChange={(e) => setRepo(e.target.value)}>

@@ -1,6 +1,7 @@
 // Passkey step-up policy. Identity (a fresh passkey assertion) and permission (role + action policy)
 // are checked separately: a valid passkey never grants an action the role isn't allowed to do.
 export const STEP_UP_ACTIONS = {
+  remove_passkey: { label: "Remove one registered passkey", roles: ["owner"] },
   merge_update: { label: "Merge an update into the main branch", roles: ["owner"] },
   revert_update: { label: "Revert a merged update", roles: ["owner"] },
   critical_change: { label: "Critical Code Foundry change (security/config/destructive files)", roles: ["owner"] },

@@ -12,7 +12,7 @@ function config() {
 
 export function omniConfigState() {
   const c = config();
-  return { configured: c.missing.length === 0, missing: c.missing, callbackUrl: c.callbackUrl };
+  return { configured: c.missing.length === 0, keyConfigured: Boolean(c.key), missing: c.missing, callbackUrl: c.callbackUrl };
 }
 
 async function setConnection(patch: Record<string, unknown>) {
