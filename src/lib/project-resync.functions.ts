@@ -41,7 +41,7 @@ export async function resyncOne(projectId: string, actor: string): Promise<Proje
         const body = await r.json() as { full_name: string; homepage: string | null; name: string };
         if (body.full_name.toLowerCase() !== repo.toLowerCase()) out.notes.push(`Repo was renamed to ${body.full_name}. Approve the new link in Settings → Repository review.`);
         const display = repoNameToDisplay(body.name);
-        if (display && display.toLowerCase() !== p.name.toLowerCase() && body.full_name.toLowerCase() === repo.toLowerCase()) { update["name"] = display; out.changes.push(`Name: ${p.name} → ${display}`); out.name = display; }
+        if (display && !p.name.toLowerCase().replace(/[^a-z0-9]/g, "").includes(display.toLowerCase().replace(/[^a-z0-9]/g, "")) && body.full_name.toLowerCase() === repo.toLowerCase()) { update["name"] = display; out.changes.push(`Name: ${p.name} → ${display}`); out.name = display; }
         if (!p.site_url && body.homepage && isSafeSiteUrl(body.homepage)) { update["site_url"] = body.homepage; update["site_status"] = "checking"; out.changes.push(`Site address: ${body.homepage}`); out.siteUrl = body.homepage; }
       }
     }
