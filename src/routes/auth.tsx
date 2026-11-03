@@ -131,7 +131,7 @@ function AuthPage() {
         <div className="mt-4 space-y-2">
           {SOCIAL.map((p) => {
             const enabled = p.supported && providers?.[p.key] === true;
-            const why = !p.supported ? "Not supported by this app's sign-in service" : providers === null ? "Checking…" : "Not enabled yet by the owner";
+            const why = !p.supported ? "Not supported" : providers === null ? "Checking…" : "Not enabled yet by the owner";
             return (
               <Button key={p.id} type="button" variant="outline" className="w-full justify-between" disabled={!enabled}
                 title={enabled ? undefined : why} aria-describedby={`${p.id}-why`}>
