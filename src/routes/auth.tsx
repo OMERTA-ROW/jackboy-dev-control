@@ -33,8 +33,12 @@ const input = "mt-1 w-full rounded-md border border-input bg-background px-3 py-
 const SOCIAL: { id: string; key: string; label: string; supported: boolean }[] = [
   { id: "google", key: "google", label: "Google", supported: true },
   { id: "microsoft", key: "azure", label: "Microsoft", supported: true },
-  { id: "github", key: "github", label: "GitHub", supported: false },
+  { id: "github", key: "github", label: "GitHub", supported: true },
 ];
+// GitHub sign-in is federated through the owner's Auth0 tenant (OIDC slot "custom:app-oidc").
+// The backend's public settings do not report custom OIDC, so flip this only after the owner
+// saves the Auth0 issuer/client in Auth settings and a real preview sign-in succeeds.
+const AUTH0_OIDC_READY = false;
 
 function AuthPage() {
   const nav = useNavigate();
@@ -139,13 +143,18 @@ function AuthPage() {
       {(mode === "in" || mode === "up") && (
         <div className="mt-4 space-y-2">
           {SOCIAL.map((p) => {
-            const enabled = p.supported && providers?.[p.key] === true;
-            const why = !p.supported ? "Not available" : providers === null ? "Checking…" : "Not enabled yet by the owner";
+            const enabled = p.id === "github" ? AUTH0_OIDC_READY : p.supported && providers?.[p.key] === true;
+            const why = p.id === "github" && !AUTH0_OIDC_READY ? "Waiting for owner setup" : providers === null ? "Checking…" : "Not enabled yet by the owner";
             return (
               <Button key={p.id} type="button" variant="outline" className="w-full justify-between" disabled={!enabled || busy}
                 title={enabled ? undefined : why} aria-describedby={`${p.id}-why`}
                 onClick={async () => {
                   setBusy(true); setMsg(null);
+                  if (p.id === "github") {
+                    const { error } = await supabase.auth.signInWithOAuth({ provider: "custom:app-oidc" as never, options: { redirectTo: `${window.location.origin}/auth` } });
+                    if (error) { setMsg({ ok: false, t: `GitHub sign-in failed: ${error.message}` }); setBusy(false); }
+                    return;
+                  }
                   const r = await lovable.auth.signInWithOAuth(p.id as "google" | "microsoft", { redirect_uri: `${window.location.origin}/auth` });
                   if (r.error) { setMsg({ ok: false, t: `${p.label} sign-in failed: ${r.error.message}` }); setBusy(false); return; }
                   if (r.redirected) return;
