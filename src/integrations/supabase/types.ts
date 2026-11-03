@@ -2315,6 +2315,10 @@ export type Database = {
         Args: never
         Returns: Database["public"]["Enums"]["app_role"]
       }
+      apply_project_repository_resync: {
+        Args: { actor_id: string; changes: Json; review_id: string }
+        Returns: Json
+      }
       apply_repository_resync: {
         Args: { actor_id: string; changes: Json; review_id: string }
         Returns: Json
