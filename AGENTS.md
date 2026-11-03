@@ -24,6 +24,7 @@
 
 - Subdirectories have their own `AGENTS.md` (feature rules in `src/lib/AGENTS.md`); read it before changing files there.
 - Live voice runs through `src/lib/live-relay.server.ts` at `/api/live` (dispatched in `src/server.ts`, dev via `live-vite-plugin.ts`): owner session verified before any paid voice session, and legacy voice change tools stay blocked; opt-in CODE requests use scoped session-bound cards, while sensitive actions keep their passkey/provider-native path.
+- Repo inventory = GITHUB_TOKEN repos + live GitHub App installation repos; per-project resync (`project-resync.functions.ts`) may change only display name/empty site address, repo-link changes stay in the approved review, and gone projects are archived (`active=false`), never deleted.
 - Site monitoring lives in `src/lib/site-monitor*.ts` (DNS-over-HTTPS + one HTTPS GET, stored on owner_projects with backoff, 15-min cron at /api/public/jobs/site-monitor); reachability never implies coding access.
 
 - Autonomous Operating Guidelines (`src/lib/guidelines.ts`, `docs/AUTONOMOUS-GUIDELINES.md`) override any task: they are prepended to every AI work/chat prompt and enforced in branch/workflow guards and the two-failure stop.

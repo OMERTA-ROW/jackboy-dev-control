@@ -16,7 +16,7 @@ export function ProjectResyncIcon({ p, onDone }: { p: P; onDone: (msg: string, g
       setBusy(true);
       try {
         const r = await resync({ data: { id: p.id } });
-        onDone(`${r.name}: ${r.changes.length ? r.changes.join("; ") : "up to date"} · repo ${r.repo ?? "not linked"} · covered by ${r.credential}${r.notes.length ? ` · ${r.notes.join(" ")}` : ""}`, r.repoState === "gone");
+        onDone(`${r.name}: ${r.repoState === "gone" ? "repo gone" : r.changes.length ? r.changes.join("; ") : "up to date"} · repo ${r.repo ?? "not linked"} · covered by ${r.credential}${r.notes.length ? ` · ${r.notes.join(" ")}` : ""}`, r.repoState === "gone");
       } catch (e) { onDone(`${p.name}: resync failed — ${(e as Error).message}`, false); }
       finally { setBusy(false); }
     }}><RefreshCw className={`h-4 w-4 ${busy ? "animate-spin" : ""}`} aria-hidden /></button>;
