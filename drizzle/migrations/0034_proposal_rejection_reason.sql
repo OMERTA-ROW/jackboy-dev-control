@@ -1,0 +1,1 @@
+ALTER TABLE public.update_proposals ADD COLUMN IF NOT EXISTS rejection_reason text;

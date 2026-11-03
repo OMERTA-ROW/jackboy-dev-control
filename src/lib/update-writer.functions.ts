@@ -89,7 +89,7 @@ export const getQueue = createServerFn({ method: "POST" }).middleware([requireSu
     context.supabase.from("usage_ledger").select("id", { count: "exact", head: true }).eq("kind", "run").gte("at", ms),
   ]);
   return {
-    proposals: (p.data ?? []).map((x: any) => ({ ...x, files: (x.files ?? []).map((f: FileRow) => ({ path: f.path, content: f.content, isNew: f.previous === null })) })) as Array<{ id: string; status: ProposalStatus; title: string; what_to_change: string; why: string; build_prompt: string; trigger: string; edited: boolean; created_at: string; files: { path: string; content: string; isNew: boolean }[]; pr_url: string | null; pr_number: number | null; checks_state: string | null; delivery_error: string | null; revert_pr_url: string | null; owner_projects: { name: string; lovable_url: string | null; github_repo: string | null } | null }>,
+    proposals: (p.data ?? []).map((x: any) => ({ ...x, files: (x.files ?? []).map((f: FileRow) => ({ path: f.path, content: f.content, isNew: f.previous === null })) })) as Array<{ id: string; status: ProposalStatus; title: string; what_to_change: string; why: string; build_prompt: string; trigger: string; edited: boolean; created_at: string; files: { path: string; content: string; isNew: boolean }[]; pr_url: string | null; pr_number: number | null; checks_state: string | null; delivery_error: string | null; decided_at: string | null; rejection_reason: string | null; revert_pr_url: string | null; owner_projects: { name: string; lovable_url: string | null; github_repo: string | null } | null }>,
     settings: s.data as { last_run_at: string | null; paused_reason: string | null; monthly_ai_cap: number; monthly_run_cap: number } | null,
     usage: { ai: ai.count ?? 0, runs: runs.count ?? 0 },
     notifications: (n.data ?? []) as Array<{ id: string; kind: string; message: string; read: boolean; email_state: string; created_at: string }>,
@@ -112,13 +112,18 @@ export const editProposal = createServerFn({ method: "POST" }).middleware([requi
   });
 
 export const setProposalStatus = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), status: z.enum(STATUSES) }).parse(d))
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), status: z.enum(STATUSES), reason: z.string().trim().min(3).max(500).optional() }).parse(d))
   .handler(async ({ data, context }) => {
     await owner(context);
     const { data: cur } = await context.supabase.from("update_proposals").select("status, title").eq("id", data.id).single();
     if (!cur) throw new Error("Proposal not found.");
     if (!canTransition(cur.status as ProposalStatus, data.status)) throw new Error(`Can't move from ${cur.status} to ${data.status}.`);
-    if (data.status === "rejected") { const s = await import("./update-writer.server"); await s.rejectProposal(data.id, context.userId); return { ok: true }; }
+    if (data.status === "rejected") {
+      if (!data.reason) throw new Error("Say why you are rejecting this, so the reason is kept with it.");
+      const s = await import("./update-writer.server"); await s.rejectProposal(data.id, context.userId);
+      await context.supabase.from("update_proposals").update({ rejection_reason: data.reason }).eq("id", data.id);
+      return { ok: true };
+    }
     // Conditional on the status we read: a second click or another tab that already moved it changes nothing.
     const { data: moved, error } = await context.supabase.from("update_proposals").update({ status: data.status, decided_by: context.userId, decided_at: new Date().toISOString(), delivery_error: null }).eq("id", data.id).eq("status", cur.status).select("id, files, owner_projects(github_repo)");
     if (error) throw new Error(error.message);

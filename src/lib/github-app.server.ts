@@ -166,3 +166,19 @@ export async function githubAuthorization(repoFull: string | null, userId: strin
     detail: "This link expires in 30 minutes and only works for your signed-in owner account.", lastError,
   };
 }
+
+/** Repos visible through live App installations (name, description, homepage), read from GitHub now. Empty when the App isn't set up. */
+export async function appRepositoryCandidates(): Promise<{ full_name: string; description: string | null; homepage: string | null }[]> {
+  if (!(await appConfig())) return [];
+  const { data } = await supabaseAdmin.from("github_installations").select("installation_id").eq("revoked", false);
+  const out: { full_name: string; description: string | null; homepage: string | null }[] = [];
+  for (const row of data ?? []) {
+    const tok = await installationToken(Number(row.installation_id));
+    for (let page = 1; page <= 20; page++) {
+      const r = await call<{ repositories: { full_name: string; description: string | null; homepage: string | null }[] }>(`/installation/repositories?per_page=100&page=${page}`, tok);
+      out.push(...r.repositories.map(({ full_name, description, homepage }) => ({ full_name, description, homepage })));
+      if (r.repositories.length < 100) break;
+    }
+  }
+  return out;
+}

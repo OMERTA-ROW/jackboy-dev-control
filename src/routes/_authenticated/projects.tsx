@@ -12,6 +12,8 @@ import { openPr } from "@/lib/update-writer.functions";
 import { latestScans, projectStatus, searchByName } from "@/lib/project-hub";
 import { MAX_CONCURRENCY, approvedUndelivered, eligible, runBounded, sanitizeSelection, type BatchAction } from "@/lib/batch";
 import { supabase } from "@/integrations/supabase/client";
+import { ProjectConnectButtons, ProjectResyncIcon } from "@/components/ProjectCardActions";
+import { restoreProject } from "@/lib/project-resync.functions";
 
 export const Route = createFileRoute("/_authenticated/projects")({
   head: () => ({
@@ -59,6 +61,9 @@ function Projects() {
   const [key, setKey] = useState<string | null>(null);
   const [rows, setRows] = useState<Record<string, RowState>>({});
   const [busy, setBusy] = useState(false);
+  const [gone, setGone] = useState<Set<string>>(new Set());
+  const [note, setNote] = useState("");
+  const restore = useServerFn(restoreProject);
 
   const refresh = useCallback(() => load().then(setHub).catch((e) => setErr((e as Error).message)), [load]);
   useEffect(() => { void refresh(); }, [refresh]);
@@ -110,6 +115,7 @@ function Projects() {
         <Link to="/connect" className={primaryBtn}><Plus className="h-4 w-4" aria-hidden /> Connect Project</Link>
       </div>
       {err && <p role="alert" className="mb-4 rounded-md border border-destructive/40 p-3 text-sm text-destructive">{err}</p>}
+      {note && <p aria-live="polite" className="mb-4 rounded-md border border-border p-3 text-sm [overflow-wrap:anywhere]">{note}</p>}
       {!hub ? <p className="text-sm text-muted-foreground">Loading…</p> : hub.projects.length === 0 ? (
         <p className="panel p-5 text-sm text-muted-foreground">
           No projects connected.{hub.inventory.length > 0 && ` ${hub.inventory.length} saved Lovable projects are ready to pick in Connect Project.`}
@@ -147,15 +153,21 @@ function Projects() {
                         {r && <span role="status" className={`block text-xs ${r.state === "error" ? "text-destructive" : r.state === "done" ? "text-success" : "text-muted-foreground"}`}>{r.text}</span>}
                       </span>
                     </label>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <StatusPill status={projectStatus(p, last.get(p.id))} />
+                      {!p.site_url && <Link to="/project/$id" params={{ id: p.id }} className={btn}>Add site address to scan</Link>}
+                      <ProjectConnectButtons p={p} gone={gone.has(p.id)} onRemoved={(m) => { setNote(m); void refresh(); }} />
                       <Link to="/project/$id" params={{ id: p.id }} className={btn}>Manage</Link>
+                      <ProjectResyncIcon p={p} onDone={(m, g) => { setNote(m); if (g) setGone((s) => new Set(s).add(p.id)); void refresh(); }} />
                     </div>
                   </li>
                 );
               })}
             </ul>
           )}
+          {hub.archived.length > 0 && <details className="mt-4 text-sm"><summary className="cursor-pointer text-muted-foreground">Removed projects ({hub.archived.length}) — history kept</summary>
+            <ul className="mt-2 space-y-1">{hub.archived.map((a) => <li key={a.id} className="flex items-center gap-2"><span>{a.name}{a.github_repo ? ` · ${a.github_repo}` : ""}</span><button type="button" className={btn} onClick={async () => { try { await restore({ data: { id: a.id } }); setNote(`${a.name} restored.`); void refresh(); } catch (e) { setErr((e as Error).message); } }}>Restore</button></li>)}</ul>
+          </details>}
         </>
       )}
     </>

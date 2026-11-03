@@ -15,28 +15,48 @@ async function clearStaleCoverageErrors() {
     if (repo && (await githubTokenFor(repo))) await supabaseAdmin.from("capability_grants").update({ status: "awaiting_setup", last_error: null, updated_at: new Date().toISOString() }).eq("id", g.id);
   }
 }
+/** Foundry tasks blocked by an old personal-token 403 on a repo the App now covers get a current, honest reason. State stays blocked; the owner retries. */
+async function clearStaleTokenTaskErrors() {
+  const { githubTokenFor } = await import("./github-app.server");
+  const { data } = await supabaseAdmin.from("foundry_tasks").select("id, owner_projects(github_repo)").eq("state", "blocked").like("blocked_reason", "%not accessible by personal access token%");
+  for (const t of data ?? []) {
+    const repo = (t.owner_projects as unknown as { github_repo: string | null } | null)?.github_repo;
+    if (repo && (await githubTokenFor(repo).catch(() => null))?.via === "app") await supabaseAdmin.from("foundry_tasks").update({ blocked_reason: "Earlier personal-token error no longer applies: the GitHub App installation now covers this repo. Press Retry to run it again with your approval." }).eq("id", t.id);
+  }
+}
 export async function repositoryDriftStatuses(userId: string): Promise<Record<string, string>> {
   const { data } = await supabaseAdmin.from("repository_resync_reviews").select("report,invalidated").eq("requested_by", userId).order("created_at", { ascending: false }).limit(1).maybeSingle();
   const rows = (data?.report as unknown as { rows?: { repo: string; group: string }[] } | null)?.rows ?? [];
-  return Object.fromEntries(rows.map((r) => [r.repo.toLowerCase(), data?.invalidated ? "needs_review" : r.group]));
+  // Invalidation only means "re-check soon"; it never turns a verified link into a warning.
+  return Object.fromEntries(rows.map((r) => [r.repo.toLowerCase(), r.group]));
 }
+export type TokenState = "set" | "missing" | "rejected";
 export async function scanRepositories(userId: string) {
-  const token = process.env["GITHUB_TOKEN"]; // read fresh on every scan
+  const token = process.env["GITHUB_TOKEN"]?.trim() || ""; // read fresh on every scan; never logged
   // Re-read App installations live first, so org coverage and stale grant errors reflect GitHub now.
   const app = await import("./github-app.server");
   let appOwners: string[] = [];
-  try { await app.syncInstallations(null); appOwners = await app.appInstallationOwners(); } catch (e) { console.error("installation sync failed", (e as Error).message); }
+  let appRepos: { full_name: string; description: string | null; homepage: string | null }[] = [];
+  let appError: string | null = null;
+  try { await app.syncInstallations(null); appOwners = await app.appInstallationOwners(); appRepos = await app.appRepositoryCandidates(); }
+  catch (e) { appError = (e as Error).message; console.error("installation sync failed", appError); }
   await clearStaleCoverageErrors();
-  if (!token) throw new Error("GITHUB_TOKEN is missing. Add it in Project Settings → Secrets.");
-  const gh = (path: string) => fetch(`https://api.github.com${path}`, { headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "Jackboy" }, signal: AbortSignal.timeout(15000) });
-  const me = await gh("/user");
-  if (!me.ok) throw new Error(`GITHUB_TOKEN verification failed (${me.status}); update it in Project Settings → Secrets.`);
-  const { login } = await me.json() as { login: string };
-  const scopes = me.headers.get("x-oauth-scopes")?.split(",").map((s) => s.trim()).filter(Boolean) ?? [];
+  await clearStaleTokenTaskErrors().catch((e) => console.error("task error refresh failed", (e as Error).message));
+  const gh = (path: string, auth = token) => fetch(`https://api.github.com${path}`, { headers: { Authorization: `Bearer ${auth}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "Jackboy" }, signal: AbortSignal.timeout(15000) });
+  let tokenState: TokenState = token ? "set" : "missing";
+  let login = "No GITHUB_TOKEN set";
+  let scopes: string[] = [];
+  if (token) {
+    const me = await gh("/user");
+    if (me.status === 401) { tokenState = "rejected"; login = "GITHUB_TOKEN rejected by GitHub (deleted, revoked or expired)"; }
+    else if (!me.ok) throw new Error(`GITHUB_TOKEN check failed (GitHub ${me.status}); try again shortly.`);
+    else { login = (await me.json() as { login: string }).login; scopes = me.headers.get("x-oauth-scopes")?.split(",").map((s) => s.trim()).filter(Boolean) ?? []; }
+  }
+  if (tokenState !== "set" && !appRepos.length) throw new Error(appError ? `${login}, and the GitHub App could not be read: ${appError}` : `${login}, and no GitHub App installation is available. Add a token in Project Settings → Secrets or install the App.`);
   const inventory: string[] = [];
   const candidates: RepoCandidate[] = [];
   // Complete pagination or fail closed: never derive removals from a partial listing.
-  for (let page = 1; ; page++) {
+  for (let page = 1; tokenState === "set"; page++) {
     if (page > 50) throw new Error("GitHub inventory exceeds the scan limit; no removal review was created.");
     const res = await gh(`/user/repos?per_page=100&page=${page}&affiliation=owner,collaborator,organization_member`);
     if (!res.ok) throw new Error(`Cannot list all repositories (${res.status}); no removal review was created.`);
@@ -45,6 +65,8 @@ export async function scanRepositories(userId: string) {
     inventory.push(...repos.map((r) => r.full_name));
     if (repos.length < 100) break;
   }
+  // App-installed repos count as accessible inventory too (org work goes through the App).
+  for (const r of appRepos) if (!inventory.some((x) => x.toLowerCase() === r.full_name.toLowerCase())) { inventory.push(r.full_name); candidates.push(r); }
   const { data, error } = await supabaseAdmin.rpc("repository_reference_inventory");
   if (error) throw new Error(error.message);
   const refs = (data ?? []) as unknown as RepositoryReference[];
@@ -57,13 +79,15 @@ export async function scanRepositories(userId: string) {
     await Promise.all(saved.slice(i, i + 4).map(async (repo) => {
       if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) { checks[repo] = { status: 0, reason: "Invalid saved repository reference; manual review required" }; return; }
       try {
-        const res = await gh(`/repos/${repo}`);
+        const viaApp = appRepos.some((r) => r.full_name.toLowerCase() === repo.toLowerCase()) ? await app.githubTokenFor(repo).catch(() => null) : null;
+        if (!viaApp && tokenState !== "set") { checks[repo] = { status: 0, reason: "No credential can check this repo (no GITHUB_TOKEN and not in an App installation); removal blocked until one can." }; return; }
+        const res = await gh(`/repos/${repo}`, viaApp?.token ?? token);
         const body = await res.json() as { full_name?: string; message?: string };
         checks[repo] = { status: res.status, ...(body.full_name ? { canonical: body.full_name } : {}), reason: res.ok ? "Accessible" : `GitHub ${res.status}: ${body.message ?? res.statusText}` };
       } catch { checks[repo] = { status: 0, reason: "GitHub timed out; removal blocked until verification succeeds" }; }
     }));
   }
-  const probe = inventory[0];
+  const probe = tokenState === "set" ? candidates[0]?.full_name : undefined;
   if (probe && scopes.length === 0) {
     for (const [name, path] of [["contents", "contents"], ["pull_requests", "pulls?per_page=1"], ["actions", "actions/runs?per_page=1"]] as const) {
       try { const r = await gh(`/repos/${probe}/${path}`); permissions[name] = r.ok ? `Read verified on ${probe}; write unknown` : `Read denied on ${probe} (${r.status}); write unknown`; } catch { permissions[name] = "Verification timed out"; }
@@ -80,7 +104,7 @@ export async function scanRepositories(userId: string) {
     const proposed = p.github_repo ? row?.proposed : projectRepoMatch(p.name, p.lovable_url, candidates);
     const agentProfiles = (agents.data ?? []).filter((a) => (a.lovable_project_ref && p.lovable_url?.includes(a.lovable_project_ref)) || a.name.toLowerCase() === p.name.toLowerCase()).map(({ id, name, repo_url }) => ({ id, name, repo_url }));
     const profile: RepositoryProfileChange | null = proposed ? { projectId: p.id, oldName: p.name, oldRepo: p.github_repo, newName: proposed.split("/").pop() ?? p.name, agentProfiles } : null;
-    if (!p.github_repo) rows.push({ repo: `project:${p.id}`, proposed: proposed ?? null, group: "missing", reason: proposed ? "Proposed from token-visible repository name or Lovable link; confirm this is the same project." : "No unique token-visible match; no change proposed.", mutable: 1, historical: 0, canApply: Boolean(proposed), profiles: profile ? [profile] : [{ projectId: p.id, oldName: p.name, oldRepo: null, newName: p.name, agentProfiles }] });
+    if (!p.github_repo) rows.push({ repo: `project:${p.id}`, proposed: proposed ?? null, group: "missing", reason: proposed ? "Proposed from token-visible repository name or Lovable link; confirm this is the same project." : "No repo linked yet — no clear match among accessible repos.", mutable: 1, historical: 0, canApply: Boolean(proposed), profiles: profile ? [profile] : [{ projectId: p.id, oldName: p.name, oldRepo: null, newName: p.name, agentProfiles }] });
     else if (row && profile) row.profiles = [...(row.profiles ?? []), profile];
   }
   // Approval-bound or running work must stay targeted at its original repo.
@@ -99,7 +123,7 @@ export async function scanRepositories(userId: string) {
   for (const row of rows) if (row.profiles?.some((p) => protectedProjects.has(p.projectId)) || refs.some((r) => r.table === "owner_projects" && normalizeRepo(r.value).toLowerCase() === row.repo.toLowerCase() && protectedProjects.has(r.id))) {
     row.canApply = false; if (row.group !== "linked") row.reason += " Approval-bound or running work exists: resolve it before changing this target.";
   }
-  const report = { login, scopes, permissions, warning: tokenOwnerWarning(login, saved, appOwners), appInstallations: appOwners, rows, inventoryCount: inventory.length };
+  const report = { login, tokenState, scopes, permissions, warning: tokenState === "set" ? tokenOwnerWarning(login, saved, appOwners) : null, appInstallations: appOwners, rows, inventoryCount: inventory.length };
   const inserted = await supabaseAdmin.from("repository_resync_reviews").insert({ requested_by: userId, inventory, references_snapshot: refs as never, report: report as never }).select("id,created_at,expires_at,approved_at,report,invalidated").single();
   if (inserted.error) throw new Error(inserted.error.message);
   return inserted.data;

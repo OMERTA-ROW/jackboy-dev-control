@@ -111,3 +111,11 @@ The spoken acronym “NLOA” is unconfirmed in Notion. Do not infer a technical
 - [ ] 3. Honeycomb Terminal working + connected to same flow
 - [ ] 4. Jackboy site flow + more efficient, secure key/secret handling
 - [ ] Fix "verify isolated CODE push" check (one-line test fix ready: add omni_connection to fake DB in tests/code-runtime.test.mjs) — blocked: no token has Contents: write on street-Tech666/jackboy-dev-control
+
+## Owner UI/sync fixes (Nov 3)
+- [x] Remove global resync banner; drift labels ignore invalidation noise
+- [x] App installation repos count as inventory/writable; "No GITHUB_TOKEN set" / rejected token states
+- [x] Connect selected works for connected picks (per-project resync)
+- [x] Per-project resync icon + Connect/Reconnect; gone repos removable (archived, restorable)
+- [x] Approve shows result or reason; neutral "No repo linked"
+- [x] Rejections require/show a reason; stale personal-token task errors refreshed

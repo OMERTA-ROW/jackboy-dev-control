@@ -5,7 +5,7 @@ const p = { id: "1", name: "Shop", site_url: "https://shop.example", lovable_url
 const scan = (findings: unknown[], extra = {}) => ({ project_id: "1", status: "done", findings, created_at: "2026-11-01T00:00:00Z", error: null, ...extra });
 
 describe("project status", () => {
-  it("stale repo never shows active even after a clean scan", () => expect(projectStatus({ ...p, repo_sync_status: "deleted" }, scan([]))).toEqual({ label: "Repo deleted / not found", tone: "error" }));
+  it("stale repo never shows active even after a clean scan", () => expect(projectStatus({ ...p, repo_sync_status: "deleted" }, scan([]))).toEqual({ label: "Repo gone", tone: "error" }));
   it("needs a site address before anything else", () => expect(projectStatus({ ...p, site_url: null }, undefined).label).toBe("Needs site address"));
   it("is never healthy without a scan", () => expect(projectStatus(p, undefined).label).toBe("Not scanned yet"));
   it("shows a failed scan as an error", () => expect(projectStatus(p, scan([], { status: "failed", error: "timeout" })).tone).toBe("error"));

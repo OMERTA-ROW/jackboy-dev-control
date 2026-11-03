@@ -24,7 +24,8 @@ export const getProjectHub = createServerFn({ method: "POST" }).middleware([requ
   for (const r of [p, s, q, inv]) if (r.error) throw new Error(r.error.message);
   const statuses = await (await import("./repository-resync.server")).repositoryDriftStatuses(context.userId);
   return {
-    projects: (p.data ?? []).map((r) => ({ ...r, repo_sync_status: r.github_repo ? statuses[r.github_repo.toLowerCase()] : undefined })) as HubRow[],
+    projects: (p.data ?? []).filter((r) => r.active !== false).map((r) => ({ ...r, repo_sync_status: r.github_repo ? statuses[r.github_repo.toLowerCase()] : undefined })) as HubRow[],
+    archived: (p.data ?? []).filter((r) => r.active === false).map((r) => ({ id: r.id as string, name: r.name as string, github_repo: r.github_repo as string | null })),
     scans: (s.data ?? []) as HubScanRow[],
     waiting: ((q.data ?? []) as (HubProposal & { files: unknown[]; owner_projects: { github_repo: string | null } | null })[]).map(({ files, owner_projects, ...r }) => ({ ...r, has_files: Array.isArray(files) && files.length > 0, has_repo: Boolean(owner_projects?.github_repo) })),
     inventory: (inv.data ?? []) as { id: string; name: string; lovable_project_ref: string | null }[],

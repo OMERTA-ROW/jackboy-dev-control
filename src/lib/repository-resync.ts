@@ -49,7 +49,7 @@ export function buildRepositoryReview(refs: RepositoryReference[], inventory: st
     const uncertain = !check || (check.status !== 200 && check.status !== 404);
     return { repo, proposed: proposed || null, group: linked ? "linked" : proposed ? "moved" : "deleted", mutable, historical: references.length - mutable,
       canApply: mutable > 0 && !linked && !uncertain,
-      reason: linked ? "Accessible to GITHUB_TOKEN" : uncertain ? check?.reason || "Verification incomplete; no removal allowed" : proposed ? "Proposed accessible match — confirm it is the same project" : "Deleted / not found by this token. This can also mean private, unselected, or org approval missing; deletion is not proven." };
+      reason: linked ? "Accessible" : uncertain ? check?.reason || "Verification incomplete; no removal allowed" : proposed ? "Proposed accessible match — confirm it is the same project" : "Gone — GitHub reports this repo as not found for every available credential. Approve to unlink it; history is kept." };
   });
 }
 export function needsRepositoryCheck(last: string | null, invalidated: boolean, now = Date.now()): boolean {
@@ -60,4 +60,12 @@ export function tokenOwnerWarning(login: string, repos: string[], appOwners: str
   const covered = appOwners.some((o) => o.toLowerCase() === "omerta-row");
   return !covered && login.toLowerCase() === "street-tech666" && repos.some((r) => r.toLowerCase().startsWith("omerta-row/"))
     ? "GITHUB_TOKEN belongs to street-Tech666 while saved repositories use OMERTA-ROW. Update GITHUB_TOKEN in Project Settings → Secrets with an organization-authorized token; account mismatch alone does not prove denied access." : null;
+}
+/** Why the review's Approve button can't apply right now (null = ready). Shown to the owner instead of a silent no-op. */
+export function approvalBlocker(s: { changes: number; busy: boolean; invalidated: boolean; approved: boolean }): string | null {
+  if (s.busy) return "A GitHub check is running — wait for it to finish, then approve.";
+  if (s.approved) return "This review was already applied. Resync to check for new changes.";
+  if (s.invalidated) return "GitHub access changed since this review was made. Press Resync repositories, then approve the fresh review.";
+  if (!s.changes) return "Nothing to approve: no verified changes are ready (rows marked “Not included” need fixing first).";
+  return null;
 }

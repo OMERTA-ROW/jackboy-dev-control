@@ -11,6 +11,7 @@ import { saveProject } from "@/lib/update-writer.functions";
 import { foundryInspect, getFoundry } from "@/lib/foundry.functions";
 import { setDevEnabled, type getProjectHub } from "@/lib/project-hub.functions";
 import { ConnectedProjectsResync } from "@/components/RepositorySync";
+import { resyncProject } from "@/lib/project-resync.functions";
 
 type Hub = Awaited<ReturnType<typeof getProjectHub>>;
 type Task = { project_id: string | null; state: string; blocked_reason: string | null; paused: boolean };
@@ -19,6 +20,7 @@ const TONE: Record<string, string> = { Online: "text-success", Working: "text-el
 
 export function MultiSelect({ hub, onPick, reload }: { hub: Hub | null; onPick: (name: string, ref: string | null) => void; reload: () => Promise<unknown> }) {
   const setDev = useServerFn(setDevEnabled);
+  const resync = useServerFn(resyncProject);
   const save = useServerFn(saveProject), inspect = useServerFn(foundryInspect), foundry = useServerFn(getFoundry);
   const [uid, setUid] = useState<string | null>(null);
   const [sel, setSel] = useState<string[]>([]);
@@ -46,8 +48,12 @@ export function MultiSelect({ hub, onPick, reload }: { hub: Hub | null; onPick: 
   const connectSelected = async () => {
     setBusy(true);
     const created: Record<string, string> = {};
-    await runBounded(toConnect, MAX_CONCURRENCY, async (r) => { const x = await save({ data: newProjectInput(r) }); created[r.key] = `p:${x.id}`; return x; },
-      (r, o) => note(r.key, o.ok ? "Connected (add a repo to enable coding)" : `Failed: ${o.error}`));
+    // New picks are saved; already-connected picks are re-identified (repo, name, site, credential).
+    await runBounded(chosen, MAX_CONCURRENCY, async (r) => {
+      if (r.status === "saved_only") { const x = await save({ data: newProjectInput(r) }); created[r.key] = `p:${x.id}`; return "Connected (add a repo to enable coding)"; }
+      const x = await resync({ data: { id: r.projectId! } });
+      return `Reconnected · ${x.repo ?? "no repo linked"} · credential: ${x.credential}${x.changes.length ? ` · ${x.changes.join("; ")}` : ""}${x.notes[0] ? ` · ${x.notes[0]}` : ""}`;
+    }, (r, o) => note(r.key, o.ok ? String(o.value) : `Failed: ${o.error}`));
     await reload();
     update(sel.map((k) => created[k] ?? k));
     setBusy(false);
@@ -111,7 +117,7 @@ export function MultiSelect({ hub, onPick, reload }: { hub: Hub | null; onPick: 
             })}
           </ul>
           <div className="mt-4 flex flex-wrap gap-2">
-            <button type="button" className={btn} disabled={busy || !toConnect.length} onClick={connectSelected}>Connect selected ({toConnect.length})</button>
+            <button type="button" className={btn} disabled={busy || !chosen.length} onClick={connectSelected}>{toConnect.length === chosen.length ? `Connect selected (${chosen.length})` : `Connect / reconnect selected (${chosen.length})`}</button>
             <button type="button" className={btn} disabled={busy || !chosen.length} onClick={() => activate(true)}>Activate background work</button>
             <button type="button" className={btn} disabled={busy || !chosen.length} onClick={() => activate(false)}>Turn off background work</button>
             <button type="button" className={primaryBtn} disabled={busy || !chosen.length} onClick={runLoop}>{busy ? "Working…" : `Run coding loop on selected (${chosen.length})`}</button>

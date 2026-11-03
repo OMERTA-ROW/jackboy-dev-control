@@ -130,6 +130,7 @@ function ProposalCard({ p, act }: { p: Prop; act: (x: Promise<unknown>) => Promi
         <div className="flex items-center gap-3 text-xs">{chk && <span className={chk[1]}>{chk[0]}</span>}<span className={`font-semibold ${COLOR[p.status]}`}>{STATUS_LABEL[p.status]}</span></div>
       </div>
       {p.delivery_error && <p className="mb-2 text-xs text-destructive">{p.delivery_error}</p>}
+      {p.status === "rejected" && <p className="mb-2 text-xs text-muted-foreground">Rejected{p.decided_at ? ` ${new Date(p.decided_at).toLocaleString()}` : ""}: {p.rejection_reason ?? "by you, before reasons were recorded."}</p>}
       {editing ? (
         <div className="grid gap-2">
           <input aria-label="Title" className={input} value={d.title} onChange={(e) => setD({ ...d, title: e.target.value })} />
@@ -171,7 +172,7 @@ function ProposalCard({ p, act }: { p: Prop; act: (x: Promise<unknown>) => Promi
           {p.status === "merged" && <button className={`${btn} text-destructive`} disabled={busy} onClick={() => { if (confirm("Revert this update? Jackboy restores the previous file contents via a new PR and merges it.")) run(stepUp("revert_update", p.id).then((grantId) => f.revert({ data: { id: p.id, grantId } }))); }}>Revert</button>}
           {p.revert_pr_url && <a href={p.revert_pr_url} target="_blank" rel="noreferrer" className={btn}>Revert PR</a>}
           {can("approved") && <button className={`${btn} text-success`} onClick={() => act(f.status({ data: { id: p.id, status: "approved" } }))}>Approve</button>}
-          {can("rejected") && <button className={`${btn} text-destructive`} disabled={busy} onClick={() => run(f.status({ data: { id: p.id, status: "rejected" } }))}>{p.status === "pr_open" ? "Reject & close PR" : "Reject"}</button>}
+          {can("rejected") && <button className={`${btn} text-destructive`} disabled={busy} onClick={() => { const reason = window.prompt("Why reject this? (kept with the item)")?.trim(); if (reason) run(f.status({ data: { id: p.id, status: "rejected", reason } })); }}>{p.status === "pr_open" ? "Reject & close PR" : "Reject"}</button>}
           {can("sent_to_omni") && <button className={btn} onClick={() => act(f.status({ data: { id: p.id, status: "sent_to_omni" } }))} title="Mark after you've pasted the prompt into OMNI">Mark sent to OMNI</button>}
           {can("draft") && <button className={btn} onClick={() => act(f.status({ data: { id: p.id, status: "draft" } }))}>Back to draft</button>}
         </div>

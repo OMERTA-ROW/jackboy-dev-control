@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { needsRepositoryCheck, type RepositoryReviewRow } from "./repository-resync";
-export type ResyncReport = { login: string; scopes: string[]; permissions: Record<string, string>; warning: string | null; rows: RepositoryReviewRow[]; inventoryCount: number };
+export type ResyncReport = { login: string; tokenState?: "set" | "missing" | "rejected"; scopes: string[]; permissions: Record<string, string>; warning: string | null; rows: RepositoryReviewRow[]; inventoryCount: number };
 export type ResyncReview = { id: string; created_at: string; expires_at: string; approved_at: string | null; invalidated: boolean; report: ResyncReport };
 export const checkRepositorySync = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ force: z.boolean().optional() }).parse(d))
