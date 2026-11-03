@@ -13,6 +13,7 @@ type SyncState = { review: ResyncReview | null; busy: boolean; error: string; ru
 const SyncContext = createContext<SyncState | null>(null);
 export function RepositorySyncProvider({ children }: { children: ReactNode }) {
   const check = useServerFn(checkRepositorySync);
+  const queryClient = useQueryClient();
   const [review, setReview] = useState<ResyncReview | null>(null);
   const [busy, setBusy] = useState(false), [error, setError] = useState("");
   const running = useRef(false);
@@ -23,10 +24,14 @@ export function RepositorySyncProvider({ children }: { children: ReactNode }) {
     const { data: role } = await supabase.rpc("my_role");
     if (role !== "owner") return;
     running.current = true; setBusy(true); setError("");
-    try { setReview(await check({ data: { force } })); }
+    try {
+      const next = await check({ data: { force } });
+      setReview(next);
+      await queryClient.invalidateQueries({ queryKey: ["project-hub"] });
+    }
     catch (e) { setError(e instanceof Error ? e.message : "Repository verification failed"); }
     finally { running.current = false; setBusy(false); }
-  }, [check]);
+  }, [check, queryClient]);
   useEffect(() => {
     void run();
     const timer = window.setInterval(() => void run(), RESYNC_INTERVAL_MS);
@@ -34,7 +39,11 @@ export function RepositorySyncProvider({ children }: { children: ReactNode }) {
     const failures = window.setInterval(() => void run(), 60_000);
     const focus = () => void run();
     window.addEventListener("focus", focus);
-    return () => { window.clearInterval(timer); window.clearInterval(failures); window.removeEventListener("focus", focus); };
+    const { data: auth } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_OUT") { setReview(null); setError(""); }
+      if (event === "SIGNED_IN") void run();
+    });
+    return () => { auth.subscription.unsubscribe(); window.clearInterval(timer); window.clearInterval(failures); window.removeEventListener("focus", focus); };
   }, [run]);
   return <SyncContext.Provider value={{ review, busy, error, run }}>{children}</SyncContext.Provider>;
 }
