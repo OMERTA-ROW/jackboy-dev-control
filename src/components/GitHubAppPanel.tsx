@@ -71,6 +71,8 @@ export function GitHubAppPanel() {
           <ul className="mt-1 space-y-0.5">
             {s?.repos.map((r) => <li key={r.repo}>{r.name} ({r.repo}): <span className={r.via === "app" ? "text-success" : r.via === "none" ? "text-destructive" : ""}>{r.via}</span></li>)}
           </ul>
+          {s && (() => { const dep = s.repos.filter((r) => r.via === "personal token"); const none = s.repos.filter((r) => r.via === "none");
+            return <p className="mt-2 text-xs" aria-live="polite">{!s.tokenSet ? "No GITHUB_TOKEN set — Jackboy runs on the GitHub App only." : dep.length ? `Still depending on GITHUB_TOKEN: ${dep.map((r) => r.name).join(", ")}.` : "No project depends on GITHUB_TOKEN; it is safe for you to remove it."}{none.length ? ` Not covered by any credential: ${none.map((r) => r.name).join(", ")}.` : ""}</p>; })()}
           <button className={`${btn} mt-2`} onClick={() => void load()}>Refresh</button>
         </li>
       </ol>
