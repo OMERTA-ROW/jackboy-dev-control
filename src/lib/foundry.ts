@@ -97,3 +97,12 @@ export function pickNext<T extends { priority: number; created_at: string }>(tas
 export function isTransient(msg: string): boolean {
   return /\b(429|500|502|503|504)\b|timeout|network|fetch failed|rate limit/i.test(msg);
 }
+
+/** Hard limit: a project may have at most one task in an in-flight state; extras wait as "discovered". */
+export function projectSlotFree(activeForProject: number): boolean { return activeForProject < 1; }
+
+/** Usage spike: work units (inspections + AI fix attempts) in the last hour past the owner limit pauses all work. */
+export function usageSpike(unitsLastHour: number, limitPerHour: number): string | null {
+  const limit = Math.max(1, Math.round(limitPerHour));
+  return unitsLastHour > limit ? `Paused: usage spike — ${unitsLastHour} work runs in the last hour (limit ${limit}).` : null;
+}
