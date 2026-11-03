@@ -450,6 +450,40 @@ function VoiceControl() {
   );
 }
 
+function AccountNav() {
+  const navigate = useNavigate();
+  const { queryClient } = useRouteContext({ from: "__root__" });
+  const [email, setEmail] = useState<string | null | undefined>(undefined);
+  useEffect(() => {
+    void supabase.auth.getUser().then(({ data }) => setEmail(data.user?.email ?? null));
+    const { data } = supabase.auth.onAuthStateChange((e, s) => {
+      if (e === "SIGNED_IN" || e === "SIGNED_OUT" || e === "USER_UPDATED") setEmail(s?.user.email ?? null);
+    });
+    return () => data.subscription.unsubscribe();
+  }, []);
+  async function signOut() {
+    await queryClient.cancelQueries();
+    queryClient.clear();
+    await supabase.auth.signOut();
+    navigate({ to: "/auth", replace: true });
+  }
+  const item = "flex items-center gap-3 rounded-md px-3 py-2 text-sm text-sidebar-foreground hover:bg-sidebar-accent";
+  if (email === undefined) return <div className="mt-auto" />;
+  if (!email) return (
+    <div className="mt-auto flex flex-col gap-1 border-t border-sidebar-border p-3">
+      <Link to="/auth" className={item}><LogIn className="h-4 w-4" aria-hidden /> Sign in</Link>
+    </div>
+  );
+  return (
+    <div className="mt-auto flex flex-col gap-1 border-t border-sidebar-border p-3" aria-label="Account">
+      <p className="truncate px-3 text-[11px] text-muted-foreground" title={email}>{email}</p>
+      <Link to="/account" className={item} activeProps={{ className: "bg-sidebar-accent" }}><UserRound className="h-4 w-4" aria-hidden /> Account</Link>
+      <Link to="/security" className={item} activeProps={{ className: "bg-sidebar-accent" }}><ShieldCheck className="h-4 w-4" aria-hidden /> Security</Link>
+      <button type="button" onClick={() => void signOut()} className={`${item} text-left`}><LogOut className="h-4 w-4" aria-hidden /> Sign out</button>
+    </div>
+  );
+}
+
 export function AppShell({ children }: { children: ReactNode }) {
   const path = useRouterState({ select: (r) => r.location.pathname });
   // The conversation is a dedicated full-screen view without dashboard chrome.
@@ -488,9 +522,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             </Link>
           ))}
         </nav>
-        <div className="mt-auto m-3 rounded-md border border-border p-3 text-xs text-muted-foreground">
-          Signed-in, invitation-only workspace. Connection details are under Integrations.
-        </div>
+        <AccountNav />
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col pb-20 md:pb-0">

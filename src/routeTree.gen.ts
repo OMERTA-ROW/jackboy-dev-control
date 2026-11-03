@@ -16,6 +16,7 @@ import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as SetPasswordRouteImport } from './routes/set-password'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as AuthenticatedAccessRouteImport } from './routes/_authenticated/access'
+import { Route as AuthenticatedAccountRouteImport } from './routes/_authenticated/account'
 import { Route as AuthenticatedAccountsRouteImport } from './routes/_authenticated/accounts'
 import { Route as AuthenticatedActivityRouteImport } from './routes/_authenticated/activity'
 import { Route as AuthenticatedAgentsRouteImport } from './routes/_authenticated/agents'
@@ -39,6 +40,7 @@ import { Route as AuthenticatedProviderAccessRouteImport } from './routes/_authe
 import { Route as AuthenticatedRazulRouteImport } from './routes/_authenticated/razul'
 import { Route as AuthenticatedReleasesRouteImport } from './routes/_authenticated/releases'
 import { Route as AuthenticatedResearchRouteImport } from './routes/_authenticated/research'
+import { Route as AuthenticatedSecurityRouteImport } from './routes/_authenticated/security'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedSiteLogRouteImport } from './routes/_authenticated/site-log'
 import { Route as AuthenticatedUpdateDocsRouteImport } from './routes/_authenticated/update-docs'
@@ -102,6 +104,11 @@ const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
 const AuthenticatedAccessRoute = AuthenticatedAccessRouteImport.update({
   id: '/access',
   path: '/access',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedAccountRoute = AuthenticatedAccountRouteImport.update({
+  id: '/account',
+  path: '/account',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedAccountsRoute = AuthenticatedAccountsRouteImport.update({
@@ -221,6 +228,11 @@ const AuthenticatedReleasesRoute = AuthenticatedReleasesRouteImport.update({
 const AuthenticatedResearchRoute = AuthenticatedResearchRouteImport.update({
   id: '/research',
   path: '/research',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedSecurityRoute = AuthenticatedSecurityRouteImport.update({
+  id: '/security',
+  path: '/security',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
@@ -387,6 +399,7 @@ export interface FileRoutesByFullPath {
   '/onboarding': typeof OnboardingRoute
   '/set-password': typeof SetPasswordRoute
   '/access': typeof AuthenticatedAccessRoute
+  '/account': typeof AuthenticatedAccountRoute
   '/accounts': typeof AuthenticatedAccountsRoute
   '/activity': typeof AuthenticatedActivityRoute
   '/agents': typeof AuthenticatedAgentsRoute
@@ -410,6 +423,7 @@ export interface FileRoutesByFullPath {
   '/razul': typeof AuthenticatedRazulRoute
   '/releases': typeof AuthenticatedReleasesRoute
   '/research': typeof AuthenticatedResearchRoute
+  '/security': typeof AuthenticatedSecurityRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/site-log': typeof AuthenticatedSiteLogRoute
   '/update-docs': typeof AuthenticatedUpdateDocsRoute
@@ -447,6 +461,7 @@ export interface FileRoutesByTo {
   '/onboarding': typeof OnboardingRoute
   '/set-password': typeof SetPasswordRoute
   '/access': typeof AuthenticatedAccessRoute
+  '/account': typeof AuthenticatedAccountRoute
   '/accounts': typeof AuthenticatedAccountsRoute
   '/activity': typeof AuthenticatedActivityRoute
   '/agents': typeof AuthenticatedAgentsRoute
@@ -470,6 +485,7 @@ export interface FileRoutesByTo {
   '/razul': typeof AuthenticatedRazulRoute
   '/releases': typeof AuthenticatedReleasesRoute
   '/research': typeof AuthenticatedResearchRoute
+  '/security': typeof AuthenticatedSecurityRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/site-log': typeof AuthenticatedSiteLogRoute
   '/update-docs': typeof AuthenticatedUpdateDocsRoute
@@ -510,6 +526,7 @@ export interface FileRoutesById {
   '/onboarding': typeof OnboardingRoute
   '/set-password': typeof SetPasswordRoute
   '/_authenticated/access': typeof AuthenticatedAccessRoute
+  '/_authenticated/account': typeof AuthenticatedAccountRoute
   '/_authenticated/accounts': typeof AuthenticatedAccountsRoute
   '/_authenticated/activity': typeof AuthenticatedActivityRoute
   '/_authenticated/agents': typeof AuthenticatedAgentsRoute
@@ -533,6 +550,7 @@ export interface FileRoutesById {
   '/_authenticated/razul': typeof AuthenticatedRazulRoute
   '/_authenticated/releases': typeof AuthenticatedReleasesRoute
   '/_authenticated/research': typeof AuthenticatedResearchRoute
+  '/_authenticated/security': typeof AuthenticatedSecurityRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/site-log': typeof AuthenticatedSiteLogRoute
   '/_authenticated/update-docs': typeof AuthenticatedUpdateDocsRoute
@@ -574,6 +592,7 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/set-password'
     | '/access'
+    | '/account'
     | '/accounts'
     | '/activity'
     | '/agents'
@@ -597,6 +616,7 @@ export interface FileRouteTypes {
     | '/razul'
     | '/releases'
     | '/research'
+    | '/security'
     | '/settings'
     | '/site-log'
     | '/update-docs'
@@ -634,6 +654,7 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/set-password'
     | '/access'
+    | '/account'
     | '/accounts'
     | '/activity'
     | '/agents'
@@ -657,6 +678,7 @@ export interface FileRouteTypes {
     | '/razul'
     | '/releases'
     | '/research'
+    | '/security'
     | '/settings'
     | '/site-log'
     | '/update-docs'
@@ -696,6 +718,7 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/set-password'
     | '/_authenticated/access'
+    | '/_authenticated/account'
     | '/_authenticated/accounts'
     | '/_authenticated/activity'
     | '/_authenticated/agents'
@@ -719,6 +742,7 @@ export interface FileRouteTypes {
     | '/_authenticated/razul'
     | '/_authenticated/releases'
     | '/_authenticated/research'
+    | '/_authenticated/security'
     | '/_authenticated/settings'
     | '/_authenticated/site-log'
     | '/_authenticated/update-docs'
@@ -832,6 +856,13 @@ declare module '@tanstack/react-router' {
       path: '/access'
       fullPath: '/access'
       preLoaderRoute: typeof AuthenticatedAccessRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/account': {
+      id: '/_authenticated/account'
+      path: '/account'
+      fullPath: '/account'
+      preLoaderRoute: typeof AuthenticatedAccountRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/accounts': {
@@ -993,6 +1024,13 @@ declare module '@tanstack/react-router' {
       path: '/research'
       fullPath: '/research'
       preLoaderRoute: typeof AuthenticatedResearchRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/security': {
+      id: '/_authenticated/security'
+      path: '/security'
+      fullPath: '/security'
+      preLoaderRoute: typeof AuthenticatedSecurityRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/settings': {
@@ -1210,6 +1248,7 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAccessRoute: typeof AuthenticatedAccessRoute
+  AuthenticatedAccountRoute: typeof AuthenticatedAccountRoute
   AuthenticatedAccountsRoute: typeof AuthenticatedAccountsRoute
   AuthenticatedActivityRoute: typeof AuthenticatedActivityRoute
   AuthenticatedAgentsRoute: typeof AuthenticatedAgentsRoute
@@ -1233,6 +1272,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedRazulRoute: typeof AuthenticatedRazulRoute
   AuthenticatedReleasesRoute: typeof AuthenticatedReleasesRoute
   AuthenticatedResearchRoute: typeof AuthenticatedResearchRoute
+  AuthenticatedSecurityRoute: typeof AuthenticatedSecurityRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedSiteLogRoute: typeof AuthenticatedSiteLogRoute
   AuthenticatedUpdateDocsRoute: typeof AuthenticatedUpdateDocsRoute
@@ -1245,6 +1285,7 @@ interface AuthenticatedRouteRouteChildren {
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAccessRoute: AuthenticatedAccessRoute,
+  AuthenticatedAccountRoute: AuthenticatedAccountRoute,
   AuthenticatedAccountsRoute: AuthenticatedAccountsRoute,
   AuthenticatedActivityRoute: AuthenticatedActivityRoute,
   AuthenticatedAgentsRoute: AuthenticatedAgentsRoute,
@@ -1268,6 +1309,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedRazulRoute: AuthenticatedRazulRoute,
   AuthenticatedReleasesRoute: AuthenticatedReleasesRoute,
   AuthenticatedResearchRoute: AuthenticatedResearchRoute,
+  AuthenticatedSecurityRoute: AuthenticatedSecurityRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedSiteLogRoute: AuthenticatedSiteLogRoute,
   AuthenticatedUpdateDocsRoute: AuthenticatedUpdateDocsRoute,

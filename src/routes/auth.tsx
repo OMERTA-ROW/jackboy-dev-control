@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getSetupState, requestOwnerSetup } from "@/lib/account.functions";
 import { Button } from "@/components/ui/button";
 import {
-  OWNER_SETUP_REQUIRED, authErrorMessage, signInVerified, signupErrorMessage,
+  OWNER_SETUP_REQUIRED, signInVerified, signupErrorMessage,
   mfaChallengeRequired, cooldownRemaining, passwordProblem,
 } from "@/lib/account-auth";
 
@@ -174,5 +174,3 @@ function AuthPage() {
     </section>
   );
 }
-// authErrorMessage kept exported from account-auth for other callers.
-void authErrorMessage;
