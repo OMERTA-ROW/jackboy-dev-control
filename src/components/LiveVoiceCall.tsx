@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useLiveVoice, type LiveEvent } from "@/hooks/use-live-voice";
 import type { OrbMode } from "@/components/VoiceOrb";
 
-export type LiveRow = { role: "user" | "assistant"; text: string };
+export type LiveRow = { role: "user" | "assistant"; text: string; evidence?: import("@/lib/chat-action").EvidenceLink[] };
 const STATUS: Record<string, string> = { idle: "Voice off", connecting: "Connecting…", connected: "Listening", stopping: "Ending…", closed: "Voice off" };
 
 /**
@@ -30,6 +30,10 @@ export function useLiveCall({ chatContext, onLiveRows, onTranscript, onCodeCard 
   };
   const commit = () => { if (rowsRef.current.length) onTranscript(rowsRef.current); rowsRef.current = []; onLiveRows([]); };
   const onEvent = (e: LiveEvent) => {
+    if (e.type === "app.action.evidence" && Array.isArray(e["links"])) {
+      rowsRef.current = [...rowsRef.current, { role: "assistant", text: "", evidence: e["links"] as import("@/lib/chat-action").EvidenceLink[] }];
+      onLiveRows(rowsRef.current);
+    }
     if (e.type === "app.code.card" && e["card"] && typeof e["card"] === "object") onCodeCard?.(e["card"] as import("@/lib/code").CodeCard);
     const delta = typeof e["delta"] === "string" ? (e["delta"] as string) : "";
     if (e.type === "session.input_transcript.delta" && delta) { push("user", delta); setActivity("listening"); level.current = 0.8; }

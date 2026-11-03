@@ -158,6 +158,8 @@ async function codeScan(projectId: string, repo: ws.Repo, files: string[], actor
 }
 
 async function generateFix(d: import("./code-scan").Defect, content: string): Promise<string> {
+  const { data: credits } = await supabaseAdmin.from("update_writer_settings").select("paused_reason").eq("id", 1).single();
+  if (credits?.paused_reason === "Paused: out of credits") throw new Error(credits.paused_reason);
   const key = process.env["LOVABLE_API_KEY"];
   if (!key) throw new Error("AI is not configured (LOVABLE_API_KEY missing).");
   const { createOpenAI } = await import("@ai-sdk/openai");
@@ -284,6 +286,8 @@ export async function retryBlocked(id: string, actor: string) {
 
 /** Hourly tick: retries due blocked tasks (backoff), then one budgeted inspection when due. Never approves anything. */
 export async function foundryTick() {
+  const { data: credits } = await supabaseAdmin.from("update_writer_settings").select("paused_reason").eq("id", 1).single();
+  if (credits?.paused_reason === "Paused: out of credits") return { skipped: credits.paused_reason };
   const { data: s } = await supabaseAdmin.from("foundry_schedule").select("*").eq("id", 1).single();
   const result: Record<string, unknown> = {};
   if (!s) return { skipped: "no schedule row" };

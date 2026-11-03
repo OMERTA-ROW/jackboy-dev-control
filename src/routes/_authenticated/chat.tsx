@@ -133,7 +133,7 @@ function ChatPage() {
         ) : (
           <ol className="flex flex-col gap-6 pt-4">
             {messages.map((m) => <Bubble key={m.id} m={m} streaming={busy && m === tail && m.role === "assistant"} />)}
-            {liveRows.map((r, i) => <li key={`live-${i}`} className={r.role === "user" ? "self-end max-w-[85%] rounded-3xl bg-muted px-4 py-2.5 text-[15px]" : "text-[15px] leading-relaxed"}>{r.text}</li>)}
+            {liveRows.map((r, i) => <li key={`live-${i}`} className={r.role === "user" ? "self-end max-w-[85%] rounded-3xl bg-muted px-4 py-2.5 text-[15px]" : "text-[15px] leading-relaxed"}>{r.text}{r.evidence?.filter((l) => safeEvidenceUrl(l.url)).map((l) => <a key={l.url} href={l.url} className="mr-3 text-xs text-primary underline">{l.label}</a>)}</li>)}
             {status === "submitted" && <li><Shimmer className="text-sm">Thinking…</Shimmer></li>}
           </ol>
         )}
@@ -171,7 +171,7 @@ function Bubble({ m, streaming }: { m: UIMessage; streaming: boolean }) {
   return (
     <li className="group text-[15px] leading-relaxed">
       {m.parts.map((part, i) => {
-        if (part.type === "text") return <MessageResponse key={i}>{part.text}</MessageResponse>;
+        if (part.type === "text") return <MessageResponse key={i} components={{ a: ({ children }) => <span>{children}</span> }}>{part.text}</MessageResponse>;
         if (isToolUIPart(part)) return <ToolLine key={i} name={part.type === "dynamic-tool" ? part.toolName : part.type.slice(5)} state={part.state} output={part.output} errorText={part.errorText} />;
         return null;
       })}

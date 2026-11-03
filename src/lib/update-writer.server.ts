@@ -41,6 +41,8 @@ export async function capCheck(kind: "ai" | "run", cap: number): Promise<string 
 }
 
 export async function callAI(input: string): Promise<ProposalDraft> {
+  const { data: pauseState } = await supabaseAdmin.from("update_writer_settings").select("paused_reason").eq("id", 1).single();
+  if (pauseState?.paused_reason === CREDIT_PAUSE) throw new GatewayError(402, CREDIT_PAUSE);
   const key = process.env["LOVABLE_API_KEY"];
   if (!key) throw new GatewayError(401, "AI is not configured on the server.");
   const res = await fetch("https://ai.gateway.lovable.dev/v1/responses", {
@@ -49,6 +51,7 @@ export async function callAI(input: string): Promise<ProposalDraft> {
     body: JSON.stringify({
       model: MODEL, stream: true, store: false, reasoning: { effort: "medium" },
       instructions: [
+        WORK_FOCUS,
         "You are Jackboy, an update writer for a software owner. Propose ONE small, concrete, high-value update that moves the project toward its goals, using the goals, notes and recent news items given.",
         "If a file list is given, also write the actual code change in `files`: each entry is a repo-relative path and the COMPLETE new file content (not a diff).",
         `At most ${MAX_FILES} files. Only edit or create files that fit the existing structure. Never touch .env files, .git, CI workflows, lockfiles, or secrets. Never include credentials.`,

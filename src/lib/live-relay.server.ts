@@ -222,6 +222,7 @@ async function answerQuestion(
   token: string,
   codeCards: Map<string, import("./code").CodeCard>,
   onCodeCard: (card: import("./code").CodeCard) => void,
+  onEvidence: (links: import("./chat-action").EvidenceLink[]) => void,
 ) {
   signal.throwIfAborted();
   const provider = createOpenAI({
@@ -245,6 +246,10 @@ async function answerQuestion(
       return { messages: [...messages] };
     },
     onStepFinish(step) {
+      for (const r of step.toolResults) {
+        const out = r.output as { evidence?: import("./chat-action").EvidenceLink[] };
+        if (out?.evidence?.length) onEvidence(out.evidence);
+      }
       messages.push(...step.response.messages.slice(responseCursor));
       responseCursor = step.response.messages.length;
     },
@@ -528,6 +533,7 @@ export function bindLiveConnection(
         ownerToken ?? "",
         codeCards,
         (card) => emit({ type: "app.code.card", card }),
+        (links) => emit({ type: "app.action.evidence", links }),
       );
       if (closing || controller.signal.aborted) return;
       if (taskRevision !== revision) return;

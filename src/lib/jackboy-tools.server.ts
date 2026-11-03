@@ -280,12 +280,12 @@ export function buildJackboyTools(userId: string) {
       },
     }),
   };
-  for (const [name, t] of Object.entries(tools)) {
+  for (const [name, t] of Object.entries(tools as Record<string, any>)) {
     const execute = t.execute;
     if (!execute) continue;
-    (t as { execute: (...args: any[]) => Promise<unknown> }).execute = async (input: Record<string, unknown>, options: any) => {
+    t.execute = async (input: Record<string, unknown>, options: any) => {
       try {
-        const result = await (execute as (...args: any[]) => Promise<unknown>)(input, options);
+        const result = await execute(input, options);
         const evidence: EvidenceLink[] = [];
         let project: Awaited<ReturnType<typeof findProject>> | null = null;
         if (typeof input["project"] === "string") project = await findProject(input["project"]);
