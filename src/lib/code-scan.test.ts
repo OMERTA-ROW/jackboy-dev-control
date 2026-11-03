@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { autoRunnable, canonical, dedupeKey, extractCode, prioritize, scanFile, scannable, validateFix } from "./code-scan";
+import { autoRunnable, canonical, code, dedupeKey, extractCode, prioritize, scanFile, scannable, validateFix } from "./code-scan";
 
 const src = `export function f() {\n  debugger;\n  return <a href="x" target="_blank">x</a>;\n}\n`;
 
@@ -15,9 +15,11 @@ describe("code scan", () => {
   it("ignores eval inside regex or strings (real false positive from diagnostics.ts)", () => {
     expect(scanFile("d.ts", `  { rule: "no-eval", re: /\\beval\\s*\\(/, message: "eval() executes arbitrary code." },`)).toEqual([]);
     expect(scanFile("e.ts", "const r = eval(x);")[0]?.rule).toBe("eval-call");
+    expect(code(String.raw`/a\//g eval(x)`)).toBe("/r/ eval(x)");
   });
   it("handles long unterminated regex-like input without ambiguous backtracking", () => {
-    expect(scanFile("e.ts", `const value = /${"\\\\".repeat(10_000)};`)).toEqual([]);
+    const input = `/${"\\.".repeat(10_000)}`;
+    expect(code(input)).toBe(input);
   });
   it("skips tests, builds and generated files", () => {
     expect(scannable("src/a.tsx")).toBe(true);

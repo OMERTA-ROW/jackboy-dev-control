@@ -15,7 +15,42 @@ export const RULES: Rule[] = [
 
 /** Line with string, template and regex literals blanked, so code-like text inside them is not reported. */
 export function code(l: string): string {
-  return l.replace(/(["'`])(?:\\.|(?!\1).)*\1/g, '""').replace(/\/(?:\\.|[^/\\\n])+\/[gimsuy]*/g, "/r/");
+  const withoutStrings = l.replace(/(["'`])(?:\\.|(?!\1).)*\1/g, '""');
+  let output = "";
+  let i = 0;
+  while (i < withoutStrings.length) {
+    if (withoutStrings[i] !== "/") {
+      output += withoutStrings[i];
+      i++;
+      continue;
+    }
+
+    let cursor = i + 1;
+    let bodyLength = 0;
+    while (cursor < withoutStrings.length) {
+      const current = withoutStrings[cursor];
+      if (current === "\\") {
+        if (cursor + 1 >= withoutStrings.length || withoutStrings[cursor + 1] === "\n") break;
+        cursor += 2;
+        bodyLength += 2;
+      } else if (current === "/" || current === "\n") {
+        break;
+      } else {
+        cursor++;
+        bodyLength++;
+      }
+    }
+
+    if (bodyLength === 0 || withoutStrings[cursor] !== "/") {
+      output += "/";
+      i++;
+      continue;
+    }
+    output += "/r/";
+    i = cursor + 1;
+    while (i < withoutStrings.length && "gimsuy".includes(withoutStrings[i]!)) i++;
+  }
+  return output;
 }
 
 export const SCANNABLE = /\.(tsx?|jsx?|mjs|cjs|html)$/i;
