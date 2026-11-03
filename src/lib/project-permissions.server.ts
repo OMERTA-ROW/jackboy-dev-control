@@ -11,10 +11,9 @@ export async function checkProjectPermissions(projectId: string, actor: string):
   const token = process.env["GITHUB_TOKEN"];
   const me = await request(token, "/user");
   const tokenAccount = me?.ok ? ((await me.json()) as { login: string }).login : null;
-  const scopes = me?.headers.get("x-oauth-scopes")?.split(",").map((s) => s.trim()) ?? [];
   const [tr, tc, ta, tp] = await Promise.all([request(token, `/repos/${repo}`), request(token, `/repos/${repo}/contents`), request(token, `/repos/${repo}/actions/runs?per_page=1`), request(token, `/repos/${repo}/pulls?per_page=1`)]);
   const tokenChecks = { contentsRead: result(tc, "Contents: read"), pullRequestsRead: result(tp, "Pull requests: read"), actionsRead: result(ta, "Actions: read"),
-    pullRequestsWrite: scopes.includes("repo") && tr?.ok ? { state: "verified" as const, detail: "Classic token repo write scope; subject to repository rules" } : declaredPermission(undefined, "Pull requests", repo), actionsWrite: declaredPermission(undefined, "Actions", repo) };
+    pullRequestsWrite: declaredPermission(undefined, "Pull requests", repo), actionsWrite: declaredPermission(undefined, "Actions", repo) };
   let auth = await githubTokenFor(repo);
   if (auth?.via === "app") { await syncInstallations(null); auth = await refreshGithubTokenFor(repo); }
   const [rr, cr, ar] = await Promise.all([request(auth?.token, `/repos/${repo}`), request(auth?.token, `/repos/${repo}/contents`), request(auth?.token, `/repos/${repo}/actions/runs?per_page=1`)]);
@@ -24,7 +23,7 @@ export async function checkProjectPermissions(projectId: string, actor: string):
   const saved = await supabaseAdmin.from("project_github_checks").upsert({ project_id: projectId, repo, checked_at: evidence.checkedAt, evidence: evidence as never });
   if (saved.error) throw new Error(saved.error.message);
   const tasks = await supabaseAdmin.from("foundry_tasks").select("id,state,blocked_reason").eq("project_id", projectId).eq("repo", repo).eq("state", "blocked");
-  for (const t of tasks.data ?? []) if (obsoleteGithubBlock(t.blocked_reason, evidence)) {
+  for (const t of tasks.data ?? []) if (t.blocked_reason && obsoleteGithubBlock(t.blocked_reason, evidence)) {
     const note = "Previous Pull requests permission error cleared by fresh GitHub verification. Job remains blocked for review; no retry or dispatch performed.";
     await supabaseAdmin.from("foundry_tasks").update({ blocked_reason: note, updated_at: evidence.checkedAt }).eq("id", t.id).eq("blocked_reason", t.blocked_reason);
     await supabaseAdmin.from("foundry_events").insert({ task_id: t.id, project_id: projectId, actor, action: "permission_reverified", from_state: t.state, to_state: t.state, note });
