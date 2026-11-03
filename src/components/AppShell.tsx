@@ -43,34 +43,6 @@ function Hex({ className = "" }: { className?: string }) {
   );
 }
 
-export function ModeToggle() {
-  const { mode } = useJackboy();
-  const set = (m: "classic" | "assist") => {
-    if (m === mode) return;
-    setState((s) => ({ ...s, mode: m }));
-    log("info", `Switched to ${m === "classic" ? "Classic View" : "Jackboy Assist"}.`);
-  };
-  return (
-    <div
-      role="radiogroup"
-      aria-label="View mode"
-      className="inline-flex rounded-md border border-border bg-muted p-0.5 text-xs font-medium"
-    >
-      {(["classic", "assist"] as const).map((m) => (
-        <button
-          key={m}
-          role="radio"
-          aria-checked={mode === m}
-          onClick={() => set(m)}
-          className={`rounded px-3 py-1.5 transition-colors ${mode === m ? (m === "assist" ? "bg-primary text-primary-foreground" : "bg-secondary text-silver") : "text-muted-foreground hover:text-foreground"}`}
-        >
-          {m === "classic" ? "Classic View" : "Jackboy Assist"}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 type ChatMessage = { role: "user" | "assistant"; content: string };
 type VoiceMode = "voice" | "text" | "silent";
 type Tone = "direct" | "balanced" | "witty";
@@ -522,7 +494,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col pb-20 md:pb-0">
-        <header className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-border bg-background/85 px-4 py-3 backdrop-blur md:px-8">
+        <header className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b md:hidden border-border bg-background/85 px-4 py-3 backdrop-blur md:px-8">
           <div className="flex items-center gap-2 md:hidden">
             <Hex className="h-6 w-6 text-silver" />
             <span className="text-metal font-display text-lg font-bold tracking-wider">JACKBOY</span>
