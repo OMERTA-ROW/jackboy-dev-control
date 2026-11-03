@@ -1,11 +1,8 @@
 // Pure feed parsing and tagging (no I/O).
+import { htmlToText } from "./html-text";
 export type ParsedItem = { title: string; url: string | null; summary: string; published_at: string | null };
 
-const decode = (s: string) =>
-  s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&")
-    .replace(/\s+/g, " ").trim();
+const decode = (s: string) => htmlToText(s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1"));
 
 function tag(block: string, name: string): string | null {
   const m = new RegExp(`<${name}(?:\\s[^>]*)?>([\\s\\S]*?)</${name}>`, "i").exec(block);
@@ -31,7 +28,7 @@ export function parseFeed(xml: string, limit = 20): ParsedItem[] {
 
 /** Visible text of an HTML page, for change monitoring. */
 export function pageText(html: string): string {
-  return decode(html.replace(/<(script|style|noscript)[\s\S]*?<\/\1>/gi, " ")).slice(0, 20000);
+  return htmlToText(html).slice(0, 20000);
 }
 
 /** Item goes to the source's projects; if the source has none, to projects whose name appears in the text. */
