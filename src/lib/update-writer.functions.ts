@@ -112,13 +112,18 @@ export const editProposal = createServerFn({ method: "POST" }).middleware([requi
   });
 
 export const setProposalStatus = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), status: z.enum(STATUSES) }).parse(d))
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), status: z.enum(STATUSES), reason: z.string().trim().min(3).max(500).optional() }).parse(d))
   .handler(async ({ data, context }) => {
     await owner(context);
     const { data: cur } = await context.supabase.from("update_proposals").select("status, title").eq("id", data.id).single();
     if (!cur) throw new Error("Proposal not found.");
     if (!canTransition(cur.status as ProposalStatus, data.status)) throw new Error(`Can't move from ${cur.status} to ${data.status}.`);
-    if (data.status === "rejected") { const s = await import("./update-writer.server"); await s.rejectProposal(data.id, context.userId); return { ok: true }; }
+    if (data.status === "rejected") {
+      if (!data.reason) throw new Error("Say why you are rejecting this, so the reason is kept with it.");
+      const s = await import("./update-writer.server"); await s.rejectProposal(data.id, context.userId);
+      await context.supabase.from("update_proposals").update({ rejection_reason: data.reason }).eq("id", data.id);
+      return { ok: true };
+    }
     // Conditional on the status we read: a second click or another tab that already moved it changes nothing.
     const { data: moved, error } = await context.supabase.from("update_proposals").update({ status: data.status, decided_by: context.userId, decided_at: new Date().toISOString(), delivery_error: null }).eq("id", data.id).eq("status", cur.status).select("id, files, owner_projects(github_repo)");
     if (error) throw new Error(error.message);
