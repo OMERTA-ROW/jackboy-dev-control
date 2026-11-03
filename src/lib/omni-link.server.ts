@@ -2,7 +2,19 @@
 // Secrets: OMNI_API_URL, OMNI_API_KEY (Jackboy → OMNI bearer), OMNI_CALLBACK_SECRET (shared HMAC both ways).
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { logSite } from "./site-log.server";
-import { DEFAULT_CALLBACK_URL, dispatchBackoffMs, hmacHex, JOB_CONTRACT, MAX_DISPATCH_ATTEMPTS, nextStatus, parseHandshake, safeEqual, type JobResult } from "./omni-link";
+import {
+  DEFAULT_CALLBACK_URL,
+  dispatchBackoffMs,
+  hmacHex,
+  isOmniVerificationFresh,
+  JOB_CONTRACT,
+  MAX_DISPATCH_ATTEMPTS,
+  nextStatus,
+  omniEndpointFingerprint,
+  parseHandshake,
+  safeEqual,
+  type JobResult,
+} from "./omni-link";
 
 function config() {
   const url = process.env["OMNI_API_URL"], key = process.env["OMNI_API_KEY"], secret = process.env["OMNI_CALLBACK_SECRET"];
@@ -15,15 +27,26 @@ export function omniConfigState() {
   return { configured: c.missing.length === 0, keyConfigured: Boolean(c.key), missing: c.missing, callbackUrl: c.callbackUrl };
 }
 
+async function configHash(c = config()) {
+  if (c.missing.length) return null;
+  return omniEndpointFingerprint(c.url!);
+}
+
 async function setConnection(patch: Record<string, unknown>) {
-  await supabaseAdmin.from("omni_connection").update({ last_checked_at: new Date().toISOString(), ...patch }).eq("id", true);
+  const { error } = await supabaseAdmin.from("omni_connection").update({ last_checked_at: new Date().toISOString(), ...patch }).eq("id", true);
+  if (error) throw new Error("OMNI verification state could not be updated.");
 }
 
 /** Proves OMNI holds both keys: bearer accepted AND it returns HMAC(secret, challenge). Only success sets verified. */
 export async function omniHandshake(actor: string) {
   const c = config();
   if (c.missing.length) {
-    await setConnection({ verified: false, last_error: `Missing secrets: ${c.missing.join(", ")}` });
+    await setConnection({
+      verified: false,
+      verified_at: null,
+      config_hash: null,
+      last_error: `Missing secrets: ${c.missing.join(", ")}`,
+    });
     return { verified: false, error: `Missing secrets: ${c.missing.join(", ")}` };
   }
   const challenge = crypto.randomUUID().replace(/-/g, "") + crypto.randomUUID().replace(/-/g, "");
@@ -38,12 +61,19 @@ export async function omniHandshake(actor: string) {
     const h = parseHandshake(JSON.parse(text));
     if (typeof h === "string") throw new Error(h);
     if (!safeEqual(h.proof, await hmacHex(c.secret!, challenge))) throw new Error("OMNI proof did not match OMNI_CALLBACK_SECRET");
-    await setConnection({ verified: true, verified_at: new Date().toISOString(), omni_version: h.version, capabilities: h.capabilities, last_error: null });
+    await setConnection({
+      verified: true,
+      verified_at: new Date().toISOString(),
+      config_hash: await configHash(c),
+      omni_version: h.version,
+      capabilities: h.capabilities,
+      last_error: null,
+    });
     await logSite({ actor, action: "omni.handshake", category: "config", status: "ok", summary: `OMNI ${h.version} verified (${h.capabilities.join(", ")})` });
     return { verified: true, version: h.version, capabilities: h.capabilities };
   } catch (e) {
     const msg = (e as Error).message.slice(0, 300);
-    await setConnection({ verified: false, last_error: msg });
+    await setConnection({ verified: false, verified_at: null, config_hash: null, last_error: msg });
     await logSite({ actor, action: "omni.handshake", category: "config", status: "failed", summary: `OMNI handshake failed: ${msg}` });
     return { verified: false, error: msg };
   }
@@ -52,13 +82,17 @@ export async function omniHandshake(actor: string) {
 /** Sends due queued jobs to OMNI. Never sends unless the handshake has verified OMNI. */
 export async function dispatchOmniJobs(limit = 10) {
   const c = config();
-  const { data: conn } = await supabaseAdmin.from("omni_connection").select("verified").eq("id", true).maybeSingle();
-  if (!conn?.verified || c.missing.length) return { sent: 0, failed: 0, skipped: "OMNI not verified" };
+  if (c.missing.length) {
+    await isOmniVerified();
+    return { sent: 0, failed: 0, skipped: "OMNI configuration is incomplete" };
+  }
   const { data: due } = await supabaseAdmin.from("omni_jobs").select("id, kind, instructions, repo, project_id, attempts, code_request_id")
-    .eq("status", "queued").lte("next_attempt_at", new Date().toISOString()).order("created_at").limit(limit);
+    .eq("status", "queued").is("code_request_id", null).lte("next_attempt_at", new Date().toISOString()).order("created_at").limit(limit);
   const out = { sent: 0, failed: 0 };
   for (const j of due ?? []) {
     try {
+      const handshake = await omniHandshake("jackboy");
+      if (!handshake.verified) throw new Error("OMNI handshake failed before dispatch.");
       const r = await fetch(`${c.url}/jackboy/jobs`, {
         method: "POST", signal: AbortSignal.timeout(15_000),
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${c.key}`, "Idempotency-Key": j.id },
@@ -98,13 +132,25 @@ export async function applyOmniResult(nonce: string, r: JobResult) {
   return { status: 200, body: "ok" };
 }
 
-/** Queues an approved CODE request for OMNI (idempotent per request). */
-export async function queueCodeForOmni(requestId: string, repo: string, instruction: string, userId: string) {
-  const { error } = await supabaseAdmin.from("omni_jobs").upsert({ code_request_id: requestId, repo, kind: "code", instructions: instruction.slice(0, 4000), created_by: userId, project_id: null }, { onConflict: "code_request_id", ignoreDuplicates: true });
-  if (error) throw new Error(error.message);
-}
-
 export async function isOmniVerified() {
-  const { data } = await supabaseAdmin.from("omni_connection").select("verified").eq("id", true).maybeSingle();
-  return Boolean(data?.verified);
+  const c = config(), expectedHash = await configHash(c);
+  if (!expectedHash) {
+    await setConnection({ verified: false, verified_at: null, config_hash: null });
+    return false;
+  }
+  const { data, error } = await supabaseAdmin
+    .from("omni_connection")
+    .select("verified, verified_at, config_hash")
+    .eq("id", true)
+    .maybeSingle();
+  if (error || isOmniVerificationFresh(data, expectedHash)) return !error;
+  if (data?.verified) {
+    await setConnection({
+      verified: false,
+      verified_at: null,
+      config_hash: null,
+      last_error: "OMNI verification is stale or no longer matches configuration.",
+    });
+  }
+  return false;
 }

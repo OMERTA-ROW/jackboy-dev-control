@@ -2,13 +2,14 @@
 import { createHash, randomBytes } from "node:crypto";
 import { supabaseAdmin as db } from "@/integrations/supabase/client.server";
 import { CODE_ACTION, CODE_PERMISSIONS, CODE_TTL, CODE_WORKFLOW, codeApprovalError, codeLink, codeRunName, type CodeCard, type CodeScope } from "./code";
+import { codeSafetyBlockReason, getCodeSafetyState } from "./code-safety.server";
 import { redactTranscript } from "./voice-guard";
 
 type Target = { ref: string; workflowSha: string };
 const hash = (s: string) => createHash("sha256").update(s).digest("hex");
 export const codeSessionHash = (token: string) => hash(token);
-function targets(): Record<string, Target> {
-  try { return JSON.parse(process.env["CODE_TARGETS"] ?? "{}"); } catch { throw new Error("CODE_TARGETS is invalid. Owner setup is required."); }
+async function targets(): Promise<Record<string, Target>> {
+  return (await getCodeSafetyState()).allowedTargets;
 }
 async function gh<T>(repo: string, path: string, method = "GET", body?: unknown): Promise<T> {
   const token = process.env["CODE_GITHUB_TOKEN"];
@@ -27,23 +28,44 @@ async function project(id: string) {
   const r = await db.from("owner_projects").select("id, github_repo, dev_enabled").eq("id", id).single();
   if (r.error || !r.data?.github_repo || !r.data.dev_enabled) throw new Error("CODE needs a linked repository with owner-enabled development for this project.");
   const p = r.data;
-  const target = targets()[p.github_repo!];
+  const target = (await targets())[p.github_repo!];
   if (!target || !/^[\w./-]{1,100}$/.test(target.ref) || !/^[a-f0-9]{40}$/.test(target.workflowSha)) throw new Error("CODE is blocked: the owner must approve a runner ref and workflow blob SHA for this repository.");
-  return { id: p.id, repo: p.github_repo!, ...target };
+  const safetyBlock = await codeSafetyBlockReason(p.github_repo!);
+  if (safetyBlock) throw new Error(safetyBlock);
+  const revision = await gh<{ sha: string }>(
+    p.github_repo!,
+    `/commits/${encodeURIComponent(target.ref)}`,
+  );
+  if (!/^[a-f0-9]{40}$/.test(revision.sha)) throw new Error("CODE target revision could not be verified.");
+  return { id: p.id, repo: p.github_repo!, ...target, baseSha: revision.sha };
 }
-async function verify(p: { repo: string; ref: string; workflowSha: string }) {
+async function verify(p: { repo: string; ref: string; workflowSha: string; baseSha?: string }) {
   const [file, workflow, repo] = await Promise.all([
     gh<{ sha: string }>(p.repo, `/contents/.github/workflows/${CODE_WORKFLOW}?ref=${encodeURIComponent(p.ref)}`),
     gh<{ state: string }>(p.repo, `/actions/workflows/${CODE_WORKFLOW}`),
     gh<{ default_branch: string }>(p.repo, ""),
   ]);
   if (file.sha !== p.workflowSha || workflow.state !== "active" || p.ref !== repo.default_branch) throw new Error("CODE runner verification failed: the approved default-branch workflow changed or is disabled. Owner review required.");
+  if (p.baseSha) {
+    const revision = await gh<{ sha: string }>(p.repo, `/commits/${encodeURIComponent(p.ref)}`);
+    if (revision.sha !== p.baseSha) throw new Error("CODE target revision changed after approval. Request a new approval.");
+  }
 }
 /** Configuration alone never means the model runner has executed successfully. */
 export async function codeCapability(): Promise<{ verified: boolean; detail: string }> {
   if (!process.env["CODE_GITHUB_TOKEN"]) return { verified: false, detail: "CODE requires a separately authorized GitHub Actions credential and an approved workflow." };
+  try {
+    const state = await getCodeSafetyState();
+    if (!state.enabled || state.killSwitch) return { verified: false, detail: "CODE supervised execution is disabled or the emergency kill switch is engaged." };
+    const blocked = Object.keys(state.allowedTargets)[0]
+      ? await codeSafetyBlockReason(Object.keys(state.allowedTargets)[0]!)
+      : "CODE has no owner-approved repository allowlist.";
+    if (blocked) return { verified: false, detail: blocked };
+  } catch {
+    return { verified: false, detail: "CODE safety controls or authoritative provider spending data are unavailable." };
+  }
   let approved: Record<string, Target>;
-  try { approved = targets(); } catch { return { verified: false, detail: "CODE runner configuration is invalid; owner review is required." }; }
+  try { approved = await targets(); } catch { return { verified: false, detail: "CODE target allowlist is unavailable or invalid; owner review is required." }; }
   for (const [repo, target] of Object.entries(approved).slice(0, 5)) {
     try {
       await verify({ repo, ...target });
@@ -67,11 +89,26 @@ export async function codeProjectId(name: string): Promise<string> {
   if (p.error || p.data?.length !== 1) throw new Error("Use one exact, unambiguous project name for CODE.");
   return p.data[0]!.id;
 }
-export async function requestCode(projectId: string, instruction: string, userId: string, sessionHash: string, retry?: { runId: number; correlation: string }) {
+export async function requestCode(
+  projectId: string,
+  instruction: string,
+  userId: string,
+  sessionHash: string,
+  retry = false,
+) {
   const p = await project(projectId);
   await verify(p); // A real read, never a configured=true claim.
   const id = crypto.randomUUID(), nonce = randomBytes(24).toString("hex");
-  const scope: CodeScope = { repo: p.repo, ref: p.ref, workflowSha: p.workflowSha, instruction: redactTranscript(instruction), sessionHash, correlation: retry?.correlation ?? id, operation: retry ? "retry" : "dispatch", ...(retry ? { runId: retry.runId } : {}) };
+  const scope: CodeScope = {
+    repo: p.repo,
+    ref: p.ref,
+    workflowSha: p.workflowSha,
+    baseSha: p.baseSha,
+    instruction: redactTranscript(instruction),
+    sessionHash,
+    correlation: id,
+    operation: retry ? "retry" : "dispatch",
+  };
   await audit(userId, "request", id);
   const r = await db.from("action_requests").insert({ id, project_id: p.id, action: CODE_ACTION, tier: "controlled", resources: scope as never, permissions: CODE_PERMISSIONS, diff_summary: scope.instruction, risk: "controlled", nonce_hash: hash(nonce), requested_by: userId, expires_at: new Date(Date.now() + CODE_TTL).toISOString() }).select("id").single();
   if (r.error) throw new Error("Could not persist the CODE approval request.");
@@ -119,7 +156,14 @@ export async function decideCode(id: string, nonce: string, decision: "allow" | 
   if (r.nonce_hash !== hash(nonce)) throw new Error("CODE approval nonce is invalid.");
   if (decision === "allow") {
     const p = await project(r.project_id!);
-    if (p.repo !== scope.repo || p.ref !== scope.ref || p.workflowSha !== scope.workflowSha) throw new Error("CODE target changed. Request a new approval.");
+    if (
+      p.repo !== scope.repo ||
+      p.ref !== scope.ref ||
+      p.workflowSha !== scope.workflowSha ||
+      p.baseSha !== scope.baseSha
+    ) {
+      throw new Error("CODE target changed. Request a new approval.");
+    }
     await verify(p);
   }
   // Only the winner of this compare-and-swap may dispatch. A timeout never automatically retries a dispatch.
@@ -127,24 +171,13 @@ export async function decideCode(id: string, nonce: string, decision: "allow" | 
   if (won.error || !won.data) throw new Error("CODE approval is stale, expired, or already used.");
   await audit(userId, decision, id);
   if (decision === "allow") {
-    // A handshake-verified OMNI takes the approved job; otherwise the existing GitHub runner path is used.
-    const omni = await import("./omni-link.server");
-    if (scope.operation === "dispatch" && (await omni.isOmniVerified())) {
-      try {
-        await omni.queueCodeForOmni(id, scope.repo, scope.instruction, userId);
-        await db.from("action_requests").update({ outcome: "Queued for OMNI; waiting for OMNI to accept it" }).eq("id", id);
-        await omni.dispatchOmniJobs(3).catch(() => null);
-      } catch (e) {
-        await db.from("action_requests").update({ outcome: `Could not queue for OMNI: ${(e as Error).message.slice(0, 160)}` }).eq("id", id);
-      }
-      return getCode(id, userId);
-    }
     try {
-      if (scope.operation === "retry") {
-        const run = await findRun(scope);
-        if (!run || run.status !== "completed" || !["failure", "timed_out", "cancelled"].includes(run.conclusion ?? "")) throw new Error("Only a finished failed or cancelled CODE run can be retried.");
-        await gh(scope.repo, `/actions/runs/${run.id}/rerun-failed-jobs`, "POST");
-      } else await gh(scope.repo, `/actions/workflows/${CODE_WORKFLOW}/dispatches`, "POST", { ref: scope.ref, inputs: { request_id: id, instruction: scope.instruction } });
+      await gh(
+        scope.repo,
+        `/actions/workflows/${CODE_WORKFLOW}/dispatches`,
+        "POST",
+        { ref: scope.ref, inputs: { request_id: id } },
+      );
       await db.from("action_requests").update({ outcome: "Accepted by GitHub; waiting for runner evidence" }).eq("id", id);
     } catch {
       await db.from("action_requests").update({ outcome: "Dispatch outcome uncertain. Refresh to reconcile with GitHub; no automatic redispatch occurred." }).eq("id", id);
@@ -158,7 +191,7 @@ export async function controlCode(id: string, op: "cancel" | "retry", userId: st
   if (r.status !== "allowed" || !run) throw new Error("No authorized CODE run exists yet.");
   if (op === "retry") {
     if (run.status !== "completed" || !["failure", "timed_out", "cancelled"].includes(run.conclusion ?? "")) throw new Error("This CODE run cannot be retried.");
-    return requestCode(r.project_id!, scope.instruction, userId, sessionHash, { runId: run.id, correlation: scope.correlation });
+    return requestCode(r.project_id!, scope.instruction, userId, sessionHash, true);
   }
   await audit(userId, "cancel", id);
   if (run.status !== "completed") await gh(scope.repo, `/actions/runs/${run.id}/cancel`, "POST");

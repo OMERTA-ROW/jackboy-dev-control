@@ -1,3 +1,4 @@
+import { htmlToText } from "./html-text";
 // Pure Autopilot rules + static HTML scan analysis (tested in autopilot.test.ts).
 
 export type Severity = "high" | "medium" | "low";
@@ -77,7 +78,7 @@ export const DEMO_PATTERNS: { re: RegExp; label: string }[] = [
   { re: /\bnot (yet )?(connected|implemented)\b/i, label: "“Not connected/implemented” notice" },
 ];
 export function visibleText(html: string): string {
-  return html.replace(/<(script|style|noscript|template)\b[\s\S]*?<\/\1>/gi, " ").replace(/<!--[\s\S]*?-->/g, " ").replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ");
+  return htmlToText(html);
 }
 export function detectDemo(html: string, url: string): Finding[] {
   const text = visibleText(html);

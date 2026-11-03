@@ -2,7 +2,7 @@
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { registerHooks } from 'node:module';
-const records = { action_requests: [], owner_projects: [], audit_logs: [], omni_connection: [], omni_jobs: [] };
+const records = { action_requests: [], owner_projects: [], audit_logs: [], omni_connection: [], omni_jobs: [], code_runtime_controls: [], code_usage_events: [] };
 let run, dispatches, omniDispatches, cancellations, retries, auditFails, uncertain;
 class Query {
   constructor(table) { this.table = table; this.filters = []; this.operation = 'select'; }
@@ -12,6 +12,7 @@ class Query {
   update(value) { this.operation = 'update'; this.value = value; return this; }
   eq(key, value) { this.filters.push(r => r[key] === value); return this; }
   gt(key, value) { this.filters.push(r => r[key] > value); return this; }
+  gte(key, value) { this.filters.push(r => r[key] >= value); return this; }
   lte(key, value) { this.filters.push(r => r[key] <= value); return this; }
   order() { return this; }
   limit(n) { this.limitValue = n; return this; }
@@ -57,6 +58,7 @@ globalThis.fetch = async (url, init = {}) => {
   const path = new URL(url).pathname;
   const json = data => Response.json(data);
   if (path === '/repos/owner/repo') return json({ default_branch: 'main' });
+  if (path.endsWith('/commits/main')) return json({ sha: 'b'.repeat(40) });
   if (path.includes('/contents/')) return json({ sha: 'a'.repeat(40) });
   if (path.endsWith('/actions/workflows/code.yml')) return json({ state: 'active' });
   if (path === '/jackboy/jobs') {
@@ -82,7 +84,19 @@ beforeEach(() => {
   Object.values(records).forEach(rows => rows.splice(0));
   records.owner_projects.push({ id: projectId, name: 'Jackboy', github_repo: 'owner/repo', dev_enabled: true });
   records.omni_connection.push({ id: true, verified: false });
-  process.env.CODE_TARGETS = JSON.stringify({ 'owner/repo': { ref: 'main', workflowSha: 'a'.repeat(40) } });
+  records.code_runtime_controls.push({
+    singleton: true,
+    enabled: true,
+    kill_switch: false,
+    allowed_targets: { 'owner/repo': { ref: 'main', workflowSha: 'a'.repeat(40) } },
+    active_request_id: null,
+    consecutive_failures: 0,
+    daily_spend_limit_usd: 5,
+    provider_hard_cap_verified: true,
+    provider_usage_at: new Date().toISOString(),
+    usage_spike: false,
+    paused_reason: null,
+  });
   process.env.CODE_GITHUB_TOKEN = 'isolated-test-placeholder';
   process.env.OMNI_API_URL = 'https://omni.example';
   process.env.OMNI_API_KEY = 'isolated-test-api-key';
@@ -128,15 +142,14 @@ test('CODE uses GitHub when OMNI verification is absent', async () => {
   assert.equal(omniDispatches, 0);
   assert.equal(records.omni_jobs.length, 0);
 });
-test('CODE routes to OMNI only when its connection is verified', async () => {
+test('CODE stays on the GitHub runner even when OMNI is verified', async () => {
   records.omni_connection[0].verified = true;
   const c = await requestCode(projectId, 'Fix footer', 'owner', 'session');
   await decideCode(c.id, c.nonce, 'allow', 'owner', 'session');
-  assert.equal(records.action_requests.find(r => r.id === c.id).outcome, 'Queued for OMNI; waiting for OMNI to accept it');
-  assert.equal(dispatches, 0);
-  assert.equal(omniDispatches, 1);
-  assert.equal(records.omni_jobs.length, 1);
-  assert.equal(records.omni_jobs[0].code_request_id, c.id);
+  assert.equal(records.action_requests.find(r => r.id === c.id).outcome, 'Accepted by GitHub; waiting for runner evidence');
+  assert.equal(dispatches, 1);
+  assert.equal(omniDispatches, 0);
+  assert.equal(records.omni_jobs.length, 0);
 });
 test('deny executes nothing, cancellation reaches provider, retry needs a fresh approval', async () => {
   const denied = await requestCode(projectId, 'No', 'owner', 'session');
@@ -146,7 +159,7 @@ test('deny executes nothing, cancellation reaches provider, retry needs a fresh 
   await controlCode(c.id, 'cancel', 'owner', 'session'); assert.equal(cancellations, 1);
   const retry = await controlCode(c.id, 'retry', 'owner', 'session');
   assert.equal(retry.status, 'pending'); assert.equal(retries, 0);
-  await decideCode(retry.id, retry.nonce, 'allow', 'owner', 'session'); assert.equal(retries, 1); assert.equal(dispatches, 1);
+  await decideCode(retry.id, retry.nonce, 'allow', 'owner', 'session'); assert.equal(retries, 0); assert.equal(dispatches, 2);
 });
 test('unknown dispatch outcome is not automatically redispatched', async () => {
   uncertain = true;
@@ -157,11 +170,11 @@ test('unknown dispatch outcome is not automatically redispatched', async () => {
   await assert.rejects(() => decideCode(c.id, c.nonce, 'allow', 'owner', 'session'));
 });
 test('unapproved workflow, disabled project, missing credential and failed audit fail closed', async () => {
-  process.env.CODE_TARGETS = '{}';
+  records.code_runtime_controls[0].allowed_targets = {};
   await assert.rejects(() => requestCode(projectId, 'Fix footer', 'owner', 'session'));
-  process.env.CODE_TARGETS = JSON.stringify({ 'owner/repo': { ref: 'main', workflowSha: 'b'.repeat(40) } });
+  records.code_runtime_controls[0].allowed_targets = { 'owner/repo': { ref: 'main', workflowSha: 'b'.repeat(40) } };
   await assert.rejects(() => requestCode(projectId, 'Fix footer', 'owner', 'session'));
-  process.env.CODE_TARGETS = JSON.stringify({ 'owner/repo': { ref: 'main', workflowSha: 'a'.repeat(40) } });
+  records.code_runtime_controls[0].allowed_targets = { 'owner/repo': { ref: 'main', workflowSha: 'a'.repeat(40) } };
   records.owner_projects[0].dev_enabled = false;
   await assert.rejects(() => requestCode(projectId, 'Fix footer', 'owner', 'session'));
   records.owner_projects[0].dev_enabled = true;
