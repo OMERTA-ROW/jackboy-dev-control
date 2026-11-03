@@ -31,6 +31,7 @@ export function MultiSelect({ hub, onPick, reload }: { hub: Hub | null; onPick: 
 
   const refreshTasks = () => foundry().then((f) => setTasks(f.tasks as Task[])).catch(() => {});
   useEffect(() => { supabase.auth.getUser().then(({ data }) => setUid(data.user?.id ?? null)); refreshTasks(); }, []);
+  useEffect(() => { const refresh = () => void refreshTasks(); window.addEventListener("jackboy:permissions-checked", refresh); return () => window.removeEventListener("jackboy:permissions-checked", refresh); }, [foundry]);
   useEffect(() => {
     if (!storeKey || !rows.length) return;
     try { setSel(sanitizeSelection(JSON.parse(localStorage.getItem(storeKey) ?? "[]"), rows.map((r) => r.key))); } catch { setSel([]); }

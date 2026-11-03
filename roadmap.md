@@ -1,9 +1,9 @@
 # Jackboy roadmap
 
 ## Connected Projects / OMNI follow-up (Nov 3)
-- [ ] Fresh per-repo token/App permission evidence and timestamps; reconcile only proven obsolete permission errors without executing jobs.
-- [ ] OMNI key-specific setup state; missing repositories remain in the shared owner-approved review.
-- [ ] Named multiple passkeys, list/remove with owner-scoped fresh confirmation and audit; tests and live read-only checks.
+- [x] Fresh per-repo token/App permission evidence and timestamps; reconcile proven obsolete PR permission errors without executing jobs. OMNI/Mothership App PR write granted, Actions read verified, Actions write denied; token identity remains street-Tech666 and fine-grained write is unknown without an operation.
+- [x] OMNI key-specific setup state; OMNI_API_KEY, OMNI_API_URL, OMNI_CALLBACK_SECRET are set; missing repositories remain in the shared owner-approved review.
+- [x] Named multiple passkeys, list/remove with owner-scoped fresh confirmation and atomic audit; two real virtual-device registrations/removals verified, original owner key preserved; 332 regression tests passed.
 
 ## Repository resync follow-up (Nov 3)
 - [x] Permanent resync action and last checked time; owner-only load/15-minute/failure-triggered drift checks.

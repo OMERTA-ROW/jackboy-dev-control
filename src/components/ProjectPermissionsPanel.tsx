@@ -9,7 +9,7 @@ export function ProjectPermissionsPanel({ projectId, onChecked }: { projectId?: 
   const verify = useServerFn(verifyProjectPermissions);
   const [results, setResults] = useState<Awaited<ReturnType<typeof verifyProjectPermissions>>>([]);
   const [busy, setBusy] = useState(false), [error, setError] = useState("");
-  const run = async () => { setBusy(true); setError(""); try { setResults(await verify({ data: { projectId } })); onChecked?.(); } catch (e) { setError(e instanceof Error ? e.message : "Verification failed"); } finally { setBusy(false); } };
+  const run = async () => { setBusy(true); setError(""); try { setResults(await verify({ data: { projectId } })); window.dispatchEvent(new Event("jackboy:permissions-checked")); onChecked?.(); } catch (e) { setError(e instanceof Error ? e.message : "Verification failed"); } finally { setBusy(false); } };
   useEffect(() => { void run(); }, [projectId]);
   const item = (name: string, permission: PermissionResult) => <li key={name} className="py-1 [overflow-wrap:anywhere]"><strong>{name}: {permission.state}</strong><p className="text-xs text-muted-foreground">{permission.detail}</p></li>;
   return <section aria-labelledby={`permissions-${projectId ?? "all"}`} className="mb-4 border-b border-border pb-4">

@@ -12,16 +12,17 @@ export type ConnectRow = {
   detail: string;
 };
 
-type P = { id: string; name: string; github_repo: string | null; dev_enabled?: boolean; connect_state?: string | null; connect_error?: string | null; lovable_url?: string | null };
+type P = { id: string; name: string; github_repo: string | null; dev_enabled?: boolean; connect_state?: string | null; connect_error?: string | null; lovable_url?: string | null; repo_sync_status?: string };
 type I = { id: string; name: string; lovable_project_ref: string | null };
 
 /** One row per project: connected ones first (truthful repo status), then saved-inventory items not yet connected. */
 export function connectRows(projects: P[], inventory: I[]): ConnectRow[] {
   const rows: ConnectRow[] = projects.map((p) => {
-    const err = p.connect_state === "error" || Boolean(p.connect_error);
+    const drift = p.repo_sync_status === "deleted" || p.repo_sync_status === "moved";
+    const err = p.connect_state === "error" || Boolean(p.connect_error) || drift;
     const status: ConnectRow["status"] = !p.github_repo ? "connected_no_repo" : err ? "repo_error" : "repo_linked";
     const detail = status === "connected_no_repo" ? "Connected, but no GitHub repo linked — coding is blocked."
-      : status === "repo_error" ? `Repo problem: ${p.connect_error ?? "check failed"}` : `Repo ${p.github_repo}`;
+      : status === "repo_error" ? drift ? "Repository out of sync — review removal or relink in Settings. No record changed." : `Repo problem: ${p.connect_error ?? "check failed"}` : `Repo ${p.github_repo}`;
     return { key: `p:${p.id}`, name: p.name, projectId: p.id, lovableRef: null, repo: p.github_repo, status, detail, devEnabled: Boolean(p.dev_enabled) };
   });
   const taken = new Set(projects.map((p) => p.name.trim().toLowerCase()));
