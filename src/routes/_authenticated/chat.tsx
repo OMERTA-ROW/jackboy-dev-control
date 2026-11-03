@@ -7,6 +7,7 @@ import { ArrowLeft, ArrowUp, Check, ChevronDown, ChevronUp, Copy, ExternalLink, 
 import { getVoiceChatStatus, synthesizeJackboy } from "@/lib/passport.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { MessageResponse } from "@/components/ai-elements/message";
+import { Shimmer } from "@/components/ai-elements/shimmer";
 import { useChatVoice, VoiceButtons } from "@/components/ChatVoice";
 import { LiveCallBar, StartVoiceButton, useLiveCall, type LiveRow } from "@/components/LiveVoiceCall";
 import { CodeTasks, useCodeTasks } from "@/components/CodeTasks";
