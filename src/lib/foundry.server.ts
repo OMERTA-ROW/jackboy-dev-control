@@ -150,6 +150,7 @@ async function codeScan(projectId: string, repo: ws.Repo, files: string[], actor
     }
   } catch (e) {
     const m = (e as Error).message.slice(0, 500);
+    await (await import("./credit-pause.server")).recordCreditPause(e);
     const cur = await load(task.id);
     if (["analyzing", "patch_prepared", "testing"].includes(cur.state)) await move(cur, "blocked", actor, m, { blocked_reason: m, next_attempt_at: null }).catch(() => {});
   }
@@ -244,6 +245,8 @@ export async function advance(actor: string) {
 
 /** One bounded inspection of the next project in rotation, charged to the daily budget. */
 async function runBudgeted(actor: string, why: string) {
+  const { data: credits } = await supabaseAdmin.from("update_writer_settings").select("paused_reason").eq("id", 1).single();
+  if (credits?.paused_reason === "Paused: out of credits") return { skipped: credits.paused_reason };
   const { data: s } = await supabaseAdmin.from("foundry_schedule").select("*").eq("id", 1).single();
   if (!s) return { skipped: "no schedule row" };
   if (s.paused) return { skipped: "paused" };

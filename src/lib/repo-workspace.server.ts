@@ -110,6 +110,9 @@ export async function openDraftPr(x: Repo, branch: string, title: string, body: 
   const be = checkWorkBranch(branch, x.base); if (be) throw new Error(be);
   const existing = await gh<{ number: number; html_url: string }[]>(`${R(x)}/pulls?head=${encodeURIComponent(`${x.owner}:${branch}`)}&state=open`);
   if (existing[0]) return { number: existing[0].number, url: existing[0].html_url, existed: true };
+  const check = await checks(x, branch);
+  const { existingTestsPassed } = await import("./work-policy");
+  if (!existingTestsPassed(check.runs, check.workflowsConfigured, "error" in check ? check.error : undefined)) throw new Error(`Draft PR blocked on ${x.full}, branch ${branch}: existing tests must finish successfully. ${"error" in check && check.error ? check.error : check.workflowsConfigured === 0 ? "No test workflow or isolated runner is connected." : "Checks are absent, pending or failed."} Branch preserved; no PR opened.`);
   const { githubTokenFor, appAccessFor } = await import("./github-app.server");
   if ((await githubTokenFor(x.full))?.via === "app") {
     const access = await appAccessFor(x.full);
