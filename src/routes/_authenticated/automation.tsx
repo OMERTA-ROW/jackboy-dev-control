@@ -98,11 +98,11 @@ function Automation() {
       </form>
 
       <div className="mb-6 grid gap-4 lg:grid-cols-2">
-        <section className="panel p-4">
+        <section className="panel min-w-0 p-4">
           <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-silver">Project history</h2>
           <form className="mb-3 grid gap-2" onSubmit={(e) => { e.preventDefault(); act(f.rec({ data: { ...ev, outcome: "recorded" } })).then(() => setEv({ ...ev, summary: "" })); }}>
-            <div className="flex gap-2">
-              <select required aria-label="Project" value={ev.projectId} onChange={(e) => setEv({ ...ev, projectId: e.target.value })} className={`${input} flex-1`}><option value="">Project…</option>{d.projects.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select>
+            <div className="flex flex-wrap gap-2">
+              <select required aria-label="Project" value={ev.projectId} onChange={(e) => setEv({ ...ev, projectId: e.target.value })} className={`${input} min-w-0 flex-1`}><option value="">Project…</option>{d.projects.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select>
               <select aria-label="Kind" value={ev.kind} onChange={(e) => setEv({ ...ev, kind: e.target.value as LearningKind })} className={input}>{LEARNING_KINDS.map((k) => <option key={k} value={k}>{k.replace("_", " ")}</option>)}</select>
             </div>
             <input required aria-label="Summary" placeholder="What happened" value={ev.summary} onChange={(e) => setEv({ ...ev, summary: e.target.value })} className={input} />
