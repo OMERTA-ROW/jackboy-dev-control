@@ -1,5 +1,10 @@
 # Jackboy roadmap
 
+## Connected Projects unified resync addition
+- [ ] Front-side Resync action; propose missing repository links from token-visible inventory.
+- [ ] Single approved atomic review includes missing links and current profile names/references; preserve historical evidence and work guards.
+- [ ] Matching/approval regression tests and signed-in review verification; no approval or repository writes during verification.
+
 ## Connected Projects / OMNI follow-up (Nov 3)
 - [x] Fresh per-repo token/App permission evidence and timestamps; reconcile proven obsolete PR permission errors without executing jobs. OMNI/Mothership App PR write granted, Actions read verified, Actions write denied; token identity remains street-Tech666 and fine-grained write is unknown without an operation.
 - [x] OMNI key-specific setup state; OMNI_API_KEY, OMNI_API_URL, OMNI_CALLBACK_SECRET are set; missing repositories remain in the shared owner-approved review.
