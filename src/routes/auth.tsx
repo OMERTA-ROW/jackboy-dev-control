@@ -4,6 +4,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { Lock, ShieldCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { getSetupState, requestOwnerSetup } from "@/lib/account.functions";
+import { redeemRecoveryCode } from "@/lib/recovery.functions";
+import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import {
   OWNER_SETUP_REQUIRED, signInVerified, signupErrorMessage,
@@ -38,6 +40,8 @@ function AuthPage() {
   const nav = useNavigate();
   const setupFn = useServerFn(getSetupState);
   const ownerFn = useServerFn(requestOwnerSetup);
+  const redeemFn = useServerFn(redeemRecoveryCode);
+  const [useBackup, setUseBackup] = useState(false);
   const [mode, setMode] = useState<Mode>("in");
   const [setup, setSetup] = useState<{ ownerConfigured: boolean; ownerExists: boolean } | null>(null);
   const [providers, setProviders] = useState<Providers | null>(null);
@@ -87,6 +91,11 @@ function AuthPage() {
         if (mfaChallengeRequired(aal)) { go("mfa"); return; }
         nav({ to: "/onboarding" });
       } else if (mode === "mfa") {
+        if (useBackup) {
+          await redeemFn({ data: { code } });
+          nav({ to: "/security" });
+          return;
+        }
         const { data: f, error: fe } = await supabase.auth.mfa.listFactors();
         if (fe) throw new Error(fe.message);
         const factor = f.totp.find((x) => x.status === "verified");
@@ -148,7 +157,8 @@ function AuthPage() {
         {mode !== "mfa" && <label className="block text-sm">Email<input required type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} className={input} /></label>}
         {(mode === "in" || mode === "up") && <label className="block text-sm">Password<input required type="password" minLength={mode === "up" ? 10 : undefined} autoComplete={mode === "up" ? "new-password" : "current-password"} value={password} onChange={(e) => setPassword(e.target.value)} className={input} /></label>}
         {mode === "up" && <label className="block text-sm">Confirm password<input required type="password" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} className={input} /></label>}
-        {mode === "mfa" && <label className="block text-sm">Authentication code<input required inputMode="numeric" pattern="[0-9]{6}" maxLength={6} autoComplete="one-time-code" autoFocus value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} className={`${input} tracking-[0.5em]`} /></label>}
+        {mode === "mfa" && useBackup && <label className="block text-sm">Recovery code<input required autoComplete="off" autoFocus value={code} onChange={(e) => setCode(e.target.value)} placeholder="XXXXX-XXXXX" className={`${input} font-mono tracking-widest`} /></label>}
+        {mode === "mfa" && !useBackup && <label className="block text-sm">Authentication code<input required inputMode="numeric" pattern="[0-9]{6}" maxLength={6} autoComplete="one-time-code" autoFocus value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} className={`${input} tracking-[0.5em]`} /></label>}
         {mode === "up" && signupOpen === false && <p className="text-xs text-warning">Open registration is currently off; only invited people can create accounts.</p>}
         <Button disabled={busy || ((mode === "forgot" || mode === "up") && wait > 0) || (mode === "owner" && (!setup?.ownerConfigured || setup.ownerExists || Boolean(setupError)))} className="h-auto min-h-9 w-full whitespace-normal">
           {busy ? "Working…" : wait > 0 && (mode === "forgot" || mode === "up") ? `Try again in ${wait}s`
@@ -158,10 +168,14 @@ function AuthPage() {
       {msg && <p role={msg.ok ? "status" : "alert"} className={`mt-3 text-sm ${msg.ok ? "text-success" : "text-destructive"}`}>{msg.t}</p>}
 
       <div className="mt-4 flex flex-wrap gap-x-3 text-xs">
-        {mode === "mfa" ? <Button variant="link" size="sm" onClick={() => void cancelMfa()}>Cancel and sign out</Button> : <>
+        {mode === "mfa" ? <>
+          <Button variant="link" size="sm" onClick={() => { setUseBackup(!useBackup); setCode(""); setMsg(null); }}>{useBackup ? "Use authenticator code" : "Lost your authenticator? Use a recovery code"}</Button>
+          <Button variant="link" size="sm" onClick={() => void cancelMfa()}>Cancel and sign out</Button>
+        </> : <>
           {mode !== "in" && <Button variant="link" size="sm" onClick={() => go("in")}>Back to sign in</Button>}
           {mode !== "up" && <Button variant="link" size="sm" onClick={() => go("up")}>Create account</Button>}
           {mode !== "forgot" && <Button variant="link" size="sm" onClick={() => go("forgot")}>Forgot password?</Button>}
+          <Link to="/recover" className="inline-flex h-8 items-center px-3 text-electric underline-offset-4 hover:underline">Account recovery help</Link>
           {setup && !setup.ownerExists && mode !== "owner" && <Button variant="link" size="sm" onClick={() => go("owner")}>First-time owner setup</Button>}
         </>}
       </div>

@@ -13,6 +13,7 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as InviteRouteImport } from './routes/invite'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
+import { Route as RecoverRouteImport } from './routes/recover'
 import { Route as SetPasswordRouteImport } from './routes/set-password'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as AuthenticatedAccessRouteImport } from './routes/_authenticated/access'
@@ -89,6 +90,11 @@ const InviteRoute = InviteRouteImport.update({
 const OnboardingRoute = OnboardingRouteImport.update({
   id: '/onboarding',
   path: '/onboarding',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RecoverRoute = RecoverRouteImport.update({
+  id: '/recover',
+  path: '/recover',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SetPasswordRoute = SetPasswordRouteImport.update({
@@ -397,6 +403,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/invite': typeof InviteRoute
   '/onboarding': typeof OnboardingRoute
+  '/recover': typeof RecoverRoute
   '/set-password': typeof SetPasswordRoute
   '/access': typeof AuthenticatedAccessRoute
   '/account': typeof AuthenticatedAccountRoute
@@ -459,6 +466,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/invite': typeof InviteRoute
   '/onboarding': typeof OnboardingRoute
+  '/recover': typeof RecoverRoute
   '/set-password': typeof SetPasswordRoute
   '/access': typeof AuthenticatedAccessRoute
   '/account': typeof AuthenticatedAccountRoute
@@ -524,6 +532,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/invite': typeof InviteRoute
   '/onboarding': typeof OnboardingRoute
+  '/recover': typeof RecoverRoute
   '/set-password': typeof SetPasswordRoute
   '/_authenticated/access': typeof AuthenticatedAccessRoute
   '/_authenticated/account': typeof AuthenticatedAccountRoute
@@ -590,6 +599,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/invite'
     | '/onboarding'
+    | '/recover'
     | '/set-password'
     | '/access'
     | '/account'
@@ -652,6 +662,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/invite'
     | '/onboarding'
+    | '/recover'
     | '/set-password'
     | '/access'
     | '/account'
@@ -716,6 +727,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/invite'
     | '/onboarding'
+    | '/recover'
     | '/set-password'
     | '/_authenticated/access'
     | '/_authenticated/account'
@@ -781,6 +793,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   InviteRoute: typeof InviteRoute
   OnboardingRoute: typeof OnboardingRoute
+  RecoverRoute: typeof RecoverRoute
   SetPasswordRoute: typeof SetPasswordRoute
   ApiChatRoute: typeof ApiChatRoute
   ApiCodeRoute: typeof ApiCodeRoute
@@ -835,6 +848,13 @@ declare module '@tanstack/react-router' {
       path: '/onboarding'
       fullPath: '/onboarding'
       preLoaderRoute: typeof OnboardingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/recover': {
+      id: '/recover'
+      path: '/recover'
+      fullPath: '/recover'
+      preLoaderRoute: typeof RecoverRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/set-password': {
@@ -1328,6 +1348,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   InviteRoute: InviteRoute,
   OnboardingRoute: OnboardingRoute,
+  RecoverRoute: RecoverRoute,
   SetPasswordRoute: SetPasswordRoute,
   ApiChatRoute: ApiChatRoute,
   ApiCodeRoute: ApiCodeRoute,
