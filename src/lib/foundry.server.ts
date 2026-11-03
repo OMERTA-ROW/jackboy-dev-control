@@ -1,6 +1,6 @@
 // Code Foundry runtime (server-only). Uses real repo tools; every state change writes an immutable event.
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { assertTransition, backoffMs, budget, canApprove, canExecute, classifyRisk, idempotencyKey, IN_FLIGHT, isTransient, nextProject, quotaLeft, type ApprovedAction, type State } from "./foundry";
+import { assertTransition, backoffMs, budget, canApprove, canExecute, classifyRisk, idempotencyKey, IN_FLIGHT, isTransient, nextProject, projectSlotFree, quotaLeft, usageSpike, type ApprovedAction, type State } from "./foundry";
 import * as ws from "./repo-workspace.server";
 import { capabilityForTestGap } from "./autoconnect";
 
@@ -50,12 +50,31 @@ const CHECKS: Check[] = [
     content: () => `node_modules/\ndist/\n.output/\n.env\n.env.*\n!.env.example\n*.log\n.DS_Store\n` },
 ];
 
+/** Real cost/usage spike stop: counts inspections and AI fix attempts in the last hour; past the owner limit it pauses all work and alerts the owner. */
+export async function spikeGuard(actor: string): Promise<string | null> {
+  const { data: s } = await supabaseAdmin.from("foundry_schedule").select("paused, spike_limit_per_hour, spike_reason").eq("id", 1).single();
+  if (!s) return null;
+  if (s.paused && s.spike_reason) return s.spike_reason;
+  const since = new Date(Date.now() - 3600_000).toISOString();
+  const { count } = await supabaseAdmin.from("foundry_events").select("id", { count: "exact", head: true }).gte("created_at", since).or("action.eq.code_scan,and(action.eq.transition,to_state.eq.analyzing)");
+  const reason = usageSpike(count ?? 0, s.spike_limit_per_hour);
+  if (!reason) return null;
+  await supabaseAdmin.from("foundry_schedule").update({ paused: true, spike_reason: reason, spike_paused_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", 1);
+  await supabaseAdmin.from("owner_notifications").insert({ kind: "usage_spike", message: `${reason} All Jackboy coding work is stopped until you choose Resume all on the Foundry page.` });
+  await event(null, "usage_spike_pause", actor, null, null, reason, { count, limit: s.spike_limit_per_hour });
+  return reason;
+}
+
 export async function inspectProject(projectId: string, actor: string, source: "manual" | "scheduled", limit = 1) {
+  const spike = await spikeGuard(actor);
+  if (spike) return { created: 0, blocked: spike };
   const { data: p } = await supabaseAdmin.from("owner_projects").select("id, name, github_repo").eq("id", projectId).single();
   if (!p) throw new Error("Project not found.");
   if (!p.github_repo) { await event({ id: null as never, project_id: p.id }, "inspect_blocked", actor, null, null, "No GitHub repo linked."); return { created: 0, blocked: "No GitHub repo linked to this project." }; }
   const { data: rg } = await supabaseAdmin.from("capability_grants").select("status, paused").eq("capability", "github_repo").eq("project_id", p.id).maybeSingle();
   if (rg && (rg.status === "revoked" || rg.paused)) { await event({ id: null as never, project_id: p.id }, "inspect_blocked", actor, null, null, "GitHub repo access revoked or paused in AutoConnect."); return { created: 0, blocked: "GitHub repo access is revoked or paused for this project." }; }
+  const { count: active } = await supabaseAdmin.from("foundry_tasks").select("id", { count: "exact", head: true }).eq("project_id", p.id).in("state", IN_FLIGHT);
+  if (!projectSlotFree(active ?? 0)) { const m = `Queued: ${p.name} already has an active task. New work starts after it finishes (one active task per project).`; await event({ id: null as never, project_id: p.id }, "inspect_queued", actor, null, null, m); return { created: 0, blocked: m }; }
   let repo: ws.Repo;
   try { repo = await ws.openRepo(p.github_repo); }
   catch (e) { const m = (e as Error).message; await event({ id: null as never, project_id: p.id }, "inspect_blocked", actor, null, null, m); return { created: 0, blocked: m }; }
@@ -251,7 +270,9 @@ async function runBudgeted(actor: string, why: string) {
   if (credits?.paused_reason === "Paused: out of credits") return { skipped: credits.paused_reason };
   const { data: s } = await supabaseAdmin.from("foundry_schedule").select("*").eq("id", 1).single();
   if (!s) return { skipped: "no schedule row" };
-  if (s.paused) return { skipped: "paused" };
+  if (s.paused) return { skipped: s.spike_reason ?? "paused" };
+  const spike = await spikeGuard(actor);
+  if (spike) return { skipped: spike };
   const today = new Date().toISOString().slice(0, 10);
   const b = budget(s, today);
   if (!b.allowed) return { skipped: "daily run budget reached" };
@@ -272,7 +293,7 @@ async function runBudgeted(actor: string, why: string) {
 
 export async function setPaused(id: string, actor: string, paused: boolean) {
   const t = await load(id);
-  await supabaseAdmin.from("foundry_tasks").update({ paused, updated_at: new Date().toISOString() }).eq("id", id);
+  await supabaseAdmin.from("foundry_tasks").update({ paused, ...(paused ? {} : { spike_reason: null, spike_paused_at: null }), updated_at: new Date().toISOString() }).eq("id", id);
   await event(t, paused ? "paused" : "resumed", actor, t.state, t.state);
 }
 
@@ -291,7 +312,8 @@ export async function foundryTick() {
   const { data: s } = await supabaseAdmin.from("foundry_schedule").select("*").eq("id", 1).single();
   const result: Record<string, unknown> = {};
   if (!s) return { skipped: "no schedule row" };
-  if (s.paused) result["skipped"] = "paused";
+  const spike = s && !s.paused ? await spikeGuard("scheduler") : null;
+  if (s.paused || spike) result["skipped"] = spike ?? s.spike_reason ?? "paused";
   else {
     const { data: due } = await supabaseAdmin.from("foundry_tasks").select("id").eq("state", "blocked").eq("paused", false).not("approved_action", "is", null).not("next_attempt_at", "is", null).lte("next_attempt_at", new Date().toISOString()).limit(2);
     const retried: string[] = [];
@@ -313,7 +335,9 @@ export async function webhookInspect(repoFull: string) {
 }
 async function runBudgetedFor(projectId: string) {
   const { data: s } = await supabaseAdmin.from("foundry_schedule").select("*").eq("id", 1).single();
-  if (!s || s.paused) return { skipped: "paused" };
+  if (!s || s.paused) return { skipped: s?.spike_reason ?? "paused" };
+  const spike = await spikeGuard("webhook");
+  if (spike) return { skipped: spike };
   const today = new Date().toISOString().slice(0, 10);
   const b = budget(s, today);
   if (!b.allowed) return { skipped: "daily run budget reached" };
@@ -328,7 +352,7 @@ export async function setGlobalPause(actor: string, paused: boolean) {
   await event(null, paused ? "global_pause" : "global_resume", actor, null, null);
 }
 
-export async function setSchedule(actor: string, v: { enabled: boolean; interval_hours: number; daily_task_quota: number; max_in_flight: number; max_runs_per_day: number }) {
+export async function setSchedule(actor: string, v: { enabled: boolean; interval_hours: number; daily_task_quota: number; max_in_flight: number; max_runs_per_day: number; spike_limit_per_hour?: number }) {
   await supabaseAdmin.from("foundry_schedule").update({ ...v, updated_at: new Date().toISOString() }).eq("id", 1);
   await event(null, "schedule_changed", actor, null, null, "", v);
 }
