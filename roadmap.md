@@ -1,5 +1,10 @@
 # Jackboy roadmap
 
+## Repository resync follow-up (Nov 3)
+- [ ] Permanent resync action and last checked time; owner-only load/15-minute/failure-triggered drift checks.
+- [ ] Token identity and honest permissions; grouped linked/moved/not-found review with atomic approved unlinking, preserving history and running work.
+- [ ] Regression tests and signed-in review verification (no real reference changes without owner approval).
+
 - [x] Foundation: dashboard, Classic/Assist, inspect, logs/approvals, integrations, access
 - [x] Technology Discovery UI (opt-in, source registry, ranking, filters, saved ideas, alerts, prototype briefs) — demo data
 - [x] Secure accounts: owner/admin/member roles, invitations (create/revoke/accept), protected pages, sign out / all devices, server audit log
