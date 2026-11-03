@@ -1,6 +1,8 @@
 // Server-only Jackboy → OMNI link: handshake, job dispatch with retries, result intake.
 // Secrets: OMNI_API_URL, OMNI_API_KEY (Jackboy → OMNI bearer), OMNI_CALLBACK_SECRET (shared HMAC both ways).
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { supabaseAdmin as typedAdmin } from "@/integrations/supabase/client.server";
+import { untyped } from "./untyped-db";
+const supabaseAdmin = untyped(typedAdmin);
 import { logSite } from "./site-log.server";
 import {
   DEFAULT_CALLBACK_URL,

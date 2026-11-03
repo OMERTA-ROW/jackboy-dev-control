@@ -45,7 +45,7 @@ export const getCodeSafetySettings = createServerFn({ method: "POST" })
     await requireOwner(context);
     const { getCodeSafetyState } = await import("./code-safety.server");
     await getCodeSafetyState();
-    const { supabaseAdmin: db } = await import("@/integrations/supabase/client.server");
+    const db = (await import("./untyped-db")).untyped((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const { data, error } = await db
       .from("code_runtime_controls")
       .select("*")
@@ -119,7 +119,7 @@ export const setCodeSafetyTarget = createServerFn({ method: "POST" })
     const targets = parseCodeTargets({
       [REPOSITORY]: { ref: "main", workflowSha: workflowFile.sha },
     });
-    const { supabaseAdmin: db } = await import("@/integrations/supabase/client.server");
+    const db = (await import("./untyped-db")).untyped((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const { error } = await db
       .from("code_runtime_controls")
       .update({
@@ -152,7 +152,7 @@ export const setCodeDailySpendLimit = createServerFn({ method: "POST" })
   )
   .handler(async ({ context, data }) => {
     await requireOwner(context);
-    const { supabaseAdmin: db } = await import("@/integrations/supabase/client.server");
+    const db = (await import("./untyped-db")).untyped((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const { error } = await db
       .from("code_runtime_controls")
       .update({
@@ -241,7 +241,7 @@ export const syncCodeProviderCosts = createServerFn({ method: "POST" })
       throw new Error("OpenAI returned a cost bucket outside the current UTC day.");
     }
 
-    const { supabaseAdmin: db } = await import("@/integrations/supabase/client.server");
+    const db = (await import("./untyped-db")).untyped((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const syncedAt = now.toISOString();
     const { error: recordError } = await db.rpc("record_code_provider_costs", {
       p_actor: context.userId,
@@ -263,7 +263,7 @@ export const engageCodeKillSwitch = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     await requireOwner(context);
-    const { supabaseAdmin: db } = await import("@/integrations/supabase/client.server");
+    const db = (await import("./untyped-db")).untyped((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const { data: stop, error } = await db.rpc("engage_code_kill_switch", {
       p_actor: context.userId,
     });
@@ -326,7 +326,7 @@ export const checkCodeCancellation = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     await requireOwner(context);
-    const { supabaseAdmin: db } = await import("@/integrations/supabase/client.server");
+    const db = (await import("./untyped-db")).untyped((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const { data: controls, error } = await db
       .from("code_runtime_controls")
       .select("kill_switch, active_request_id, active_run_id")

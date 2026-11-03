@@ -1,5 +1,7 @@
 import { createPublicKey, verify as verifySignature, type JsonWebKey } from "node:crypto";
-import { supabaseAdmin as db } from "@/integrations/supabase/client.server";
+import { supabaseAdmin as typedDb } from "@/integrations/supabase/client.server";
+import { untyped } from "./untyped-db";
+const db = untyped(typedDb);
 import { CODE_ACTION, CODE_WORKFLOW, type CodeScope } from "./code";
 import { codeSafetyBlockReason, getCodeSafetyState } from "./code-safety.server";
 
