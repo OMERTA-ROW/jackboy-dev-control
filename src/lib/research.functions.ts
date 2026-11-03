@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { htmlToText } from "./html-text";
 import { ALLOWED_DOMAINS, MAX_RESULTS, SEARCH_TIMEOUT_MS, hostAllowed, rateLimitStatus, validateQuery } from "./search-policy";
 
 type Ctx = { supabase: any; userId: string };
@@ -57,9 +58,9 @@ export const runResearchSearch = createServerFn({ method: "POST" })
         .filter((r) => hostAllowed(r.url))
         .slice(0, MAX_RESULTS)
         .map((r) => ({
-          title: r.title.replace(/<[^>]+>/g, ""),
+          title: htmlToText(r.title),
           url: r.url,
-          snippet: (r.description ?? "").replace(/<[^>]+>/g, ""),
+          snippet: htmlToText(r.description ?? ""),
           age: r.age ?? null,
           host: new URL(r.url).hostname,
         }));
