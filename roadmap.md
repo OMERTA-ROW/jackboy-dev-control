@@ -1,5 +1,11 @@
 # Jackboy roadmap
 
+## Repository resync (Nov 3)
+- [ ] Audit repository references across records, settings, source and environment configuration.
+- [ ] Add token-only accessible-repository inventory and owner-reviewed replacement proposals.
+- [ ] Apply approved mutable references atomically; preserve history, invalidate stale authorization and report manual configuration blockers.
+- [ ] Verify token inventory, approval boundary, transaction rollback and signed-in mobile/desktop review.
+
 - [x] Foundation: dashboard, Classic/Assist, inspect, logs/approvals, integrations, access
 - [x] Technology Discovery UI (opt-in, source registry, ranking, filters, saved ideas, alerts, prototype briefs) — demo data
 - [x] Secure accounts: owner/admin/member roles, invitations (create/revoke/accept), protected pages, sign out / all devices, server audit log
