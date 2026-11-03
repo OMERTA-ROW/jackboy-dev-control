@@ -12,7 +12,8 @@ import { openPr } from "@/lib/update-writer.functions";
 import { latestScans, projectStatus, searchByName } from "@/lib/project-hub";
 import { MAX_CONCURRENCY, approvedUndelivered, eligible, runBounded, sanitizeSelection, type BatchAction } from "@/lib/batch";
 import { supabase } from "@/integrations/supabase/client";
-import { ProjectConnectButtons, ProjectResyncIcon } from "@/components/ProjectCardActions";
+import { AddSiteButton, ProjectConnectButtons, ProjectResyncIcon } from "@/components/ProjectCardActions";
+import { cardConnection } from "@/lib/project-hub";
 import { restoreProject } from "@/lib/project-resync.functions";
 import { ProjectCleanup } from "@/components/ProjectCleanup";
 
@@ -151,6 +152,9 @@ function Projects() {
             <ul className="divide-y divide-border rounded-lg border border-border">
               {list.map((p) => {
                 const r = rows[p.id];
+                const conn = cardConnection(p, hub.checks[p.id]);
+                const lastScan = last.get(p.id);
+                const lastAt = [conn.checkedAt, p.site_checked_at, lastScan?.created_at].filter(Boolean).sort().at(-1);
                 return (
                   <li key={p.id} className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between">
                     <label className="flex min-w-0 cursor-pointer items-start gap-3">
@@ -160,12 +164,18 @@ function Projects() {
                         <span className="block truncate text-xs text-muted-foreground">
                           {p.site_url ?? "No site address"} · {p.github_repo ? `Repo ${p.github_repo}` : "No repo"} · Autopilot {p.autopilot ? "on" : "off"}
                         </span>
+                        <span className="mt-1 block text-xs">
+                          <span className={conn.tone === "ok" ? "text-success" : conn.tone === "error" ? "text-destructive" : conn.tone === "warn" ? "text-warning" : "text-muted-foreground"}>{conn.label}</span>
+                          <span className="text-muted-foreground"> · {conn.detail}{lastAt ? ` · last checked ${new Date(lastAt).toLocaleString()}` : " · never checked"}</span>
+                        </span>
+                        {conn.next && <span className="block text-xs text-muted-foreground">Next: {conn.next}</span>}
+                        {p.connect_error && <span className="block text-xs text-destructive [overflow-wrap:anywhere]">Last error: {p.connect_error}</span>}
                         {r && <span role="status" className={`block text-xs ${r.state === "error" ? "text-destructive" : r.state === "done" ? "text-success" : "text-muted-foreground"}`}>{r.text}</span>}
                       </span>
                     </label>
                     <div className="flex flex-wrap items-center gap-2">
                       <StatusPill status={projectStatus(p, last.get(p.id))} />
-                      {!p.site_url && <Link to="/project/$id" params={{ id: p.id }} className={btn}>Add site address</Link>}
+                      {!p.site_url && <AddSiteButton p={p} onSaved={(m) => { setNote(m); void refresh(); }} />}
                       <ProjectConnectButtons p={p} gone={gone.has(p.id)} onRemoved={(m) => { setNote(m); void refresh(); }} />
                       <Link to="/project/$id" params={{ id: p.id }} className={btn}>Manage</Link>
                       <ProjectResyncIcon p={p} onDone={(m, g) => { setNote(m); if (g) setGone((s) => new Set(s).add(p.id)); void refresh(); }} />
