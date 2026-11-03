@@ -38,7 +38,7 @@ it("atomic approved unlink preserves records, logs once, and rolls back stale ba
     const missing = [{ from: `project:${id}`, to: "OMERTA-ROW/honeycomb-vault", profiles }];
     await db.query("INSERT INTO repository_resync_reviews(id,requested_by,inventory,references_snapshot,report) VALUES($1,$2,$3,'[]',$4)", [next, actor, JSON.stringify(["OMERTA-ROW/honeycomb-vault"]), JSON.stringify({ rows: [{ repo: `project:${id}`, proposed: "OMERTA-ROW/honeycomb-vault", group: "missing", canApply: true, profiles }] })]);
     await expect(db.query("SELECT apply_project_repository_resync($1,$2,$3)", [next, actor, JSON.stringify([{ ...missing[0], profiles: [{ ...profiles[0], newName: "tampered" }] }])])).rejects.toThrow();
-    expect((await db.query("SELECT github_repo FROM owner_projects")).rows[0]?.github_repo).toBeNull();
+    expect((await db.query<{ github_repo: string | null }>("SELECT github_repo FROM owner_projects")).rows[0]?.github_repo).toBeNull();
     await db.query("SELECT apply_project_repository_resync($1,$2,$3)", [next, actor, JSON.stringify(missing)]);
     expect((await db.query("SELECT github_repo,name,dev_enabled FROM owner_projects")).rows[0]).toEqual({ github_repo: "OMERTA-ROW/honeycomb-vault", name: "honeycomb-vault", dev_enabled: false });
     expect((await db.query("SELECT repo_url,name FROM agent_projects")).rows[0]).toEqual({ repo_url: "https://github.com/OMERTA-ROW/honeycomb-vault", name: "honeycomb-vault" });

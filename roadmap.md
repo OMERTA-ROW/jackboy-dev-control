@@ -1,9 +1,9 @@
 # Jackboy roadmap
 
 ## Connected Projects unified resync addition
-- [ ] Front-side Resync action; propose missing repository links from token-visible inventory.
-- [ ] Single approved atomic review includes missing links and current profile names/references; preserve historical evidence and work guards.
-- [ ] Matching/approval regression tests and signed-in review verification; no approval or repository writes during verification.
+- [x] Front-side permanent Resync action with last synced time; propose missing links from token-visible names and Lovable metadata.
+- [x] Single atomic review includes missing links and current profile/inventory names; preserves historical evidence and work guards. No live approval applied.
+- [x] 335 regression tests passed; signed-in repeated resync displayed 15 missing-link rows and nine proposed changes. Ambiguous/absent matches remain unlinked; no repository writes or job dispatch.
 
 ## Connected Projects / OMNI follow-up (Nov 3)
 - [x] Fresh per-repo token/App permission evidence and timestamps; reconcile proven obsolete PR permission errors without executing jobs. OMNI/Mothership App PR write granted, Actions read verified, Actions write denied; token identity remains street-Tech666 and fine-grained write is unknown without an operation.
