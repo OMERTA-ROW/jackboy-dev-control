@@ -148,13 +148,50 @@ export async function openDraftPr(x: Repo, branch: string, title: string, body: 
   return { number: pr.number, url: pr.html_url, existed: false };
 }
 
+async function ghWithAppTokenRefresh<T>(x: Repo, path: string): Promise<T> {
+  try {
+    return await gh<T>(path);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!/^GitHub 403:/.test(message)) throw error;
+    const { refreshGithubTokenFor } = await import("./github-app.server");
+    const fresh = await refreshGithubTokenFor(x.full);
+    if (fresh?.via !== "app") throw error;
+    return gh<T>(path, {}, fresh.token);
+  }
+}
+
 export async function checks(x: Repo, ref: string) {
-  const wf = await gh<{ total_count: number }>(`${R(x)}/actions/workflows`).catch((e) => ({ total_count: -1, error: String(e) }));
+  const wf = await ghWithAppTokenRefresh<{ total_count: number }>(
+    x,
+    `${R(x)}/actions/workflows`,
+  ).catch((e) => ({ total_count: -1, error: String(e) }));
   if (wf.total_count === 0) return { workflowsConfigured: 0, runs: [], note: "This repository has no GitHub Actions workflows, so no automated checks run yet." };
   try {
-    const d = await gh<{ workflow_runs: { name: string; status: string; conclusion: string | null; html_url: string; head_sha: string; head_branch: string }[] }>(`${R(x)}/actions/runs?branch=${encodeURIComponent(ref)}&per_page=10`);
+    const d = await ghWithAppTokenRefresh<{
+      workflow_runs: {
+        name: string;
+        status: string;
+        conclusion: string | null;
+        html_url: string;
+        head_sha: string;
+        head_branch: string;
+      }[];
+    }>(
+      x,
+      `${R(x)}/actions/runs?branch=${encodeURIComponent(ref)}&per_page=10`,
+    );
     return { workflowsConfigured: wf.total_count, runs: d.workflow_runs.map((r) => ({ name: r.name, status: r.status, conclusion: r.conclusion, commit: r.head_sha.slice(0, 7), headSha: r.head_sha, url: r.html_url })) };
   } catch (e) {
-    return { workflowsConfigured: wf.total_count, runs: [], error: `Cannot read check results: ${(e as Error).message.slice(0, 160)}. The GitHub token needs "Actions: read" permission.` };
+    const errorMessage = e instanceof Error ? e.message : String(e);
+    const message = errorMessage.slice(0, 160);
+    const permissionGuidance = /^GitHub 403:/.test(errorMessage)
+      ? ' Verify the Jackboy App installation grants "Actions: read".'
+      : "";
+    return {
+      workflowsConfigured: wf.total_count,
+      runs: [],
+      error: `Cannot read check results: ${message}.${permissionGuidance}`,
+    };
   }
 }

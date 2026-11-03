@@ -15,19 +15,21 @@ vi.mock("./github-app.server", () => ({
   repoFromPath: vi.fn(() => "OMERTA-ROW/Omni"),
 }));
 
-import { openDraftPr, write } from "./repo-workspace.server";
+import { checks, openDraftPr, write } from "./repo-workspace.server";
 
 describe("repository workspace draft PR permissions", () => {
   const repo = { owner: "OMERTA-ROW", repo: "Omni", base: "main", full: "OMERTA-ROW/Omni" };
   const branch = "jackboy/pr-permission-regression";
-  let requests: { method: string; path: string }[];
+  let requests: { method: string; path: string; authorization: string | null }[];
   let deniedPullRequests: number;
+  let deniedActionsRuns: number;
   let branchExists: boolean;
   let checkConclusion: string;
 
   beforeEach(() => {
     requests = [];
     deniedPullRequests = 0;
+    deniedActionsRuns = 0;
     branchExists = false;
     checkConclusion = "success";
     appAccess.value = {
@@ -40,7 +42,11 @@ describe("repository workspace draft PR permissions", () => {
       vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
         const url = new URL(String(input));
         const method = init?.method ?? "GET";
-        requests.push({ method, path: url.pathname });
+        requests.push({
+          method,
+          path: url.pathname,
+          authorization: new Headers(init?.headers).get("Authorization"),
+        });
 
         if (url.pathname.endsWith(`/git/ref/heads/${branch}`) && method === "GET") {
           if (branchExists) return Response.json({ object: { sha: "b".repeat(40) } });
@@ -60,6 +66,13 @@ describe("repository workspace draft PR permissions", () => {
           return Response.json({ commit: { sha: "b".repeat(40) } }, { status: 201 });
         }
         if (url.pathname.endsWith("/actions/workflows")) return Response.json({ total_count: 1 });
+        if (url.pathname.endsWith("/actions/runs") && deniedActionsRuns > 0) {
+          deniedActionsRuns--;
+          return Response.json(
+            { message: "Resource not accessible by integration" },
+            { status: 403 },
+          );
+        }
         if (url.pathname.endsWith("/actions/runs")) return Response.json({ workflow_runs: [{ name: "Existing tests", status: "completed", conclusion: checkConclusion, head_sha: "b".repeat(40), head_branch: branch, html_url: "https://github.com/OMERTA-ROW/Omni/actions/runs/1" }] });
         if (url.pathname.endsWith("/pulls") && method === "GET") {
           return Response.json([]);
@@ -83,6 +96,48 @@ describe("repository workspace draft PR permissions", () => {
   });
 
   afterEach(() => vi.unstubAllGlobals());
+
+  it("refreshes a stale installation token once to read Actions runs", async () => {
+    deniedActionsRuns = 1;
+    const result = await checks(repo, branch);
+    const runsRequests = requests.filter((request) => request.path.endsWith("/actions/runs"));
+
+    expect(result.runs).toHaveLength(1);
+    expect(result).not.toHaveProperty("error");
+    expect(runsRequests).toHaveLength(2);
+    expect(runsRequests.map((request) => request.authorization)).toEqual([
+      "Bearer test-installation-token",
+      "Bearer refreshed-installation-token",
+    ]);
+  });
+
+  it("reports Actions permission guidance only after a refreshed token is denied", async () => {
+    deniedActionsRuns = 2;
+    const result = await checks(repo, branch);
+
+    expect(result.runs).toEqual([]);
+    expect(result.error).toContain('Verify the Jackboy App installation grants "Actions: read".');
+    expect(requests.filter((request) => request.path.endsWith("/actions/runs"))).toHaveLength(2);
+  });
+
+  it("does not label non-permission Actions failures as a missing grant", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request) => {
+        const url = new URL(String(input));
+        if (url.pathname.endsWith("/actions/workflows")) return Response.json({ total_count: 1 });
+        if (url.pathname.endsWith("/actions/runs")) {
+          return Response.json({ message: "Service unavailable" }, { status: 503 });
+        }
+        throw new Error(`Unexpected mocked GitHub request: ${url.pathname}`);
+      }),
+    );
+
+    const result = await checks(repo, branch);
+
+    expect(result.error).toContain("GitHub 503");
+    expect(result.error).not.toContain("Actions: read");
+  });
 
   it("preserves a successfully pushed branch and reports PR permission denial precisely", async () => {
     const pushed = await write(
