@@ -1,3 +1,4 @@
+import { checkWorkflowContent, isWorkflowPath } from "./guidelines";
 // Server-only repository workspace: tree/search/read/write on jackboy/* branches, diff, draft PR, CI checks.
 // Uses the GITHUB_TOKEN secret; every call re-verifies the account has read+push permission (public or private).
 import { assessRepoAccess, checkPath, checkWorkBranch, MAX_WRITE_BYTES, parseRepo, type RepoInfo } from "./repo-workspace";
@@ -86,6 +87,7 @@ async function ensureBranch(x: Repo, branch: string) {
 export async function write(x: Repo, branch: string, path: string, content: string | null, message: string) {
   const be = checkWorkBranch(branch, x.base); if (be) throw new Error(be);
   const pe = checkPath(path); if (pe) throw new Error(pe);
+  if (content !== null && isWorkflowPath(path)) { const we = checkWorkflowContent(content); if (we) throw new Error(we); }
   if (content !== null && new TextEncoder().encode(content).length > MAX_WRITE_BYTES) throw new Error("Content over 200 KB.");
   const created = await ensureBranch(x, branch);
   let sha: string | undefined;

@@ -1,4 +1,5 @@
 // Pure rules for Jackboy's repository workspace. Tested in repo-workspace.test.ts.
+import { PROTECTED_BRANCHES } from "./guidelines";
 
 export const WORK_BRANCH_PREFIX = "jackboy/";
 
@@ -15,7 +16,7 @@ export function checkPath(path: string): string | null {
 /** Writes are only allowed on Jackboy work branches, never the default/base branch. */
 export function checkWorkBranch(branch: string, base: string): string | null {
   if (!branch.startsWith(WORK_BRANCH_PREFIX)) return `Refused: Jackboy only writes to branches starting with "${WORK_BRANCH_PREFIX}".`;
-  if (branch === base) return "Refused: cannot write to the base branch.";
+  if (branch === base || PROTECTED_BRANCHES.includes(branch.toLowerCase())) return "Refused: cannot write to the base or a protected branch (guideline 1).";
   if (!/^[A-Za-z0-9._/-]{3,100}$/.test(branch) || branch.includes("..")) return "Invalid branch name.";
   return null;
 }

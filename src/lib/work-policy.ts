@@ -1,5 +1,6 @@
 /** New work serves a user-visible feature; tests never become an unrelated backlog. */
-export const WORK_FOCUS = "Prioritize real features and fixes. Do not propose standalone add-tests or test-fixture tasks unless they block a named real feature. Add new tests only for security/auth, approvals/passkeys, payments, GitHub/OMNI connections or data integrity. Always run the existing test suite for the exact changed commit before a draft PR; missing or pending execution blocks the PR.";
+import { GUIDELINES_PROMPT } from "./guidelines";
+export const WORK_FOCUS = GUIDELINES_PROMPT + "\n\n" + "Prioritize real features and fixes. Do not propose standalone add-tests or test-fixture tasks unless they block a named real feature. Add new tests only for security/auth, approvals/passkeys, payments, GitHub/OMNI connections or data integrity. Always run the existing test suite for the exact changed commit before a draft PR; missing or pending execution blocks the PR.";
 export const CREDIT_PAUSE = "Paused: out of credits";
 export const CREDIT_HELP_URL = "https://docs.lovable.dev/introduction/credits-and-usage#view-your-credit-balance";
 export function isCreditError(error: unknown): boolean {
