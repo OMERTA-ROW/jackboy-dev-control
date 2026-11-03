@@ -20,7 +20,7 @@ export function pickDeploymentUrl(list: DeployStatus[]): string | null {
   return prod ? new URL(prod.environment_url!).origin : null;
 }
 /** Why a repo counts as dead for the archive review, or null. Never decides by itself; the owner confirms. */
-export function deadReason(r: { state: "ok" | "gone" | "unlinked" | "unchecked"; archived?: boolean; pushedAt?: string | null }, now = Date.now()): string | null {
+export function deadReason(r: { state: "ok" | "gone" | "unlinked" | "unchecked"; archived?: boolean | undefined; pushedAt?: string | null | undefined }, now = Date.now()): string | null {
   if (r.state === "gone") return "Repo not found on GitHub";
   if (r.archived) return "Repo is archived on GitHub";
   if (r.pushedAt && now - new Date(r.pushedAt).getTime() > 365 * 86400_000) return `No code pushed since ${r.pushedAt.slice(0, 10)}`;

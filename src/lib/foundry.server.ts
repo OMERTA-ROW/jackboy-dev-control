@@ -293,7 +293,7 @@ async function runBudgeted(actor: string, why: string) {
 
 export async function setPaused(id: string, actor: string, paused: boolean) {
   const t = await load(id);
-  await supabaseAdmin.from("foundry_tasks").update({ paused, ...(paused ? {} : { spike_reason: null, spike_paused_at: null }), updated_at: new Date().toISOString() }).eq("id", id);
+  await supabaseAdmin.from("foundry_tasks").update({ paused, updated_at: new Date().toISOString() }).eq("id", id);
   await event(t, paused ? "paused" : "resumed", actor, t.state, t.state);
 }
 
@@ -348,7 +348,7 @@ async function runBudgetedFor(projectId: string) {
 }
 
 export async function setGlobalPause(actor: string, paused: boolean) {
-  await supabaseAdmin.from("foundry_schedule").update({ paused, updated_at: new Date().toISOString() }).eq("id", 1);
+  await supabaseAdmin.from("foundry_schedule").update({ paused, ...(paused ? {} : { spike_reason: null, spike_paused_at: null }), updated_at: new Date().toISOString() }).eq("id", 1);
   await event(null, paused ? "global_pause" : "global_resume", actor, null, null);
 }
 
