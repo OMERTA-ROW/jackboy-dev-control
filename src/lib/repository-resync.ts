@@ -49,7 +49,7 @@ export function buildRepositoryReview(refs: RepositoryReference[], inventory: st
     const uncertain = !check || (check.status !== 200 && check.status !== 404);
     return { repo, proposed: proposed || null, group: linked ? "linked" : proposed ? "moved" : "deleted", mutable, historical: references.length - mutable,
       canApply: mutable > 0 && !linked && !uncertain,
-      reason: linked ? "Accessible to GITHUB_TOKEN" : uncertain ? check?.reason || "Verification incomplete; no removal allowed" : proposed ? "Proposed accessible match — confirm it is the same project" : "Deleted / not found by this token. This can also mean private, unselected, or org approval missing; deletion is not proven." };
+      reason: linked ? "Accessible" : uncertain ? check?.reason || "Verification incomplete; no removal allowed" : proposed ? "Proposed accessible match — confirm it is the same project" : "Gone — GitHub reports this repo as not found for every available credential. Approve to unlink it; history is kept." };
   });
 }
 export function needsRepositoryCheck(last: string | null, invalidated: boolean, now = Date.now()): boolean {
