@@ -1,7 +1,17 @@
 export const RESYNC_INTERVAL_MS = 15 * 60_000;
 export type RepositoryReference = { table: string; id: string; field: string; value: string; mutable: boolean };
 export type RepositoryCheck = { status: number; canonical?: string; reason?: string };
-export type RepositoryReviewRow = { repo: string; proposed: string | null; group: "linked" | "moved" | "deleted"; reason: string; mutable: number; historical: number; canApply: boolean };
+export type RepositoryProfileChange = { projectId: string; oldName: string; oldRepo: string | null; newName: string; agentProfiles: { id: string; name: string; repo_url: string | null }[] };
+export type RepositoryReviewRow = { repo: string; proposed: string | null; group: "linked" | "missing" | "moved" | "deleted"; reason: string; mutable: number; historical: number; canApply: boolean; profiles?: RepositoryProfileChange[] };
+export type RepoCandidate = { full_name: string; description?: string | null; homepage?: string | null };
+export function projectRepoMatch(name: string, link: string | null, inventory: RepoCandidate[]): string | null {
+  const projectId = link?.match(/[0-9a-f]{8}-[0-9a-f-]{27}/i)?.[0];
+  const linked = projectId ? inventory.filter((r) => `${r.description ?? ""} ${r.homepage ?? ""}`.includes(projectId)) : [];
+  if (linked.length === 1) return linked[0]?.full_name ?? null;
+  if (linked.length > 1) return null;
+  const clean = name.replace(/\b(internal build|platform|data concierge|central intelligence|assist)\b/gi, "").trim();
+  return closestRepo(`project/${clean}`, inventory.map((r) => r.full_name));
+}
 export function normalizeRepo(value: string): string {
   return value.trim().replace(/^https:\/\/github\.com\//i, "").replace(/\.git\/?$/i, "").replace(/\/$/, "");
 }

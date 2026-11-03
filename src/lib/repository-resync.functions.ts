@@ -25,10 +25,10 @@ export const approveRepositorySync = createServerFn({ method: "POST" }).middlewa
     if (error) throw new Error(error.message);
     if (review.approved_at) return { alreadyApplied: true };
     const rows = (review.report as unknown as ResyncReport).rows;
-    const changes = rows.filter((r) => r.canApply && r.group !== "linked").map((r) => ({ from: r.repo, to: r.proposed }));
+    const changes = rows.filter((r) => r.canApply && r.group !== "linked").map((r) => ({ from: r.repo, to: r.proposed, profiles: r.profiles ?? [] }));
     if (!changes.length) throw new Error("No verified changes are ready for approval.");
     await (await import("./passkey.server")).consumeGrant(data.grantId, context.userId, "approve_integration", `repository_resync:${data.reviewId}`);
-    const result = await supabaseAdmin.rpc("apply_repository_resync", { review_id: data.reviewId, actor_id: context.userId, changes });
+    const result = await supabaseAdmin.rpc("apply_project_repository_resync", { review_id: data.reviewId, actor_id: context.userId, changes });
     if (result.error) throw new Error(result.error.message);
     return result.data;
   });

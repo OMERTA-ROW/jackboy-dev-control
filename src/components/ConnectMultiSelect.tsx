@@ -10,6 +10,7 @@ import { agentState, connectRows, devPriority, loopEligible, newProjectInput, se
 import { saveProject } from "@/lib/update-writer.functions";
 import { foundryInspect, getFoundry } from "@/lib/foundry.functions";
 import { setDevEnabled, type getProjectHub } from "@/lib/project-hub.functions";
+import { ConnectedProjectsResync } from "@/components/RepositorySync";
 
 type Hub = Awaited<ReturnType<typeof getProjectHub>>;
 type Task = { project_id: string | null; state: string; blocked_reason: string | null; paused: boolean };
@@ -72,6 +73,7 @@ export function MultiSelect({ hub, onPick, reload }: { hub: Hub | null; onPick: 
   return (
     <section aria-labelledby="step1" className="panel mb-4 p-5">
       <h2 id="step1" className="font-semibold">1. Select projects</h2>
+      <ConnectedProjectsResync />
       <p className="mt-1 text-xs text-muted-foreground">Connected projects plus your saved list (a one-time snapshot, not live). Each project keeps its own permissions; nothing is shared between them.</p>
       {!hub ? <p className="mt-3 text-sm text-muted-foreground">Loading…</p> : (
         <>
