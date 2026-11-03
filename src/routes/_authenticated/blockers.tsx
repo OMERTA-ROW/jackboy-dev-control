@@ -102,7 +102,7 @@ export function Blockers() {
                 <span className={`text-xs ${STATUS[b.status][1]}`}>{STATUS[b.status][0]}</span>
                 <span className={`ml-auto rounded border px-1.5 py-0.5 text-[10px] uppercase tracking-wider ${b.risk === "Critical" ? "border-destructive/50 text-destructive" : "border-border text-silver"}`}>{b.risk}</span>
               </div>
-              <dl className="mt-2 grid gap-1 text-xs md:grid-cols-[8rem_1fr]">
+              <dl className="mt-2 grid min-w-0 grid-cols-[minmax(0,1fr)] gap-1 text-xs md:grid-cols-[8rem_minmax(0,1fr)] [&_dd]:[overflow-wrap:anywhere]">
                 <dt className="text-muted-foreground">Cause</dt><dd>{b.cause}</dd>
                 <dt className="text-muted-foreground">Missing</dt><dd>{b.missing}</dd>
                 <dt className="text-muted-foreground">Fix</dt><dd>{b.remedy}</dd>
