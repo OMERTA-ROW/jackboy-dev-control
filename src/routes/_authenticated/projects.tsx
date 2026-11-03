@@ -9,11 +9,10 @@ import { StatusPill, btn, field, primaryBtn } from "@/components/ProjectBits";
 import { getProjectHub } from "@/lib/project-hub.functions";
 import { fixScan, scanNow } from "@/lib/autopilot.functions";
 import { openPr } from "@/lib/update-writer.functions";
-import { latestScans, projectStatus, searchByName } from "@/lib/project-hub";
+import { cardConnection, latestScans, projectStatus, searchByName } from "@/lib/project-hub";
 import { MAX_CONCURRENCY, approvedUndelivered, eligible, runBounded, sanitizeSelection, type BatchAction } from "@/lib/batch";
 import { supabase } from "@/integrations/supabase/client";
 import { AddSiteButton, ProjectConnectButtons, ProjectResyncIcon } from "@/components/ProjectCardActions";
-import { cardConnection } from "@/lib/project-hub";
 import { restoreProject } from "@/lib/project-resync.functions";
 import { ProjectCleanup } from "@/components/ProjectCleanup";
 
