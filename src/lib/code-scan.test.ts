@@ -16,6 +16,9 @@ describe("code scan", () => {
     expect(scanFile("d.ts", `  { rule: "no-eval", re: /\\beval\\s*\\(/, message: "eval() executes arbitrary code." },`)).toEqual([]);
     expect(scanFile("e.ts", "const r = eval(x);")[0]?.rule).toBe("eval-call");
   });
+  it("handles long unterminated regex-like input without ambiguous backtracking", () => {
+    expect(scanFile("e.ts", `const value = /${"\\\\".repeat(10_000)};`)).toEqual([]);
+  });
   it("skips tests, builds and generated files", () => {
     expect(scannable("src/a.tsx")).toBe(true);
     expect(scannable("src/a.test.ts")).toBe(false);

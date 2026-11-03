@@ -4,6 +4,7 @@ export const JOB_CONTRACT = "omni.job/v1";
 export const RESULT_CONTRACT = "omni.job-result/v1";
 export const MAX_DISPATCH_ATTEMPTS = 8;
 export const MAX_CLOCK_SKEW_MS = 5 * 60_000;
+export const OMNI_VERIFICATION_MAX_AGE_MS = 5 * 60_000;
 export const DEFAULT_CALLBACK_URL = "https://jackboy-dev-control.lovable.app/api/public/omni/callback";
 
 const te = new TextEncoder();
@@ -36,6 +37,20 @@ export async function verifyCallback(secret: string, h: { signature: string | nu
 
 export function dispatchBackoffMs(attempts: number): number {
   return Math.min(6 * 3600_000, 60_000 * 2 ** Math.max(0, attempts - 1));
+}
+
+export function isOmniVerificationFresh(
+  row: { verified?: boolean; verified_at?: string | null; config_hash?: string | null } | null,
+  expectedConfigHash: string,
+  now = Date.now(),
+) {
+  if (!row?.verified || !row.verified_at || row.config_hash !== expectedConfigHash) return false;
+  const verifiedAt = Date.parse(row.verified_at);
+  return (
+    Number.isFinite(verifiedAt) &&
+    verifiedAt <= now + 30_000 &&
+    now - verifiedAt <= OMNI_VERIFICATION_MAX_AGE_MS
+  );
 }
 
 export type Handshake = { version: string; capabilities: string[]; proof: string };

@@ -49,6 +49,8 @@ import { Route as AuthenticatedPassportAgentIdRouteImport } from './routes/_auth
 import { Route as AuthenticatedProjectIdRouteImport } from './routes/_authenticated/project.$id'
 import { Route as ApiAgentManifestRouteImport } from './routes/api/agent/manifest'
 import { Route as ApiPublicAgentIngestRouteImport } from './routes/api/public/agent-ingest'
+import { Route as ApiPublicCodeClaimRouteImport } from './routes/api/public/code/claim'
+import { Route as ApiPublicCodeFinishRouteImport } from './routes/api/public/code/finish'
 import { Route as ApiPublicFeedsSourceIdRouteImport } from './routes/api/public/feeds.$sourceId'
 import { Route as ApiPublicFoundryWebhookRouteImport } from './routes/api/public/foundry/webhook'
 import { Route as ApiPublicGithubManifestRouteImport } from './routes/api/public/github/manifest'
@@ -268,6 +270,16 @@ const ApiPublicAgentIngestRoute = ApiPublicAgentIngestRouteImport.update({
   path: '/api/public/agent-ingest',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicCodeClaimRoute = ApiPublicCodeClaimRouteImport.update({
+  id: '/api/public/code/claim',
+  path: '/api/public/code/claim',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicCodeFinishRoute = ApiPublicCodeFinishRouteImport.update({
+  id: '/api/public/code/finish',
+  path: '/api/public/code/finish',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicFeedsSourceIdRoute = ApiPublicFeedsSourceIdRouteImport.update({
   id: '/api/public/feeds/$sourceId',
   path: '/api/public/feeds/$sourceId',
@@ -394,6 +406,8 @@ export interface FileRoutesByFullPath {
   '/project/$id': typeof AuthenticatedProjectIdRoute
   '/api/agent/manifest': typeof ApiAgentManifestRoute
   '/api/public/agent-ingest': typeof ApiPublicAgentIngestRoute
+  '/api/public/code/claim': typeof ApiPublicCodeClaimRoute
+  '/api/public/code/finish': typeof ApiPublicCodeFinishRoute
   '/api/public/feeds/$sourceId': typeof ApiPublicFeedsSourceIdRoute
   '/api/public/foundry/webhook': typeof ApiPublicFoundryWebhookRoute
   '/api/public/github/manifest': typeof ApiPublicGithubManifestRoute
@@ -451,6 +465,8 @@ export interface FileRoutesByTo {
   '/project/$id': typeof AuthenticatedProjectIdRoute
   '/api/agent/manifest': typeof ApiAgentManifestRoute
   '/api/public/agent-ingest': typeof ApiPublicAgentIngestRoute
+  '/api/public/code/claim': typeof ApiPublicCodeClaimRoute
+  '/api/public/code/finish': typeof ApiPublicCodeFinishRoute
   '/api/public/feeds/$sourceId': typeof ApiPublicFeedsSourceIdRoute
   '/api/public/foundry/webhook': typeof ApiPublicFoundryWebhookRoute
   '/api/public/github/manifest': typeof ApiPublicGithubManifestRoute
@@ -510,6 +526,8 @@ export interface FileRoutesById {
   '/_authenticated/project/$id': typeof AuthenticatedProjectIdRoute
   '/api/agent/manifest': typeof ApiAgentManifestRoute
   '/api/public/agent-ingest': typeof ApiPublicAgentIngestRoute
+  '/api/public/code/claim': typeof ApiPublicCodeClaimRoute
+  '/api/public/code/finish': typeof ApiPublicCodeFinishRoute
   '/api/public/feeds/$sourceId': typeof ApiPublicFeedsSourceIdRoute
   '/api/public/foundry/webhook': typeof ApiPublicFoundryWebhookRoute
   '/api/public/github/manifest': typeof ApiPublicGithubManifestRoute
@@ -569,6 +587,8 @@ export interface FileRouteTypes {
     | '/project/$id'
     | '/api/agent/manifest'
     | '/api/public/agent-ingest'
+    | '/api/public/code/claim'
+    | '/api/public/code/finish'
     | '/api/public/feeds/$sourceId'
     | '/api/public/foundry/webhook'
     | '/api/public/github/manifest'
@@ -626,6 +646,8 @@ export interface FileRouteTypes {
     | '/project/$id'
     | '/api/agent/manifest'
     | '/api/public/agent-ingest'
+    | '/api/public/code/claim'
+    | '/api/public/code/finish'
     | '/api/public/feeds/$sourceId'
     | '/api/public/foundry/webhook'
     | '/api/public/github/manifest'
@@ -684,6 +706,8 @@ export interface FileRouteTypes {
     | '/_authenticated/project/$id'
     | '/api/agent/manifest'
     | '/api/public/agent-ingest'
+    | '/api/public/code/claim'
+    | '/api/public/code/finish'
     | '/api/public/feeds/$sourceId'
     | '/api/public/foundry/webhook'
     | '/api/public/github/manifest'
@@ -713,6 +737,8 @@ export interface RootRouteChildren {
   ApiTranscribeRoute: typeof ApiTranscribeRoute
   ApiAgentManifestRoute: typeof ApiAgentManifestRoute
   ApiPublicAgentIngestRoute: typeof ApiPublicAgentIngestRoute
+  ApiPublicCodeClaimRoute: typeof ApiPublicCodeClaimRoute
+  ApiPublicCodeFinishRoute: typeof ApiPublicCodeFinishRoute
   ApiPublicFeedsSourceIdRoute: typeof ApiPublicFeedsSourceIdRoute
   ApiPublicFoundryWebhookRoute: typeof ApiPublicFoundryWebhookRoute
   ApiPublicGithubManifestRoute: typeof ApiPublicGithubManifestRoute
@@ -1013,6 +1039,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicAgentIngestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/code/claim': {
+      id: '/api/public/code/claim'
+      path: '/api/public/code/claim'
+      fullPath: '/api/public/code/claim'
+      preLoaderRoute: typeof ApiPublicCodeClaimRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/code/finish': {
+      id: '/api/public/code/finish'
+      path: '/api/public/code/finish'
+      fullPath: '/api/public/code/finish'
+      preLoaderRoute: typeof ApiPublicCodeFinishRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/feeds/$sourceId': {
       id: '/api/public/feeds/$sourceId'
       path: '/api/public/feeds/$sourceId'
@@ -1208,6 +1248,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiTranscribeRoute: ApiTranscribeRoute,
   ApiAgentManifestRoute: ApiAgentManifestRoute,
   ApiPublicAgentIngestRoute: ApiPublicAgentIngestRoute,
+  ApiPublicCodeClaimRoute: ApiPublicCodeClaimRoute,
+  ApiPublicCodeFinishRoute: ApiPublicCodeFinishRoute,
   ApiPublicFeedsSourceIdRoute: ApiPublicFeedsSourceIdRoute,
   ApiPublicFoundryWebhookRoute: ApiPublicFoundryWebhookRoute,
   ApiPublicGithubManifestRoute: ApiPublicGithubManifestRoute,
