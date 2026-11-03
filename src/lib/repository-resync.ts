@@ -55,7 +55,9 @@ export function buildRepositoryReview(refs: RepositoryReference[], inventory: st
 export function needsRepositoryCheck(last: string | null, invalidated: boolean, now = Date.now()): boolean {
   return !last || now - Date.parse(last) >= RESYNC_INTERVAL_MS || (invalidated && now - Date.parse(last) >= 60_000);
 }
-export function tokenOwnerWarning(login: string, repos: string[]): string | null {
-  return login.toLowerCase() === "street-tech666" && repos.some((r) => r.toLowerCase().startsWith("omerta-row/"))
+export function tokenOwnerWarning(login: string, repos: string[], appOwners: string[] = []): string | null {
+  // Organization repos covered by a live GitHub App installation are routed through the App, not the token.
+  const covered = appOwners.some((o) => o.toLowerCase() === "omerta-row");
+  return !covered && login.toLowerCase() === "street-tech666" && repos.some((r) => r.toLowerCase().startsWith("omerta-row/"))
     ? "GITHUB_TOKEN belongs to street-Tech666 while saved repositories use OMERTA-ROW. Update GITHUB_TOKEN in Project Settings → Secrets with an organization-authorized token; account mismatch alone does not prove denied access." : null;
 }
