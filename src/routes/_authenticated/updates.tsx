@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { PageHeader } from "@/components/AppShell";
 import { canTransition, STATUS_LABEL, STATUSES, type ProposalStatus } from "@/lib/update-writer";
 import { editProposal, getQueue, markNotificationsRead, mergeUpdate, openPr, refreshPrChecks, revertUpdate, runNow, setCaps, setProposalStatus } from "@/lib/update-writer.functions";
+import { CREDIT_HELP_URL, CREDIT_PAUSE } from "@/lib/work-policy";
 
 export const Route = createFileRoute("/_authenticated/updates")({
   head: () => ({
@@ -63,6 +64,7 @@ function Updates() {
               <div className="font-semibold">Last run: {s?.last_run_at ? new Date(s.last_run_at).toLocaleString() : "never"}</div>
               <div className="text-xs text-muted-foreground">Checks hourly; each project runs on its own schedule (set on <Link to="/projects" className="underline">Projects</Link>). GitHub: {q.githubConfigured ? <span className="text-success">token set</span> : <span className="text-destructive">not connected</span>}</div>
               {s?.paused_reason && <div className="mt-1 text-xs text-destructive">Scheduled runs paused: {s.paused_reason}</div>}
+              {s?.paused_reason === CREDIT_PAUSE && <p className="mt-1 text-xs text-destructive">{CREDIT_PAUSE}. <a href={CREDIT_HELP_URL} target="_blank" rel="noopener noreferrer" className="underline">Add credits: Workspace settings → Plans &amp; credits</a>. Automatic balance checking is not connected; after adding credits, resume the schedule here.</p>}
             </div>
             <button className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50" disabled={running} onClick={runAll}>{running ? "Writing updates…" : "Run now"}</button>
           </div>

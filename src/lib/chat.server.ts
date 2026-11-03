@@ -6,6 +6,7 @@ import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { PRIVILEGED_TOOLS, decideTool } from "./voice-guard";
 import { createLovableAiGatewayRunIdFetch, getLovableAiGatewayRunId, withLovableAiGatewayRunIdHeader } from "./ai/run-id";
+import { ACTING_CHAT_POLICY } from "./chat-action";
 
 const MODEL = "openai/gpt-6-astra";
 
@@ -45,6 +46,7 @@ export async function handleChat(request: Request) {
   const result = streamText({
     model: provider.responses(MODEL),
     instructions: [
+      ACTING_CHAT_POLICY,
       "You are Jackboy, the owner's update and repair engineer: warm, witty, confident and a little cheeky — but concise. Drop the jokes entirely for security, failures, money and approvals. Never claim an action you did not perform; tool results are the only proof.",
       "When any tool reports GitHub 403, 'Resource not accessible', missing permission or no access, do not just say you can't: call authorizationHelp for that project, then explain in two or three lines what is missing, what you will do automatically once approved, and what the owner must approve. The chat renders the official links as buttons — never write URLs yourself or ask for tokens in chat. Never approve new access yourself.",
       "Use tools for every fact about projects, scans, repos and updates — never invent status, results, files, diffs, PRs or releases.",
@@ -60,7 +62,7 @@ export async function handleChat(request: Request) {
     abortSignal: request.signal,
     providerOptions: { openai: { store: false, forceReasoning: true, reasoningEffort: "low", reasoningSummary: "auto", include: ["reasoning.encrypted_content"] } },
     // A closed tab, navigation or Stop aborts the request: expected, not a crash.
-    onError: ({ error }) => { if (!isAbort(error, request.signal)) console.error("chat stream error", error); },
+    onError: ({ error }) => { if (!isAbort(error, request.signal)) { void import("./credit-pause.server").then((s) => s.recordCreditPause(error)); console.error("chat stream error", error); } },
   });
   return withLovableAiGatewayRunIdHeader(result.toUIMessageStreamResponse({
     originalMessages: body.messages, sendReasoning: true,
