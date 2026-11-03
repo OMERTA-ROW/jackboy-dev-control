@@ -6,8 +6,8 @@ export const STEP_UP_ACTIONS = {
   revert_update: { label: "Revert a merged update", roles: ["owner"] },
   critical_change: { label: "Critical Code Foundry change (security/config/destructive files)", roles: ["owner"] },
   approve_integration: { label: "Approve a provider permission for one project", roles: ["owner"] },
-  production_deploy: { label: "Production deployment", roles: ["owner"], unavailable: "Not built: Jackboy has no deploy integration" },
-  privilege_escalation: { label: "Grant or raise a permission", roles: ["owner"], unavailable: "Not built yet" },
+  production_deploy: { label: "Production deployment", roles: ["owner"] },
+  privilege_escalation: { label: "Grant or raise a permission", roles: ["owner", "admin"] },
   building_control: { label: "Physical building controls", roles: ["owner"], unavailable: "Future integration; not authorized or connected" },
 } as const satisfies Record<string, { label: string; roles: readonly string[]; unavailable?: string }>;
 export type StepUpAction = keyof typeof STEP_UP_ACTIONS;

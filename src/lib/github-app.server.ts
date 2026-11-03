@@ -2,6 +2,7 @@
 // Secrets: GITHUB_APP_ID, GITHUB_APP_SLUG, GITHUB_APP_PRIVATE_KEY. Tokens never leave the server.
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { appRegistrationUrl, installUrl, missingPermissions, pemToPkcs8, signState } from "./github-app";
+import { permissionAtLeast, permissionLevel } from "./provider-permissions";
 
 const API = "https://api.github.com";
 const H = { Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "Jackboy" };
@@ -49,6 +50,7 @@ async function installationToken(id: number): Promise<string> {
 /** Verifies an installation with GitHub itself, records repos/permissions, returns what is still missing. */
 export async function recordInstallation(installationId: number, approvedBy: string | null) {
   const inst = await call<{ account: { login: string; type: string }; permissions: Record<string, string> }>(`/app/installations/${installationId}`, await appJwt());
+  const { data: previous } = await supabaseAdmin.from("github_installations").select("permissions,approved_by").eq("installation_id", installationId).maybeSingle();
   const tok = await installationToken(installationId);
   const names: string[] = [];
   for (let page = 1; page <= 20; page++) {
@@ -57,10 +59,61 @@ export async function recordInstallation(installationId: number, approvedBy: str
     if (repos.repositories.length < 100) break;
   }
   const missing = missingPermissions(inst.permissions);
-  const row = { installation_id: installationId, account_login: inst.account.login, account_type: inst.account.type, repositories: names, permissions: inst.permissions, missing_permissions: missing, approved_by: approvedBy, verified_at: new Date().toISOString(), revoked: false, updated_at: new Date().toISOString() };
+  const row = { installation_id: installationId, account_login: inst.account.login, account_type: inst.account.type, repositories: names, permissions: inst.permissions, missing_permissions: missing, approved_by: approvedBy ?? previous?.approved_by ?? null, verified_at: new Date().toISOString(), revoked: false, updated_at: new Date().toISOString() };
+  if (previous?.permissions) await recordPermissionChanges(inst.account.login, previous.permissions as Record<string, string>, inst.permissions);
   const { error } = await supabaseAdmin.from("github_installations").upsert(row);
   if (error) throw new Error(`Could not store installation: ${error.message}`);
   return row;
+}
+
+const SYSTEM_ACTOR = "00000000-0000-4000-8000-000000000000";
+
+async function recordPermissionChanges(account: string, before: Record<string, string>, after: Record<string, string>) {
+  const changes = [...new Set([...Object.keys(before), ...Object.keys(after)])]
+    .map((permission) => ({ permission, from: permissionLevel(before[permission]), to: permissionLevel(after[permission]) }))
+    .filter((change) => change.from !== change.to);
+  if (!changes.length) return;
+  const { data: approvals, error } = await supabaseAdmin.from("provider_permission_events")
+    .select("request_id,event,permission,before_access,after_access,reason")
+    .eq("provider", "github_app").eq("target", account).eq("event", "approved").limit(500);
+  if (error) throw new Error(`Could not reconcile GitHub permission changes: ${error.message}`);
+  const { data: appliedRows, error: appliedError } = await supabaseAdmin.from("provider_permission_events")
+    .select("request_id").eq("provider", "github_app").eq("target", account).eq("event", "applied").limit(500);
+  if (appliedError) throw new Error(`Could not read applied permission requests: ${appliedError.message}`);
+  const applied = new Set((appliedRows ?? []).map((row) => row.request_id));
+
+  for (const change of changes) {
+    const { error: eventError } = await supabaseAdmin.from("provider_permission_events").insert({
+      provider: "github_app", event: "changed", target: account, permission: change.permission,
+      before_access: change.from, after_access: change.to, actor: SYSTEM_ACTOR,
+      detail: { source: "verified GitHub installation refresh" },
+    });
+    if (eventError) throw new Error(`Could not record a GitHub permission change: ${eventError.message}`);
+    await (await import("./site-log.server")).logSiteStrict({
+      actor: "github", action: "provider_permission_changed", category: "config", status: "ok",
+      summary: `GitHub reports ${account} permission ${change.permission} changed from ${change.from} to ${change.to}.`,
+      detail: { provider: "github_app", account, permission: change.permission, before: change.from, after: change.to },
+    });
+
+    const matching = (approvals ?? []).find((request) =>
+      request.permission === change.permission && !applied.has(request.request_id) &&
+      permissionAtLeast(change.to, request.after_access));
+    if (matching?.request_id) {
+      const { error: appliedInsertError } = await supabaseAdmin.from("provider_permission_events").insert({
+        request_id: matching.request_id, provider: "github_app", event: "applied", target: account,
+        permission: change.permission, before_access: change.from, after_access: change.to,
+        reason: matching.reason, actor: SYSTEM_ACTOR,
+        detail: { source: "verified GitHub installation refresh" },
+      });
+      if (appliedInsertError && appliedInsertError.code !== "23505") throw new Error(`Could not record an applied permission request: ${appliedInsertError.message}`);
+      applied.add(matching.request_id);
+      await (await import("./site-log.server")).logSiteStrict({
+        actor: "github", action: "provider_permission_applied", category: "config", status: "ok",
+        summary: `GitHub installation now reports the approved ${change.permission}: ${change.to} permission for ${account}.`,
+        detail: { requestId: matching.request_id, provider: "github_app", permission: change.permission, access: change.to },
+      });
+    }
+  }
 }
 
 /** Re-reads every installation of the app from GitHub and records it (used when no webhook/setup callback ran). */

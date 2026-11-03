@@ -6,14 +6,16 @@ import { mayRequest, STEP_UP_ACTIONS } from "./step-up";
 
 type Ctx = { supabase: any; userId: string };
 async function role(ctx: Ctx): Promise<string | null> { const { data } = await ctx.supabase.rpc("my_role"); return (data as string) ?? null; }
+async function requireOwnerOrAdmin(ctx: Ctx) { const r = await role(ctx); if (r !== "owner" && r !== "admin") throw new Error("Owner or administrator only."); return r; }
 
 export const listPasskeys = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
-  if ((await role(context)) !== "owner") throw new Error("Owner only.");
-  const { data, error } = await context.supabase.from("owner_passkeys").select("id, label, created_at, last_used_at, rp_id").eq("user_id", context.userId).order("created_at");
+  const currentRole = await requireOwnerOrAdmin(context);
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data, error } = await supabaseAdmin.from("owner_passkeys").select("id, label, created_at, last_used_at, rp_id").eq("user_id", context.userId).order("created_at");
   if (error) throw new Error(error.message);
   let host: string | null = null; let hostError: string | null = null;
   try { const s = await import("./passkey.server"); host = s.rp(getRequest()).rpID; } catch (e) { hostError = (e as Error).message; }
-  return { passkeys: data ?? [], host, hostError, actions: Object.entries(STEP_UP_ACTIONS).map(([id, a]) => ({ id, label: a.label, unavailable: "unavailable" in a ? a.unavailable : null })) };
+  return { passkeys: data ?? [], host, hostError, canRemove: currentRole === "owner", actions: Object.entries(STEP_UP_ACTIONS).map(([id, a]) => ({ id, label: a.label, unavailable: "unavailable" in a ? a.unavailable : null })) };
 });
 
 export const removePasskey = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
@@ -27,7 +29,7 @@ export const removePasskey = createServerFn({ method: "POST" }).middleware([requ
   });
 
 export const passkeyRegisterOptions = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
-  if ((await role(context)) !== "owner") throw new Error("Owner only.");
+  await requireOwnerOrAdmin(context);
   const { generateRegistrationOptions } = await import("@simplewebauthn/server");
   const s = await import("./passkey.server");
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -45,7 +47,7 @@ export const passkeyRegisterOptions = createServerFn({ method: "POST" }).middlew
 export const passkeyRegisterVerify = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ challengeId: z.string().uuid(), response: z.any(), label: z.string().max(60).optional() }).parse(d))
   .handler(async ({ data, context }) => {
-    if ((await role(context)) !== "owner") throw new Error("Owner only.");
+    await requireOwnerOrAdmin(context);
     const { verifyRegistrationResponse } = await import("@simplewebauthn/server");
     const s = await import("./passkey.server");
     const ch = await s.takeChallenge(data.challengeId, context.userId, "register");
@@ -104,7 +106,7 @@ export const stepUpVerify = createServerFn({ method: "POST" }).middleware([requi
 
 /** Real sign-in check: asks the device for the passkey and verifies it, without granting any action. */
 export const passkeyTestOptions = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
-  if ((await role(context)) !== "owner") throw new Error("Owner only.");
+  await requireOwnerOrAdmin(context);
   const { generateAuthenticationOptions } = await import("@simplewebauthn/server");
   const s = await import("./passkey.server");
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -118,6 +120,7 @@ export const passkeyTestOptions = createServerFn({ method: "POST" }).middleware(
 export const passkeyTestVerify = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ challengeId: z.string().uuid(), response: z.any() }).parse(d))
   .handler(async ({ data, context }) => {
+    await requireOwnerOrAdmin(context);
     const { verifyAuthenticationResponse } = await import("@simplewebauthn/server");
     const { isoBase64URL } = await import("@simplewebauthn/server/helpers");
     const s = await import("./passkey.server");

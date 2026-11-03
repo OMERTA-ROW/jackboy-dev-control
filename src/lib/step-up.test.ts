@@ -15,9 +15,15 @@ describe("passkey step-up", () => {
     expect(mayRequest("merge_update", "admin").ok).toBe(false);
     expect(mayRequest("merge_update", "member").ok).toBe(false);
   });
-  it("unbuilt actions stay blocked for the owner", () => {
-    expect(mayRequest("production_deploy", "owner").ok).toBe(false);
+  it("production deployment is owner-only and physical controls stay blocked", () => {
+    expect(mayRequest("production_deploy", "owner").ok).toBe(true);
+    expect(mayRequest("production_deploy", "admin").ok).toBe(false);
     expect(mayRequest("building_control", "owner").ok).toBe(false);
+  });
+  it("permission increases require an owner or administrator", () => {
+    expect(mayRequest("privilege_escalation", "owner").ok).toBe(true);
+    expect(mayRequest("privilege_escalation", "admin").ok).toBe(true);
+    expect(mayRequest("privilege_escalation", "member").ok).toBe(false);
   });
   it("a grant works only for its exact action and target", () => {
     expect(grantUsable(g, "u", "merge_update", "p1")).toBe(true);

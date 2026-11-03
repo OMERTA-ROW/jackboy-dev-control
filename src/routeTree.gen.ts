@@ -25,6 +25,7 @@ import { Route as AuthenticatedAutopilotRouteImport } from './routes/_authentica
 import { Route as AuthenticatedBlockersRouteImport } from './routes/_authenticated/blockers'
 import { Route as AuthenticatedChatRouteImport } from './routes/_authenticated/chat'
 import { Route as AuthenticatedConnectRouteImport } from './routes/_authenticated/connect'
+import { Route as AuthenticatedDeploymentsRouteImport } from './routes/_authenticated/deployments'
 import { Route as AuthenticatedDiscoveryRouteImport } from './routes/_authenticated/discovery'
 import { Route as AuthenticatedFeedsRouteImport } from './routes/_authenticated/feeds'
 import { Route as AuthenticatedFleetRouteImport } from './routes/_authenticated/fleet'
@@ -34,6 +35,7 @@ import { Route as AuthenticatedJaxRouteImport } from './routes/_authenticated/ja
 import { Route as AuthenticatedOmniRouteImport } from './routes/_authenticated/omni'
 import { Route as AuthenticatedOverviewRouteImport } from './routes/_authenticated/overview'
 import { Route as AuthenticatedProjectsRouteImport } from './routes/_authenticated/projects'
+import { Route as AuthenticatedProviderAccessRouteImport } from './routes/_authenticated/provider-access'
 import { Route as AuthenticatedRazulRouteImport } from './routes/_authenticated/razul'
 import { Route as AuthenticatedReleasesRouteImport } from './routes/_authenticated/releases'
 import { Route as AuthenticatedResearchRouteImport } from './routes/_authenticated/research'
@@ -146,6 +148,12 @@ const AuthenticatedConnectRoute = AuthenticatedConnectRouteImport.update({
   path: '/connect',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedDeploymentsRoute =
+  AuthenticatedDeploymentsRouteImport.update({
+    id: '/deployments',
+    path: '/deployments',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedDiscoveryRoute = AuthenticatedDiscoveryRouteImport.update({
   id: '/discovery',
   path: '/discovery',
@@ -192,6 +200,12 @@ const AuthenticatedProjectsRoute = AuthenticatedProjectsRouteImport.update({
   path: '/projects',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedProviderAccessRoute =
+  AuthenticatedProviderAccessRouteImport.update({
+    id: '/provider-access',
+    path: '/provider-access',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedRazulRoute = AuthenticatedRazulRouteImport.update({
   id: '/razul',
   path: '/razul',
@@ -370,6 +384,7 @@ export interface FileRoutesByFullPath {
   '/blockers': typeof AuthenticatedBlockersRoute
   '/chat': typeof AuthenticatedChatRoute
   '/connect': typeof AuthenticatedConnectRoute
+  '/deployments': typeof AuthenticatedDeploymentsRoute
   '/discovery': typeof AuthenticatedDiscoveryRoute
   '/feeds': typeof AuthenticatedFeedsRoute
   '/fleet': typeof AuthenticatedFleetRoute
@@ -379,6 +394,7 @@ export interface FileRoutesByFullPath {
   '/omni': typeof AuthenticatedOmniRoute
   '/overview': typeof AuthenticatedOverviewRoute
   '/projects': typeof AuthenticatedProjectsRoute
+  '/provider-access': typeof AuthenticatedProviderAccessRoute
   '/razul': typeof AuthenticatedRazulRoute
   '/releases': typeof AuthenticatedReleasesRoute
   '/research': typeof AuthenticatedResearchRoute
@@ -426,6 +442,7 @@ export interface FileRoutesByTo {
   '/blockers': typeof AuthenticatedBlockersRoute
   '/chat': typeof AuthenticatedChatRoute
   '/connect': typeof AuthenticatedConnectRoute
+  '/deployments': typeof AuthenticatedDeploymentsRoute
   '/discovery': typeof AuthenticatedDiscoveryRoute
   '/feeds': typeof AuthenticatedFeedsRoute
   '/fleet': typeof AuthenticatedFleetRoute
@@ -435,6 +452,7 @@ export interface FileRoutesByTo {
   '/omni': typeof AuthenticatedOmniRoute
   '/overview': typeof AuthenticatedOverviewRoute
   '/projects': typeof AuthenticatedProjectsRoute
+  '/provider-access': typeof AuthenticatedProviderAccessRoute
   '/razul': typeof AuthenticatedRazulRoute
   '/releases': typeof AuthenticatedReleasesRoute
   '/research': typeof AuthenticatedResearchRoute
@@ -485,6 +503,7 @@ export interface FileRoutesById {
   '/_authenticated/blockers': typeof AuthenticatedBlockersRoute
   '/_authenticated/chat': typeof AuthenticatedChatRoute
   '/_authenticated/connect': typeof AuthenticatedConnectRoute
+  '/_authenticated/deployments': typeof AuthenticatedDeploymentsRoute
   '/_authenticated/discovery': typeof AuthenticatedDiscoveryRoute
   '/_authenticated/feeds': typeof AuthenticatedFeedsRoute
   '/_authenticated/fleet': typeof AuthenticatedFleetRoute
@@ -494,6 +513,7 @@ export interface FileRoutesById {
   '/_authenticated/omni': typeof AuthenticatedOmniRoute
   '/_authenticated/overview': typeof AuthenticatedOverviewRoute
   '/_authenticated/projects': typeof AuthenticatedProjectsRoute
+  '/_authenticated/provider-access': typeof AuthenticatedProviderAccessRoute
   '/_authenticated/razul': typeof AuthenticatedRazulRoute
   '/_authenticated/releases': typeof AuthenticatedReleasesRoute
   '/_authenticated/research': typeof AuthenticatedResearchRoute
@@ -545,6 +565,7 @@ export interface FileRouteTypes {
     | '/blockers'
     | '/chat'
     | '/connect'
+    | '/deployments'
     | '/discovery'
     | '/feeds'
     | '/fleet'
@@ -554,6 +575,7 @@ export interface FileRouteTypes {
     | '/omni'
     | '/overview'
     | '/projects'
+    | '/provider-access'
     | '/razul'
     | '/releases'
     | '/research'
@@ -601,6 +623,7 @@ export interface FileRouteTypes {
     | '/blockers'
     | '/chat'
     | '/connect'
+    | '/deployments'
     | '/discovery'
     | '/feeds'
     | '/fleet'
@@ -610,6 +633,7 @@ export interface FileRouteTypes {
     | '/omni'
     | '/overview'
     | '/projects'
+    | '/provider-access'
     | '/razul'
     | '/releases'
     | '/research'
@@ -659,6 +683,7 @@ export interface FileRouteTypes {
     | '/_authenticated/blockers'
     | '/_authenticated/chat'
     | '/_authenticated/connect'
+    | '/_authenticated/deployments'
     | '/_authenticated/discovery'
     | '/_authenticated/feeds'
     | '/_authenticated/fleet'
@@ -668,6 +693,7 @@ export interface FileRouteTypes {
     | '/_authenticated/omni'
     | '/_authenticated/overview'
     | '/_authenticated/projects'
+    | '/_authenticated/provider-access'
     | '/_authenticated/razul'
     | '/_authenticated/releases'
     | '/_authenticated/research'
@@ -845,6 +871,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedConnectRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/deployments': {
+      id: '/_authenticated/deployments'
+      path: '/deployments'
+      fullPath: '/deployments'
+      preLoaderRoute: typeof AuthenticatedDeploymentsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/discovery': {
       id: '/_authenticated/discovery'
       path: '/discovery'
@@ -906,6 +939,13 @@ declare module '@tanstack/react-router' {
       path: '/projects'
       fullPath: '/projects'
       preLoaderRoute: typeof AuthenticatedProjectsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/provider-access': {
+      id: '/_authenticated/provider-access'
+      path: '/provider-access'
+      fullPath: '/provider-access'
+      preLoaderRoute: typeof AuthenticatedProviderAccessRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/razul': {
@@ -1139,6 +1179,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedBlockersRoute: typeof AuthenticatedBlockersRoute
   AuthenticatedChatRoute: typeof AuthenticatedChatRoute
   AuthenticatedConnectRoute: typeof AuthenticatedConnectRoute
+  AuthenticatedDeploymentsRoute: typeof AuthenticatedDeploymentsRoute
   AuthenticatedDiscoveryRoute: typeof AuthenticatedDiscoveryRoute
   AuthenticatedFeedsRoute: typeof AuthenticatedFeedsRoute
   AuthenticatedFleetRoute: typeof AuthenticatedFleetRoute
@@ -1148,6 +1189,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedOmniRoute: typeof AuthenticatedOmniRoute
   AuthenticatedOverviewRoute: typeof AuthenticatedOverviewRoute
   AuthenticatedProjectsRoute: typeof AuthenticatedProjectsRoute
+  AuthenticatedProviderAccessRoute: typeof AuthenticatedProviderAccessRoute
   AuthenticatedRazulRoute: typeof AuthenticatedRazulRoute
   AuthenticatedReleasesRoute: typeof AuthenticatedReleasesRoute
   AuthenticatedResearchRoute: typeof AuthenticatedResearchRoute
@@ -1172,6 +1214,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedBlockersRoute: AuthenticatedBlockersRoute,
   AuthenticatedChatRoute: AuthenticatedChatRoute,
   AuthenticatedConnectRoute: AuthenticatedConnectRoute,
+  AuthenticatedDeploymentsRoute: AuthenticatedDeploymentsRoute,
   AuthenticatedDiscoveryRoute: AuthenticatedDiscoveryRoute,
   AuthenticatedFeedsRoute: AuthenticatedFeedsRoute,
   AuthenticatedFleetRoute: AuthenticatedFleetRoute,
@@ -1181,6 +1224,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedOmniRoute: AuthenticatedOmniRoute,
   AuthenticatedOverviewRoute: AuthenticatedOverviewRoute,
   AuthenticatedProjectsRoute: AuthenticatedProjectsRoute,
+  AuthenticatedProviderAccessRoute: AuthenticatedProviderAccessRoute,
   AuthenticatedRazulRoute: AuthenticatedRazulRoute,
   AuthenticatedReleasesRoute: AuthenticatedReleasesRoute,
   AuthenticatedResearchRoute: AuthenticatedResearchRoute,

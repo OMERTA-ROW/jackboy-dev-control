@@ -64,6 +64,18 @@ function OmniPage() {
         Approve a handoff, then clear the provenance checklist. Publishing, pricing and selling stay locked until both
         are done.
       </GuidanceTip>
+      <section className="panel mb-6 p-4" aria-label="Control plane integration">
+        <h2 className="text-sm font-semibold text-silver">Deployment and permission requests</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          These controls use Jackboy's authenticated request endpoints and audit ledger. OMNI does not receive or execute
+          deployment or permission changes automatically: production publishing requires an owner passkey, and permission
+          increases require owner/admin approval plus GitHub's official authorization flow.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-4 text-sm">
+          <Link to="/deployments" className="text-electric underline">Review deployments</Link>
+          <Link to="/provider-access" className="text-electric underline">Manage provider access</Link>
+        </div>
+      </section>
       <InternalTaskQueue />
 
       {handoffs.length === 0 ? (
