@@ -72,7 +72,7 @@ function ChatPage() {
   const chatContext = () => messages.slice(-12).map((m) => `${m.role === "user" ? "Owner" : "Jackboy"}: ${textOf(m)}`).join("\n").slice(-6000);
   const [liveRows, setLiveRows] = useState<LiveRow[]>([]);
   const addVoiceTranscript = (rows: LiveRow[]) =>
-    setMessages((cur) => [...cur, ...rows.filter((r) => r.text.trim()).map((r, i) => ({ id: `voice-${Date.now()}-${i}`, role: r.role, metadata: { voice: true }, parts: [{ type: "text" as const, text: r.text.trim() }] }))]);
+    setMessages((cur) => [...cur, ...rows.filter((r) => r.text.trim() || r.evidence?.length).map((r, i) => ({ id: `voice-${Date.now()}-${i}`, role: r.role, metadata: { voice: true, evidence: r.evidence ?? [] }, parts: [{ type: "text" as const, text: r.text.trim() }] }))]);
   const live = useLiveCall({ chatContext, onLiveRows: setLiveRows, onTranscript: addVoiceTranscript, onCodeCard: code.receive });
 
   const send = async (t: string) => {
@@ -168,6 +168,7 @@ const textOf = (m: UIMessage) => m.parts.filter((x) => x.type === "text").map((x
 function Bubble({ m, streaming }: { m: UIMessage; streaming: boolean }) {
   if (m.role === "user") return <li className="self-end max-w-[85%] whitespace-pre-wrap rounded-3xl bg-muted px-4 py-2.5 text-[15px]">{textOf(m).replace(/^🎙\s*/, "")}</li>;
   const words = textOf(m);
+  const retainedLinks = (m.metadata as { evidence?: EvidenceLink[] } | undefined)?.evidence?.filter((l) => safeEvidenceUrl(l.url)) ?? [];
   return (
     <li className="group text-[15px] leading-relaxed">
       {m.parts.map((part, i) => {
@@ -176,6 +177,7 @@ function Bubble({ m, streaming }: { m: UIMessage; streaming: boolean }) {
         return null;
       })}
       {!streaming && words.trim() && <CopyButton text={words} />}
+      {retainedLinks.map((l) => <a key={l.url} href={l.url} className="mr-3 text-xs text-primary underline">{l.label}</a>)}
     </li>
   );
 }

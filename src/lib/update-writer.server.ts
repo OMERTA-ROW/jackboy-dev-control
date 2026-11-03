@@ -120,8 +120,8 @@ export async function deliver(proposalId: string, actor: string | null) {
     await gh.requirePrivateRepo(repo.owner, repo.repo);
     const withPrev: { path: string; content: string; previous: string | null }[] = [];
     for (const f of files) withPrev.push({ ...f, previous: await gh.readFile(repo.owner, repo.repo, f.path, proj.github_branch) });
-    const branch = `jackboy/update-${proposalId.slice(0, 8)}-${Date.now().toString(36)}`;
-    const sha = await gh.commitToNewBranch(repo.owner, repo.repo, proj.github_branch, branch, `Jackboy: ${p.title}`, files);
+    const branch = p.branch_name ?? `jackboy/update-${proposalId.slice(0, 8)}-${Date.now().toString(36)}`;
+    const sha = p.head_sha ?? await gh.commitToNewBranch(repo.owner, repo.repo, proj.github_branch, branch, `Jackboy: ${p.title}`, files);
     const checks = await gh.checksState(repo.owner, repo.repo, sha);
     if (checks !== "success") {
       await supabaseAdmin.from("update_proposals").update({ branch_name: branch, head_sha: sha, files: withPrev as never, checks_state: checks, delivery_error: "Draft PR blocked: existing tests must pass for this commit. Branch preserved; no PR opened." }).eq("id", proposalId);

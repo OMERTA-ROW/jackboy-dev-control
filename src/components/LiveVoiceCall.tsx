@@ -25,7 +25,7 @@ export function useLiveCall({ chatContext, onLiveRows, onTranscript, onCodeCard 
   const quiet = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const push = (role: LiveRow["role"], delta: string) => {
     const r = rowsRef.current, last = r.at(-1);
-    rowsRef.current = last?.role === role ? [...r.slice(0, -1), { role, text: last.text + delta }] : [...r, { role, text: delta }];
+    rowsRef.current = last?.role === role ? [...r.slice(0, -1), { ...last, role, text: last.text + delta }] : [...r, { role, text: delta }];
     onLiveRows(rowsRef.current);
   };
   const commit = () => { if (rowsRef.current.length) onTranscript(rowsRef.current); rowsRef.current = []; onLiveRows([]); };

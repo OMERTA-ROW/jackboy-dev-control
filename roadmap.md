@@ -1,10 +1,10 @@
 # Jackboy roadmap
 
 ## Feature-first queue and acting chat
-- [ ] Suppress standalone test work unless tied to a real blocked feature; preserve existing checks before draft PR.
-- [ ] Voice/text acknowledge intent, execute supported tools, return short evidence-linked outcomes without bypassing approval.
-- [ ] Durable out-of-credits pause visible in queue/chat; recover only with verified available credits, preserving other pause reasons.
-- [ ] Focused rules tests and authenticated end-to-end checks; document unsupported recovery integrations.
+- [x] Suppress new standalone test proposals; preserve critical tests and require passing checks for the changed commit before new draft PR. Existing history retained.
+- [x] Shared voice/text response policy, live permission check and durable task intake; tool-derived validated repo/project/queue links; unsafe model-authored links not clickable. Signed-in text performed real OMNI check; live voice transport remains unverified.
+- [ ] Automatic credit recovery blocked: no documented app-runtime balance read/API connection. Explicit 402 pauses now show "Paused: out of credits" with credit instructions in chat/queue; manual owner recovery remains, no paid inference probes.
+- [x] Work-policy, link-safety and repository check regressions; authenticated text check verified no job dispatch. Full suite rerun before completion.
 
 ## Connected Projects unified resync addition
 - [x] Front-side permanent Resync action with last synced time; propose missing links from token-visible names and Lovable metadata.
