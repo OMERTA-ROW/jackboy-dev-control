@@ -140,10 +140,19 @@ function AuthPage() {
         <div className="mt-4 space-y-2">
           {SOCIAL.map((p) => {
             const enabled = p.supported && providers?.[p.key] === true;
-            const why = !p.supported ? "Not supported" : providers === null ? "Checking…" : "Not enabled yet by the owner";
+            const why = !p.supported ? "Not available" : providers === null ? "Checking…" : "Not enabled yet by the owner";
             return (
-              <Button key={p.id} type="button" variant="outline" className="w-full justify-between" disabled={!enabled}
-                title={enabled ? undefined : why} aria-describedby={`${p.id}-why`}>
+              <Button key={p.id} type="button" variant="outline" className="w-full justify-between" disabled={!enabled || busy}
+                title={enabled ? undefined : why} aria-describedby={`${p.id}-why`}
+                onClick={async () => {
+                  setBusy(true); setMsg(null);
+                  const r = await lovable.auth.signInWithOAuth(p.id as "google" | "microsoft", { redirect_uri: `${window.location.origin}/auth` });
+                  if (r.error) { setMsg({ ok: false, t: `${p.label} sign-in failed: ${r.error.message}` }); setBusy(false); return; }
+                  if (r.redirected) return;
+                  const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+                  setBusy(false);
+                  if (mfaChallengeRequired(aal)) setMode("mfa"); else nav({ to: "/onboarding" });
+                }}>
                 <span>Continue with {p.label}</span>
                 {!enabled && <span id={`${p.id}-why`} className="text-[10px] text-muted-foreground">{why}</span>}
               </Button>
