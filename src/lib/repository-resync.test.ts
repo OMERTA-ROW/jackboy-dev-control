@@ -22,5 +22,5 @@ describe("repository resync rules", () => {
   it("requires both accessible listing and existence for Linked OK", () => { expect(buildRepositoryReview([ref("OMERTA-ROW/Omni")], ["OMERTA-ROW/Omni"], { "OMERTA-ROW/Omni": { status: 404 } })[0]?.group).not.toBe("linked"); });
   it("keeps case-only repo differences linked", () => { expect(buildRepositoryReview([ref("OMERTA-ROW/Jax")], ["OMERTA-ROW/jax"], { "OMERTA-ROW/Jax": { status: 200 } })[0]?.group).toBe("linked"); });
   it("never proposes changes to immutable history", () => { expect(buildRepositoryReview([ref("OMERTA-ROW/missing", false)], [], { "OMERTA-ROW/missing": { status: 404 } })[0]?.canApply).toBe(false); });
-  it("warns on personal owner with organization references", () => { expect(tokenOwnerWarning("street-Tech666", ["OMERTA-ROW/Omni"])).not.toBeNull(); expect(tokenOwnerWarning("OMERTA-ROW", ["OMERTA-ROW/Omni"])).toBeNull(); });
+  it("warns on personal owner with organization references", () => { expect(tokenOwnerWarning("street-Tech666", ["OMERTA-ROW/Omni"])).not.toBeNull(); expect(tokenOwnerWarning("OMERTA-ROW", ["OMERTA-ROW/Omni"])).toBeNull(); expect(tokenOwnerWarning("street-Tech666", ["OMERTA-ROW/Omni"], ["OMERTA-ROW"])).toBeNull(); });
 });
