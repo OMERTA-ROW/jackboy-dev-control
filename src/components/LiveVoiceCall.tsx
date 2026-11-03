@@ -20,7 +20,7 @@ export function useLiveCall({ chatContext, onLiveRows, onTranscript, onCodeCard 
     return () => data.subscription.unsubscribe();
   }, []);
   const rowsRef = useRef<LiveRow[]>([]);
-  const [activity, setActivity] = useState<"listening" | "speaking" | "thinking">("listening");
+  const [activity, setActivity] = useState<"listening" | "speaking" | "thinking" | "working">("listening");
   const level = useRef(0);
   const quiet = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const push = (role: LiveRow["role"], delta: string) => {
@@ -40,12 +40,13 @@ export function useLiveCall({ chatContext, onLiveRows, onTranscript, onCodeCard 
     else if (e.type === "session.output_transcript.delta" && delta) {
       push("assistant", delta); setActivity("speaking"); level.current = 1;
       clearTimeout(quiet.current); quiet.current = setTimeout(() => setActivity("listening"), 1500);
-    } else if (e.type === "app.delegation.pending") setActivity("thinking");
+    } else if (e.type === "app.delegation.pending") setActivity("working"); // backend tools are actually running
+    else if (e.type === "app.jackboy.status" || e.type === "app.action.evidence") setActivity("listening");
     else if (e.type === "app.closed") commit();
   };
   const call = useLiveVoice({ onEvent, getToken: () => token.current, getContext: chatContext });
   const live = call.status === "connecting" || call.status === "connected" || call.status === "stopping";
-  const mode: OrbMode = call.error ? "error" : call.status === "connecting" ? "thinking" : call.status !== "connected" ? "idle" : call.muted ? "muted" : activity;
+  const mode: OrbMode = call.error ? "error" : call.status === "connecting" ? "thinking" : call.status !== "connected" ? "idle" : call.muted ? "muted" : activity === "working" ? "thinking" : activity;
   const start = () => { try { localStorage.setItem("jackboy.live.optin", "1"); } catch { /* optional */ } commit(); setActivity("listening"); call.start(); };
   const end = () => { try { localStorage.setItem("jackboy.live.optin", "0"); } catch { /* optional */ } call.stop(); };
   // Session continuity: reconnect on return only if the owner left a call on AND the browser already granted the mic.
@@ -57,7 +58,7 @@ export function useLiveCall({ chatContext, onLiveRows, onTranscript, onCodeCard 
     const t = setTimeout(() => { void navigator.permissions.query({ name: "microphone" as PermissionName }).then((p) => { if (p.state === "granted" && token.current) start(); }).catch(() => {}); }, 800);
     return () => clearTimeout(t);
   }, []);
-  return { call, live, mode, level, start, end };
+  return { call, live, mode, working: live && activity === "working", level, start, end };
 }
 
 export type LiveCall = ReturnType<typeof useLiveCall>;
@@ -81,7 +82,7 @@ export function LiveCallBar({ v }: { v: LiveCall }) {
   return (
     <div className="mb-2 flex flex-wrap items-center gap-2 rounded-full border border-border bg-card/80 py-1 pl-1 pr-2 backdrop-blur">
       <span className="min-w-0 flex-1 truncate text-xs" aria-live="polite">
-        {call.error ? <span role="alert" className="text-destructive">{call.error}</span> : call.muted ? "Muted" : v.mode === "speaking" ? "Jackboy is speaking — just talk to interrupt" : v.mode === "thinking" ? "Thinking…" : STATUS[call.status] ?? call.status}
+        {call.error ? <span role="alert" className="text-destructive">{call.error}</span> : call.muted ? "Muted" : v.mode === "speaking" ? "Jackboy is speaking — just talk to interrupt" : v.working ? "Working on it…" : v.mode === "thinking" ? "Thinking…" : STATUS[call.status] ?? call.status}
       </span>
       {call.playbackBlocked && <button type="button" onClick={call.resumePlayback} className={pill}><Play className="size-4" />Play audio</button>}
       {call.error && !v.live && <button type="button" onClick={v.start} className={pill}><RotateCw className="size-4" />Reconnect</button>}

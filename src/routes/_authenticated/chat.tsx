@@ -175,6 +175,7 @@ function ChatPage() {
     error: Boolean(error || voice.error || jackboyVoice.error || live.call.error),
     listening: voice.listening || (live.live && live.mode === "listening" && !live.call.muted),
     speaking: voice.speaking || jackboyVoice.speaking || (live.live && live.mode === "speaking"),
+    toolRunning: live.working || (busy && Boolean(tail?.role === "assistant" && tail.parts.some((x) => isToolUIPart(x) && (x.state === "input-streaming" || x.state === "input-available")))),
     chatStatus: status, liveThinking: live.live && live.mode === "thinking", codeBusy: code.busy,
     cards: view === "code" ? code.cards : code.cards.filter((c) => c.status === "pending"),
   });
@@ -233,6 +234,7 @@ function ChatPage() {
             )}
             <p className="mt-2 text-xs text-muted-foreground">CODE checks access and asks for your approval before anything runs; results open as a draft PR only.</p>
           </div>}
+          <VoiceSupport />
           <nav aria-label="Secondary" className="flex flex-col gap-1 text-sm">
             <Link to="/projects" className="rounded-lg px-3 py-2 hover:bg-muted">Projects and repositories</Link>
             <Link to="/connect" className="rounded-lg px-3 py-2 hover:bg-muted">Connections</Link>
@@ -369,3 +371,32 @@ function ToolLine({ name, state, output, errorText }: { name: string; state: str
   return null;
 }
 
+
+/** Explicit device support, microphone permission and privacy facts for voice. */
+function VoiceSupport() {
+  const statusFn = useServerFn(getVoiceChatStatus);
+  const [info, setInfo] = useState<{ secure: boolean; mic: boolean; webrtc: boolean; stt: boolean; tts: boolean; perm: string; server: boolean | null } | null>(null);
+  useEffect(() => {
+    const w = window as unknown as Record<string, unknown>;
+    const base = { secure: window.isSecureContext, mic: Boolean(navigator.mediaDevices?.getUserMedia), webrtc: typeof RTCPeerConnection !== "undefined",
+      stt: Boolean(w["SpeechRecognition"] || w["webkitSpeechRecognition"]), tts: "speechSynthesis" in window, perm: "unknown", server: null as boolean | null };
+    setInfo(base);
+    navigator.permissions?.query({ name: "microphone" as PermissionName }).then((p) => setInfo((i) => i && { ...i, perm: p.state })).catch(() => undefined);
+    statusFn().then((s) => setInfo((i) => i && { ...i, server: s.voiceAvailable })).catch(() => setInfo((i) => i && { ...i, server: false }));
+  }, [statusFn]);
+  if (!info) return null;
+  const row = (label: string, ok: boolean | null, note?: string) => <li className="flex justify-between gap-2"><span>{label}</span><span className={ok ? "text-success" : ok === null ? "text-muted-foreground" : "text-warning"}>{ok === null ? "Checking" : ok ? "Yes" : "No"}{note ? ` · ${note}` : ""}</span></li>;
+  return (
+    <section aria-label="Voice and privacy" className="space-y-2 text-xs">
+      <h3 className="text-sm font-semibold text-silver">Voice and privacy</h3>
+      <ul className="space-y-1 text-muted-foreground">
+        {row("Two-way voice on this device", info.secure && info.mic && info.webrtc)}
+        {row("Microphone permission", info.perm === "granted" ? true : info.perm === "denied" ? false : null, info.perm === "prompt" ? "will ask" : info.perm === "denied" ? "blocked in browser" : undefined)}
+        {row("Dictation (speech to text)", info.stt)}
+        {row("Spoken replies on device", info.tts)}
+        {row("Jackboy voice service", info.server)}
+      </ul>
+      <p className="text-muted-foreground">The microphone runs only after you tap it and stops when you end the call or leave. Audio is not recorded or stored; only the text transcript is kept in your conversation. Spoken requests use the same permissions and approvals as typing, and sensitive actions still need a passkey on screen.</p>
+    </section>
+  );
+}
