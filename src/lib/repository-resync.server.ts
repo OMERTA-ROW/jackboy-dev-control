@@ -1,5 +1,5 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { buildRepositoryReview, normalizeRepo, tokenOwnerWarning, type RepositoryReference, type RepositoryCheck } from "./repository-resync";
+import { buildRepositoryReview, normalizeRepo, projectRepoMatch, tokenOwnerWarning, type RepoCandidate, type RepositoryReference, type RepositoryCheck, type RepositoryProfileChange } from "./repository-resync";
 
 /** Invalidate read-only evidence after GitHub failures; never changes project references or grants. */
 export async function invalidateRepositoryReview(status: number) {
@@ -20,12 +20,14 @@ export async function scanRepositories(userId: string) {
   const { login } = await me.json() as { login: string };
   const scopes = me.headers.get("x-oauth-scopes")?.split(",").map((s) => s.trim()).filter(Boolean) ?? [];
   const inventory: string[] = [];
+  const candidates: RepoCandidate[] = [];
   // Complete pagination or fail closed: never derive removals from a partial listing.
   for (let page = 1; ; page++) {
     if (page > 50) throw new Error("GitHub inventory exceeds the scan limit; no removal review was created.");
     const res = await gh(`/user/repos?per_page=100&page=${page}&affiliation=owner,collaborator,organization_member`);
     if (!res.ok) throw new Error(`Cannot list all repositories (${res.status}); no removal review was created.`);
-    const repos = await res.json() as { full_name: string }[];
+    const repos = await res.json() as RepoCandidate[];
+    candidates.push(...repos);
     inventory.push(...repos.map((r) => r.full_name));
     if (repos.length < 100) break;
   }
@@ -54,6 +56,19 @@ export async function scanRepositories(userId: string) {
     }
   }
   const rows = buildRepositoryReview(refs, inventory, checks);
+  const [profiles, agents] = await Promise.all([
+    supabaseAdmin.from("owner_projects").select("id,name,github_repo,lovable_url"),
+    supabaseAdmin.from("agent_projects").select("id,name,repo_url,lovable_project_ref"),
+  ]);
+  if (profiles.error || agents.error) throw new Error(profiles.error?.message ?? agents.error?.message);
+  for (const p of profiles.data ?? []) {
+    const row = p.github_repo ? rows.find((r) => r.repo.toLowerCase() === normalizeRepo(p.github_repo ?? "").toLowerCase()) : null;
+    const proposed = p.github_repo ? row?.proposed : projectRepoMatch(p.name, p.lovable_url, candidates);
+    const agentProfiles = (agents.data ?? []).filter((a) => (a.lovable_project_ref && p.lovable_url?.includes(a.lovable_project_ref)) || a.name.toLowerCase() === p.name.toLowerCase()).map(({ id, name, repo_url }) => ({ id, name, repo_url }));
+    const profile: RepositoryProfileChange | null = proposed ? { projectId: p.id, oldName: p.name, oldRepo: p.github_repo, newName: proposed.split("/").pop() ?? p.name, agentProfiles } : null;
+    if (!p.github_repo) rows.push({ repo: `project:${p.id}`, proposed: proposed ?? null, group: "missing", reason: proposed ? "Proposed from token-visible repository name or Lovable link; confirm this is the same project." : "No unique token-visible match; no change proposed.", mutable: 1, historical: 0, canApply: Boolean(proposed), profiles: profile ? [profile] : [{ projectId: p.id, oldName: p.name, oldRepo: null, newName: p.name, agentProfiles }] });
+    else if (row && profile) row.profiles = [...(row.profiles ?? []), profile];
+  }
   // Approval-bound or running work must stay targeted at its original repo.
   const [tasks, proposals, jobs, approvals] = await Promise.all([
     supabaseAdmin.from("foundry_tasks").select("project_id,state,branch,commit_sha,pr_number,approved_action").not("state", "in", "(completed,failed,rolled_back,rejected)"),
@@ -67,7 +82,7 @@ export async function scanRepositories(userId: string) {
     ...(tasks.data ?? []).filter((r) => r.branch || r.commit_sha || r.pr_number || r.approved_action || !["discovered", "blocked"].includes(r.state)).map((r) => r.project_id),
     ...(jobs.data ?? []).filter((r) => r.status !== "queued" || r.code_request_id).map((r) => r.project_id),
   ]);
-  for (const row of rows) if (refs.some((r) => r.table === "owner_projects" && normalizeRepo(r.value).toLowerCase() === row.repo.toLowerCase() && protectedProjects.has(r.id))) {
+  for (const row of rows) if (row.profiles?.some((p) => protectedProjects.has(p.projectId)) || refs.some((r) => r.table === "owner_projects" && normalizeRepo(r.value).toLowerCase() === row.repo.toLowerCase() && protectedProjects.has(r.id))) {
     row.canApply = false; if (row.group !== "linked") row.reason += " Approval-bound or running work exists: resolve it before changing this target.";
   }
   const report = { login, scopes, permissions, warning: tokenOwnerWarning(login, saved), rows, inventoryCount: inventory.length };

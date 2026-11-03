@@ -56,6 +56,11 @@ export function RepositorySyncAlert() {
     <Button asChild size="sm" variant="link"><Link to="/settings">Review changes</Link></Button>
   </div>;
 }
+export function ConnectedProjectsResync() {
+  const sync = useContext(SyncContext);
+  if (!sync) return null;
+  return <div className="my-3 flex flex-wrap items-center gap-3"><Button variant="outline" disabled={sync.busy} onClick={() => void sync.run(true)}><RefreshCw />{sync.busy ? "Resyncing…" : "Resync"}</Button><Button asChild variant="link"><Link to="/settings" hash="repository-sync">Review proposed changes</Link></Button><span className="text-xs text-muted-foreground">Last synced: {sync.review ? new Date(sync.review.created_at).toLocaleString() : "Not yet checked"}</span>{sync.error && <p role="alert" className="w-full text-sm text-destructive">{sync.error}</p>}</div>;
+}
 export function RepositorySyncPanel() {
   const sync = useContext(SyncContext);
   const approve = useServerFn(approveRepositorySync), stepUp = useStepUp();
@@ -89,10 +94,11 @@ export function RepositorySyncPanel() {
       <ul className="mt-2 text-xs text-muted-foreground">{Object.entries(review.report.permissions).map(([key, value]) => <li key={key}>{key.replace("_", " ")}: {value}</li>)}</ul>
       {review.report.warning && <p role="alert" className="mt-2 text-sm text-destructive">{review.report.warning}</p>}
       <p className="mt-2 text-xs text-muted-foreground">This review uses GITHUB_TOKEN only; existing organization work still uses the GitHub App. Not found does not prove deletion.</p>
-      {([['linked', 'Linked OK'], ['moved', 'Moved — proposed new match'], ['deleted', 'Deleted — proposed removal']] as const).map(([group, title]) => <div key={group} className="mt-4">
+      {([['linked', 'Linked OK'], ['missing', 'Missing link — proposed match'], ['moved', 'Moved — proposed new match'], ['deleted', 'Deleted — proposed removal']] as const).map(([group, title]) => <div key={group} className="mt-4">
         <h3 className="text-sm font-semibold">{title} ({rows.filter((r) => r.group === group).length})</h3>
         <ul className="divide-y divide-border">{rows.filter((r) => r.group === group).map((r) => <li key={r.repo} className="py-3 text-sm [overflow-wrap:anywhere]">
-          <strong>{r.repo}</strong>{r.group !== "linked" && <span> → {r.proposed ?? (r.canApply ? "Remove saved link" : "No change available")}</span>}
+          <strong>{r.group === "missing" ? r.profiles?.[0]?.oldName ?? "Unlinked project" : r.repo}</strong>{r.group !== "linked" && <span> → {r.proposed ?? (r.canApply ? "Remove saved link" : "No change available")}</span>}
+          {r.profiles?.map((p) => <p key={p.projectId} className="text-xs text-muted-foreground">Display name: {p.oldName} → {p.newName}; current profile and matching inventory names update together. History remains unchanged.</p>)}
           <p className={r.group === "linked" ? "text-muted-foreground text-xs" : "text-destructive text-xs"}>{r.reason}</p>
           <p className="text-xs text-muted-foreground">{r.mutable} current references · {r.historical} historical references preserved{!r.canApply && r.group !== "linked" ? " · Not included in approval" : ""}</p>
         </li>)}</ul>
