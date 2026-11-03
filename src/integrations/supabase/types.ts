@@ -2284,6 +2284,10 @@ export type Database = {
         Args: { actor_id: string; changes: Json; review_id: string }
         Returns: Json
       }
+      apply_repository_resync_internal: {
+        Args: { actor_id: string; changes: Json; review_id: string }
+        Returns: Json
+      }
       approve_passport: {
         Args: { _approve: boolean; _id: string }
         Returns: undefined
