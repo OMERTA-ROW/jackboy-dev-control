@@ -3,12 +3,15 @@
 import { useServerFn } from "@tanstack/react-start";
 import { useCallback } from "react";
 import { browserSupportsWebAuthn, startAuthentication } from "@simplewebauthn/browser";
-import { stepUpOptions, stepUpVerify } from "./passkey.functions";
+import { stepUpOptions, stepUpRecent, stepUpVerify } from "./passkey.functions";
 import { passkeyErrorText } from "./passkey-origin";
 
 export function useStepUp() {
-  const opts = useServerFn(stepUpOptions), verify = useServerFn(stepUpVerify);
+  const opts = useServerFn(stepUpOptions), verify = useServerFn(stepUpVerify), recent = useServerFn(stepUpRecent);
   return useCallback(async (action: string, target: string) => {
+    // Routine connection reviews skip the prompt if you confirmed with a passkey in the last 10 minutes.
+    const reused = await recent({ data: { action, target } }).catch(() => null);
+    if (reused) return reused.grantId;
     if (!browserSupportsWebAuthn()) throw new Error("This browser doesn't support passkeys, so this action is blocked here.");
     const o = await opts({ data: { action, target } });
     let response;
@@ -16,5 +19,5 @@ export function useStepUp() {
     catch (e) { throw new Error(passkeyErrorText(e, window.self !== window.top)); }
     const g = await verify({ data: { challengeId: o.challengeId, response } });
     return g.grantId;
-  }, [opts, verify]);
+  }, [opts, verify, recent]);
 }
