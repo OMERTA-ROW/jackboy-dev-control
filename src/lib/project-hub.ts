@@ -9,7 +9,8 @@ export type ProjectStatus = { label: string; tone: "ok" | "warn" | "error" | "mu
 
 /** Status comes only from stored records: a project is never "healthy" without a finished scan. */
 export function projectStatus(p: HubProject, lastScan: HubScan | undefined): ProjectStatus {
-  if (p.repo_sync_status && p.repo_sync_status !== "linked") return { label: p.repo_sync_status === "deleted" ? "Repo deleted / not found" : "Repo out of sync — review", tone: "error" };
+  if (p.repo_sync_status === "deleted") return { label: "Repo gone", tone: "error" };
+  if (p.repo_sync_status === "moved") return { label: "Repo renamed — review", tone: "warn" };
   if (!p.site_url) return { label: "Needs site address", tone: "muted" };
   const ss = p.site_status as SiteStatus | undefined;
   if (ss && ss !== "connected" && ss !== "needs_address" && SITE_LABEL[ss]) return { label: SITE_LABEL[ss], tone: SITE_TONE[ss] };

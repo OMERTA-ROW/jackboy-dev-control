@@ -52,7 +52,7 @@ export async function resyncOne(projectId: string, actor: string): Promise<Proje
     if (u.error) throw new Error(u.error.message);
     if (update["name"]) await supabaseAdmin.from("agent_projects").update({ name: String(update["name"]) }).eq("name", p.name);
   }
-  await (await import("./site-log.server")).logSite({ actor, action: "project.resync", summary: `${out.name}: ${out.changes.length ? out.changes.join("; ") : "no changes"} · credential ${out.credential}`, project_id: projectId, repo: out.repo, status: out.repoState === "gone" ? "warning" : "info", detail: { ...out } });
+  await (await import("./site-log.server")).logSite({ actor, action: "project.resync", summary: `${out.name}: ${out.changes.length ? out.changes.join("; ") : "no changes"} · credential ${out.credential}`, project_id: projectId, repo: out.repo, status: out.repoState === "gone" ? "blocked" : "info", detail: { ...out } });
   return out;
 }
 
@@ -70,7 +70,7 @@ export const archiveGoneProject = createServerFn({ method: "POST" }).middleware(
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const u = await supabaseAdmin.from("owner_projects").update({ active: false, dev_enabled: false, autopilot: false, updated_at: new Date().toISOString() }).eq("id", data.id);
     if (u.error) throw new Error(u.error.message);
-    await (await import("./site-log.server")).logSite({ actor: context.userId, action: "project.archived", summary: `${check.name} removed from Projects (repo ${check.repo} not found). History kept.`, project_id: data.id, repo: check.repo, status: "warning" });
+    await (await import("./site-log.server")).logSite({ actor: context.userId, action: "project.archived", summary: `${check.name} removed from Projects (repo ${check.repo} not found). History kept.`, project_id: data.id, repo: check.repo, status: "info" });
     return { ok: true };
   });
 

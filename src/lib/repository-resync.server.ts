@@ -18,7 +18,8 @@ async function clearStaleCoverageErrors() {
 export async function repositoryDriftStatuses(userId: string): Promise<Record<string, string>> {
   const { data } = await supabaseAdmin.from("repository_resync_reviews").select("report,invalidated").eq("requested_by", userId).order("created_at", { ascending: false }).limit(1).maybeSingle();
   const rows = (data?.report as unknown as { rows?: { repo: string; group: string }[] } | null)?.rows ?? [];
-  return Object.fromEntries(rows.map((r) => [r.repo.toLowerCase(), data?.invalidated ? "needs_review" : r.group]));
+  // Invalidation only means "re-check soon"; it never turns a verified link into a warning.
+  return Object.fromEntries(rows.map((r) => [r.repo.toLowerCase(), r.group]));
 }
 export type TokenState = "set" | "missing" | "rejected";
 export async function scanRepositories(userId: string) {
