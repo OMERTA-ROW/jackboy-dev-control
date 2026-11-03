@@ -59,8 +59,8 @@ function AuthPage() {
   useEffect(() => {
     void refreshSetup();
     // Public, non-secret Auth settings: which providers are actually enabled.
-    const url = import.meta.env.VITE_SUPABASE_URL as string;
-    const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
+    const url = import.meta.env["VITE_SUPABASE_URL"] as string;
+    const key = import.meta.env["VITE_SUPABASE_PUBLISHABLE_KEY"] as string;
     fetch(`${url}/auth/v1/settings`, { headers: { apikey: key } })
       .then((r) => r.json())
       .then((s: { external?: Providers; disable_signup?: boolean }) => { setProviders(s.external ?? {}); setSignupOpen(!s.disable_signup); })
