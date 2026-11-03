@@ -33,3 +33,29 @@ describe("inventory picker", () => {
     expect(m.get("1")?.created_at).toBe("2026-11-01");
   });
 });
+
+import { cardConnection, normalizeSiteInput } from "./project-hub";
+describe("project card site address", () => {
+  it("normalizes public https addresses and rejects unsafe ones", () => {
+    expect(normalizeSiteInput("example.com")).toBe("https://example.com");
+    expect(normalizeSiteInput("https://app.example.com/")).toBe("https://app.example.com");
+    expect(normalizeSiteInput("http://example.com")).toBeNull();
+    expect(normalizeSiteInput("localhost:3000")).toBeNull();
+    expect(normalizeSiteInput("https://192.168.1.4")).toBeNull();
+    expect(normalizeSiteInput("not a url")).toBeNull();
+    expect(normalizeSiteInput("")).toBeNull();
+  });
+});
+describe("project card connection status", () => {
+  const ok = { repo: "o/r", checkedAt: "2026-11-03T00:00:00Z", exists: true, read: "verified", prWrite: "verified" };
+  it("never says Connected without verified backend evidence", () => {
+    expect(cardConnection({ github_repo: null }, undefined).label).toBe("Not connected");
+    expect(cardConnection({ github_repo: "o/r" }, undefined).label).toBe("Not verified");
+    expect(cardConnection({ github_repo: "o/r" }, { ...ok, repo: "o/other" }).label).toBe("Not verified");
+    expect(cardConnection({ github_repo: "o/r" }, { ...ok, read: "unknown" }).label).toBe("Access not verified");
+    expect(cardConnection({ github_repo: "o/r" }, { ...ok, prWrite: "denied" }).label).toBe("Connected (read only)");
+    expect(cardConnection({ github_repo: "o/r" }, { ...ok, exists: false }).label).toBe("Repo not visible");
+    expect(cardConnection({ github_repo: "o/r", repo_sync_status: "deleted" }, ok).label).toBe("Repo not found");
+    expect(cardConnection({ github_repo: "O/R" }, ok).label).toBe("Connected");
+  });
+});
