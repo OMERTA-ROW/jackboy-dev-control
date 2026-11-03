@@ -6,6 +6,11 @@ export async function invalidateRepositoryReview(status: number) {
   if (status !== 403 && status !== 404) return;
   await supabaseAdmin.from("repository_resync_reviews").update({ invalidated: true }).eq("invalidated", false).is("approved_at", null);
 }
+export async function repositoryDriftStatuses(userId: string): Promise<Record<string, string>> {
+  const { data } = await supabaseAdmin.from("repository_resync_reviews").select("report,invalidated").eq("requested_by", userId).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const rows = (data?.report as unknown as { rows?: { repo: string; group: string }[] } | null)?.rows ?? [];
+  return Object.fromEntries(rows.map((r) => [r.repo.toLowerCase(), data?.invalidated ? "needs_review" : r.group]));
+}
 export async function scanRepositories(userId: string) {
   const token = process.env["GITHUB_TOKEN"];
   if (!token) throw new Error("GITHUB_TOKEN is missing. Add it in Project Settings → Secrets.");

@@ -6,12 +6,21 @@ export function normalizeRepo(value: string): string {
   return value.trim().replace(/^https:\/\/github\.com\//i, "").replace(/\.git\/?$/i, "").replace(/\/$/, "");
 }
 function words(value: string) { return value.split("/").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") ?? ""; }
+function similarity(a: string, b: string): number {
+  let previous = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    const current = [i];
+    for (let j = 1; j <= b.length; j++) current[j] = Math.min((current[j - 1] ?? 0) + 1, (previous[j] ?? 0) + 1, (previous[j - 1] ?? 0) + (a[i - 1] === b[j - 1] ? 0 : 1));
+    previous = current;
+  }
+  return 1 - (previous[b.length] ?? 0) / Math.max(a.length, b.length, 1);
+}
 export function closestRepo(repo: string, inventory: string[]): string | null {
   const name = words(repo);
   if (!name) return null;
   const candidates = inventory.map((r) => {
     const target = words(r);
-    const score = target === name ? 1 : target.startsWith(name) || name.startsWith(target) ? Math.min(name.length, target.length) / Math.max(name.length, target.length) : 0;
+    const score = target === name ? 1 : Math.max(similarity(name, target), similarity(name, target.replace(/companion$/, "")) * 0.9);
     return { repo: r, score };
   }).filter((x) => x.score >= 0.55).sort((a, b) => b.score - a.score);
   const first = candidates[0];
@@ -26,7 +35,7 @@ export function buildRepositoryReview(refs: RepositoryReference[], inventory: st
     const check = checks[repo];
     const canonical = check?.canonical && inventory.find((r) => r.toLowerCase() === check.canonical?.toLowerCase());
     const linked = !!exact && check?.status === 200 && (!canonical || canonical.toLowerCase() === repo.toLowerCase());
-    const proposed = linked ? null : canonical || closestRepo(repo, inventory);
+    const proposed = linked ? null : canonical || closestRepo(repo, inventory.filter((r) => r.toLowerCase() !== repo.toLowerCase()));
     const uncertain = !check || (check.status !== 200 && check.status !== 404);
     return { repo, proposed: proposed || null, group: linked ? "linked" : proposed ? "moved" : "deleted", mutable, historical: references.length - mutable,
       canApply: mutable > 0 && !linked && !uncertain,
