@@ -53,7 +53,56 @@ export function PasskeyPanel() {
       {inFrame && <p className="mt-2 text-sm text-warning">You're viewing the app inside the editor frame, where browsers block passkeys. <a className="underline" href={typeof window !== "undefined" ? window.location.href : "#"} target="_blank" rel="noopener noreferrer">Open this page in its own tab</a> to add or use a passkey.</p>}
       {d?.hostError && <p className="mt-2 text-sm text-destructive">{d.hostError}</p>}
       <p className="mt-2 text-sm">{d ? (here ? `${hereKeys.length} passkey(s) for ${here}` : "Passkeys unavailable on this address") : "Loading…"}</p>
-      <ul className="mt-1 divide-y divide-border text-xs text-muted-foreground">{d?.passkeys.map((k) => <li key={k.id} className="flex flex-wrap items-center gap-2 py-2"><span className="min-w-0 flex-1 break-words">{k.label} · {k.rp_id ?? "unknown address"} · added {new Date(k.created_at).toLocaleDateString()}{k.last_used_at ? ` · last used ${new Date(k.last_used_at).toLocaleString()}` : ""}</span><Button variant="ghost" size="icon-sm" aria-label={`Remove ${k.label}`} disabled={busy} onClick={() => setConfirmRemove(k.id)}><Trash2 /></Button>{confirmRemove === k.id && <div className="flex w-full flex-wrap items-center gap-2"><span>Remove this device from Jackboy?{hereKeys.length === 1 && k.rp_id === here ? " This is your last passkey for this address; protected actions will need a new registration." : ""}</span><Button variant="destructive" size="sm" disabled={busy} onClick={() => void run(async () => { const grantId = await stepUp("remove_passkey", `passkey:${k.id}`); await remove({ data: { id: k.id, grantId } }); setConfirmRemove(null); return "Passkey removed from Jackboy. Remove the stored copy in your device's password manager separately."; })}>Confirm removal</Button><Button variant="ghost" size="sm" onClick={() => setConfirmRemove(null)}>Cancel</Button></div>}</li>)}</ul>
+      <ul className="mt-1 divide-y divide-border text-xs text-muted-foreground">
+        {d?.passkeys.map((k) => (
+          <li key={k.id} className="flex flex-wrap items-center gap-2 py-2">
+            <span className="min-w-0 flex-1 break-words">
+              {k.label} · {k.rp_id ?? "unknown address"} · added{" "}
+              {new Date(k.created_at).toLocaleDateString()}
+              {k.last_used_at ? ` · last used ${new Date(k.last_used_at).toLocaleString()}` : ""}
+            </span>
+            {d.canRemove && (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={`Remove ${k.label}`}
+                disabled={busy}
+                onClick={() => setConfirmRemove(k.id)}
+              >
+                <Trash2 />
+              </Button>
+            )}
+            {d.canRemove && confirmRemove === k.id && (
+              <div className="flex w-full flex-wrap items-center gap-2">
+                <span>
+                  Remove this device from Jackboy?
+                  {hereKeys.length === 1 && k.rp_id === here
+                    ? " This is your last passkey for this address; protected actions will need a new registration."
+                    : ""}
+                </span>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  disabled={busy}
+                  onClick={() =>
+                    void run(async () => {
+                      const grantId = await stepUp("remove_passkey", `passkey:${k.id}`);
+                      await remove({ data: { id: k.id, grantId } });
+                      setConfirmRemove(null);
+                      return "Passkey removed from Jackboy. Remove the stored copy in your device's password manager separately.";
+                    })
+                  }
+                >
+                  Confirm removal
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setConfirmRemove(null)}>
+                  Cancel
+                </Button>
+              </div>
+            )}
+          </li>
+        ))}
+      </ul>
       <label className="mt-3 block text-sm">Device name<input value={name} maxLength={60} onChange={(e) => setName(e.target.value)} placeholder="e.g. iPhone or security key" className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2" /></label>
       <div className="mt-3 flex flex-wrap gap-2">
         <Button variant="outline" disabled={busy || supported === false || !here} onClick={add}><Plus />{busy ? "Waiting for device…" : "Add a passkey"}</Button>

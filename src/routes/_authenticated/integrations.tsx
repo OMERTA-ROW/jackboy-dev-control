@@ -16,14 +16,14 @@ export const Route = createFileRoute("/_authenticated/integrations")({
 
 const ITEMS = [
   {
-    name: "Lovable project inventory",
+    name: "Lovable deployment API",
     icon: Blocks,
     scope:
-      "The current project list was registered once through the owner's Codex connection. Automatic revision sync is not connected.",
+      "Reads only registered Lovable project references. Can inspect published status, latest preview metadata and publish status; production publishing is owner/passkey-gated.",
     needs: [
-      "Lovable API connector requires Business or Enterprise; this workspace is currently Pro",
-      "A server-side key limited to workspace and project reads, created by the owner",
-      "A verified sync that deduplicates project ID and revision",
+      "Lovable Business or Enterprise workspace and a dedicated server-side key with projects:read and projects:write",
+      "Registered Lovable project references and linked GitHub Actions for exact-commit build verification",
+      "Rollback requires manual version restore in Lovable; the documented API has no rollback endpoint",
     ],
   },
   {

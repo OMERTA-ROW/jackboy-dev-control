@@ -48,6 +48,16 @@ export const ADVANCED = [
     { to: "/site-log", label: "Site Log & Research", note: "Permanent log, export, report delivery, code research" },
     { to: "/activity", label: "Logs & Approvals", note: "Audit trail" },
     { to: "/autoconnect", label: "AutoConnect", note: "Approve & connect missing tools per project; resumes waiting work" },
+      {
+        to: "/provider-access",
+        label: "Provider access",
+        note: "Review GitHub App permissions and audit owner-approved requests",
+      },
+      {
+        to: "/deployments",
+        label: "Deployments",
+        note: "Verify builds, inspect previews, publish with owner approval",
+      },
     { to: "/accounts", label: "Connect Accounts", note: "Live status, scopes, where credentials live, revoke" },
     { to: "/integrations", label: "Integrations", note: "Connection status and setup" },
     { to: "/access", label: "Access", note: "Members, invitations, sessions" },

@@ -11,7 +11,7 @@ export type LogEntry = {
   tests?: string | null; task_id?: string | null; detail?: Record<string, unknown>;
 };
 
-export async function logSite(e: LogEntry) {
+export async function logSiteStrict(e: LogEntry) {
   const clean = (v: string | null | undefined) => (v == null ? null : redact(v).slice(0, 2000));
   const detail = JSON.parse(redact(JSON.stringify(e.detail ?? {})).slice(0, 20000) || "{}") as never;
   const { error } = await supabaseAdmin.from("site_log").insert({
@@ -20,7 +20,15 @@ export async function logSite(e: LogEntry) {
     issue: clean(e.issue), source_url: clean(e.source_url), license: clean(e.license), repo: clean(e.repo), branch: clean(e.branch),
     commit_sha: clean(e.commit_sha), pr_url: clean(e.pr_url), tests: clean(e.tests), task_id: e.task_id ?? null, detail,
   });
-  if (error) console.error("site_log insert failed", error.message);
+  if (error) throw new Error(`site_log insert failed: ${error.message}`);
+}
+
+export async function logSite(e: LogEntry) {
+  try {
+    await logSiteStrict(e);
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : "site_log insert failed");
+  }
 }
 
 /** Sends due outbox rows. Unconfigured targets stay pending (no fake delivery). Idempotency-Key = outbox id. */
