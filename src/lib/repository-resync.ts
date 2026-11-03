@@ -69,3 +69,10 @@ export function approvalBlocker(s: { changes: number; busy: boolean; invalidated
   if (!s.changes) return "Nothing to approve: no verified changes are ready (rows marked “Not included” need fixing first).";
   return null;
 }
+
+/** Rows still shown after a confirmed approval: applied changes for that review are hidden; failures keep everything. */
+export function visibleReviewRows(rows: RepositoryReviewRow[], reviewId: string | undefined, applied: { reviewId: string; repos: string[] } | null): RepositoryReviewRow[] {
+  if (!applied || applied.reviewId !== reviewId) return rows;
+  const done = new Set(applied.repos);
+  return rows.filter((r) => r.group === "linked" || !done.has(r.repo));
+}
