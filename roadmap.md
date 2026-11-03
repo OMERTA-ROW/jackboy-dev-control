@@ -1,5 +1,11 @@
 # Jackboy roadmap
 
+## Feature-first queue and acting chat
+- [ ] Suppress standalone test work unless tied to a real blocked feature; preserve existing checks before draft PR.
+- [ ] Voice/text acknowledge intent, execute supported tools, return short evidence-linked outcomes without bypassing approval.
+- [ ] Durable out-of-credits pause visible in queue/chat; recover only with verified available credits, preserving other pause reasons.
+- [ ] Focused rules tests and authenticated end-to-end checks; document unsupported recovery integrations.
+
 ## Connected Projects unified resync addition
 - [x] Front-side permanent Resync action with last synced time; propose missing links from token-visible names and Lovable metadata.
 - [x] Single atomic review includes missing links and current profile/inventory names; preserves historical evidence and work guards. No live approval applied.
