@@ -9,7 +9,7 @@ export function candidates(saved: string, accessible: string[]): string[] {
   const score = (repo: string) => {
     const target = words(repo.split("/")[1] ?? repo);
     const overlap = name.filter(w => target.includes(w)).length;
-    return overlap / Math.max(name.length, target.length) + (repo.toLowerCase().startsWith("omerta-row/") ? 0.05 : 0);
+    return overlap / Math.max(1, Math.min(name.length, target.length)) + (repo.toLowerCase().startsWith("omerta-row/") ? 0.05 : 0);
   };
   return accessible.filter(r => score(r) >= 0.4).sort((a, b) => score(b) - score(a) || a.localeCompare(b)).slice(0, 5);
 }
