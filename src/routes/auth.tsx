@@ -35,10 +35,11 @@ const SOCIAL: { id: string; key: string; label: string; supported: boolean }[] =
   { id: "microsoft", key: "azure", label: "Microsoft", supported: true },
   { id: "github", key: "github", label: "GitHub", supported: true },
 ];
-// GitHub sign-in is federated through the owner's Auth0 tenant (OIDC slot "custom:app-oidc").
-// The backend's public settings do not report custom OIDC, so flip this only after the owner
-// saves the Auth0 issuer/client in Auth settings and a real preview sign-in succeeds.
-const AUTH0_OIDC_READY = false;
+// GitHub sign-in is federated through the owner's Auth0 tenant over the OIDC slot
+// "custom:app-oidc". The owner enabled it in Cloud auth settings; the backend's public
+// settings endpoint does not report custom OIDC, so this flag is owner-confirmed rather
+// than read from config. Flip it back to false if the provider is ever removed.
+const AUTH0_OIDC_READY = true;
 
 function AuthPage() {
   const nav = useNavigate();
