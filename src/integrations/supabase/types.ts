@@ -1785,9 +1785,11 @@ export type Database = {
           created_at: string
           expires_at: string
           id: string
+          invalidated: boolean
           inventory: Json
           references_snapshot: Json
           replacements: Json | null
+          report: Json | null
           requested_by: string
         }
         Insert: {
@@ -1795,9 +1797,11 @@ export type Database = {
           created_at?: string
           expires_at?: string
           id?: string
+          invalidated?: boolean
           inventory: Json
           references_snapshot: Json
           replacements?: Json | null
+          report?: Json | null
           requested_by: string
         }
         Update: {
@@ -1805,9 +1809,11 @@ export type Database = {
           created_at?: string
           expires_at?: string
           id?: string
+          invalidated?: boolean
           inventory?: Json
           references_snapshot?: Json
           replacements?: Json | null
+          report?: Json | null
           requested_by?: string
         }
         Relationships: []

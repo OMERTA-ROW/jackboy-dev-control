@@ -218,6 +218,13 @@
       "when": 1793669645898,
       "tag": "0030_omni_sessions",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1793677216566,
+      "tag": "0031_repository_resync_drift_removals",
+      "breakpoints": true
     }
   ]
 }
