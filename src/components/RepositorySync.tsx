@@ -2,7 +2,8 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import { useServerFn } from "@tanstack/react-start";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter, Link } from "@tanstack/react-router";
-import { approvalBlocker } from "@/lib/repository-resync";
+import { approvalBlocker, visibleReviewRows } from "@/lib/repository-resync";
+import { toast } from "sonner";
 import { RefreshCw, ShieldCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { checkRepositorySync, approveRepositorySync, type ResyncReview } from "@/lib/repository-resync.functions";
@@ -58,9 +59,11 @@ export function RepositorySyncPanel() {
   const approve = useServerFn(approveRepositorySync), stepUp = useStepUp();
   const queryClient = useQueryClient(), router = useRouter();
   const [approving, setApproving] = useState(false), [error, setError] = useState(""), [result, setResult] = useState("");
+  const [applied, setApplied] = useState<{ reviewId: string; repos: string[] } | null>(null);
+  useEffect(() => { if (!result) return; const t = window.setTimeout(() => setResult(""), 8000); return () => window.clearTimeout(t); }, [result]);
   if (!sync) return null;
   const { review, busy } = sync;
-  const rows = review?.report.rows ?? [];
+  const rows = visibleReviewRows(review?.report.rows ?? [], review?.id, applied);
   const changes = rows.filter((r) => r.canApply && r.group !== "linked");
   const blocker = approvalBlocker({ changes: changes.length, busy, invalidated: !!review?.invalidated, approved: !!review?.approved_at });
   const apply = async () => {
@@ -70,9 +73,12 @@ export function RepositorySyncPanel() {
     try {
       const grantId = await stepUp("approve_integration", `repository_resync:${review.id}`);
       const out = await approve({ data: { reviewId: review.id, grantId } }) as { alreadyApplied?: boolean } | null;
+      // Backend confirmed: hide applied rows now; a fresh resync shows the server's truth.
+      setApplied({ reviewId: review.id, repos: changes.map((c) => c.repo) });
+      toast.success(out?.alreadyApplied ? "Already applied" : `Applied ${changes.length} change${changes.length === 1 ? "" : "s"}. Recorded in the audit log.`);
       setResult(out?.alreadyApplied ? "These changes were already applied." : `Applied ${changes.length} change${changes.length === 1 ? "" : "s"}: ${changes.map((c) => c.group === "deleted" ? `unlinked ${c.repo}` : `${c.profiles?.[0]?.oldName ?? c.repo} → ${c.proposed}`).join("; ")}. History kept; changed projects need reconnecting.`);
       await queryClient.invalidateQueries(); await router.invalidate(); await sync.run(true);
-    } catch (e) { setError(e instanceof Error ? e.message : "Approval failed; no changes applied"); }
+    } catch (e) { const msg = e instanceof Error ? e.message : "Approval failed; no changes applied"; setError(msg); toast.error(`Nothing removed: ${msg}`); }
     finally { setApproving(false); }
   };
   return <section aria-labelledby="repository-sync" className="mb-6 border-b border-border pb-6">
