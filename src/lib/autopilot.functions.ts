@@ -25,7 +25,7 @@ export const getAutopilot = createServerFn({ method: "POST" }).middleware([requi
     projects: (p.data ?? []) as Array<{ id: string; name: string; site_url: string | null; github_repo: string | null; autopilot: boolean; connect_state: string; connect_pr_url: string | null; connect_error: string | null }>,
     scans: (sc.data ?? []) as unknown as ScanRow[],
     activity: (a.data ?? []) as Array<{ id: string; at: string; action: string; outcome: string; detail: { name?: string; title?: string; error?: string; command?: string; project?: string; on?: boolean } }>,
-    githubConfigured: Boolean(process.env["GITHUB_TOKEN"]),
+    githubConfigured: (await (await import("./github-app.server")).githubAvailable()).ok,
   };
 });
 
