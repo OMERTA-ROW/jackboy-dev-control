@@ -46,3 +46,34 @@ export async function signInVerified(auth: SignInAuth, email: string, password: 
     throw new Error("Sign-in could not be verified. Confirm your email before accessing Jackboy.");
   }
 }
+/** Self-signup never grants a role: roles come only from claimOwner (OWNER_EMAIL) or accept_invitation. */
+export function signupErrorMessage(error: AuthError): string {
+  if (/signups? not allowed|signup.*disabled/i.test(error.message) || error.code === "signup_disabled") {
+    return "Registration is invitation-only. Ask the owner for an invitation link, or sign in if you already have an account.";
+  }
+  if (/rate limit|too many/i.test(error.message) || error.code === "over_email_send_rate_limit" || error.code === "over_request_rate_limit") {
+    return "Too many attempts. Wait a few minutes before trying again.";
+  }
+  if (/password/i.test(error.message) && /weak|pwned|short|least/i.test(error.message)) {
+    return `Choose a stronger password: ${error.message}`;
+  }
+  return authErrorMessage(error);
+}
+
+export type Aal = { currentLevel: string | null; nextLevel: string | null };
+/** A verified TOTP factor raises nextLevel to aal2; the session must step up before use. */
+export function mfaChallengeRequired(aal: Aal | null | undefined): boolean {
+  return aal?.nextLevel === "aal2" && aal.currentLevel !== "aal2";
+}
+
+export const AUTH_EMAIL_COOLDOWN_MS = 60_000;
+export function cooldownRemaining(lastSentAt: number | null, now: number): number {
+  if (!lastSentAt) return 0;
+  return Math.max(0, Math.ceil((lastSentAt + AUTH_EMAIL_COOLDOWN_MS - now) / 1000));
+}
+
+export function passwordProblem(pw: string, confirm?: string): string | null {
+  if (pw.length < 10) return "Use at least 10 characters.";
+  if (confirm !== undefined && pw !== confirm) return "Passwords do not match.";
+  return null;
+}
