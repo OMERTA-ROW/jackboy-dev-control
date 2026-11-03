@@ -6,7 +6,6 @@ import { Lock, ShieldCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { getSetupState, requestOwnerSetup } from "@/lib/account.functions";
 import { redeemRecoveryCode } from "@/lib/recovery.functions";
-import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import {
   OWNER_SETUP_REQUIRED, signInVerified, signupErrorMessage,
