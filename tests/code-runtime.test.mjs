@@ -2,22 +2,39 @@
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { registerHooks } from 'node:module';
-const records = { action_requests: [], owner_projects: [], audit_logs: [] };
-let run, dispatches, cancellations, retries, auditFails, uncertain;
+const records = { action_requests: [], owner_projects: [], audit_logs: [], omni_connection: [], omni_jobs: [] };
+let run, dispatches, omniDispatches, cancellations, retries, auditFails, uncertain;
 class Query {
   constructor(table) { this.table = table; this.filters = []; this.operation = 'select'; }
   select() { return this; }
   insert(value) { this.operation = 'insert'; this.value = value; return this; }
+  upsert(value) { this.operation = 'upsert'; this.value = value; return this; }
   update(value) { this.operation = 'update'; this.value = value; return this; }
   eq(key, value) { this.filters.push(r => r[key] === value); return this; }
   gt(key, value) { this.filters.push(r => r[key] > value); return this; }
+  lte(key, value) { this.filters.push(r => r[key] <= value); return this; }
+  order() { return this; }
   limit(n) { this.limitValue = n; return this; }
   execute(single = false) {
     if (this.table === 'audit_logs' && auditFails) return { data: null, error: { message: 'audit unavailable' } };
     let rows = records[this.table].filter(r => this.filters.every(f => f(r)));
-    if (this.operation === 'insert') {
-      const row = { status: 'pending', outcome: null, ...this.value };
-      records[this.table].push(row); rows = [row];
+    if (this.operation === 'insert' || this.operation === 'upsert') {
+      const existing = this.operation === 'upsert' && this.value.code_request_id
+        ? records[this.table].find(r => r.code_request_id === this.value.code_request_id)
+        : null;
+      if (existing) rows = [existing];
+      else {
+        const row = {
+          status: this.table === 'omni_jobs' ? 'queued' : 'pending',
+          outcome: null,
+          id: this.table === 'omni_jobs' ? crypto.randomUUID() : undefined,
+          attempts: 0,
+          created_at: new Date().toISOString(),
+          next_attempt_at: new Date().toISOString(),
+          ...this.value,
+        };
+        records[this.table].push(row); rows = [row];
+      }
     }
     if (this.operation === 'update') rows.forEach(r => Object.assign(r, this.value));
     if (this.limitValue) rows = rows.slice(0, this.limitValue);
@@ -42,6 +59,10 @@ globalThis.fetch = async (url, init = {}) => {
   if (path === '/repos/owner/repo') return json({ default_branch: 'main' });
   if (path.includes('/contents/')) return json({ sha: 'a'.repeat(40) });
   if (path.endsWith('/actions/workflows/code.yml')) return json({ state: 'active' });
+  if (path === '/jackboy/jobs') {
+    omniDispatches++;
+    return json({ ref: 'omni-job-1' }, { status: 202 });
+  }
   if (path.endsWith('/dispatches')) {
     dispatches++;
     if (uncertain) throw new Error('connection reset after request');
@@ -60,9 +81,13 @@ globalThis.fetch = async (url, init = {}) => {
 beforeEach(() => {
   Object.values(records).forEach(rows => rows.splice(0));
   records.owner_projects.push({ id: projectId, name: 'Jackboy', github_repo: 'owner/repo', dev_enabled: true });
+  records.omni_connection.push({ id: true, verified: false });
   process.env.CODE_TARGETS = JSON.stringify({ 'owner/repo': { ref: 'main', workflowSha: 'a'.repeat(40) } });
   process.env.CODE_GITHUB_TOKEN = 'isolated-test-placeholder';
-  run = undefined; dispatches = cancellations = retries = 0; auditFails = uncertain = false;
+  process.env.OMNI_API_URL = 'https://omni.example';
+  process.env.OMNI_API_KEY = 'isolated-test-api-key';
+  process.env.OMNI_CALLBACK_SECRET = 'isolated-test-callback-secret';
+  run = undefined; dispatches = omniDispatches = cancellations = retries = 0; auditFails = uncertain = false;
 });
 test('voice/text intent → pending approval → real server dispatch path → evidence and draft PR (mock transport)', async () => {
   assert.equal(await codeProjectId('Jackboy'), projectId);
@@ -95,6 +120,23 @@ test('concurrent decisions have only one winner', async () => {
   const c = await requestCode(projectId, 'Fix footer', 'owner', 'session');
   const results = await Promise.allSettled([decideCode(c.id, c.nonce, 'allow', 'owner', 'session'), decideCode(c.id, c.nonce, 'allow', 'owner', 'session')]);
   assert.equal(results.filter(r => r.status === 'fulfilled').length, 1); assert.equal(dispatches, 1);
+});
+test('CODE uses GitHub when OMNI verification is absent', async () => {
+  const c = await requestCode(projectId, 'Fix footer', 'owner', 'session');
+  await decideCode(c.id, c.nonce, 'allow', 'owner', 'session');
+  assert.equal(dispatches, 1);
+  assert.equal(omniDispatches, 0);
+  assert.equal(records.omni_jobs.length, 0);
+});
+test('CODE routes to OMNI only when its connection is verified', async () => {
+  records.omni_connection[0].verified = true;
+  const c = await requestCode(projectId, 'Fix footer', 'owner', 'session');
+  await decideCode(c.id, c.nonce, 'allow', 'owner', 'session');
+  assert.equal(records.action_requests.find(r => r.id === c.id).outcome, 'Queued for OMNI; waiting for OMNI to accept it');
+  assert.equal(dispatches, 0);
+  assert.equal(omniDispatches, 1);
+  assert.equal(records.omni_jobs.length, 1);
+  assert.equal(records.omni_jobs[0].code_request_id, c.id);
 });
 test('deny executes nothing, cancellation reaches provider, retry needs a fresh approval', async () => {
   const denied = await requestCode(projectId, 'No', 'owner', 'session');
