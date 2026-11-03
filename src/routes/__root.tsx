@@ -13,6 +13,7 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AppShell } from "@/components/AppShell";
+import { RepositorySyncProvider } from "@/components/RepositorySync";
 import { Toaster } from "@/components/ui/sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -132,9 +133,11 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <RepositorySyncProvider>
       <AppShell>
         <Outlet />
       </AppShell>
+      </RepositorySyncProvider>
       <Toaster theme="dark" />
     </QueryClientProvider>
   );

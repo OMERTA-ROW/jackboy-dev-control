@@ -24,6 +24,7 @@ import {
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { setState, useJackboy, log } from "@/lib/jackboy-store";
 import { chatWithJackboy, getDashboardFacts, getVoiceChatStatus, synthesizeJackboy } from "@/lib/passport.functions";
+import { RepositorySyncAlert } from "@/components/RepositorySync";
 
 // Simple main menu; advanced pages are listed on /settings.
 const NAV = [
@@ -530,6 +531,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <span className="hidden text-xs text-muted-foreground md:inline">Private workspace</span>
           <ModeToggle />
         </header>
+        <RepositorySyncAlert />
         <main className="flex-1 px-4 py-6 md:px-8">{children}</main>
       </div>
 
