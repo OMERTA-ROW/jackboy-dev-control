@@ -527,8 +527,6 @@ export function AppShell({ children }: { children: ReactNode }) {
             <Hex className="h-6 w-6 text-silver" />
             <span className="text-metal font-display text-lg font-bold tracking-wider">JACKBOY</span>
           </div>
-          <span className="hidden text-xs text-muted-foreground md:inline">Private workspace</span>
-          <ModeToggle />
         </header>
         <main className="flex-1 px-4 py-6 md:px-8">{children}</main>
       </div>
@@ -569,8 +567,8 @@ export function PageHeader({ title, subtitle }: { title: string; subtitle: strin
 }
 
 export function GuidanceTip({ children }: { children: ReactNode }) {
-  const { mode, guidance } = useJackboy();
-  if (mode !== "assist" || !guidance) return null;
+  const { guidance } = useJackboy();
+  if (!guidance) return null;
   return (
     <div
       role="note"
