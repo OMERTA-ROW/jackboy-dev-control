@@ -45,8 +45,31 @@ export async function openRepo(full: string): Promise<Repo> {
 const R = (x: Repo) => `/repos/${x.owner}/${x.repo}`;
 
 export async function listAccessibleRepos() {
-  const d = await gh<(RepoInfo & { full_name: string })[]>("/user/repos?per_page=100&sort=updated&affiliation=owner,collaborator,organization_member");
-  return d.map((r) => { const a = assessRepoAccess(r); return { repo: r.full_name, private: r.private, visibility: a.visibility, org: a.org, canPush: a.canWrite, usable: a.canWrite }; });
+  type Row = { repo: string; private: boolean; visibility: string; org: string | null; canPush: boolean; usable: boolean };
+  const out: Row[] = [];
+  let tokenError: Error | null = null;
+  if (process.env["GITHUB_TOKEN"]) {
+    try {
+      const d = await gh<(RepoInfo & { full_name: string })[]>("/user/repos?per_page=100&sort=updated&affiliation=owner,collaborator,organization_member");
+      out.push(...d.map((r) => { const a = assessRepoAccess(r); return { repo: r.full_name, private: r.private, visibility: a.visibility, org: a.org, canPush: a.canWrite, usable: a.canWrite }; }));
+    } catch (e) { tokenError = e as Error; }
+  }
+  // GitHub App installations: write comes from the installation's granted permissions, not the repo's user-style flags.
+  const app = await import("./github-app.server");
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  await app.syncInstallations(null).catch(() => []);
+  const { data: installs } = await supabaseAdmin.from("github_installations").select("account_login,account_type,repositories,permissions").eq("revoked", false);
+  for (const i of installs ?? []) {
+    const perms = (i.permissions ?? {}) as Record<string, string>;
+    const write = perms["contents"] === "write" && perms["pull_requests"] === "write";
+    for (const repo of (i.repositories as string[] | null) ?? []) {
+      const idx = out.findIndex((r) => r.repo.toLowerCase() === repo.toLowerCase());
+      const row = { repo, private: true, visibility: "private", org: i.account_type === "Organization" ? String(i.account_login) : null, canPush: write, usable: write };
+      if (idx >= 0) { const cur = out[idx]!; out[idx] = { ...cur, canPush: cur.canPush || write, usable: cur.usable || write }; } else out.push(row);
+    }
+  }
+  if (!out.length && tokenError) throw tokenError;
+  return out;
 }
 
 export async function tree(x: Repo, ref: string, filter?: string | null) {
