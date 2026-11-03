@@ -30,6 +30,23 @@ export function buildJackboyTools(userId: string) {
     await supabaseAdmin.from("agent_memory").insert({ project_id: pid, kind, summary: summary.slice(0, 2000), created_by: userId, ...extra } as never);
   };
   const tools = {
+    createTask: tool({
+      description: "Create a durable owner-requested feature/fix task without executing code. Use for requests to implement a change; reports its stored queue link. Sensitive execution still needs separate scoped approval.",
+      inputSchema: z.object({ project: z.string(), instruction: z.string().min(5).max(2000) }),
+      execute: async ({ project, instruction }) => {
+        const p = await findProject(project);
+        const { standaloneTestTask } = await import("./work-policy");
+        if (standaloneTestTask(instruction, [])) throw new Error("Standalone test work is not queued. Name the real feature and failing existing check it blocks.");
+        const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${p.id}:${instruction.trim()}`));
+        const key = `owner-request:${Array.from(new Uint8Array(bytes), (n) => n.toString(16).padStart(2, "0")).join("")}`;
+        const { data: current } = await supabaseAdmin.from("foundry_tasks").select("id,state").eq("project_id", p.id).eq("dedupe_key", key).maybeSingle();
+        if (current) return { taskId: current.id, state: current.state, note: "Existing request found; not duplicated. No code execution started." };
+        const { data: task, error } = await supabaseAdmin.from("foundry_tasks").insert({ project_id: p.id, title: instruction.slice(0, 200), summary: instruction, dedupe_key: key, kind: "repair", risk: "sensitive", source: "manual", created_by: userId }).select("id,state").single();
+        if (error || !task) throw new Error(error?.message ?? "Could not save request");
+        await log(userId, "chat.task.created", { project: p.id, task: task.id });
+        return { taskId: task.id, state: task.state, note: "Request stored for scoped review. No code execution started." };
+      },
+    }),
     verifyPermissions: tool({
       description: "Reverify live GitHub contents, PR and Actions permissions for one named project; does not run jobs or change access.",
       inputSchema: z.object({ project: z.string() }),
@@ -300,7 +317,7 @@ export function buildJackboyTools(userId: string) {
             }
           }
         }
-        if (/foundry/i.test(name)) evidence.push({ label: "Work queue", url: "/foundry" });
+        if (/foundry|createTask/i.test(name)) evidence.push({ label: "Work queue", url: "/foundry" });
         if (/Updates|fixIssue|projectStatus/i.test(name)) evidence.push({ label: "Update queue", url: "/updates" });
         if (!evidence.length) evidence.push({ label: "Projects and permissions", url: "/settings" });
         return { result, evidence: evidence.filter((l) => safeEvidenceUrl(l.url)), ...(result && typeof result === "object" && !Array.isArray(result) ? result : {}) };
