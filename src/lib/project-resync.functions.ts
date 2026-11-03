@@ -80,7 +80,24 @@ export async function resyncOne(projectId: string, actor: string): Promise<Proje
 
 export const resyncProject = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
-  .handler(async ({ data, context }) => { await owner(context); return resyncOne(data.id, context.userId); });
+  .handler(async ({ data, context }) => {
+    await owner(context);
+    const r = await resyncOne(data.id, context.userId);
+    // Refresh also re-verifies what exists now: live GitHub permissions and the site address. Read-only checks.
+    let repoAccess: string | null = null, repoError: string | null = null, site: string | null = null;
+    if (r.repo && r.repoState !== "gone") {
+      try {
+        const ev = await (await import("./project-permissions.server")).checkProjectPermissions(data.id, context.userId);
+        repoAccess = !ev.exists ? "repo not visible" : ev.contentsRead.state === "verified" ? (ev.pullRequestsWrite.state === "verified" ? "read + PR write verified" : "read verified, PR write not verified") : "read not verified";
+      } catch (e) { repoError = (e as Error).message; }
+    }
+    const { data: cur } = await context.supabase.from("owner_projects").select("id,site_url,site_fail_count,site_status").eq("id", data.id).single();
+    if (cur?.site_url) {
+      try { const c = await (await import("./site-monitor.server")).checkAndStore(context.supabase, { ...cur, site_fail_count: 0 }, context.userId); site = c.status; }
+      catch (e) { site = `check failed: ${(e as Error).message}`; }
+    }
+    return { ...r, repoAccess, repoError, site };
+  });
 
 /** Removes a project from the active list only after GitHub confirms its repo is gone. Records stay; restore anytime. */
 export const archiveGoneProject = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])

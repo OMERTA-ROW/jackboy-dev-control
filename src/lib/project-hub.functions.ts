@@ -9,17 +9,19 @@ async function owner(ctx: Ctx) {
 }
 
 export type HubRow = { id: string; name: string; site_url: string | null; lovable_url: string | null; github_repo: string | null; repo_sync_status?: string; github_branch: string; autopilot: boolean; connect_state: string; connect_error: string | null; description: string; goals: string; notes: string; frequency_hours: number; active: boolean; connect_pr_url: string | null; site_status: string; site_checked_at: string | null; site_evidence: { reason?: string; url?: string; dns?: { ok: boolean; addresses: string[]; error?: string }; http?: { status?: number; ms?: number; finalUrl?: string; error?: string } | null }; site_monitoring: boolean };
+export type RepoCheck = { repo: string; checkedAt: string; exists: boolean; read: string; prWrite: string };
 export type HubScanRow = { id: string; project_id: string; status: string; trigger: string; pages_checked: number; links_checked: number; avg_ms: number | null; findings: { severity: string; kind: string; url: string; message: string }[]; error: string | null; fix_proposal_id: string | null; created_at: string };
 export type HubProposal = { id: string; project_id: string; title: string; status: string; source: string; pr_url: string | null; checks_state: string | null; created_at: string; delivery_error?: string | null; has_files?: boolean; has_repo?: boolean };
 
 /** Owner-only overview: connected projects, latest scans, waiting approvals and the stored Lovable inventory snapshot. */
 export const getProjectHub = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).handler(async ({ context }) => {
   await owner(context);
-  const [p, s, q, inv] = await Promise.all([
+  const [p, s, q, inv, chk] = await Promise.all([
     context.supabase.from("owner_projects").select("*").order("name"),
     context.supabase.from("site_scans").select("id,project_id,status,trigger,pages_checked,links_checked,avg_ms,findings,error,fix_proposal_id,created_at").order("created_at", { ascending: false }).limit(200),
     context.supabase.from("update_proposals").select("id,project_id,title,status,source,pr_url,checks_state,delivery_error,files,created_at,owner_projects(github_repo)").in("status", ["draft", "pr_open", "approved"]).order("created_at", { ascending: false }).limit(200),
     context.supabase.from("agent_projects").select("id,name,lovable_project_ref").order("name"),
+    context.supabase.from("project_github_checks").select("project_id,repo,checked_at,evidence"),
   ]);
   for (const r of [p, s, q, inv]) if (r.error) throw new Error(r.error.message);
   const statuses = await (await import("./repository-resync.server")).repositoryDriftStatuses(context.userId);
@@ -28,6 +30,8 @@ export const getProjectHub = createServerFn({ method: "POST" }).middleware([requ
     archived: (p.data ?? []).filter((r) => r.active === false).map((r) => ({ id: r.id as string, name: r.name as string, github_repo: r.github_repo as string | null })),
     scans: (s.data ?? []) as HubScanRow[],
     waiting: ((q.data ?? []) as (HubProposal & { files: unknown[]; owner_projects: { github_repo: string | null } | null })[]).map(({ files, owner_projects, ...r }) => ({ ...r, has_files: Array.isArray(files) && files.length > 0, has_repo: Boolean(owner_projects?.github_repo) })),
+    checks: Object.fromEntries(((chk.data ?? []) as { project_id: string; repo: string; checked_at: string; evidence: { exists?: boolean; contentsRead?: { state: string }; pullRequestsWrite?: { state: string } } }[])
+      .map((c) => [c.project_id, { repo: c.repo, checkedAt: c.checked_at, exists: c.evidence?.exists !== false, read: c.evidence?.contentsRead?.state ?? "unknown", prWrite: c.evidence?.pullRequestsWrite?.state ?? "unknown" }])) as Record<string, RepoCheck>,
     inventory: (inv.data ?? []) as { id: string; name: string; lovable_project_ref: string | null }[],
     githubConfigured: Boolean(process.env["GITHUB_TOKEN"]),
     lovableApiLinked: Boolean(process.env["LOVABLE_ACCOUNT_API_KEY"]),
@@ -119,4 +123,24 @@ export const setDevEnabled = createServerFn({ method: "POST" }).middleware([requ
     const { logSite } = await import("./site-log.server");
     await logSite({ actor: `owner:${context.userId}`, action: data.enabled ? "dev.activate" : "dev.deactivate", category: "config", status: "info", summary: `${data.enabled ? "Activated" : "Deactivated"} background development for ${p.name}.`, project_id: data.id });
     return { ok: true };
+  });
+
+/** Owner saves a site address from the project card. Persists, audits, then runs a real DNS+HTTPS check. */
+export const setSiteAddress = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), url: z.string().trim().min(1).max(500) }).parse(d))
+  .handler(async ({ data, context }) => {
+    await owner(context);
+    const { normalizeSiteInput } = await import("./project-hub");
+    const url = normalizeSiteInput(data.url);
+    if (!url) throw new Error("Enter a public https:// address, e.g. https://example.com");
+    const { data: row, error } = await context.supabase.from("owner_projects").update({ site_url: url, site_status: "checking", site_fail_count: 0 }).eq("id", data.id).select("id,site_url,site_fail_count,site_status").single();
+    if (error || !row) throw new Error(error?.message ?? "Project not found.");
+    await context.supabase.rpc("write_audit", { _action: "projects.site_address", _detail: { id: data.id, url }, _outcome: "ok" });
+    const { checkAndStore } = await import("./site-monitor.server");
+    try {
+      const c = await checkAndStore(context.supabase, row, context.userId);
+      return { url, status: c.status as string, reason: (c.evidence.reason ?? null) as string | null, checkedAt: new Date().toISOString() };
+    } catch (e) {
+      return { url, status: "check_failed", reason: (e as Error).message, checkedAt: new Date().toISOString() };
+    }
   });

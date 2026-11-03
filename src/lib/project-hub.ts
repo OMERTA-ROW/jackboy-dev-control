@@ -52,3 +52,28 @@ export function searchByName<T extends { name: string }>(list: T[], q: string): 
 
 /** Simple main menu; everything else lives under Settings. */
 export const MAIN_NAV = ["/", "/projects", "/connect", "/updates", "/chat", "/settings"] as const;
+
+/** Accepts "example.com" or "https://example.com"; returns a normalized public https URL or null. */
+export function normalizeSiteInput(raw: string): string | null {
+  const v = raw.trim();
+  if (!v || /\s/.test(v)) return null;
+  const withScheme = /^[a-z]+:\/\//i.test(v) ? v : `https://${v}`;
+  try {
+    const u = new URL(withScheme);
+    if (u.protocol !== "https:" || !u.hostname.includes(".")) return null;
+    if (/^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.)/.test(u.hostname) || /^172\.(1[6-9]|2\d|3[01])\./.test(u.hostname)) return null;
+    return u.toString().replace(/\/$/, "");
+  } catch { return null; }
+}
+
+export type CardConnection = { label: string; tone: "ok" | "warn" | "error" | "muted"; detail: string; next: string | null; checkedAt: string | null };
+/** Repo connection status from stored backend evidence only; never "Connected" without a verified read. */
+export function cardConnection(p: { github_repo: string | null; repo_sync_status?: string }, check: { repo: string; checkedAt: string; exists: boolean; read: string; prWrite: string } | undefined): CardConnection {
+  if (!p.github_repo) return { label: "Not connected", tone: "muted", detail: "No repo linked", next: "Press Connect to link a GitHub repo.", checkedAt: null };
+  if (p.repo_sync_status === "deleted") return { label: "Repo not found", tone: "error", detail: `${p.github_repo} wasn't found by GitHub`, next: "Remove it or reconnect a different repo.", checkedAt: check?.checkedAt ?? null };
+  if (!check || check.repo.toLowerCase() !== p.github_repo.toLowerCase()) return { label: "Not verified", tone: "warn", detail: `${p.github_repo} linked, access not checked yet`, next: "Press the refresh icon to verify access.", checkedAt: null };
+  if (!check.exists) return { label: "Repo not visible", tone: "error", detail: `GitHub didn't show ${check.repo} to Jackboy`, next: "Check the GitHub App installation covers this repo, then refresh.", checkedAt: check.checkedAt };
+  if (check.read !== "verified") return { label: "Access not verified", tone: "warn", detail: "Reading the repo wasn't confirmed", next: "Refresh, or reconnect to grant access.", checkedAt: check.checkedAt };
+  if (check.prWrite !== "verified") return { label: "Connected (read only)", tone: "warn", detail: "Read verified; pull request write not verified", next: "Grant Pull requests: write to the GitHub App for this repo.", checkedAt: check.checkedAt };
+  return { label: "Connected", tone: "ok", detail: "Read and pull request write verified", next: null, checkedAt: check.checkedAt };
+}
