@@ -61,3 +61,11 @@ export function tokenOwnerWarning(login: string, repos: string[], appOwners: str
   return !covered && login.toLowerCase() === "street-tech666" && repos.some((r) => r.toLowerCase().startsWith("omerta-row/"))
     ? "GITHUB_TOKEN belongs to street-Tech666 while saved repositories use OMERTA-ROW. Update GITHUB_TOKEN in Project Settings → Secrets with an organization-authorized token; account mismatch alone does not prove denied access." : null;
 }
+/** Why the review's Approve button can't apply right now (null = ready). Shown to the owner instead of a silent no-op. */
+export function approvalBlocker(s: { changes: number; busy: boolean; invalidated: boolean; approved: boolean }): string | null {
+  if (s.busy) return "A GitHub check is running — wait for it to finish, then approve.";
+  if (s.approved) return "This review was already applied. Resync to check for new changes.";
+  if (s.invalidated) return "GitHub access changed since this review was made. Press Resync repositories, then approve the fresh review.";
+  if (!s.changes) return "Nothing to approve: no verified changes are ready (rows marked “Not included” need fixing first).";
+  return null;
+}

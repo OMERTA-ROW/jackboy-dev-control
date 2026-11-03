@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import { useServerFn } from "@tanstack/react-start";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter, Link } from "@tanstack/react-router";
+import { approvalBlocker } from "@/lib/repository-resync";
 import { RefreshCw, ShieldCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { checkRepositorySync, approveRepositorySync, type ResyncReview } from "@/lib/repository-resync.functions";
@@ -47,15 +48,6 @@ export function RepositorySyncProvider({ children }: { children: ReactNode }) {
   }, [run]);
   return <SyncContext.Provider value={{ review, busy, error, run }}>{children}</SyncContext.Provider>;
 }
-export function RepositorySyncAlert() {
-  const sync = useContext(SyncContext);
-  if (!sync || !sync.review?.report.rows.some((r) => r.group !== "linked" && r.mutable > 0)) return null;
-  return <div role="alert" className="flex flex-wrap items-center gap-3 border-b border-border bg-muted px-4 py-3 text-sm md:px-8">
-    <span className="text-destructive">Repos out of sync — review</span>
-    <Button size="sm" variant="outline" disabled={sync.busy} onClick={() => void sync.run(true)}><RefreshCw />Resync repositories</Button>
-    <Button asChild size="sm" variant="link"><Link to="/settings">Review changes</Link></Button>
-  </div>;
-}
 export function ConnectedProjectsResync() {
   const sync = useContext(SyncContext);
   if (!sync) return null;
@@ -70,13 +62,15 @@ export function RepositorySyncPanel() {
   const { review, busy } = sync;
   const rows = review?.report.rows ?? [];
   const changes = rows.filter((r) => r.canApply && r.group !== "linked");
+  const blocker = approvalBlocker({ changes: changes.length, busy, invalidated: !!review?.invalidated, approved: !!review?.approved_at });
   const apply = async () => {
     if (!review) return;
+    if (blocker) { setError(blocker); return; }
     setApproving(true); setError(""); setResult("");
     try {
       const grantId = await stepUp("approve_integration", `repository_resync:${review.id}`);
-      await approve({ data: { reviewId: review.id, grantId } });
-      setResult(`${changes.length} repository changes applied together. Project records and history preserved; changed targets require reconnection.`);
+      const out = await approve({ data: { reviewId: review.id, grantId } }) as { alreadyApplied?: boolean } | null;
+      setResult(out?.alreadyApplied ? "These changes were already applied." : `Applied ${changes.length} change${changes.length === 1 ? "" : "s"}: ${changes.map((c) => c.group === "deleted" ? `unlinked ${c.repo}` : `${c.profiles?.[0]?.oldName ?? c.repo} → ${c.proposed}`).join("; ")}. History kept; changed projects need reconnecting.`);
       await queryClient.invalidateQueries(); await router.invalidate(); await sync.run(true);
     } catch (e) { setError(e instanceof Error ? e.message : "Approval failed; no changes applied"); }
     finally { setApproving(false); }
@@ -90,20 +84,21 @@ export function RepositorySyncPanel() {
     {(sync.error || error) && <p role="alert" className="mt-2 break-words text-sm text-destructive">{error || sync.error}</p>}
     {result && <p role="status" className="mt-2 text-sm text-success">{result}</p>}
     {review && <>
-      <p className="mt-3 text-sm"><strong>GITHUB_TOKEN · {review.report.login}</strong> · {review.report.inventoryCount} accessible repositories</p>
+      <p className="mt-3 text-sm"><strong>GITHUB_TOKEN: {review.report.tokenState === "missing" ? "No GITHUB_TOKEN set" : review.report.login}</strong> · {review.report.inventoryCount} accessible repositories (token + GitHub App)</p>
       <ul className="mt-2 text-xs text-muted-foreground">{Object.entries(review.report.permissions).map(([key, value]) => <li key={key}>{key.replace("_", " ")}: {value}</li>)}</ul>
       {review.report.warning && <p role="alert" className="mt-2 text-sm text-destructive">{review.report.warning}</p>}
-      <p className="mt-2 text-xs text-muted-foreground">This review uses GITHUB_TOKEN only; existing organization work still uses the GitHub App. Not found does not prove deletion.</p>
+      <p className="mt-2 text-xs text-muted-foreground">Repos are checked with the GitHub App installation when it covers them, otherwise with GITHUB_TOKEN. Token values are never shown.</p>
       {([['linked', 'Linked OK'], ['missing', 'Missing link — proposed match'], ['moved', 'Moved — proposed new match'], ['deleted', 'Deleted — proposed removal']] as const).map(([group, title]) => <div key={group} className="mt-4">
         <h3 className="text-sm font-semibold">{title} ({rows.filter((r) => r.group === group).length})</h3>
         <ul className="divide-y divide-border">{rows.filter((r) => r.group === group).map((r) => <li key={r.repo} className="py-3 text-sm [overflow-wrap:anywhere]">
-          <strong>{r.group === "missing" ? r.profiles?.[0]?.oldName ?? "Unlinked project" : r.repo}</strong>{r.group !== "linked" && <span> → {r.proposed ?? (r.canApply ? "Remove saved link" : "No change available")}</span>}
+          <strong>{r.group === "missing" ? r.profiles?.[0]?.oldName ?? "Unlinked project" : r.repo}</strong>{r.group === "missing" && !r.proposed ? <span className="text-muted-foreground"> · No repo linked</span> : r.group !== "linked" && <span> → {r.proposed ?? (r.canApply ? "Remove saved link" : "No change available")}</span>}
           {r.profiles?.map((p) => <p key={p.projectId} className="text-xs text-muted-foreground">Display name: {p.oldName} → {p.newName}; current profile and matching inventory names update together. History remains unchanged.</p>)}
-          <p className={r.group === "linked" ? "text-muted-foreground text-xs" : "text-destructive text-xs"}>{r.reason}</p>
+          <p className={r.group === "linked" || (r.group === "missing" && !r.canApply) ? "text-muted-foreground text-xs" : r.group === "deleted" ? "text-destructive text-xs" : "text-xs"}>{r.reason}</p>
           <p className="text-xs text-muted-foreground">{r.mutable} current references · {r.historical} historical references preserved{!r.canApply && r.group !== "linked" ? " · Not included in approval" : ""}</p>
         </li>)}</ul>
       </div>)}
-      <Button className="mt-4" disabled={!changes.length || busy || approving || review.invalidated || !!review.approved_at} onClick={() => void apply()}><ShieldCheck />{approving ? "Confirming…" : `Approve ${changes.length} changes together`}</Button>
+      <Button className="mt-4" disabled={approving} aria-describedby="approve-why" onClick={() => void apply()}><ShieldCheck />{approving ? "Confirming with your passkey…" : `Approve ${changes.length} change${changes.length === 1 ? "" : "s"} together`}</Button>
+      {blocker && <p id="approve-why" className="mt-2 text-xs text-muted-foreground">{blocker}</p>}
     </>}
   </section>;
 }
