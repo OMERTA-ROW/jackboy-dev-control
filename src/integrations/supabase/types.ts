@@ -1639,49 +1639,49 @@ export type Database = {
       }
       provider_permission_events: {
         Row: {
-          actor: string
-          after_access: string | null
-          before_access: string | null
-          created_at: string
-          detail: Json
-          event: string
-          event_id: string
-          permission: string
-          provider: string
-          reason: string | null
-          request_id: string | null
-          target: string
-        }
+          actor: string;
+          after_access: string | null;
+          before_access: string | null;
+          created_at: string;
+          detail: Json;
+          event: string;
+          event_id: string;
+          permission: string;
+          provider: string;
+          reason: string | null;
+          request_id: string | null;
+          target: string;
+        };
         Insert: {
-          actor: string
-          after_access?: string | null
-          before_access?: string | null
-          created_at?: string
-          detail?: Json
-          event: string
-          event_id?: string
-          permission: string
-          provider?: string
-          reason?: string | null
-          request_id?: string | null
-          target: string
-        }
+          actor: string;
+          after_access?: string | null;
+          before_access?: string | null;
+          created_at?: string;
+          detail?: Json;
+          event: string;
+          event_id?: string;
+          permission: string;
+          provider?: string;
+          reason?: string | null;
+          request_id?: string | null;
+          target: string;
+        };
         Update: {
-          actor?: string
-          after_access?: string | null
-          before_access?: string | null
-          created_at?: string
-          detail?: Json
-          event?: string
-          event_id?: string
-          permission?: string
-          provider?: string
-          reason?: string | null
-          request_id?: string | null
-          target?: string
-        }
-        Relationships: []
-      }
+          actor?: string;
+          after_access?: string | null;
+          before_access?: string | null;
+          created_at?: string;
+          detail?: Json;
+          event?: string;
+          event_id?: string;
+          permission?: string;
+          provider?: string;
+          reason?: string | null;
+          request_id?: string | null;
+          target?: string;
+        };
+        Relationships: [];
+      };
       razul_feedback: {
         Row: {
           created_at: string
