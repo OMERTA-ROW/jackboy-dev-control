@@ -22,10 +22,14 @@ describe("repository workspace draft PR permissions", () => {
   const branch = "jackboy/pr-permission-regression";
   let requests: { method: string; path: string }[];
   let deniedPullRequests: number;
+  let branchExists: boolean;
+  let checkConclusion: string;
 
   beforeEach(() => {
     requests = [];
     deniedPullRequests = 0;
+    branchExists = false;
+    checkConclusion = "success";
     appAccess.value = {
       canWrite: true,
       canCreatePullRequests: true,
@@ -39,6 +43,7 @@ describe("repository workspace draft PR permissions", () => {
         requests.push({ method, path: url.pathname });
 
         if (url.pathname.endsWith(`/git/ref/heads/${branch}`) && method === "GET") {
+          if (branchExists) return Response.json({ object: { sha: "b".repeat(40) } });
           return Response.json({ message: "Not Found" }, { status: 404 });
         }
         if (url.pathname.endsWith("/git/ref/heads/main") && method === "GET") {
@@ -51,8 +56,11 @@ describe("repository workspace draft PR permissions", () => {
           return Response.json({ message: "Not Found" }, { status: 404 });
         }
         if (url.pathname.endsWith(`/contents/src/fix.ts`) && method === "PUT") {
+          branchExists = true;
           return Response.json({ commit: { sha: "b".repeat(40) } }, { status: 201 });
         }
+        if (url.pathname.endsWith("/actions/workflows")) return Response.json({ total_count: 1 });
+        if (url.pathname.endsWith("/actions/runs")) return Response.json({ workflow_runs: [{ name: "Existing tests", status: "completed", conclusion: checkConclusion, head_sha: "b".repeat(40), head_branch: branch, html_url: "https://github.com/OMERTA-ROW/Omni/actions/runs/1" }] });
         if (url.pathname.endsWith("/pulls") && method === "GET") {
           return Response.json([]);
         }
@@ -121,6 +129,7 @@ describe("repository workspace draft PR permissions", () => {
   });
 
   it("refreshes a stale installation token once and opens a draft PR", async () => {
+    branchExists = true;
     deniedPullRequests = 1;
     const result = await openDraftPr(repo, branch, "Fix task", "Tested change");
     const pullRequestPosts = requests.filter(
@@ -139,6 +148,11 @@ describe("repository workspace draft PR permissions", () => {
     expect(
       requests.some((request) => request.method === "POST" && request.path.endsWith("/git/refs")),
     ).toBe(false);
+  });
+  it("refuses a new draft PR when the existing tests fail", async () => {
+    branchExists = true; checkConclusion = "failure";
+    await expect(openDraftPr(repo, branch, "Real feature fix", "Existing tests failed")).rejects.toThrow("existing tests must finish successfully");
+    expect(requests.some((r) => r.method === "POST" && r.path.endsWith("/pulls"))).toBe(false);
   });
 
   it("returns an existing draft PR without requiring another write grant", async () => {
