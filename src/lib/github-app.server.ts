@@ -81,12 +81,32 @@ export async function githubTokenFor(repoFull: string | null): Promise<{ token: 
   return t && tokenAllowedFor(repoFull) ? { token: t, via: "token" } : null;
 }
 
+/** Reissues an app installation token after GitHub definitively rejects a permissioned request. */
+export async function refreshGithubTokenFor(repoFull: string): Promise<{ token: string; via: "app" | "token" } | null> {
+  const current = await githubTokenFor(repoFull);
+  if (current?.via !== "app") return current;
+  const { data } = await supabaseAdmin
+    .from("github_installations")
+    .select("installation_id")
+    .eq("revoked", false)
+    .contains("repositories", [repoFull])
+    .limit(1);
+  const id = data?.[0]?.installation_id;
+  if (!id) return null;
+  cache.delete(Number(id));
+  return { token: await installationToken(Number(id)), via: "app" };
+}
+
 /** Access for app-covered repos comes from the recorded installation: GitHub reports the repo's user-style `permissions` field as all-false for app installation tokens. */
-export async function appAccessFor(repoFull: string): Promise<{ canWrite: boolean; permissions: Record<string, string> } | null> {
+export async function appAccessFor(repoFull: string): Promise<{ canWrite: boolean; canCreatePullRequests: boolean; permissions: Record<string, string> } | null> {
   const { data } = await supabaseAdmin.from("github_installations").select("permissions").eq("revoked", false).contains("repositories", [repoFull]).limit(1);
   const p = data?.[0]?.permissions as Record<string, string> | undefined;
   if (!p) return null;
-  return { canWrite: p["contents"] === "write", permissions: p };
+  return {
+    canWrite: p["contents"] === "write",
+    canCreatePullRequests: p["pull_requests"] === "write",
+    permissions: p,
+  };
 }
 
 export function repoFromPath(path: string): string | null {
