@@ -281,6 +281,13 @@
       "when": 1793784321448,
       "tag": "0039_code_runner_claims",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1793784337493,
+      "tag": "0040_provider_permission_events",
+      "breakpoints": true
     }
   ]
 }
