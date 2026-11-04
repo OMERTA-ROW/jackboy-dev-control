@@ -293,7 +293,7 @@ function ChatPage() {
               </button>
             </li>}
             {shown.map((m) => <MessageBoundary key={m.id} fallback={textOf(m)}><Bubble m={m} streaming={busy && m === tail && m.role === "assistant"} /></MessageBoundary>)}
-            {liveRows.map((r, i) => <li key={`live-${i}`} className={r.role === "user" ? "self-end max-w-[85%] rounded-3xl bg-muted px-4 py-2.5 text-[15px]" : "text-[15px] leading-relaxed"}>{r.text}{r.evidence?.filter((l) => safeEvidenceUrl(l.url)).map((l) => <a key={l.url} href={l.url} className="mr-3 text-xs text-primary underline">{l.label}</a>)}</li>)}
+            {liveRows.map((r, i) => <li key={`live-${i}`} className={r.role === "user" ? "self-end max-w-[85%] rounded-3xl bg-muted px-4 py-2.5 text-[15px]" : "text-[15px] leading-relaxed"}>{r.text}{links(r.evidence).map((l) => <a key={l.url} href={l.url} className="mr-3 text-xs text-primary underline">{l.label}</a>)}</li>)}
           </ol>
         )}
         {/* CODE approval/execution controls stay intact; in Chat only cards needing a decision surface. */}
@@ -324,12 +324,14 @@ function ChatPage() {
   );
 }
 
+/** Tool outputs come from many tools; never assume a field is an array. */
+const links = (v: unknown): EvidenceLink[] => Array.isArray(v) ? v.filter((l): l is EvidenceLink => Boolean(l) && typeof (l as EvidenceLink).url === "string" && Boolean(safeEvidenceUrl((l as EvidenceLink).url))) : [];
 const textOf = (m: UIMessage) => m.parts.filter((x) => x.type === "text").map((x) => (x as { text: string }).text).join(" ");
 
 function Bubble({ m, streaming }: { m: UIMessage; streaming: boolean }) {
   if (m.role === "user") return <li className="self-end max-w-[85%] min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere] rounded-3xl bg-muted px-4 py-2.5 text-[15px]">{textOf(m).replace(/^🎙\s*/, "")}</li>;
   const words = textOf(m);
-  const retainedLinks = (m.metadata as { evidence?: EvidenceLink[] } | undefined)?.evidence?.filter((l) => safeEvidenceUrl(l.url)) ?? [];
+  const retainedLinks = links((m.metadata as { evidence?: unknown } | undefined)?.evidence);
   return (
     <li className="group min-w-0 max-w-full text-[15px] leading-relaxed [overflow-wrap:anywhere] [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:block [&_table]:overflow-x-auto">
       {m.parts.map((part, i) => {
@@ -383,9 +385,10 @@ const human = (n: string) => TOOL_WORDS[n] ?? n.replace(/[_-]+/g, " ").replace(/
 function ToolLine({ name, state, output, errorText }: { name: string; state: string; output: unknown; errorText?: string | undefined }) {
   const running = state === "input-streaming" || state === "input-available";
   const failed = state === "output-error" || state === "output-denied";
-  const auth = (output as { authorizations?: Authorization[] } | null)?.authorizations?.find((a) => a.state !== "authorized");
-  const value = output as { blocked?: boolean; reason?: string; evidence?: EvidenceLink[] } | null;
-  const evidence = value?.evidence?.filter((l) => safeEvidenceUrl(l.url)) ?? [];
+  const auths = (output as { authorizations?: unknown } | null)?.authorizations;
+  const auth = Array.isArray(auths) ? (auths as Authorization[]).find((a) => a && a.state !== "authorized" && Array.isArray(a.links)) : undefined;
+  const value = (output && typeof output === "object" ? output : null) as { blocked?: boolean; reason?: unknown; evidence?: unknown } | null;
+  const evidence = links(value?.evidence);
   if (running) return <Shimmer className="my-1 block text-sm">{`${human(name)}…`}</Shimmer>;
   if (auth) {
     const link = auth.links.find((l) => l.primary && l.url.startsWith("https://github.com/")) ?? auth.links.find((l) => l.url.startsWith("https://github.com/"));
@@ -393,7 +396,7 @@ function ToolLine({ name, state, output, errorText }: { name: string; state: str
   }
   if (state === "approval-requested") return <p className="my-1 text-sm text-warning">{human(name)} is waiting for your approval.</p>;
   if (failed) return <p role="alert" className="my-1 text-sm text-destructive">{human(name)} didn't work{errorText ? `: ${errorText.slice(0, 200)}` : "."}</p>;
-  if (value?.blocked || evidence.length) return <div className="my-2 text-sm">{value?.blocked && <p role="alert" className="text-destructive">Blocked: {value.reason}</p>}<div className="flex flex-wrap gap-3">{evidence.map((l) => <a key={l.url} href={l.url} className="inline-flex items-center gap-1 text-xs text-primary underline"><ExternalLink className="size-3.5" />{l.label}</a>)}</div></div>;
+  if (value?.blocked || evidence.length) return <div className="my-2 text-sm">{value?.blocked && <p role="alert" className="text-destructive">Blocked: {String(value.reason ?? "")}</p>}<div className="flex flex-wrap gap-3">{evidence.map((l) => <a key={l.url} href={l.url} className="inline-flex items-center gap-1 text-xs text-primary underline"><ExternalLink className="size-3.5" />{l.label}</a>)}</div></div>;
   return null;
 }
 
