@@ -42,11 +42,11 @@ export function ProjectConnectButtons({ p, gone, onRemoved }: { p: P; gone: bool
   </>;
 }
 
-/** Inline site address editor: saves to the backend, then shows the real site check result. */
-export function AddSiteButton({ p, onSaved }: { p: { id: string; name: string }; onSaved: (msg: string) => void }) {
+/** Inline site address editor: saves to the backend, then shows the real site check result. Shown on every project; prefills the current address when one exists. */
+export function AddSiteButton({ p, onSaved }: { p: { id: string; name: string; site_url?: string | null }; onSaved: (msg: string) => void }) {
   const save = useServerFn(setSiteAddress);
   const [open, setOpen] = useState(false), [v, setV] = useState(""), [busy, setBusy] = useState(false), [err, setErr] = useState<string | null>(null);
-  if (!open) return <button type="button" className={btn} onClick={() => setOpen(true)}>Add site</button>;
+  if (!open) return <button type="button" className={btn} onClick={() => { setV(p.site_url ?? ""); setOpen(true); }}>Add site</button>;
   return <form className="flex w-full flex-wrap items-center gap-2 sm:w-auto" onSubmit={async (e) => {
     e.preventDefault(); setErr(null);
     if (!normalizeSiteInput(v)) { setErr("Enter a public https:// address."); return; }
