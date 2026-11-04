@@ -1,11 +1,26 @@
 name: Verify
 on:
+  workflow_dispatch:
   pull_request:
   push:
     branches: [main]
 permissions:
   contents: read
 jobs:
+  typescript:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: "1.4.4"
+      - run: bun install --frozen-lockfile
+      - run: bunx tsc --noEmit --strict
+      - name: Lint gateway release surface
+        run: bunx eslint src/lib/code-gateway.ts src/lib/code-gateway.server.ts src/lib/code-gateway.test.ts src/lib/code-gateway.server.test.ts
   isolated_code:
     runs-on: ubuntu-latest
     timeout-minutes: 5
