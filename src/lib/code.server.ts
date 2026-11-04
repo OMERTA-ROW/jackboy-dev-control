@@ -171,6 +171,18 @@ export async function decideCode(id: string, nonce: string, decision: "allow" | 
   if (won.error || !won.data) throw new Error("CODE approval is stale, expired, or already used.");
   await audit(userId, decision, id);
   if (decision === "allow") {
+    // External verification and approval/audit writes may outlive the meter snapshot.
+    // Re-read immediately before the only dispatch call. Runner claims still enforce
+    // the database gate; this read is not an atomic provider spending reservation.
+    let blocked: boolean;
+    try { blocked = (await codeSafetyBlockReason(scope.repo)) !== null; }
+    catch { blocked = true; }
+    if (blocked) {
+      const saved = await db.from("action_requests").update({ outcome: "Dispatch blocked: safety evidence changed or became unavailable. Request a new approval after review." }).eq("id", id).eq("status", "allowed");
+      if (saved.error) throw new Error("CODE dispatch blocked; its outcome could not be recorded.");
+      await audit(userId, "dispatch_blocked", id);
+      throw new Error("CODE dispatch blocked because current safety evidence is invalid or unavailable.");
+    }
     try {
       await gh(
         scope.repo,

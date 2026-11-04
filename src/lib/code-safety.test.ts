@@ -171,3 +171,23 @@ describe("CODE runtime safety policy", () => {
     ).toThrow(/unsupported or invalid amount/);
   });
 });
+
+
+describe("admission meter edge cases", () => {
+  it("rejects negative, non-finite, future and previous-day measurements", () => {
+    for (const spend of [-1, NaN, Infinity]) {
+      expect(codeStartBlockReason(state({ providerSpendTodayUsd: spend }), repo, now)).toBeTruthy();
+    }
+    for (const timestamp of ["invalid", new Date(now + 31_000).toISOString()]) {
+      expect(codeStartBlockReason(state({ providerUsageAt: timestamp }), repo, now)).toBeTruthy();
+    }
+    const midnight = Date.parse("2026-11-04T00:00:01Z");
+    expect(codeStartBlockReason(state({ providerUsageAt: "2026-11-03T23:59:59Z" }), repo, midnight)).toMatch(/stale/);
+  });
+  it("rejects duplicate entries even in the final cost bucket", () => {
+    const result = { object: "organization.costs.result", amount: { value: 1, currency: "usd" }, project_id: "p", api_key_id: "k", line_item: "input" };
+    const page = { has_more: false, data: [{ object: "bucket", start_time: 1, end_time: 2, results: [result, result] }] };
+    expect(() => parseOpenAICostPage(page, "p", "k")).toThrow(/duplicate/);
+    expect(() => parseOpenAICostPage({ ...page, data: [{ ...page.data[0], results: [result] }] }, "other", "k")).toThrow();
+  });
+});
