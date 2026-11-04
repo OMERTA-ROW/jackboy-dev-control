@@ -41,3 +41,21 @@ describe("message actions", () => {
     expect(parseFeedback("not json")).toEqual({});
   });
 });
+
+import { composerHeight, preservedScrollTop, frameBatcher } from "./chat-scroll";
+describe("composer and history helpers", () => {
+  it("grows composer to a viewport-aware max then scrolls", () => {
+    expect(composerHeight(60, 800)).toEqual({ height: 60, overflow: false });
+    expect(composerHeight(900, 800)).toEqual({ height: 320, overflow: true });
+    expect(composerHeight(900, 300)).toEqual({ height: 120, overflow: true }); // phone with keyboard open
+  });
+  it("keeps reading position when older history is inserted above", () => {
+    expect(preservedScrollTop(200, 1000, 1600)).toBe(800);
+  });
+  it("batches many updates into one frame", () => {
+    let cb: (() => void) | null = null; let runs = 0;
+    const b = frameBatcher(() => runs++, (f) => { cb = f; return 1; }, () => { cb = null; });
+    b.schedule(); b.schedule(); b.schedule();
+    (cb as unknown as () => void)(); expect(runs).toBe(1);
+  });
+});
