@@ -1,0 +1,87 @@
+name: CODE acceptance (isolated, mocked providers)
+# Runs the CODE safety suites and the OMNI encrypted-loopback interoperability test on a hosted runner.
+# No secrets, no environments, read-only token. Tests run in an empty network namespace, so any attempt
+# to reach OpenAI or another paid provider fails instead of spending money. It never dispatches CODE.
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/code-acceptance.yml
+      - docs/CODE-ACCEPTANCE.md
+permissions:
+  contents: read
+concurrency:
+  group: code-acceptance-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  # Public companion repository, pinned so the interop result is reproducible.
+  OMNI_REPOSITORY: OMERTA-ROW/Omni
+  OMNI_REF: cc083d8e51e0135f536e01f08000de7d8660acbe
+jobs:
+  acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ env.OMNI_REPOSITORY }}
+          ref: ${{ env.OMNI_REF }}
+          path: omni
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: '1.4.4'
+      - run: bun install --frozen-lockfile
+      - name: Record environment
+        run: |
+          date -u +%FT%TZ
+          git rev-parse HEAD
+          git -C omni rev-parse HEAD
+          node --version && go version && bun --version
+      - name: Prove the sandbox has no outbound network
+        run: |
+          if sudo unshare -n curl -sS -m 5 -o /dev/null https://api.openai.com/v1/models; then
+            echo "Outbound paid-provider access is reachable; refusing to continue." >&2
+            exit 1
+          fi
+          echo "Outbound access blocked as required."
+      - name: CODE safety and OMNI interoperability suites (no network)
+        env:
+          OMNI_INBOX_DIR: ${{ github.workspace }}/omni/inbox
+          GOTOOLCHAIN: local
+          GOFLAGS: -mod=mod
+        run: |
+          mkdir -p "$RUNNER_TEMP/acceptance"
+          sudo -E env "PATH=$PATH" unshare -n sh -c '
+            ip link set lo up
+            node --test tests/code-*.test.mjs tests/omni-*.test.mjs
+          ' 2>&1 | tee "$RUNNER_TEMP/acceptance/node-tests.txt"
+          test "${PIPESTATUS[0]}" -eq 0
+      - name: OMNI Go suites (no network)
+        working-directory: omni/inbox
+        env:
+          GOTOOLCHAIN: local
+        run: |
+          sudo -E env "PATH=$PATH" unshare -n sh -c 'ip link set lo up && go test ./... -count=1' 2>&1 | tee "$RUNNER_TEMP/acceptance/go-tests.txt"
+          test "${PIPESTATUS[0]}" -eq 0
+      - name: Assert nothing was skipped
+        run: |
+          if grep -E '^ℹ skipped [1-9]' "$RUNNER_TEMP/acceptance/node-tests.txt"; then
+            echo "A required acceptance test was skipped." >&2
+            exit 1
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: code-acceptance-results
+          path: ${{ runner.temp }}/acceptance
+          retention-days: 7
