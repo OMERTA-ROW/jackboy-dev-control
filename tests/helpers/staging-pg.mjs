@@ -66,8 +66,21 @@ export const supabaseStubs = `
   CREATE TABLE storage.objects(id uuid DEFAULT gen_random_uuid(), bucket_id text, name text, owner uuid);
   ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;`;
 
-export const migrationFiles = async () =>
-  (await readdir("drizzle/migrations")).filter((f) => f.endsWith(".sql")).sort();
+// Production applied the reviewed CODE safety files through the journaled migration tool, which
+// saved byte-equivalent copies under later numbers (e.g. 0043_code_provider_gateway). Replay each
+// migration name once, at its reviewed position, so the chain matches what actually ran.
+export const migrationFiles = async () => {
+  const seen = new Set();
+  return (await readdir("drizzle/migrations"))
+    .filter((f) => f.endsWith(".sql"))
+    .sort()
+    .filter((f) => {
+      const name = f.slice(5);
+      if (seen.has(name)) return false;
+      seen.add(name);
+      return true;
+    });
+};
 
 // Applies each file in its own transaction so a failure names the file and leaves no partial state.
 export async function replay(db, { through = "9999", from = "0000", skip = [] } = {}) {
