@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getTesterCapabilities } from "@/lib/capabilities.functions";
-import type { TesterStatus } from "@/lib/capabilities";
+import { operatingState, type TesterStatus } from "@/lib/capabilities";
 
 const LABEL: Record<TesterStatus, string> = { working: "Working", needs_testing: "Needs testing", not_connected: "Not connected" };
 const TONE: Record<TesterStatus, string> = { working: "text-success", needs_testing: "text-primary", not_connected: "text-muted-foreground" };
@@ -21,6 +21,7 @@ export function CapabilitiesPanel() {
     {q.isLoading && <p className="mt-3 text-sm text-muted-foreground">Checking…</p>}
     {q.error && <p role="alert" className="mt-3 text-sm text-destructive">{(q.error as Error).message}</p>}
     {q.data && <>
+      <p role="status" data-testid="operating-state" className="mt-3 rounded border border-border px-3 py-2 text-sm font-semibold tracking-wide">{operatingState(q.data.safety).label}</p>
       <p className="mt-3 text-sm">Emergency pause: <strong className={q.data.safety.emergencyPause ? "text-destructive" : "text-success"}>{q.data.safety.emergencyPause ? "On — all actions stopped" : "Off"}</strong> · Schedules: {q.data.safety.schedules ? "On" : "Off"} · Autopilot: {q.data.safety.autopilot ? "On" : "Off"}</p>
       <ul className="mt-3 divide-y divide-border">{q.data.capabilities.map((c) => <li key={c.id} className="py-2 text-sm">
         <div className="flex flex-wrap items-center justify-between gap-2"><PreviewGate active={c.actionsActive}><span className="font-medium">{c.label}</span></PreviewGate><span className={`text-xs font-semibold ${TONE[c.status]}`}>{LABEL[c.status]}</span></div>
