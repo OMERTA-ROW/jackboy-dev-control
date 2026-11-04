@@ -11,6 +11,25 @@ import type { OpenAICostRow } from "./openai-costs";
 
 const REPOSITORY = "OMERTA-ROW/jackboy-dev-control";
 
+/** Read-only readiness: never dispatches, reads secret values, or changes GitHub configuration. */
+export const getCodePrerequisites = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await requireOwner(context);
+    const [secrets, workflow] = await Promise.allSettled([
+      fetchGithub<{ secrets: { name: string }[]; total_count: number }>("/environments/CODE/secrets?per_page=100"),
+      fetchGithub<{ sha: string }>(`/contents/.github/workflows/${CODE_WORKFLOW}?ref=main`),
+    ]);
+    return {
+      repository: REPOSITORY,
+      ref: "main",
+      secretNamesVerified: secrets.status === "fulfilled",
+      openaiKeyPresent: secrets.status === "fulfilled" ? secrets.value.secrets.some((s) => s.name === "OPENAI_API_KEY") : null,
+      secretCheckError: secrets.status === "rejected" ? "GitHub refused CODE environment secret-name access; owner must verify OPENAI_API_KEY in GitHub." : null,
+      workflowSha: workflow.status === "fulfilled" && /^[a-f0-9]{40}$/.test(workflow.value.sha) ? workflow.value.sha : null,
+    };
+  });
+
 async function requireOwner(ctx: {
   supabase: { rpc: (f: "my_role") => PromiseLike<{ data: unknown }> };
 }) {
@@ -275,7 +294,8 @@ export const engageCodeKillSwitch = createServerFn({ method: "POST" })
     });
     if (error || !stop?.length)
       throw new Error("CODE emergency stop could not be atomically persisted.");
-    const current = stop[0]!;
+    const current = stop[0];
+    if (!current) throw new Error("CODE emergency stop returned no state.");
     let cancellation: "not_needed" | "requested" | "unavailable" = "not_needed";
     if (current.active_request_id && current.active_run_id) {
       const { data: action } = await db
