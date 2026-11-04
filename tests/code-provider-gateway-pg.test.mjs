@@ -2,10 +2,35 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { skipNoPg, openDb, supabaseStubs, replay, closeAdmin } from "./helpers/staging-pg.mjs";
+import {
+  skipNoPg,
+  openDb,
+  supabaseStubs,
+  replay,
+  closeAdmin,
+  dropClosedDatabase,
+} from "./helpers/staging-pg.mjs";
 
 // Real-PostgreSQL tests for the 0042 provider-call ledger (loopback disposable server, synthetic data).
 after(closeAdmin);
+
+test("disposable cleanup drains closing clients and never force-terminates connections", async () => {
+  const statements = [];
+  let polls = 0;
+  const connection = {
+    query: async (sql) => {
+      statements.push(sql);
+      return { rows: [{ n: ++polls === 1 ? 1 : 0 }] };
+    },
+  };
+  await dropClosedDatabase(connection, "chain_123456_abcdef");
+  assert.equal(statements.filter((sql) => sql.includes("pg_stat_activity")).length, 2);
+  assert.equal(statements.at(-1), "DROP DATABASE chain_123456_abcdef");
+  assert.ok(statements.every((sql) => !sql.includes("FORCE")));
+  const before = statements.length;
+  await assert.rejects(dropClosedDatabase(connection, "postgres"), /non-test database/);
+  assert.equal(statements.length, before);
+});
 
 const owner = randomUUID();
 let keySeq = 0;

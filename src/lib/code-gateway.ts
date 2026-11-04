@@ -7,6 +7,7 @@
 export type ModelPrice = {
   inputPerMillionUsd: number;
   outputPerMillionUsd: number;
+  maxInputTokens: number;
   maxOutputTokens: number;
 };
 export type PriceTable = Record<string, ModelPrice>;
@@ -14,7 +15,6 @@ export type PriceTable = Record<string, ModelPrice>;
 export const GATEWAY_MAX_BODY_BYTES = 1_000_000;
 export const GATEWAY_UPSTREAM_TIMEOUT_MS = 10 * 60_000;
 export const GATEWAY_STOP_POLL_MS = 5_000;
-const ZERO_COST_STATUSES = new Set([400, 401, 403, 404, 422, 429]);
 const PATHS = { "/responses": "responses", "/chat/completions": "chat" } as const;
 
 export class GatewayError extends Error {
@@ -42,8 +42,13 @@ export function parsePriceTable(raw: string | undefined): PriceTable {
     const p = price as Partial<ModelPrice>;
     if (
       !/^[\w.:-]{1,100}$/.test(model) ||
+      !p ||
+      typeof p !== "object" ||
       !Number.isFinite(p.inputPerMillionUsd) ||
       !Number.isFinite(p.outputPerMillionUsd) ||
+      !Number.isSafeInteger(p.maxInputTokens) ||
+      (p.maxInputTokens as number) < 1 ||
+      (p.maxInputTokens as number) > 10_000_000 ||
       !Number.isInteger(p.maxOutputTokens) ||
       (p.inputPerMillionUsd as number) <= 0 ||
       (p.outputPerMillionUsd as number) <= 0 ||
@@ -102,7 +107,15 @@ export function prepareRequest(
     throw new GatewayError(403, "Model is not approved for CODE.");
   }
   const price = prices[model]!;
+  if (!Number.isFinite(perCallCapUsd) || perCallCapUsd <= 0 || perCallCapUsd > 5) {
+    throw new GatewayError(503, "Invalid per-call spending cap.");
+  }
   if (
+    body["previous_response_id"] !== undefined ||
+    body["conversation"] !== undefined ||
+    body["prompt"] !== undefined ||
+    body["audio"] !== undefined ||
+    body["modalities"] !== undefined ||
     body["background"] === true ||
     (body["n"] !== undefined && body["n"] !== 1) ||
     body["service_tier"] !== undefined ||
@@ -120,7 +133,16 @@ export function prepareRequest(
       throw new GatewayError(400, "Only function tools can be cost-bounded.");
     }
   }
-  if (/"(?:image_url|input_image|input_file|input_audio|file_id|file)"\s*:/.test(rawBody)) {
+  // Inspect decoded JSON too: escaped property names must not evade the modality guard.
+  const decoded = JSON.stringify(body);
+  if (
+    /"(?:image_url|input_image|input_file|input_audio|file_id|file|encrypted_content)"\s*:/.test(
+      decoded,
+    ) ||
+    /"type"\s*:\s*"(?:input_image|input_file|input_audio|image_url|file|audio|item_reference)"/.test(
+      decoded,
+    )
+  ) {
     throw new GatewayError(400, "Non-text inputs cannot be cost-bounded.");
   }
   const outKey = kind === "responses" ? "max_output_tokens" : "max_completion_tokens";
@@ -143,8 +165,9 @@ export function prepareRequest(
   const stream = body["stream"] === true;
   if (stream && kind === "chat") body["stream_options"] = { include_usage: true };
   const out = JSON.stringify(body);
-  // A token is at least one byte, so the body size is a hard upper bound on input tokens.
-  const ceilingUsd = costUsd(price, Buffer.byteLength(out), requested);
+  // Reserve the entire independently verified model input window. Body bytes cannot bound
+  // provider-added framing, and stored context is rejected above rather than priced heuristically.
+  const ceilingUsd = costUsd(price, price.maxInputTokens, requested);
   if (!(ceilingUsd > 0) || ceilingUsd > perCallCapUsd) {
     throw new GatewayError(413, "Request exceeds the per-call spending ceiling.");
   }
@@ -160,7 +183,7 @@ export function extractUsage(value: unknown): Usage | null {
   if (!usage || typeof usage !== "object") return null;
   const input = usage["input_tokens"] ?? usage["prompt_tokens"];
   const output = usage["output_tokens"] ?? usage["completion_tokens"];
-  if (!Number.isInteger(input) || !Number.isInteger(output)) return null;
+  if (!Number.isSafeInteger(input) || !Number.isSafeInteger(output)) return null;
   if ((input as number) < 0 || (output as number) < 0) return null;
   return { inputTokens: input as number, outputTokens: output as number };
 }
@@ -198,6 +221,7 @@ export function createCodeGateway(deps: GatewayDeps) {
       const apiKey = deps.providerKey();
       if (!apiKey) return reply(503, "CODE provider gateway is not configured.");
       const identity = await deps.authenticate(request);
+      if (request.signal.aborted) return reply(409, "CODE request was cancelled.");
       const prepared = prepareRequest(
         path,
         await request.text(),
@@ -206,6 +230,7 @@ export function createCodeGateway(deps: GatewayDeps) {
       );
       callId = await deps.admit(identity, deps.newKey(), prepared.model, prepared.ceilingUsd);
       try {
+        if (request.signal.aborted) throw new GatewayError(409, "CODE request was cancelled.");
         await deps.dispatch(callId);
       } catch {
         await deps.abort(callId, "dispatch blocked");
@@ -223,8 +248,10 @@ export function createCodeGateway(deps: GatewayDeps) {
       const cleanup = () => {
         clearTimeout(timer);
         clearInterval(stopWatcher);
+        request.signal.removeEventListener("abort", stopAndHold);
       };
       request.signal.addEventListener("abort", stopAndHold, { once: true });
+      if (request.signal.aborted) controller.abort();
 
       let upstream: Response;
       try {
@@ -252,10 +279,9 @@ export function createCodeGateway(deps: GatewayDeps) {
             costUsd(prepared.price, usage.inputTokens, usage.outputTokens),
             upstream.headers.get("x-request-id"),
           );
-        } else if (!upstream.ok && ZERO_COST_STATUSES.has(upstream.status)) {
-          await deps.settle(id, 0, upstream.headers.get("x-request-id"));
         } else {
           await deps.markUnknown(id, `no usage reported (status ${upstream.status})`);
+          throw new GatewayError(502, "Provider usage unavailable; the call stays reserved.");
         }
       };
       const headers = new Headers({
@@ -292,6 +318,7 @@ export function createCodeGateway(deps: GatewayDeps) {
 
       const id = callId;
       let usage: Usage | null = null;
+      let completed = false;
       let buffer = "";
       const decoder = new TextDecoder();
       const reader = upstream.body.getReader();
@@ -302,7 +329,7 @@ export function createCodeGateway(deps: GatewayDeps) {
             if (done) {
               cleanup();
               try {
-                await settleUsage(usage);
+                await settleUsage(completed ? usage : null);
               } catch {
                 streamController.error(new Error("cost not recorded"));
                 return;
@@ -313,10 +340,23 @@ export function createCodeGateway(deps: GatewayDeps) {
             buffer += decoder.decode(value, { stream: true });
             const lines = buffer.split("\n");
             buffer = lines.pop() ?? "";
+            if (buffer.length > GATEWAY_MAX_BODY_BYTES) {
+              controller.abort();
+              throw new Error("Provider event exceeds the gateway limit.");
+            }
             for (const line of lines) {
-              if (!line.startsWith("data:") || line.includes("[DONE]")) continue;
+              if (!line.startsWith("data:")) continue;
+              if (line.trim() === "data: [DONE]") {
+                if (prepared.kind === "chat") completed = true;
+                continue;
+              }
               try {
-                usage = extractUsage(JSON.parse(line.slice(5))) ?? usage;
+                const event = JSON.parse(line.slice(5)) as { type?: string };
+                if (prepared.kind === "chat" || event.type === "response.completed") {
+                  usage = extractUsage(event) ?? usage;
+                  if (prepared.kind === "responses" && event.type === "response.completed")
+                    completed = true;
+                }
               } catch {
                 /* partial or non-JSON event */
               }
@@ -332,9 +372,7 @@ export function createCodeGateway(deps: GatewayDeps) {
           controller.abort();
           cleanup();
           await reader.cancel().catch(() => undefined);
-          await (
-            usage ? settleUsage(usage) : deps.markUnknown(id, "client cancelled the stream")
-          ).catch(() => undefined);
+          await deps.markUnknown(id, "client cancelled the stream");
         },
       });
       return new Response(out, { status: upstream.status, headers });

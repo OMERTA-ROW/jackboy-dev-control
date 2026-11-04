@@ -44,15 +44,15 @@ test("the gateway uses only function-bound server env and never logs the key", a
   assert.match(source, /process\.env\[PROVIDER_KEY_ENV\]/);
 });
 
-// Requirement 7 is only complete once the runner stops holding a provider key. This is the one known
-// direct path; the test pins it so any additional bypass fails CI, and it must be removed at cutover.
-test("known pending cutover: the only workflow-held provider key is the legacy runner secret", async () => {
+test("no workflow receives a paid-provider secret", async () => {
   const offenders = [];
   for await (const file of walk(".github")) {
     const text = await readFile(file, "utf8");
-    for (const m of text.matchAll(/secrets\.([A-Z0-9_]*(?:OPENAI|PROVIDER)[A-Z0-9_]*)/g)) {
+    for (const m of text.matchAll(
+      /secrets\.([A-Z0-9_]*(?:OPENAI|PROVIDER|ANTHROPIC|GEMINI|LOVABLE|AZURE)[A-Z0-9_]*)/g,
+    )) {
       offenders.push(`${file}:${m[1]}`);
     }
   }
-  assert.deepEqual(offenders, [join(".github", "workflows", "code.yml") + ":OPENAI_API_KEY"]);
+  assert.deepEqual(offenders, []);
 });

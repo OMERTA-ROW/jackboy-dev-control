@@ -11,7 +11,12 @@ import {
 } from "./code-gateway";
 
 const PRICES = JSON.stringify({
-  "m-test": { inputPerMillionUsd: 1, outputPerMillionUsd: 4, maxOutputTokens: 1000 },
+  "m-test": {
+    inputPerMillionUsd: 1,
+    outputPerMillionUsd: 4,
+    maxInputTokens: 10000,
+    maxOutputTokens: 1000,
+  },
 });
 const prices = parsePriceTable(PRICES);
 const body = (extra: Record<string, unknown> = {}) =>
@@ -54,7 +59,7 @@ function harness(over: Partial<GatewayDeps> = {}, upstream?: GatewayDeps["upstre
         ...(method === "POST" ? { body: b } : {}),
       }),
     );
-  return { calls, upstreamFn, send };
+  return { calls, upstreamFn, send, handle };
 }
 
 describe("pricing and ceilings", () => {
@@ -71,13 +76,13 @@ describe("pricing and ceilings", () => {
       expect(() => parsePriceTable(raw)).toThrow(GatewayError);
     }
   });
-  it("rounds costs up and bounds input by body size and output by the clamp", () => {
+  it("reserves the full verified input window and clamps the output", () => {
     expect(costUsd(prices["m-test"]!, 1, 1)).toBeGreaterThan(0);
     const p = prepareRequest("/responses", body({ max_output_tokens: 5000 }), prices, 1);
     expect(JSON.parse(p.body).max_output_tokens).toBe(1000);
-    expect(p.ceilingUsd).toBeGreaterThanOrEqual(
-      costUsd(prices["m-test"]!, Buffer.byteLength(p.body), 1000),
-    );
+    expect(p.ceilingUsd).toBe(costUsd(prices["m-test"]!, 10000, 1000));
+    const larger = prepareRequest("/responses", body({ input: "x".repeat(10000) }), prices, 1);
+    expect(larger.ceilingUsd).toBe(p.ceilingUsd);
   });
   it("clamps every spelling of the output limit and defaults to the model cap", () => {
     const p = prepareRequest(
@@ -115,6 +120,30 @@ describe("pricing and ceilings", () => {
   });
   it("enforces the per-call cap", () => {
     expect(() => prepareRequest("/responses", body(), prices, 0.000001)).toThrow(/ceiling/);
+  });
+  it("rejects invalid caps and hidden or server-stored context", () => {
+    for (const cap of [NaN, Infinity, 0, -1, 6]) {
+      expect(() => prepareRequest("/responses", body(), prices, cap)).toThrow();
+    }
+    for (const extra of [
+      { previous_response_id: "resp_old" },
+      { conversation: "conv_old" },
+      { prompt: { id: "stored_prompt" } },
+      { audio: { format: "wav" } },
+      { modalities: ["audio"] },
+      { input: [{ type: "item_reference", id: "old" }] },
+      { input: [{ type: "reasoning", encrypted_content: "opaque" }] },
+    ]) {
+      expect(() => prepareRequest("/responses", body(extra), prices, 1)).toThrow();
+    }
+    expect(() =>
+      prepareRequest(
+        "/responses",
+        '{"model":"m-test","input":[{"type":"input_image","image\\u005furl":"https://invalid"}]}',
+        prices,
+        1,
+      ),
+    ).toThrow();
   });
   it("reads usage from both API shapes and rejects invalid usage", () => {
     expect(extractUsage({ usage: { input_tokens: 1, output_tokens: 2 } })).toEqual({
@@ -214,16 +243,16 @@ describe("gateway flow", () => {
     expect(h.calls.at(-1)).toMatch(/^unknown:/);
     expect(h.upstreamFn).toHaveBeenCalledTimes(1);
   });
-  it("holds on 5xx and on 2xx without usage, but settles zero for definite client errors", async () => {
+  it("holds on every status without authoritative usage, including client errors", async () => {
     const five = harness({}, async () => new Response("boom", { status: 500 }));
     await five.send();
     expect(five.calls.at(-1)).toMatch(/^unknown:/);
     const noUsage = harness({}, async () => Response.json({ ok: true }));
-    await noUsage.send();
+    expect((await noUsage.send()).status).toBe(502);
     expect(noUsage.calls.at(-1)).toMatch(/^unknown:/);
     const four = harness({}, async () => Response.json({ error: "bad" }, { status: 400 }));
     await four.send();
-    expect(four.calls.at(-1)).toBe("settle:0");
+    expect(four.calls.at(-1)).toMatch(/^unknown:/);
   });
   it("does not return provider output as success when the cost cannot be recorded", async () => {
     const h = harness({
@@ -241,6 +270,20 @@ describe("gateway flow", () => {
     await Promise.all([h.send(), h.send(), h.send()]);
     expect(h.calls.filter((c) => c.startsWith("admit"))).toHaveLength(3);
     expect(h.upstreamFn).toHaveBeenCalledTimes(3);
+  });
+  it("never dispatches a request that was already cancelled", async () => {
+    const h = harness();
+    const controller = new AbortController();
+    controller.abort();
+    const res = await h.handle(
+      new Request("https://x.test/api/public/code/provider/v1/responses", {
+        method: "POST",
+        signal: controller.signal,
+        body: body(),
+      }),
+    );
+    expect(res.status).toBe(409);
+    expect(h.upstreamFn).not.toHaveBeenCalled();
   });
 });
 
@@ -275,7 +318,7 @@ describe("streaming", () => {
   });
   it("holds the full ceiling when a stream ends without usage or is cut", async () => {
     const none = harness({}, async () => sse(['data: {"type":"delta"}\n\n']));
-    await (await none.send("/responses", body({ stream: true }))).text();
+    await expect((await none.send("/responses", body({ stream: true }))).text()).rejects.toThrow();
     expect(none.calls.at(-1)).toMatch(/^unknown:/);
     const cut = harness({}, async () => sse(["data: {}\n\n"], true));
     await (await cut.send("/responses", body({ stream: true }))).text().catch(() => undefined);
@@ -291,6 +334,20 @@ describe("streaming", () => {
     await res.body!.cancel();
     await new Promise((r) => setTimeout(r, 10));
     expect(h.calls.at(-1)).toMatch(/^unknown:/);
+  });
+  it("does not settle partial usage as a final response", async () => {
+    const h = harness({}, async () =>
+      sse([
+        `data: ${JSON.stringify({
+          type: "response.in_progress",
+          response: { usage: { input_tokens: 1, output_tokens: 1 } },
+        })}\n\n`,
+      ]),
+    );
+    const res = await h.send("/responses", body({ stream: true }));
+    await expect(res.text()).rejects.toThrow();
+    expect(h.calls.at(-1)).toMatch(/^unknown:/);
+    expect(h.calls.some((c) => c.startsWith("settle"))).toBe(false);
   });
 });
 

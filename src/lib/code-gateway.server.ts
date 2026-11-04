@@ -31,14 +31,22 @@ async function rpc<T>(name: string, args: Record<string, unknown>): Promise<T> {
 async function authenticate(request: Request): Promise<Identity> {
   const parts = (request.headers.get("authorization") ?? "").split(" ");
   const bearer = parts.length === 2 && parts[0]?.toLowerCase() === "bearer" ? parts[1] : undefined;
-  const requestId = request.headers.get("x-code-request-id") ?? "";
+  const url = new URL(request.url);
+  const headerId = request.headers.get("x-code-request-id");
+  const queryIds = url.searchParams.getAll("request_id");
+  if (queryIds.length > 1 || (headerId && queryIds[0] && headerId !== queryIds[0])) {
+    throw new GatewayError(401, "Ambiguous CODE request identity.");
+  }
+  // The pinned Codex proxy forwards Authorization but has no custom-header input.
+  // The query contains only the public request identifier, never a credential.
+  const requestId = headerId ?? queryIds[0] ?? "";
   if (!bearer || !UUID.test(requestId))
     throw new GatewayError(401, "GitHub Actions identity required.");
   const claims = await verifyGithubActionsToken(bearer);
   const { data: row } = await db
     .from("action_requests")
     .select(
-      "action, status, revoked_at, runner_claimed_at, runner_run_id, runner_run_attempt, resources",
+      "action, status, revoked_at, runner_claimed_at, runner_run_id, runner_run_attempt, resources, requested_by",
     )
     .eq("id", requestId)
     .single();
@@ -57,6 +65,15 @@ async function authenticate(request: Request): Promise<Identity> {
     !SHA.test(scope.baseSha ?? "")
   ) {
     throw new GatewayError(403, "CODE task is not authorised for provider access.");
+  }
+  const { data: owner, error: ownerError } = await db
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", row.requested_by)
+    .eq("role", "owner")
+    .maybeSingle();
+  if (ownerError || !owner) {
+    throw new GatewayError(403, "CODE owner authorization is unavailable.");
   }
   await verifyWorkflowRun(
     claims,
@@ -97,7 +114,9 @@ export function productionGatewayDeps(): GatewayDeps {
     isStopped: async (identity) => {
       const { data, error } = await db
         .from("code_runtime_controls")
-        .select("enabled, kill_switch, stop_requested_at, active_request_id")
+        .select(
+          "enabled, kill_switch, stop_requested_at, active_request_id, active_run_id, cancellation_status",
+        )
         .eq("singleton", true)
         .single();
       return (
@@ -106,7 +125,9 @@ export function productionGatewayDeps(): GatewayDeps {
         data.enabled !== true ||
         data.kill_switch !== false ||
         !!data.stop_requested_at ||
-        data.active_request_id !== identity.requestId
+        data.active_request_id !== identity.requestId ||
+        String(data.active_run_id) !== String(identity.runId) ||
+        data.cancellation_status !== "not_needed"
       );
     },
     providerKey: () => process.env[PROVIDER_KEY_ENV] || undefined,
