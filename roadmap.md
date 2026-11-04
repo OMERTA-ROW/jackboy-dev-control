@@ -1,5 +1,10 @@
 # Jackboy roadmap
 
+## Worker 1 supervised readiness (Nov 4)
+- [ ] Verify GitHub CODE secret names and prepare the single Jackboy/main allowlist without dispatch.
+- [ ] Harden and test existing concurrency/failure/spend/stop safeguards and owner readiness controls.
+- [ ] Verify authenticated OMNI handshake only; report remaining infrastructure and owner actions. No activation, workflow changes or publishing.
+
 ## Frontend conversation workflow (Nov 4)
 - [x] Center submitted messages with response space; incremental-stream preview confirmed following, manual-scroll preservation and Jump to latest; older-history helper regressions preserved.
 - [x] Accessible message actions, stable timestamps, local forks and safe retry drafts; retry/branch produced no chat API calls. Immediate regeneration is blocked by the existing tool-enabled transport's lack of an enforced side-effect-free mode.
