@@ -2,7 +2,7 @@ import { createFileRoute, Link, type ErrorComponentProps } from "@tanstack/react
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, isToolUIPart, type UIMessage } from "ai";
 import { useServerFn } from "@tanstack/react-start";
-import { Component, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Component, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowDown, ArrowLeft, ArrowUp, Check, ThumbsDown, ThumbsUp, Volume2, ChevronDown, ChevronUp, Copy, ExternalLink, Hexagon, History, SlidersHorizontal, Square, SquarePen, Trash2 } from "lucide-react";
 import { getVoiceChatStatus, synthesizeJackboy } from "@/lib/passport.functions";
 import { supabase } from "@/integrations/supabase/client";
