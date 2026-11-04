@@ -562,12 +562,43 @@ export type Database = {
           },
         ]
       }
+      code_provider_cost_day_reports: {
+        Row: {
+          bucket_count: number
+          created_at: string
+          id: string
+          recorded_by: string
+          reported_cost_usd: number
+          synced_at: string
+          utc_day: string
+        }
+        Insert: {
+          bucket_count: number
+          created_at?: string
+          id?: string
+          recorded_by: string
+          reported_cost_usd: number
+          synced_at: string
+          utc_day: string
+        }
+        Update: {
+          bucket_count?: number
+          created_at?: string
+          id?: string
+          recorded_by?: string
+          reported_cost_usd?: number
+          synced_at?: string
+          utc_day?: string
+        }
+        Relationships: []
+      }
       code_runtime_controls: {
         Row: {
           active_request_id: string | null
           active_run_id: number | null
           allowed_targets: Json
           cancellation_status: string
+          closed_day_lag_seconds: number
           consecutive_failures: number
           daily_spend_limit_usd: number
           enabled: boolean
@@ -588,6 +619,7 @@ export type Database = {
           active_run_id?: number | null
           allowed_targets?: Json
           cancellation_status?: string
+          closed_day_lag_seconds?: number
           consecutive_failures?: number
           daily_spend_limit_usd?: number
           enabled?: boolean
@@ -608,6 +640,7 @@ export type Database = {
           active_run_id?: number | null
           allowed_targets?: Json
           cancellation_status?: string
+          closed_day_lag_seconds?: number
           consecutive_failures?: number
           daily_spend_limit_usd?: number
           enabled?: boolean
@@ -2644,9 +2677,22 @@ export type Database = {
         Args: { p_actor: string; p_status: string }
         Returns: undefined
       }
+      record_code_closed_day_costs: {
+        Args: {
+          p_actor: string
+          p_day: string
+          p_rows: Json
+          p_synced_at: string
+        }
+        Returns: string
+      }
       record_code_provider_costs: {
         Args: { p_actor: string; p_rows: Json; p_synced_at: string }
         Returns: undefined
+      }
+      release_code_spend_holds: {
+        Args: { p_actor: string; p_reason: string; p_request_ids: string[] }
+        Returns: number
       }
       remove_member: { Args: { _user_id: string }; Returns: undefined }
       remove_owner_passkey: {

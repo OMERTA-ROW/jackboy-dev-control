@@ -295,6 +295,13 @@
       "when": 1793784429855,
       "tag": "0041_code_spend_reservations",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1793784470753,
+      "tag": "0042_code_spend_hold_release",
+      "breakpoints": true
     }
   ]
 }
