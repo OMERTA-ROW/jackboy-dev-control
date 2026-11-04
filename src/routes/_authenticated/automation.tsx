@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useState } from "react";
 import { PageHeader, GuidanceTip } from "@/components/AppShell";
+import { useStepUp } from "@/lib/step-up-client";
 import { HIGH_RISK, LEARNING_KINDS, TIERS, type LearningKind } from "@/lib/automation-policy";
 import { draftPlaybook, evaluateChange, getAutomation, recordLearning, setPolicy, verifyPlaybook } from "@/lib/automation.functions";
 
@@ -24,6 +25,7 @@ const input = "rounded-md border border-input bg-background px-3 py-2 text-sm";
 
 function Automation() {
   const load = useServerFn(getAutomation);
+  const stepUp = useStepUp();
   const f = { set: useServerFn(setPolicy), rec: useServerFn(recordLearning), draft: useServerFn(draftPlaybook), verify: useServerFn(verifyPlaybook), evaluate: useServerFn(evaluateChange) };
   const [d, setD] = useState<Data | null>(null);
   const [err, setErr] = useState<string | null>(null);
