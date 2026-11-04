@@ -1,5 +1,10 @@
 # Jackboy roadmap
 
+## Frontend conversation workflow (Nov 4)
+- [ ] Center submitted messages with response space; preserve streaming/manual/history scroll.
+- [ ] Accessible message actions, stable timestamps, local forks and safe retry drafts; no execution on retry/branch.
+- [ ] Run regressions and authenticated desktop/mobile preview checks; no publish or safety-setting changes.
+
 ## Feature-first queue and acting chat
 - [x] Suppress new standalone test proposals; preserve critical tests and require passing checks for the changed commit before new draft PR. Existing history retained.
 - [x] Shared voice/text response policy, live permission check and durable task intake; tool-derived validated repo/project/queue links; unsafe model-authored links not clickable. Signed-in text performed real OMNI check; live voice transport remains unverified.

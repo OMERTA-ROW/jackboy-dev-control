@@ -23,6 +23,7 @@
 - Jackboy is the research/evaluation/idea-routing agent; OMNI is the build/test/deploy engine. Handoffs, monetization estimates and provenance live in `src/lib/omni-handoff.ts` + `src/routes/omni.tsx`; publish/pricing/sell stay locked by `canApprove` until the handoff is approved and provenance is cleared. Never show OMNI as connected without verification.
 
 - Subdirectories have their own `AGENTS.md` (feature rules in `src/lib/AGENTS.md`); read it before changing files there.
+- Frontend conversation forks copy historical text/files without executable tools or grants; retries restore unsent drafts because the chat transport can perform external side effects and has no enforced tool-free regeneration mode.
 - Live voice runs through `src/lib/live-relay.server.ts` at `/api/live` (dispatched in `src/server.ts`, dev via `live-vite-plugin.ts`): owner session verified before any paid voice session, and legacy voice change tools stay blocked; opt-in CODE requests use scoped session-bound cards, while sensitive actions keep their passkey/provider-native path.
 - Repo inventory = GITHUB_TOKEN repos + live GitHub App installation repos; per-project resync (`project-resync.functions.ts`) may change only display name/empty site address, repo-link changes stay in the approved review, and gone projects are archived (`active=false`), never deleted.
 - Site monitoring lives in `src/lib/site-monitor*.ts` (DNS-over-HTTPS + one HTTPS GET, stored on owner_projects with backoff, 15-min cron at /api/public/jobs/site-monitor); reachability never implies coding access.
