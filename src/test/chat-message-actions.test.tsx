@@ -1,8 +1,8 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ChatMessageActions } from "@/components/ChatMessageActions";
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 const setup = (streaming = false) => {
   const onRetry = vi.fn(), onBranch = vi.fn(), onRate = vi.fn();
   render(<ChatMessageActions text="Hello owner" assistant streaming={streaming} disabled={false} time={1793762280000} onRetry={onRetry} onBranch={onBranch} onRate={onRate} />);
@@ -40,7 +40,12 @@ describe("accessible chat message actions", () => {
     expect(synth.speak).toHaveBeenCalledTimes(1);
     const utterance = synth.speak.mock.calls[0]?.[0] as { onstart: () => void };
     // The playing state follows the engine's event, not the button click.
-    fireEvent(window, new Event("noop"));
-    import("@testing-library/react").then(({ act }) => act(() => utterance.onstart()));
+    act(() => utterance.onstart());
+    fireEvent.click(screen.getByRole("button", { name: "Pause reading aloud" }));
+    expect(synth.pause).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "Resume reading aloud" }));
+    expect(synth.resume).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "Stop reading aloud" }));
+    expect(screen.getByRole("button", { name: "Read aloud" })).toBeInTheDocument();
   });
 });
