@@ -73,6 +73,7 @@ import { Route as ApiPublicUpdatesHealthRouteImport } from './routes/api/public/
 import { Route as ApiPublicUpdatesPublicKeyRouteImport } from './routes/api/public/updates/public-key'
 import { Route as ApiPublicUpdatesTargetCheckRouteImport } from './routes/api/public/updates/target-check'
 import { Route as ApiPublicUpdatesTargetReportRouteImport } from './routes/api/public/updates/target-report'
+import { Route as ApiPublicCodeProviderSplatRouteImport } from './routes/api/public/code/provider.$'
 
 const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
   id: '/_authenticated',
@@ -403,6 +404,12 @@ const ApiPublicUpdatesTargetReportRoute =
     path: '/api/public/updates/target-report',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicCodeProviderSplatRoute =
+  ApiPublicCodeProviderSplatRouteImport.update({
+    id: '/api/public/code/provider/$',
+    path: '/api/public/code/provider/$',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
@@ -468,6 +475,7 @@ export interface FileRoutesByFullPath {
   '/api/public/updates/public-key': typeof ApiPublicUpdatesPublicKeyRoute
   '/api/public/updates/target-check': typeof ApiPublicUpdatesTargetCheckRoute
   '/api/public/updates/target-report': typeof ApiPublicUpdatesTargetReportRoute
+  '/api/public/code/provider/$': typeof ApiPublicCodeProviderSplatRoute
 }
 export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
@@ -533,6 +541,7 @@ export interface FileRoutesByTo {
   '/api/public/updates/public-key': typeof ApiPublicUpdatesPublicKeyRoute
   '/api/public/updates/target-check': typeof ApiPublicUpdatesTargetCheckRoute
   '/api/public/updates/target-report': typeof ApiPublicUpdatesTargetReportRoute
+  '/api/public/code/provider/$': typeof ApiPublicCodeProviderSplatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -600,6 +609,7 @@ export interface FileRoutesById {
   '/api/public/updates/public-key': typeof ApiPublicUpdatesPublicKeyRoute
   '/api/public/updates/target-check': typeof ApiPublicUpdatesTargetCheckRoute
   '/api/public/updates/target-report': typeof ApiPublicUpdatesTargetReportRoute
+  '/api/public/code/provider/$': typeof ApiPublicCodeProviderSplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -667,6 +677,7 @@ export interface FileRouteTypes {
     | '/api/public/updates/public-key'
     | '/api/public/updates/target-check'
     | '/api/public/updates/target-report'
+    | '/api/public/code/provider/$'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/auth'
@@ -732,6 +743,7 @@ export interface FileRouteTypes {
     | '/api/public/updates/public-key'
     | '/api/public/updates/target-check'
     | '/api/public/updates/target-report'
+    | '/api/public/code/provider/$'
   id:
     | '__root__'
     | '/_authenticated'
@@ -798,6 +810,7 @@ export interface FileRouteTypes {
     | '/api/public/updates/public-key'
     | '/api/public/updates/target-check'
     | '/api/public/updates/target-report'
+    | '/api/public/code/provider/$'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -831,6 +844,7 @@ export interface RootRouteChildren {
   ApiPublicUpdatesPublicKeyRoute: typeof ApiPublicUpdatesPublicKeyRoute
   ApiPublicUpdatesTargetCheckRoute: typeof ApiPublicUpdatesTargetCheckRoute
   ApiPublicUpdatesTargetReportRoute: typeof ApiPublicUpdatesTargetReportRoute
+  ApiPublicCodeProviderSplatRoute: typeof ApiPublicCodeProviderSplatRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -1283,6 +1297,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicUpdatesTargetReportRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/code/provider/$': {
+      id: '/api/public/code/provider/$'
+      path: '/api/public/code/provider/$'
+      fullPath: '/api/public/code/provider/$'
+      preLoaderRoute: typeof ApiPublicCodeProviderSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -1394,6 +1415,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicUpdatesPublicKeyRoute: ApiPublicUpdatesPublicKeyRoute,
   ApiPublicUpdatesTargetCheckRoute: ApiPublicUpdatesTargetCheckRoute,
   ApiPublicUpdatesTargetReportRoute: ApiPublicUpdatesTargetReportRoute,
+  ApiPublicCodeProviderSplatRoute: ApiPublicCodeProviderSplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
