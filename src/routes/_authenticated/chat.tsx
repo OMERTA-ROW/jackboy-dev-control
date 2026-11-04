@@ -83,7 +83,7 @@ function ChatPage() {
   useEffect(() => {
     if (view !== "code" || repos) return;
     // Only project names reach the browser view; repository paths stay in Projects.
-    hub().then((h) => { const list = h.projects.filter((p) => p.github_repo).map((p) => ({ id: p.id, name: p.name })); setRepos(list); if (list[0]) setTarget((t) => t || list[0]?.name ?? ""); })
+    hub().then((h) => { const list = h.projects.filter((p) => p.github_repo).map((p) => ({ id: p.id, name: p.name })); setRepos(list); if (list[0]) setTarget((t) => t || (list[0]?.name ?? "")); })
       .catch((e) => setRepoErr((e as Error).message));
   }, [view, repos, hub]);
   const [error, setError] = useState<string | null>(null);
@@ -195,7 +195,7 @@ function ChatPage() {
     if (await code.submit(t)) { addUser(t); setText(""); setFromVoice(false); return; }
     const id = crypto.randomUUID();
     setSubmitAnchor({ id, reserve: 0, pending: true });
-    void sendMessage({ messageId: id, text: t, metadata: { createdAt: Date.now(), ...(fromVoice ? { voice: true } : {}) } });
+    void sendMessage({ id, role: "user", parts: [{ type: "text", text: t }], metadata: { createdAt: Date.now(), ...(fromVoice ? { voice: true } : {}) } });
     setText(""); setFromVoice(false);
   };
 
@@ -269,6 +269,7 @@ function ChatPage() {
     const request = retry ? retryDraft(messages as StoredMessage[], id) : null;
     if (retry && !request) { setError("The original request is unavailable."); return; }
     const nextBranch = forkConversation(messages as StoredMessage[], request?.throughId ?? id, mode, crypto.randomUUID(), Date.now());
+    if (request) nextBranch.messages = nextBranch.messages.slice(0, -1);
     // Persist before switching: failed storage never produces a fake saved branch.
     const next = upsertConversation(convos, nextBranch);
     try { localStorage.setItem(`jackboy.conversations.v1.${userId}`, JSON.stringify(next)); }
@@ -447,7 +448,7 @@ function Bubble({ m, streaming, disabled, rating, onRate, onRetry, onBranch }: {
         if (isToolUIPart(part)) return <ToolLine key={i} name={part.type === "dynamic-tool" ? part.toolName : part.type.slice(5)} state={part.state} output={part.output} errorText={part.errorText} />;
         return null;
       })}
-      {m.parts.filter((p) => p.type === "file").map((p, i) => p.type === "file" && <details key={i} className="text-xs text-muted-foreground"><summary>{p.filename ?? "Attachment"}</summary><span>{p.mediaType}</span></details>)}
+      {m.parts.filter((p) => p.type === "file").map((p, i) => p.type === "file" && <details key={i} className="text-xs text-muted-foreground"><summary>{p.filename ?? "Attachment"}</summary>{/^(https?:|data:|blob:)/.test(p.url) ? <a href={p.url} target="_blank" rel="noopener noreferrer" className="underline">Open attachment</a> : <span>Attachment unavailable</span>}</details>)}
       {retainedLinks.map((l) => <a key={l.url} href={l.url} className="mr-3 text-xs text-primary underline">{l.label}</a>)}
       <ChatMessageActions text={words} assistant={!user} streaming={streaming} disabled={disabled} time={messageTime(m as StoredMessage)} rating={rating} onRate={onRate} onRetry={onRetry} onBranch={onBranch} />
     </li>
