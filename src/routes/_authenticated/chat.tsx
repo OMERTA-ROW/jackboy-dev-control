@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, isToolUIPart, type UIMessage } from "ai";
 import { useServerFn } from "@tanstack/react-start";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Component, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowLeft, ArrowUp, Check, ChevronDown, ChevronUp, Copy, ExternalLink, Hexagon, History, SlidersHorizontal, Square, SquarePen, Trash2 } from "lucide-react";
 import { getVoiceChatStatus, synthesizeJackboy } from "@/lib/passport.functions";
 import { supabase } from "@/integrations/supabase/client";
@@ -31,7 +31,32 @@ export const Route = createFileRoute("/_authenticated/chat")({
     ],
   }),
   component: ChatPage,
+  errorComponent: ChatError,
 });
+
+/** Page-level recovery: saved conversations live in this browser, so reloading the chat keeps them. */
+function ChatError({ error, reset }: { error: Error; reset: () => void }) {
+  return (
+    <div role="alert" className="flex min-h-dvh flex-col items-center justify-center gap-3 bg-background px-6 text-center">
+      <p className="text-lg font-semibold text-silver">The chat hit a problem</p>
+      <p className="max-w-sm text-sm text-muted-foreground">Your saved conversations are safe. {error.message.slice(0, 160)}</p>
+      <div className="flex gap-2">
+        <button type="button" onClick={reset} className="rounded-full border border-border px-4 py-2 text-sm hover:border-silver">Try again</button>
+        <button type="button" onClick={() => window.location.reload()} className="rounded-full border border-border px-4 py-2 text-sm hover:border-silver">Reload chat</button>
+      </div>
+    </div>
+  );
+}
+
+/** Keeps one unrenderable message (e.g. odd markdown mid-stream) from taking down the whole page. */
+class MessageBoundary extends Component<{ fallback: string; children: ReactNode }, { failed: boolean }> {
+  override state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  override componentDidUpdate(prev: { fallback: string }) { if (this.state.failed && prev.fallback !== this.props.fallback) this.setState({ failed: false }); }
+  override render() {
+    return this.state.failed ? <li className="min-w-0 whitespace-pre-wrap text-[15px] leading-relaxed [overflow-wrap:anywhere]">{this.props.fallback}</li> : this.props.children;
+  }
+}
 
 const SUGGESTIONS = ["How are my projects doing?", "What needs my attention?", "What did you work on today?"];
 const KEEP_VISIBLE = 2;
@@ -88,7 +113,8 @@ function ChatPage() {
     return () => data.subscription.unsubscribe();
   }, [setMessages]);
   useEffect(() => {
-    if (!userId || status !== "ready" || !messages.length) return;
+    // Save after the user turn is submitted and after each reply, not on every streamed token.
+    if (!userId || status === "streaming" || !messages.length) return;
     setConvos((list) => {
       const next = upsertConversation(list, { id: activeId, mode: view, title: titleFrom(messages as StoredMessage[]), updatedAt: Date.now(), messages: messages as StoredMessage[] });
       saveConversations(localStorage, userId, next);
@@ -156,7 +182,7 @@ function ChatPage() {
     window.addEventListener("scroll", on, { passive: true }); return () => window.removeEventListener("scroll", on);
   }, []);
   const tail = messages.at(-1);
-  useEffect(() => { if (atBottom) end.current?.scrollIntoView({ block: "end" }); }, [messages.length, tail && textOf(tail).length, liveRows, status]);
+  useEffect(() => { if (!atBottom) return; const id = requestAnimationFrame(() => end.current?.scrollIntoView({ block: "end" })); return () => cancelAnimationFrame(id); }, [messages.length, tail && textOf(tail).length, liveRows, status]);
 
   const [banner, setBanner] = useState<{ ok: boolean; text: string } | null>(null);
   useEffect(() => {
@@ -182,7 +208,7 @@ function ChatPage() {
   const hidden = collapsed ? Math.max(0, messages.length - KEEP_VISIBLE) : 0;
   const shown = hidden ? messages.slice(hidden) : messages;
   const modeConvos = convos.filter((c) => c.mode === view);
-  const iconBtn = "inline-flex size-10 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-electric";
+  const iconBtn = "inline-flex size-10 items-center justify-center rounded-full bg-transparent text-muted-foreground transition-colors hover:text-electric active:text-silver focus-visible:outline-2 focus-visible:outline-electric";
 
   return (
     <div className="flex min-h-dvh flex-col bg-background">
@@ -245,7 +271,7 @@ function ChatPage() {
         </SheetContent>
       </Sheet>
 
-      <main className="mx-auto w-full max-w-3xl flex-1 px-4 pb-6 select-text" aria-label={view === "code" ? "CODE conversation" : "Chat conversation"} aria-busy={busy}>
+      <main className="mx-auto w-full min-w-0 max-w-3xl flex-1 px-4 pb-6 select-text" aria-label={view === "code" ? "CODE conversation" : "Chat conversation"} aria-busy={busy}>
         {live.live && <div className="flex justify-center py-6"><VoiceOrb mode={live.mode} level={live.level} size={96} onTap={() => live.call.setMuted(!live.call.muted)} actionLabel={live.call.muted ? "Unmute microphone" : "Mute microphone"} /></div>}
         {banner && <p role="status" className="mb-4 text-sm text-muted-foreground">{banner.text} <button className="ml-2 underline" onClick={() => setBanner(null)}>Dismiss</button></p>}
         {messages.length === 0 && liveRows.length === 0 && !(view === "code" && code.cards.length) ? (
@@ -266,7 +292,7 @@ function ChatPage() {
                 {collapsed ? <><ChevronDown className="size-3.5" />Show {hidden} earlier messages</> : <><ChevronUp className="size-3.5" />Hide earlier messages</>}
               </button>
             </li>}
-            {shown.map((m) => <Bubble key={m.id} m={m} streaming={busy && m === tail && m.role === "assistant"} />)}
+            {shown.map((m) => <MessageBoundary key={m.id} fallback={textOf(m)}><Bubble m={m} streaming={busy && m === tail && m.role === "assistant"} /></MessageBoundary>)}
             {liveRows.map((r, i) => <li key={`live-${i}`} className={r.role === "user" ? "self-end max-w-[85%] rounded-3xl bg-muted px-4 py-2.5 text-[15px]" : "text-[15px] leading-relaxed"}>{r.text}{r.evidence?.filter((l) => safeEvidenceUrl(l.url)).map((l) => <a key={l.url} href={l.url} className="mr-3 text-xs text-primary underline">{l.label}</a>)}</li>)}
           </ol>
         )}
@@ -286,7 +312,7 @@ function ChatPage() {
             <textarea id="jb-msg" ref={textarea} rows={1} value={text} placeholder={view === "code" ? (target ? `Change for ${target}…` : "Describe the code change") : "Message Jackboy"}
               onChange={(e) => { setText(e.target.value); if (!e.target.value.trim()) setFromVoice(false); }}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(text); } }}
-              className="max-h-[200px] min-h-9 flex-1 resize-none bg-transparent py-1.5 text-[15px] outline-none placeholder:text-muted-foreground" />
+              className="max-h-[200px] min-h-9 min-w-0 flex-1 resize-none overflow-y-auto overscroll-contain bg-transparent [overflow-wrap:anywhere] py-1.5 text-[15px] outline-none placeholder:text-muted-foreground" />
             <VoiceButtons v={voice} />
             {busy ? <button type="button" onClick={stop} aria-label="Stop reply" className="inline-flex size-9 items-center justify-center rounded-full bg-foreground text-background"><Square className="size-3.5" /></button>
               : text.trim() ? <button type="submit" aria-label="Send message" className="inline-flex size-9 items-center justify-center rounded-full bg-primary text-primary-foreground"><ArrowUp className="size-4" /></button>
@@ -301,11 +327,11 @@ function ChatPage() {
 const textOf = (m: UIMessage) => m.parts.filter((x) => x.type === "text").map((x) => (x as { text: string }).text).join(" ");
 
 function Bubble({ m, streaming }: { m: UIMessage; streaming: boolean }) {
-  if (m.role === "user") return <li className="self-end max-w-[85%] whitespace-pre-wrap rounded-3xl bg-muted px-4 py-2.5 text-[15px]">{textOf(m).replace(/^🎙\s*/, "")}</li>;
+  if (m.role === "user") return <li className="self-end max-w-[85%] min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere] rounded-3xl bg-muted px-4 py-2.5 text-[15px]">{textOf(m).replace(/^🎙\s*/, "")}</li>;
   const words = textOf(m);
   const retainedLinks = (m.metadata as { evidence?: EvidenceLink[] } | undefined)?.evidence?.filter((l) => safeEvidenceUrl(l.url)) ?? [];
   return (
-    <li className="group text-[15px] leading-relaxed">
+    <li className="group min-w-0 max-w-full text-[15px] leading-relaxed [overflow-wrap:anywhere] [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:block [&_table]:overflow-x-auto">
       {m.parts.map((part, i) => {
         if (part.type === "text") return <MessageResponse key={i} components={{ a: ({ children }) => <span>{children}</span> }}>{part.text}</MessageResponse>;
         if (isToolUIPart(part)) return <ToolLine key={i} name={part.type === "dynamic-tool" ? part.toolName : part.type.slice(5)} state={part.state} output={part.output} errorText={part.errorText} />;

@@ -131,7 +131,7 @@ export function useChatVoice(onTranscript: (text: string) => void) {
   return { level, support, state, listening: state === "listening", speaking: state === "speaking", speakReplies, error, toggleListen, toggleSpeak, stopSpeaking, speak };
 }
 
-const iconBtn = "inline-flex size-9 items-center justify-center rounded-md border border-border text-muted-foreground hover:border-electric hover:text-foreground focus-visible:outline-2 focus-visible:outline-electric disabled:opacity-40";
+const iconBtn = "inline-flex size-9 items-center justify-center rounded-full bg-transparent text-muted-foreground transition-colors hover:text-electric hover:drop-shadow-[0_0_6px_var(--color-electric)] active:text-silver focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-electric disabled:opacity-40";
 const STATE_TEXT: Record<VoiceState, string> = { idle: "", listening: "Listening… tap to stop", processing: "Turning speech into text…", speaking: "Speaking…", error: "" };
 
 export function VoiceButtons({ v }: { v: ReturnType<typeof useChatVoice> }) {
@@ -139,7 +139,7 @@ export function VoiceButtons({ v }: { v: ReturnType<typeof useChatVoice> }) {
     <div className="flex items-center gap-1">
       {v.support.listen !== "none" ? (
         <button type="button" onClick={() => void v.toggleListen()} disabled={v.state === "processing"} aria-pressed={v.listening} aria-label={v.listening ? "Stop listening" : "Speak your message"} title={v.listening ? "Stop listening" : "Speak — words appear in the box so you can edit before sending"}
-          className={`${iconBtn} ${v.listening ? "border-destructive text-destructive" : ""}`}>
+          className={`${iconBtn} ${v.listening ? "text-destructive" : ""}`}>
           {v.state === "processing" ? <Loader2 className="size-4 animate-spin" /> : v.listening ? <MicOff className="size-4" /> : <Mic className="size-4" />}
         </button>
       ) : <span className="text-xs text-muted-foreground">Voice not supported here — type instead</span>}
