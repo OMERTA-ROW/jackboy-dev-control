@@ -174,15 +174,35 @@ function ChatPage() {
     setText(""); setFromVoice(false);
   };
 
-  // One page-level scroll: follow new content only when the reader is already near the bottom.
+  // One page-level scroll. Follow only while the reader is near the bottom; a deliberate upward
+  // scroll releases follow so streamed tokens never yank them away. Growth is observed with a
+  // ResizeObserver and pinned instantly (no smooth animation fighting token updates = no jitter).
   const end = useRef<HTMLDivElement>(null);
+  const convo = useRef<HTMLElement>(null);
+  const followRef = useRef({ follow: true, lastTop: 0 });
   const [atBottom, setAtBottom] = useState(true);
+  const metrics = () => ({ scrollTop: window.scrollY, viewportHeight: window.visualViewport?.height ?? window.innerHeight, scrollHeight: document.documentElement.scrollHeight });
+  const pin = useCallback(() => { const t = followTarget(followRef.current.follow, metrics()); if (t !== null) { window.scrollTo({ top: t, behavior: "instant" as ScrollBehavior }); followRef.current.lastTop = t; } }, []);
   useEffect(() => {
-    const on = () => setAtBottom(window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 160);
-    window.addEventListener("scroll", on, { passive: true }); return () => window.removeEventListener("scroll", on);
-  }, []);
+    const on = () => { followRef.current = nextFollow(followRef.current, metrics()); setAtBottom(followRef.current.follow); };
+    // Touch/wheel up is explicit intent, even before scrollTop changes (iOS momentum).
+    const up = () => { if (!isNearBottom(metrics(), 8)) { followRef.current.follow = false; setAtBottom(false); } };
+    const wheel = (e: WheelEvent) => { if (e.deltaY < 0) { followRef.current.follow = false; setAtBottom(false); } };
+    window.addEventListener("scroll", on, { passive: true }); window.addEventListener("wheel", wheel, { passive: true }); window.addEventListener("touchmove", up, { passive: true });
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => requestAnimationFrame(pin)) : null;
+    if (convo.current) ro?.observe(convo.current);
+    window.visualViewport?.addEventListener("resize", pin);
+    return () => { window.removeEventListener("scroll", on); window.removeEventListener("wheel", wheel); window.removeEventListener("touchmove", up); ro?.disconnect(); window.visualViewport?.removeEventListener("resize", pin); };
+  }, [pin]);
   const tail = messages.at(-1);
-  useEffect(() => { if (!atBottom) return; const id = requestAnimationFrame(() => end.current?.scrollIntoView({ block: "end" })); return () => cancelAnimationFrame(id); }, [messages.length, tail && textOf(tail).length, liveRows, status]);
+  useEffect(() => { const id = requestAnimationFrame(pin); return () => cancelAnimationFrame(id); }, [messages.length, tail && textOf(tail).length, liveRows, status, pin]);
+  const jumpToLatest = () => { followRef.current.follow = true; setAtBottom(true); pin(); };
+  // Sending a message always means "show me the reply".
+  useEffect(() => { if (status === "submitted") jumpToLatest(); }, [status]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const [feedback, setFeedback] = useState<Record<string, Feedback>>({});
+  useEffect(() => { if (userId) setFeedback(parseFeedback(localStorage.getItem(feedbackKey(userId)))); }, [userId]);
+  const rate = (id: string, v: Feedback) => setFeedback((f) => { const n = toggleFeedback(f, id, v); if (userId) localStorage.setItem(feedbackKey(userId), JSON.stringify(n)); return n; });
 
   const [banner, setBanner] = useState<{ ok: boolean; text: string } | null>(null);
   useEffect(() => {
