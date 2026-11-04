@@ -68,7 +68,7 @@ const pill = "inline-flex min-h-10 items-center gap-1.5 rounded-full border bord
 /** Composer button that starts a voice conversation. */
 export function StartVoiceButton({ v }: { v: LiveCall }) {
   return (
-    <button type="button" onClick={v.start} aria-label="Start voice conversation" title="Talk with Jackboy" className="inline-flex size-9 items-center justify-center rounded-full bg-primary text-primary-foreground hover:opacity-90 focus-visible:outline-2 focus-visible:outline-electric">
+    <button type="button" onClick={v.start} aria-label="Start voice conversation" title="Talk with Jackboy" className="inline-flex size-9 items-center justify-center rounded-full bg-transparent text-muted-foreground transition-colors hover:text-electric active:text-silver focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-electric">
       <AudioLines className="size-4" />
     </button>
   );
