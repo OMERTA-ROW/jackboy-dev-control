@@ -49,6 +49,7 @@ import { Route as AuthenticatedUpdatesRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedWorkspaceRouteImport } from './routes/_authenticated/workspace'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as ApiCodeRouteImport } from './routes/api/code'
+import { Route as ApiSafetyStatusRouteImport } from './routes/api/safety-status'
 import { Route as ApiTranscribeRouteImport } from './routes/api/transcribe'
 import { Route as AuthenticatedPassportAgentIdRouteImport } from './routes/_authenticated/passport.$agentId'
 import { Route as AuthenticatedProjectIdRouteImport } from './routes/_authenticated/project.$id'
@@ -276,6 +277,11 @@ const ApiCodeRoute = ApiCodeRouteImport.update({
   path: '/api/code',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiSafetyStatusRoute = ApiSafetyStatusRouteImport.update({
+  id: '/api/safety-status',
+  path: '/api/safety-status',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiTranscribeRoute = ApiTranscribeRouteImport.update({
   id: '/api/transcribe',
   path: '/api/transcribe',
@@ -438,6 +444,7 @@ export interface FileRoutesByFullPath {
   '/workspace': typeof AuthenticatedWorkspaceRoute
   '/api/chat': typeof ApiChatRoute
   '/api/code': typeof ApiCodeRoute
+  '/api/safety-status': typeof ApiSafetyStatusRoute
   '/api/transcribe': typeof ApiTranscribeRoute
   '/passport/$agentId': typeof AuthenticatedPassportAgentIdRoute
   '/project/$id': typeof AuthenticatedProjectIdRoute
@@ -501,6 +508,7 @@ export interface FileRoutesByTo {
   '/workspace': typeof AuthenticatedWorkspaceRoute
   '/api/chat': typeof ApiChatRoute
   '/api/code': typeof ApiCodeRoute
+  '/api/safety-status': typeof ApiSafetyStatusRoute
   '/api/transcribe': typeof ApiTranscribeRoute
   '/': typeof AuthenticatedIndexRoute
   '/passport/$agentId': typeof AuthenticatedPassportAgentIdRoute
@@ -567,6 +575,7 @@ export interface FileRoutesById {
   '/_authenticated/workspace': typeof AuthenticatedWorkspaceRoute
   '/api/chat': typeof ApiChatRoute
   '/api/code': typeof ApiCodeRoute
+  '/api/safety-status': typeof ApiSafetyStatusRoute
   '/api/transcribe': typeof ApiTranscribeRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/passport/$agentId': typeof AuthenticatedPassportAgentIdRoute
@@ -634,6 +643,7 @@ export interface FileRouteTypes {
     | '/workspace'
     | '/api/chat'
     | '/api/code'
+    | '/api/safety-status'
     | '/api/transcribe'
     | '/passport/$agentId'
     | '/project/$id'
@@ -697,6 +707,7 @@ export interface FileRouteTypes {
     | '/workspace'
     | '/api/chat'
     | '/api/code'
+    | '/api/safety-status'
     | '/api/transcribe'
     | '/'
     | '/passport/$agentId'
@@ -762,6 +773,7 @@ export interface FileRouteTypes {
     | '/_authenticated/workspace'
     | '/api/chat'
     | '/api/code'
+    | '/api/safety-status'
     | '/api/transcribe'
     | '/_authenticated/'
     | '/_authenticated/passport/$agentId'
@@ -797,6 +809,7 @@ export interface RootRouteChildren {
   SetPasswordRoute: typeof SetPasswordRoute
   ApiChatRoute: typeof ApiChatRoute
   ApiCodeRoute: typeof ApiCodeRoute
+  ApiSafetyStatusRoute: typeof ApiSafetyStatusRoute
   ApiTranscribeRoute: typeof ApiTranscribeRoute
   ApiAgentManifestRoute: typeof ApiAgentManifestRoute
   ApiPublicAgentIngestRoute: typeof ApiPublicAgentIngestRoute
@@ -1102,6 +1115,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCodeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/safety-status': {
+      id: '/api/safety-status'
+      path: '/api/safety-status'
+      fullPath: '/api/safety-status'
+      preLoaderRoute: typeof ApiSafetyStatusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/transcribe': {
       id: '/api/transcribe'
       path: '/api/transcribe'
@@ -1352,6 +1372,7 @@ const rootRouteChildren: RootRouteChildren = {
   SetPasswordRoute: SetPasswordRoute,
   ApiChatRoute: ApiChatRoute,
   ApiCodeRoute: ApiCodeRoute,
+  ApiSafetyStatusRoute: ApiSafetyStatusRoute,
   ApiTranscribeRoute: ApiTranscribeRoute,
   ApiAgentManifestRoute: ApiAgentManifestRoute,
   ApiPublicAgentIngestRoute: ApiPublicAgentIngestRoute,
