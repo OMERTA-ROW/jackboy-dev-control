@@ -209,6 +209,30 @@ test('invalid or unverified admission meter never dispatches', async () => {
   assert.equal(dispatches, 0);
 });
 
+test('a delayed $5 report immediately returns stopped state and records a pause alert', async () => {
+  const { getCodeSafetyState } = await import('../src/lib/code-safety.server.ts');
+  records.code_runtime_controls[0].provider_hard_cap_verified = false;
+  records.code_runtime_controls[0].provider_usage_at = null;
+  records.code_usage_events.push({ cost_usd: 5, occurred_at: new Date().toISOString() });
+  const safety = await getCodeSafetyState();
+  assert.equal(safety.enabled, false);
+  assert.equal(safety.killSwitch, true);
+  assert.equal(records.code_runtime_controls[0].kill_switch, true);
+  assert.ok(records.audit_logs.some(event => event.action === 'code.usage_spike_pause' || event.action === 'code.daily_spend_cap_pause'));
+  assert.equal(dispatches, 0);
+});
+
+test('a $2.50 hourly spike pauses and audits without needing a fresh admission meter', async () => {
+  const { getCodeSafetyState } = await import('../src/lib/code-safety.server.ts');
+  records.code_runtime_controls[0].provider_usage_at = null;
+  records.code_usage_events.push({ cost_usd: 2.5, occurred_at: new Date().toISOString() });
+  const safety = await getCodeSafetyState();
+  assert.equal(safety.usageSpike, true);
+  assert.equal(safety.killSwitch, true);
+  assert.ok(records.audit_logs.some(event => event.action === 'code.usage_spike_pause'));
+  assert.equal(dispatches, 0);
+});
+
 
 for (const [name, invalidate] of [
   ['stale usage', () => { records.code_runtime_controls[0].provider_usage_at = new Date(Date.now() - 360_000).toISOString(); }],
