@@ -7,6 +7,10 @@ on:
   pull_request:
     paths:
       - .github/workflows/code-acceptance.yml
+      - .github/workflows/code-gateway-staging.yml
+      - tests/**
+      - drizzle/**
+      - src/lib/code*
       - docs/CODE-ACCEPTANCE.md
 permissions:
   contents: read
@@ -37,10 +41,17 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: stable
+          cache: false
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
         with:
           bun-version: '1.4.4'
       - run: bun install --frozen-lockfile
+      - name: Prepare disposable PostgreSQL
+        run: |
+          set -euo pipefail
+          test -x "$(pg_config --bindir)/initdb"
+          npm install --prefix "$RUNNER_TEMP/acceptance-pg-driver" pg@8.16.3 --ignore-scripts --no-audit --no-fund
+          mkdir -p "$RUNNER_TEMP/acceptance-pg" "$RUNNER_TEMP/acceptance"
       - name: Record environment
         run: |
           date -u +%FT%TZ
@@ -60,12 +71,25 @@ jobs:
           GOTOOLCHAIN: local
           GOFLAGS: -mod=mod
         run: |
-          mkdir -p "$RUNNER_TEMP/acceptance"
-          sudo -E env "PATH=$PATH" unshare -n sh -c '
-            ip link set lo up
-            timeout 300 node --test --test-timeout=60000 --test-reporter=spec tests/code-*.test.mjs tests/omni-*.test.mjs
-          ' 2>&1 | tee "$RUNNER_TEMP/acceptance/node-tests.txt"
-          test "${PIPESTATUS[0]}" -eq 0
+          set -euo pipefail
+          export PG_BIN="$(pg_config --bindir)"
+          export PGROOT="$RUNNER_TEMP/acceptance-pg"
+          export STAGING_PG_MODULE_FROM="$RUNNER_TEMP/acceptance-pg-driver/package.json"
+          export STAGING_PG_URL=postgres://stg@127.0.0.1:54329/postgres
+          sudo --preserve-env=PATH,PG_BIN,PGROOT,STAGING_PG_MODULE_FROM,STAGING_PG_URL,OMNI_INBOX_DIR,GOTOOLCHAIN,GOFLAGS \
+            unshare -n bash -euo pipefail -c '
+              ip link set lo up
+              if curl --noproxy "*" -sS -m 3 https://api.openai.com/v1/models; then
+                echo "Provider egress reachable; refusing tests." >&2
+                exit 1
+              fi
+              runuser -u runner -- "$PG_BIN/initdb" -D "$PGROOT/data" -U stg --auth=trust
+              trap '\''runuser -u runner -- "$PG_BIN/pg_ctl" -D "$PGROOT/data" -m fast stop'\'' EXIT
+              runuser -u runner -- "$PG_BIN/pg_ctl" -D "$PGROOT/data" -l "$PGROOT/postgres.log" \
+                -o "-h 127.0.0.1 -p 54329 -k $PGROOT" -w start
+              runuser -u runner -- timeout 300 node --test --test-concurrency=1 \
+                --test-timeout=60000 --test-reporter=spec tests/code-*.test.mjs tests/omni-*.test.mjs
+            ' 2>&1 | tee "$RUNNER_TEMP/acceptance/node-tests.txt"
       - name: OMNI Go suites (no network)
         working-directory: omni/inbox
         env:

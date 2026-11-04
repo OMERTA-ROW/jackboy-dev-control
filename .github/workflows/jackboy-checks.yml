@@ -11,6 +11,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
-      - run: bun install --frozen-lockfile || bun install
+      - run: bun install --frozen-lockfile
       - run: bunx vitest run
-      - run: bunx tsc --noEmit -p . || true
+      - run: bunx tsc --noEmit --strict -p .
