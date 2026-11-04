@@ -61,7 +61,10 @@ export function MultiSelect({ hub, onPick, reload }: { hub: Hub | null; onPick: 
   const activate = async (on: boolean) => {
     setBusy(true);
     const targets = chosen.filter((r) => { if (!r.projectId) note(r.key, "Skipped: connect it first"); return Boolean(r.projectId); });
-    await runBounded(targets, MAX_CONCURRENCY, (r) => setDev({ data: { id: r.projectId!, enabled: on } }), (r, o) => note(r.key, o.ok ? (on ? "Background work activated" : "Background work off") : `Failed: ${o.error}`));
+    // One passkey, then the grace window covers the rest; grants are minted one at a time so only one prompt appears.
+    const grants = new Map<string, string>();
+    if (on) for (const r of targets) { try { grants.set(r.projectId!, await stepUp("autonomy_toggle", `dev:${r.projectId}`)); } catch (e) { note(r.key, `Skipped: ${(e as Error).message}`); } }
+    await runBounded(on ? targets.filter((r) => grants.has(r.projectId!)) : targets, MAX_CONCURRENCY, (r) => setDev({ data: { id: r.projectId!, enabled: on, grantId: grants.get(r.projectId!) } }), (r, o) => note(r.key, o.ok ? (on ? "Background work activated" : "Background work off") : `Failed: ${o.error}`));
     await reload(); setBusy(false);
   };
   const runLoop = async () => {

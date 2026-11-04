@@ -52,7 +52,7 @@ function Fleet() {
         <Stat label="Verified installed" value={d.agents.filter((a) => a.installed_verified).length} />
         <div className="flex flex-col justify-center gap-1">
           <span className={paused ? "font-semibold text-destructive" : "font-semibold text-success"}>{paused ? "EMERGENCY PAUSE ON" : "Running"}</span>
-          {owner && <button className="rounded-md bg-destructive px-3 py-1.5 text-xs font-medium text-destructive-foreground" onClick={() => act(f.pause({ data: { paused: !paused } }))}>{paused ? "Lift emergency pause" : "Emergency pause"}</button>}
+          {owner && <button className="rounded-md border border-border bg-secondary px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted" onClick={() => act(stepUp("global_pause", paused ? "global_pause:off" : "global_pause:on").then((grantId) => f.pause({ data: { paused: !paused, grantId } })))}>{paused ? "Lift emergency pause" : "Emergency pause"}</button>}
         </div>
       </section>
 

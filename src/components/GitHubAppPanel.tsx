@@ -23,7 +23,7 @@ export function GitHubAppPanel() {
   const create = async () => {
     setBusy(true); setErr("");
     try {
-      const r = await start({ data: { org: "OMERTA-ROW", origin: window.location.origin } });
+      const r = await start({ data: { org: "OMERTA-ROW", origin: window.location.origin, grantId: await stepUp("credential_change", "github_app:manifest") } });
       const f = document.createElement("form");
       f.method = "post"; f.action = r.action;
       const i = document.createElement("input"); i.type = "hidden"; i.name = "manifest"; i.value = r.manifest;

@@ -30,9 +30,10 @@ export const getAutopilot = createServerFn({ method: "POST" }).middleware([requi
 });
 
 export const setMasterAutopilot = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ on: z.boolean() }).parse(d))
+  .inputValidator((d: unknown) => z.object({ on: z.boolean(), grantId: z.string().uuid().optional() }).parse(d))
   .handler(async ({ data, context }) => {
     await owner(context);
+    if (data.on) await (await import("./passkey.server")).consumeGrant(data.grantId, context.userId, "autonomy_toggle", "autopilot:master");
     const { error } = await context.supabase.from("update_writer_settings").update({ autopilot_enabled: data.on }).eq("id", 1);
     if (error) throw new Error(error.message);
     await audit(context, "autopilot.master", { on: data.on });
@@ -40,9 +41,10 @@ export const setMasterAutopilot = createServerFn({ method: "POST" }).middleware(
   });
 
 export const setProjectAutopilot = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), on: z.boolean() }).parse(d))
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), on: z.boolean(), grantId: z.string().uuid().optional() }).parse(d))
   .handler(async ({ data, context }) => {
     await owner(context);
+    if (data.on) await (await import("./passkey.server")).consumeGrant(data.grantId, context.userId, "autonomy_toggle", `autopilot:${data.id}`);
     const { error } = await context.supabase.from("owner_projects").update({ autopilot: data.on }).eq("id", data.id);
     if (error) throw new Error(error.message);
     await audit(context, "autopilot.project", { project: data.id, on: data.on });

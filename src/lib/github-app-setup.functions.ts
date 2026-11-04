@@ -9,9 +9,10 @@ async function requireOwner(ctx: { supabase: { rpc: (f: "my_role") => PromiseLik
 /** Builds the pre-filled manifest + signed state. The browser posts it to GitHub; the owner clicks Create. */
 export const startGithubAppManifest = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { org: string; origin: string }) => d)
+  .inputValidator((d: { org: string; origin: string; grantId?: string }) => d)
   .handler(async ({ data, context }) => {
     await requireOwner(context);
+    await (await import("./passkey.server")).consumeGrant(data.grantId, context.userId, "credential_change", "github_app:manifest");
     const { buildManifest, manifestPostUrl } = await import("./github-app-manifest");
     const { signState } = await import("./github-app");
     const secret = process.env["JACKBOY_SIGNING_SECRET"];

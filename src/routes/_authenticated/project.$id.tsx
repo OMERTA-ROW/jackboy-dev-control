@@ -71,7 +71,7 @@ function Detail() {
             {p.connect_error && <><dt className="text-muted-foreground">Problem</dt><dd className="text-destructive">{p.connect_error}</dd></>}
           </dl>
           <label className="mt-4 flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={p.autopilot} disabled={busy !== null} onChange={(e) => act("auto", async () => { await auto({ data: { id: p.id, on: e.target.checked } }); return `Autopilot ${e.target.checked ? "on" : "off"} for this project. The main Autopilot switch must also be on.`; })} />
+            <input type="checkbox" checked={p.autopilot} disabled={busy !== null} onChange={(e) => act("auto", async () => { const on = e.target.checked; await auto({ data: { id: p.id, on, grantId: on ? await stepUp("autonomy_toggle", `autopilot:${p.id}`) : undefined } }); return `Autopilot ${on ? "on" : "off"} for this project. The main Autopilot switch must also be on.`; })} />
             Autopilot for this project
           </label>
           <div className="mt-4 flex flex-wrap gap-2">
