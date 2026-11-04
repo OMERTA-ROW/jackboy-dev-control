@@ -142,6 +142,8 @@ function ChatPage() {
 
   const openConversation = (c: Conversation | null, mode: ChatMode = c?.mode ?? view) => {
     stop(); setError(null); setCollapsed(false); setDraftNotice(null); setSubmitAnchor(null);
+    if (leadingSpace.current) leadingSpace.current.style.height = "0px";
+    if (spacer.current) spacer.current.style.height = "0px";
     setView(mode); try { sessionStorage.setItem("jackboy.chat.view", mode); } catch { /* ignore */ }
     setActiveId(c?.id ?? crypto.randomUUID());
     loadedIds.current = new Set((c?.messages ?? []).map((m) => m.id));
@@ -206,6 +208,7 @@ function ChatPage() {
   const chatHeader = useRef<HTMLElement>(null);
   const composerFooter = useRef<HTMLElement>(null);
   const spacer = useRef<HTMLDivElement>(null);
+  const leadingSpace = useRef<HTMLDivElement>(null);
   const [submitAnchor, setSubmitAnchor] = useState<{ id: string; reserve: number; pending: boolean } | null>(null);
   const convo = useRef<HTMLElement>(null);
   const followRef = useRef({ follow: true, lastTop: 0 });
@@ -242,6 +245,9 @@ function ChatPage() {
     if (!node) return;
     const usable = Math.max(0, (window.visualViewport?.height ?? window.innerHeight) - (chatHeader.current?.offsetHeight ?? 0) - (composerFooter.current?.offsetHeight ?? 0));
     const reserve = responseReserve(usable, node.offsetHeight);
+    if (leadingSpace.current && messages.findIndex((m) => m.id === submitAnchor.id) === 0) {
+      leadingSpace.current.style.height = `${Math.max(0, usable / 2 - node.offsetHeight / 2 - 16)}px`;
+    }
     if (spacer.current) spacer.current.style.height = `${reserve}px`;
     followRef.current.follow = true; setAtBottom(true);
     setSubmitAnchor({ id: submitAnchor.id, reserve, pending: false });
@@ -388,6 +394,8 @@ function ChatPage() {
             </div>}
           </div>
         ) : (
+          <>
+          <div ref={leadingSpace} aria-hidden="true" />
           <ol className="flex flex-col gap-6 pt-4">
             {messages.length > KEEP_VISIBLE + 2 && <li className="self-center">
               <button type="button" onClick={toggleHistory} aria-expanded={!collapsed} className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1 text-xs text-muted-foreground hover:text-foreground">
@@ -397,6 +405,7 @@ function ChatPage() {
             {shown.map((m) => <MessageBoundary key={m.id} fallback={textOf(m)}><Bubble m={m} streaming={busy && m === tail && m.role === "assistant"} disabled={busy || code.busy || live.live} rating={feedback[m.id]} onRate={(v) => rate(m.id, v)} onRetry={() => branch(m.id, view, true)} onBranch={(mode) => branch(m.id, mode)} /></MessageBoundary>)}
             {liveRows.map((r, i) => <li key={`live-${i}`} className={r.role === "user" ? "self-end max-w-[85%] rounded-3xl bg-muted px-4 py-2.5 text-[15px]" : "text-[15px] leading-relaxed"}>{r.text}{links(r.evidence).map((l) => <a key={l.url} href={l.url} className="mr-3 text-xs text-primary underline">{l.label}</a>)}</li>)}
           </ol>
+          </>
         )}
         {/* CODE approval/execution controls stay intact; in Chat only cards needing a decision surface. */}
         <CodeTasks tasks={view === "code" ? code : { ...code, cards: code.cards.filter((c) => c.status === "pending") }} />
