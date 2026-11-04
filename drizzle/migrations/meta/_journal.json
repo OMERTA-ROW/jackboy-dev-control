@@ -288,6 +288,13 @@
       "when": 1793784337493,
       "tag": "0040_provider_permission_events",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1793784429855,
+      "tag": "0041_code_spend_reservations",
+      "breakpoints": true
     }
   ]
 }

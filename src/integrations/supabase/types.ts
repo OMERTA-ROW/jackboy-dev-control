@@ -573,9 +573,11 @@ export type Database = {
           enabled: boolean
           kill_switch: boolean
           paused_reason: string | null
+          per_task_reserve_usd: number
           provider_costs_synced_at: string | null
           provider_hard_cap_verified: boolean
           provider_usage_at: string | null
+          reconcile_grace_seconds: number
           singleton: boolean
           stop_requested_at: string | null
           updated_at: string
@@ -591,9 +593,11 @@ export type Database = {
           enabled?: boolean
           kill_switch?: boolean
           paused_reason?: string | null
+          per_task_reserve_usd?: number
           provider_costs_synced_at?: string | null
           provider_hard_cap_verified?: boolean
           provider_usage_at?: string | null
+          reconcile_grace_seconds?: number
           singleton?: boolean
           stop_requested_at?: string | null
           updated_at?: string
@@ -609,9 +613,11 @@ export type Database = {
           enabled?: boolean
           kill_switch?: boolean
           paused_reason?: string | null
+          per_task_reserve_usd?: number
           provider_costs_synced_at?: string | null
           provider_hard_cap_verified?: boolean
           provider_usage_at?: string | null
+          reconcile_grace_seconds?: number
           singleton?: boolean
           stop_requested_at?: string | null
           updated_at?: string
@@ -622,6 +628,53 @@ export type Database = {
             foreignKeyName: "code_runtime_controls_active_request_id_fkey"
             columns: ["active_request_id"]
             isOneToOne: false
+            referencedRelation: "action_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      code_spend_reservations: {
+        Row: {
+          created_at: string
+          finished_at: string | null
+          id: string
+          outcome: string | null
+          released_usd: number
+          request_id: string
+          reserved_usd: number
+          run_id: number
+          settled_at: string | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          finished_at?: string | null
+          id?: string
+          outcome?: string | null
+          released_usd?: number
+          request_id: string
+          reserved_usd: number
+          run_id: number
+          settled_at?: string | null
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          finished_at?: string | null
+          id?: string
+          outcome?: string | null
+          released_usd?: number
+          request_id?: string
+          reserved_usd?: number
+          run_id?: number
+          settled_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "code_spend_reservations_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: true
             referencedRelation: "action_requests"
             referencedColumns: ["id"]
           },
@@ -2583,6 +2636,10 @@ export type Database = {
       }
       is_manager: { Args: { _user_id: string }; Returns: boolean }
       my_role: { Args: never; Returns: Database["public"]["Enums"]["app_role"] }
+      reconcile_code_spend_reservations: {
+        Args: { p_actor: string }
+        Returns: number
+      }
       record_code_cancellation_status: {
         Args: { p_actor: string; p_status: string }
         Returns: undefined
