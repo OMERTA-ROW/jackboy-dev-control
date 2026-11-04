@@ -27,3 +27,12 @@ ignores TypeScript failures or falls back to a non-frozen dependency install.
 Default GitHub CodeQL analysis on repair PRs supplies a fresh JavaScript/TypeScript
 and Actions scan; an old dynamic scan that cannot be retried is not fresh evidence.
 These workflows never deploy, apply production migrations or dispatch CODE.
+
+The application repository's `CODE-PUBLISH` environment requires the owner,
+disallows self-review and administrator bypass, and accepts protected branches
+only. Main requires passing release checks and code-owner review; the root
+`.github/CODEOWNERS` assigns the owner explicitly. An owner-authored change or
+owner-triggered publishing run still needs an eligible independent approval;
+these protections must not be bypassed to make a one-person release pass.
+Private TEST/LIVE environment-reviewer support remains a separate GitHub-plan
+limitation, not something application-repository protections resolve.
