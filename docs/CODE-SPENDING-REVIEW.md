@@ -11,3 +11,5 @@ Fixes reject negative/nonfinite spend, previous-UTC-day or future/stale usage an
 Safe alternatives require a separate reviewed design: an exclusive credential-bound admission proxy with atomic worst-case reservations and bounded requests, or a provider contract offering strict daily enforcement. Neither exists in this change. Do not reset monthly limits daily or mark reporting-only data authoritative.
 
 Before activation: independently verify production migration state, exact credential/project association, complete fresh metering, enforceable spend policy, owner/session claims, scheduler/worker inventory, isolated runner privileges and durable audit evidence. Obtain separate owner approval for deployment and any supervised paid test. Keep Emergency Stop engaged and all autonomy off. No provider call or paid CODE test was made.
+
+Update: migration 0040 adds atomic worst-case spend reservations and reconciliation (see `docs/CODE-SPEND-RESERVATIONS.md`). It is admission accounting only; it does not enforce actual provider spend, and `provider_hard_cap_verified` remains constrained to false.

@@ -2,7 +2,7 @@
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { registerHooks } from 'node:module';
-const records = { action_requests: [], owner_projects: [], audit_logs: [], omni_connection: [], omni_jobs: [], code_runtime_controls: [], code_usage_events: [] };
+const records = { action_requests: [], owner_projects: [], audit_logs: [], omni_connection: [], omni_jobs: [], code_runtime_controls: [], code_usage_events: [], code_spend_reservations: [] };
 let run, dispatches, omniDispatches, cancellations, retries, auditFails, uncertain, afterAllowAudit, failingTable;
 class Query {
   constructor(table) { this.table = table; this.filters = []; this.operation = 'select'; }
@@ -11,6 +11,7 @@ class Query {
   upsert(value) { this.operation = 'upsert'; this.value = value; return this; }
   update(value) { this.operation = 'update'; this.value = value; return this; }
   eq(key, value) { this.filters.push(r => r[key] === value); return this; }
+  neq(key, value) { this.filters.push(r => r[key] !== value); return this; }
   gt(key, value) { this.filters.push(r => r[key] > value); return this; }
   gte(key, value) { this.filters.push(r => r[key] >= value); return this; }
   lte(key, value) { this.filters.push(r => r[key] <= value); return this; }
@@ -96,6 +97,7 @@ beforeEach(() => {
     daily_spend_limit_usd: 5,
     provider_hard_cap_verified: true,
     provider_usage_at: new Date().toISOString(),
+    per_task_reserve_usd: 1,
     usage_spike: false,
     paused_reason: null,
   });
@@ -215,6 +217,9 @@ for (const [name, invalidate] of [
   ['exhausted budget', () => { records.code_usage_events.push({ cost_usd: 5, occurred_at: new Date().toISOString() }); }],
   ['negative spend', () => { records.code_usage_events.push({ cost_usd: -1, occurred_at: new Date().toISOString() }); }],
   ['missing controls', () => { records.code_runtime_controls.splice(0); }],
+  ['unreconciled reservation holds exhaust the budget', () => { records.code_spend_reservations.push({ status: 'finished', reserved_usd: 4.5 }); }],
+  ['failed reservation source', () => { failingTable = 'code_spend_reservations'; }],
+  ['missing per-task reserve', () => { records.code_runtime_controls[0].per_task_reserve_usd = null; }],
   ['failed meter source', () => { failingTable = 'code_usage_events'; }],
   ['emergency stop', () => { records.code_runtime_controls[0].kill_switch = true; }],
 ]) {

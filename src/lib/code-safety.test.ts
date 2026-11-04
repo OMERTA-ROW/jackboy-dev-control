@@ -23,6 +23,8 @@ const state = (overrides: Partial<CodeSafetyState> = {}): CodeSafetyState => ({
   providerSpendTodayUsd: 1.25,
   providerUsageAt: new Date(now - 1000).toISOString(),
   providerBudgetEnforced: true,
+  reservedHoldsUsd: 0,
+  perTaskReserveUsd: 1,
   usageSpike: false,
   ...overrides,
 });
@@ -74,6 +76,22 @@ describe("CODE runtime safety policy", () => {
     ).toMatch(/stale/);
     expect(codeStartBlockReason(state({ providerSpendTodayUsd: 5 }), repo, now)).toMatch(/limit/);
     expect(codeStartBlockReason(state({ dailySpendLimitUsd: 5.01 }), repo, now)).toMatch(/invalid/);
+  });
+
+  it("requires the worst-case reservation to fit after outstanding holds, and fails closed without hold data", () => {
+    expect(codeStartBlockReason(state({ providerSpendTodayUsd: 3, reservedHoldsUsd: 1 }), repo, now)).toBeNull();
+    expect(codeStartBlockReason(state({ providerSpendTodayUsd: 3, reservedHoldsUsd: 1.01 }), repo, now)).toMatch(/reservation/);
+    expect(codeStartBlockReason(state({ providerSpendTodayUsd: 4.5 }), repo, now)).toMatch(/reservation/);
+    for (const overrides of [
+      { reservedHoldsUsd: null },
+      { perTaskReserveUsd: null },
+      { reservedHoldsUsd: -1 },
+      { reservedHoldsUsd: Number.NaN },
+      { perTaskReserveUsd: 0 },
+      { perTaskReserveUsd: 5.01 },
+    ]) {
+      expect(codeStartBlockReason(state(overrides), repo, now)).toMatch(/reservation data is unavailable/);
+    }
   });
 
   it("pauses after a usage spike or cap is reached", () => {

@@ -250,12 +250,18 @@ export const syncCodeProviderCosts = createServerFn({ method: "POST" })
     });
     if (recordError)
       throw new Error("Provider costs, sync time, and audit record could not be committed.");
+    // Holds stay counted if reconciliation fails, which is the fail-closed direction.
+    const { data: settledHolds, error: reconcileError } = await db.rpc(
+      "reconcile_code_spend_reservations",
+      { p_actor: context.userId },
+    );
     const total = rows.reduce((sum, row) => sum + row.cost_usd, 0);
     return {
       reportedCostUsd: total,
       bucketCount: rows.length,
       syncedAt,
       enforcement: "reporting_only" as const,
+      reconciledReservations: reconcileError ? null : Number(settledHolds ?? 0),
     };
   });
 
