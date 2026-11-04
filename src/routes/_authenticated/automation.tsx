@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useState } from "react";
 import { PageHeader, GuidanceTip } from "@/components/AppShell";
+import { useStepUp } from "@/lib/step-up-client";
 import { HIGH_RISK, LEARNING_KINDS, TIERS, type LearningKind } from "@/lib/automation-policy";
 import { draftPlaybook, evaluateChange, getAutomation, recordLearning, setPolicy, verifyPlaybook } from "@/lib/automation.functions";
 
@@ -24,6 +25,7 @@ const input = "rounded-md border border-input bg-background px-3 py-2 text-sm";
 
 function Automation() {
   const load = useServerFn(getAutomation);
+  const stepUp = useStepUp();
   const f = { set: useServerFn(setPolicy), rec: useServerFn(recordLearning), draft: useServerFn(draftPlaybook), verify: useServerFn(verifyPlaybook), evaluate: useServerFn(evaluateChange) };
   const [d, setD] = useState<Data | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -54,7 +56,7 @@ function Automation() {
         </div>
         {owner && (
           <div className="flex gap-2">
-            <button className="rounded-md bg-destructive px-3 py-1.5 text-xs font-medium text-destructive-foreground" onClick={() => save({ paused: !p.paused })}>{p.paused ? "Resume" : "Pause all automation"}</button>
+            <button className="rounded-md border border-border bg-secondary px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted" onClick={() => act(stepUp("global_pause", p.paused ? "global_pause:off" : "global_pause:on").then((grantId) => f.set({ data: { tier: p.tier, paused: !p.paused, maxFiles: p.max_files, maxLines: p.max_lines, grantId } })))}>{p.paused ? "Resume" : "Pause all automation"}</button>
             <button className={btn} disabled={p.tier === 0} onClick={() => save({ tier: 0 })}>Revoke to tier 0</button>
           </div>
         )}

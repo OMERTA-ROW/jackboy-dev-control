@@ -31,10 +31,16 @@ export const getCodePrerequisites = createServerFn({ method: "POST" })
   });
 
 /** Stops local admission first; external cancellation is requested, never described as instantaneous. */
+export const GLOBAL_PAUSE_ON = "global_pause:on";
+export const GLOBAL_PAUSE_OFF = "global_pause:off";
+const grantInput = (d: unknown) => z.object({ grantId: z.string().uuid() }).parse(d);
+
 export const stopJackboyWork = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .inputValidator(grantInput)
+  .handler(async ({ data, context }) => {
     await requireOwner(context);
+    await (await import("./passkey.server")).consumeGrant(data.grantId, context.userId, "global_pause", GLOBAL_PAUSE_ON);
     const { data: policy, error: readError } = await context.supabase.from("automation_policy").select("tier,max_files,max_lines").eq("id", 1).single();
     if (readError || !policy) throw new Error("Emergency stop policy is unavailable.");
     const { error } = await context.supabase.rpc("set_automation_policy", { _tier: policy.tier, _paused: true, _max_files: policy.max_files, _max_lines: policy.max_lines });
@@ -44,6 +50,21 @@ export const stopJackboyWork = createServerFn({ method: "POST" })
     const { error: codeError } = await db.rpc("engage_code_kill_switch", { p_actor: context.userId });
     const { error: auditError } = await context.supabase.rpc("write_audit", { _action: "worker.kill_switch", _detail: { global_paused: true, foundry_paused: !foundryError, code_stop_saved: !codeError }, _outcome: foundryError || codeError ? "partial" : "ok" });
     return { paused: true, warning: foundryError || codeError || auditError ? "Global pause saved. Some worker controls or audit storage are unavailable; CODE stays blocked. Any external run must be cancelled and confirmed in GitHub." : "New work is blocked. Any already-running external job must be cancelled and confirmed in GitHub." };
+  });
+
+/** Turns the global pause OFF after a passkey. The CODE kill switch stays engaged; CODE still needs its own unlock path. */
+export const resumeJackboyWork = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(grantInput)
+  .handler(async ({ data, context }) => {
+    await requireOwner(context);
+    await (await import("./passkey.server")).consumeGrant(data.grantId, context.userId, "global_pause", GLOBAL_PAUSE_OFF);
+    const { data: policy, error: readError } = await context.supabase.from("automation_policy").select("tier,max_files,max_lines").eq("id", 1).single();
+    if (readError || !policy) throw new Error("Global pause policy is unavailable.");
+    const { error } = await context.supabase.rpc("set_automation_policy", { _tier: policy.tier, _paused: false, _max_files: policy.max_files, _max_lines: policy.max_lines });
+    if (error) throw new Error("Global pause could not be turned off.");
+    await context.supabase.rpc("write_audit", { _action: "worker.kill_switch_off", _detail: { global_paused: false, code_kill_switch: "unchanged" }, _outcome: "ok" });
+    return { paused: false };
   });
 
 async function requireOwner(ctx: {
@@ -302,8 +323,10 @@ export const syncCodeProviderCosts = createServerFn({ method: "POST" })
 
 export const engageCodeKillSwitch = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .inputValidator(grantInput)
+  .handler(async ({ data, context }) => {
     await requireOwner(context);
+    await (await import("./passkey.server")).consumeGrant(data.grantId, context.userId, "global_pause", GLOBAL_PAUSE_ON);
     const db = (await import("./untyped-db")).untyped((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const { data: stop, error } = await db.rpc("engage_code_kill_switch", {
       p_actor: context.userId,

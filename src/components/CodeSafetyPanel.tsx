@@ -2,6 +2,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { useStepUp } from "@/lib/step-up-client";
+import { probeOmniConnection } from "@/lib/omni-link.functions";
 import {
   checkCodeCancellation,
   engageCodeKillSwitch,
@@ -22,6 +24,9 @@ export function CodeSafetyPanel() {
   const setLimit = useServerFn(setCodeDailySpendLimit);
   const syncCosts = useServerFn(syncCodeProviderCosts);
   const stop = useServerFn(engageCodeKillSwitch);
+  const stepUp = useStepUp();
+  const probeOmni = useServerFn(probeOmniConnection);
+  const [omni, setOmni] = useState<Awaited<ReturnType<typeof probeOmniConnection>> | null>(null);
   const checkCancellation = useServerFn(checkCodeCancellation);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -41,7 +46,8 @@ export function CodeSafetyPanel() {
   useEffect(() => {
     void load();
     void checkPrerequisites().then(setPrerequisites).catch(() => {});
-  }, [load, checkPrerequisites]);
+    void probeOmni().then(setOmni).catch(() => {});
+  }, [load, checkPrerequisites, probeOmni]);
   useEffect(() => {
     if (settings) setLimitValue(String(settings.dailySpendLimitUsd));
   }, [settings]);
@@ -111,10 +117,9 @@ export function CodeSafetyPanel() {
             verified. This panel never dispatches execution.
           </p>
         </div>
-        <Button variant="outline"
-          className="rounded-md border border-destructive px-3 py-2 text-xs font-semibold text-destructive hover:bg-destructive/10 disabled:opacity-50"
+        <Button variant="outline" size="sm"
           disabled={busy || settings?.killSwitch === true}
-          onClick={() => void run(() => stop())}
+          onClick={() => void run(() => stepUp("global_pause", "global_pause:on").then((grantId) => stop({ data: { grantId } })))}
         >
           {settings?.killSwitch ? "Emergency stop engaged" : "Engage emergency stop"}
         </Button>
@@ -132,6 +137,12 @@ export function CodeSafetyPanel() {
       {prerequisites && <div className="mt-3 text-sm">
         <p>Target policy: {prerequisites.repository} · {prerequisites.ref} only</p>
         <p className="mt-1 text-xs text-muted-foreground">GitHub CODE / OPENAI_API_KEY: {prerequisites.openaiKeyPresent === true ? "name verified" : prerequisites.openaiKeyPresent === false ? "not found" : "secret-name access unavailable"}</p>
+      </div>}
+      {omni && <div className="mt-3 text-sm" aria-label="OMNI link check">
+        <p>OMNI link (OMNI connects to Jackboy, {omni.contract}): <span className={omni.verified ? "text-success" : "text-warning"}>{omni.verified ? "pass" : "fail"}</span></p>
+        <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+          {omni.steps.map((step) => <li key={step.name}>{step.ok ? "✓" : "✗"} {step.name}: {step.detail}</li>)}
+        </ul>
       </div>}
       {!settings ? (
         <p className="mt-3 text-sm text-muted-foreground">{message ? "Safety storage unavailable — execution remains blocked." : "Loading owner-only safety status…"}</p>
@@ -185,8 +196,7 @@ export function CodeSafetyPanel() {
                 ? new Date(settings.providerCostsSyncedAt).toLocaleString()
                 : "Never"}
             </p>
-            <Button variant="outline"
-              className="mt-2 rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50"
+            <Button variant="outline" size="sm"
               disabled={busy}
               onClick={() => void run(() => syncCosts())}
             >
@@ -201,8 +211,7 @@ export function CodeSafetyPanel() {
                 <p className="text-sm font-medium text-warning">
                   CODE is disabled, but the active GitHub run is not yet confirmed stopped.
                 </p>
-                <Button variant="outline"
-                  className="mt-2 rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50"
+                <Button variant="outline" size="sm"
                   disabled={busy}
                   onClick={() => void run(() => checkCancellation())}
                 >
@@ -226,8 +235,7 @@ export function CodeSafetyPanel() {
                 onChange={(event) => setLimitValue(event.target.value)}
                 className="w-28 rounded-md border border-border bg-background px-2 py-1 text-sm"
               />
-              <Button variant="outline"
-                className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50"
+              <Button variant="outline" size="sm"
                 disabled={
                   busy ||
                   !Number.isFinite(Number(limit)) ||
@@ -251,8 +259,7 @@ export function CodeSafetyPanel() {
               ))}
               {!Object.keys(settings.targets).length && <li>No repository is allowed.</li>}
             </ul>
-            <Button variant="outline"
-              className="mt-2 rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50"
+            <Button variant="outline" size="sm"
               disabled={
                 busy ||
                 (Object.keys(settings.targets).length === 1 &&

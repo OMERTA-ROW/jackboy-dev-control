@@ -34,8 +34,12 @@ export const getAutomation = createServerFn({ method: "POST" })
 
 export const setPolicy = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ tier: z.number().int().min(0).max(2), paused: z.boolean(), maxFiles: z.number().int().min(1).max(20), maxLines: z.number().int().min(1).max(500) }).parse(d))
+  .inputValidator((d: unknown) => z.object({ tier: z.number().int().min(0).max(2), paused: z.boolean(), maxFiles: z.number().int().min(1).max(20), maxLines: z.number().int().min(1).max(500), grantId: z.string().uuid().optional() }).parse(d))
   .handler(async ({ data, context }) => {
+    // Turning the Global Pause on or off always needs a fresh single-use passkey grant.
+    const { data: current } = await context.supabase.from("automation_policy").select("paused").eq("id", 1).single();
+    if (!current || current.paused !== data.paused)
+      await (await import("./passkey.server")).consumeGrant(data.grantId, context.userId, "global_pause", data.paused ? "global_pause:on" : "global_pause:off");
     const { error } = await context.supabase.rpc("set_automation_policy", { _tier: data.tier, _paused: data.paused, _max_files: data.maxFiles, _max_lines: data.maxLines });
     if (error) throw new Error(error.message);
     return { ok: true };
