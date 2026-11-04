@@ -7,6 +7,59 @@ on:
 permissions:
   contents: read
 jobs:
+  artifact_provenance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - name: Create synthetic provenance canary, not a CODE artifact
+        run: printf 'CODE provenance canary\n' > "$RUNNER_TEMP/canary.txt"
+      - uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a
+        with:
+          subject-path: ${{ runner.temp }}/canary.txt
+      - name: Verify signature binding and reject tampering or unsigned content
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          args=(--repo "$GITHUB_REPOSITORY" --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/verify.yml"
+            --source-digest "$GITHUB_SHA" --signer-digest "$GITHUB_SHA" --source-ref "$GITHUB_REF"
+            --deny-self-hosted-runners)
+          gh attestation verify "$RUNNER_TEMP/canary.txt" "${args[@]}"
+          printf 'tampered\n' >> "$RUNNER_TEMP/canary.txt"
+          if gh attestation verify "$RUNNER_TEMP/canary.txt" "${args[@]}"; then
+            echo "Modified artifact accepted" >&2
+            exit 1
+          fi
+          printf 'unsigned %s\n' "$GITHUB_RUN_ID" > "$RUNNER_TEMP/unsigned.txt"
+          if gh attestation verify "$RUNNER_TEMP/unsigned.txt" "${args[@]}"; then
+            echo "Unsigned artifact accepted" >&2
+            exit 1
+          fi
+  validation_sandbox:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: "1.4.4"
+      - run: bun install --frozen-lockfile --ignore-scripts
+      - name: Exercise the exact CODE validation boundary without dispatching CODE
+        run: bash scripts/code-validation.sh
+      - name: Preserve sandbox evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: validation-sandbox
+          path: ${{ runner.temp }}/code-validation/
+          if-no-files-found: error
   typescript:
     runs-on: ubuntu-latest
     timeout-minutes: 10

@@ -20,9 +20,11 @@ jobs:
     permissions:
       contents: read
       id-token: write
+      attestations: write
     outputs:
       instruction: ${{ steps.claim.outputs.instruction }}
       artifact_id: ${{ steps.evidence.outputs.artifact-id }}
+      patch_sha256: ${{ steps.capture.outputs.patch_sha256 }}
     steps:
       - name: Claim approved request
         id: claim
@@ -76,12 +78,8 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
-        with:
-          bun-version: "1.4.4"
-      - name: Prepare dependencies
+      - name: Record approved base
         run: |
-          bun install --frozen-lockfile
           git rev-parse HEAD > "$RUNNER_TEMP/code-base"
       - name: Bind gateway access to this approved request
         id: gateway
@@ -119,26 +117,32 @@ jobs:
           responses-api-endpoint: ${{ steps.gateway.outputs.endpoint }}
           sandbox: workspace-write
           safety-strategy: drop-sudo
+          codex-args: '["-c", "features.shell_tool=false", "-c", "features.unified_exec=false"]'
           output-file: ${{ runner.temp }}/code-report.md
           prompt: |
             Implement this owner-approved CODE task in this repository:
             ${{ steps.claim.outputs.instruction }}
 
             Preserve the existing application, full-screen conversation and project memory.
-            Follow AGENTS.md. Make a small reviewable diff and run relevant tests.
+            Follow AGENTS.md. Make a small reviewable diff. Do not execute repository
+            commands, tests, builds or scripts; an isolated validation job runs them.
             Do not merge, deploy, push, change credentials/permissions, contact other agents,
             or edit auth, passkeys, workflow files, dependencies, migrations or CODE itself.
             Do not commit. Report actual tests and blockers; never invent successful results.
-      - name: Capture diff and independent validation evidence
+      - name: Capture model patch without running repository code
+        id: capture
         run: |
           mkdir -p "$RUNNER_TEMP/code-output"
           git add -N .
           git diff --binary "$(cat "$RUNNER_TEMP/code-base")" > "$RUNNER_TEMP/code-output/code.patch"
           git diff --check "$(cat "$RUNNER_TEMP/code-base")"
           cp "$RUNNER_TEMP/code-report.md" "$RUNNER_TEMP/code-output/report.md"
-          bun run test > "$RUNNER_TEMP/code-output/tests.txt" 2>&1
-          node --test tests/code-*.test.mjs > "$RUNNER_TEMP/code-output/code-tests.txt" 2>&1
-          bun run build > "$RUNNER_TEMP/code-output/build.txt" 2>&1
+          digest="$(sha256sum "$RUNNER_TEMP/code-output/code.patch" | cut -d' ' -f1)"
+          echo "patch_sha256=$digest" >> "$GITHUB_OUTPUT"
+      - name: Sign patch provenance
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a
+        with:
+          subject-path: ${{ runner.temp }}/code-output/code.patch
       - name: Preserve real diff and test logs
         id: evidence
         if: always()
@@ -148,15 +152,59 @@ jobs:
           path: ${{ runner.temp }}/code-output/
           retention-days: 14
           if-no-files-found: error
-  draft_pr:
+  validate:
     needs: prepare
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      attestations: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: "1.4.4"
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          artifact-ids: ${{ needs.prepare.outputs.artifact_id }}
+          merge-multiple: true
+          path: ${{ runner.temp }}/code-model
+      - name: Authenticate immutable patch with the pristine gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_PATCH_SHA256: ${{ needs.prepare.outputs.patch_sha256 }}
+        run: |
+          node scripts/code-evidence.mjs "$RUNNER_TEMP/code-model/code.patch" "$EXPECTED_PATCH_SHA256"
+          gh attestation verify "$RUNNER_TEMP/code-model/code.patch" --repo "$GITHUB_REPOSITORY" \
+            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/code.yml" \
+            --source-digest "$GITHUB_SHA" --signer-digest "$GITHUB_SHA" --source-ref "$GITHUB_REF" \
+            --deny-self-hosted-runners
+          cp scripts/code-validation.sh "$RUNNER_TEMP/code-validation.sh"
+          node scripts/code-patch.mjs "$RUNNER_TEMP/code-model/code.patch"
+          git apply --index "$RUNNER_TEMP/code-model/code.patch"
+      - name: Install dependencies without lifecycle scripts
+        run: bun install --frozen-lockfile --ignore-scripts
+      - name: Validate in a credential-free, networkless container
+        run: bash "$RUNNER_TEMP/code-validation.sh"
+      - name: Preserve real validation logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: code-validation-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/code-validation/
+          retention-days: 14
+          if-no-files-found: error
+  draft_pr:
+    needs: [prepare, validate]
     timeout-minutes: 10
     environment: CODE-PUBLISH
     permissions:
       contents: write
       pull-requests: write
       id-token: write
+      attestations: read
     steps:
       - name: Claim independent publishing authorization
         env:
@@ -204,7 +252,15 @@ jobs:
           merge-multiple: true
           path: ${{ runner.temp }}/code-evidence
       - name: Validate with the pristine CODE gate, then apply
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_PATCH_SHA256: ${{ needs.prepare.outputs.patch_sha256 }}
         run: |
+          node scripts/code-evidence.mjs "$RUNNER_TEMP/code-evidence/code.patch" "$EXPECTED_PATCH_SHA256"
+          gh attestation verify "$RUNNER_TEMP/code-evidence/code.patch" --repo "$GITHUB_REPOSITORY" \
+            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/code.yml" \
+            --source-digest "$GITHUB_SHA" --signer-digest "$GITHUB_SHA" --source-ref "$GITHUB_REF" \
+            --deny-self-hosted-runners
           node scripts/code-patch.mjs "$RUNNER_TEMP/code-evidence/code.patch"
           git apply --index "$RUNNER_TEMP/code-evidence/code.patch"
       - name: Open a draft PR only
@@ -223,7 +279,7 @@ jobs:
           gh pr create --repo "$GITHUB_REPOSITORY" --base "${GITHUB_REF_NAME}" --head "$branch" --draft --title "CODE: scoped development task $CODE_REQUEST" --body-file "$RUNNER_TEMP/code-pr.md"
   finish:
     if: always()
-    needs: [prepare, draft_pr]
+    needs: [prepare, validate, draft_pr]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -234,6 +290,7 @@ jobs:
           CODE_REQUEST: ${{ inputs.request_id }}
           CODE_RUNNER_AUTH_URL: ${{ vars.CODE_RUNNER_AUTH_URL }}
           PREPARE_RESULT: ${{ needs.prepare.result }}
+          VALIDATE_RESULT: ${{ needs.validate.result }}
           PUBLISH_RESULT: ${{ needs.draft_pr.result }}
         run: |
           node --input-type=module <<'NODE'
@@ -255,9 +312,9 @@ jobs:
           if (!tokenResponse.ok) throw new Error('Could not obtain GitHub Actions identity.');
           const { value: token } = await tokenResponse.json();
           if (typeof token !== 'string' || !token) throw new Error('GitHub Actions identity was empty.');
-          const outcome = process.env.PREPARE_RESULT === 'success' && process.env.PUBLISH_RESULT === 'success'
+          const outcome = process.env.PREPARE_RESULT === 'success' && process.env.VALIDATE_RESULT === 'success' && process.env.PUBLISH_RESULT === 'success'
             ? 'success'
-            : process.env.PREPARE_RESULT === 'cancelled' || process.env.PUBLISH_RESULT === 'cancelled'
+            : process.env.PREPARE_RESULT === 'cancelled' || process.env.VALIDATE_RESULT === 'cancelled' || process.env.PUBLISH_RESULT === 'cancelled'
               ? 'cancelled'
               : 'failure';
           const runnerHeaders = new Headers({ 'Content-Type': 'application/json' });
