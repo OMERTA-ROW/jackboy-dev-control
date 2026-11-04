@@ -52,6 +52,31 @@ A mutation check (removing the holds term from the claim inequality) makes 3 of 
 2. Applying 0040 to a staging database that mirrors production, and a staged rollback.
 3. A real OpenAI cost-report cycle in a non-production project to confirm that reports land within the grace window; tune `reconcile_grace_seconds` from evidence.
 4. A credential-bound admission proxy or provider-enforced daily cap, then an owner-reviewed migration to open the hard-cap gate. Until then CODE stays blocked.
-5. A reviewed owner procedure for releasing cross-day holds.
+5. Owner-gated server functions and passkey step-up for the 0041 hold-release RPCs.
 
 Migration numbering: `0039_recovery_codes.sql` has no `_journal.json` entry on `main`; this PR does not change the journal.
+
+## Round 13 additions
+
+### Migration chain (0030 baseline)
+
+`0031_repository_resync_drift_removals` and `0033_unified_project_repository_resync` build on objects (`repository_resync_reviews`, `apply_repository_resync[_internal]`, the guard triggers) that were created by a `0030_repository_resync_review` that exists only on the diverged `lovable-sync` branch. Main's 0030 slot is `0030_omni_sessions`, so an empty database could not replay the chain. `0030_repository_resync_baseline.sql` creates each missing object only if absent (guarded by `to_regclass`/`to_regprocedure`/`pg_trigger`), never replaces or drops an existing one, and installs a fail-closed placeholder that 0031 immediately replaces. It is a no-op on any database that already has the objects. It has no down script: dropping those objects would be destructive. Verify in hosted staging that production already contains them (compare `to_regclass`/`to_regprocedure`) before assuming it is a no-op there. `tests/code-migration-chain.test.mjs` covers fresh replay, gap reproduction, idempotence, divergent pre-existing objects, atomic failure and 0041/0040 rollback with re-apply.
+
+### Cross-day hold release (0041)
+
+0040's reconcile only settles holds whose whole life and report fall in one UTC day, so cross-day holds stay reserved indefinitely (fail closed). 0041 adds an owner-only, evidence-based release:
+
+- `record_code_closed_day_costs(actor, day, rows, synced_at)` records a provider cost report for a **closed** UTC day, accepted only if `synced_at >= day end + closed_day_lag_seconds` (default 6h, 1h–48h). Rows use the same validation as the live sync. Evidence is append-only (`code_provider_cost_day_reports`).
+- `release_code_spend_holds(actor, request_ids[], reason)` releases explicitly named, `finished` holds, all-or-nothing, only if every UTC day from creation to finish has a report recorded after both the day's close+lag and `finished_at + reconcile_grace_seconds` (the finish day may use the live report). Anything missing raises and nothing is released. Each call writes an audit row with per-hold evidence.
+- A date change or timeout alone never releases. `reserved`/running holds are never releasable. Cancelled holds need the same evidence.
+
+Limits: the evidence is the owner-recorded total of a provider report; the function cannot prove the report is complete or that the provider cap held. There is no server function or UI for these two RPCs yet; calling them requires the service role with an owner id. Adding owner-gated server functions (and passkey step-up) is a follow-up.
+
+### Hard-cap options (provider_hard_cap_verified stays false)
+
+Reservations bound admission, not what a running job spends.
+
+- **A. Dedicated CODE-only project/key with provider cap.** Provider limits are budget-level (monthly) and eventually consistent; usage reports lag. It cannot guarantee a per-task or daily limit against in-flight, retried, streaming or concurrent calls. Useful as an outer blast-radius bound only; cannot be verified without a real provider project.
+- **B. Credential-holding admission proxy.** The only design that could enforce the limit: the runner never holds the key; every request reserves its worst case (input estimate + `max_tokens` ceiling) atomically before forwarding; retries are new reservations; streams are cut at the ceiling; settlement uses provider-reported usage; uncertain usage stays reserved; the proxy fails closed when the DB or audit log is unreachable. It must be tested with a real provider in staging and its coverage of every outbound path proven.
+
+Neither can be verified in an offline/mocked environment, so the gate is **BLOCKED**, `provider_hard_cap_verified` remains false and the 0037 CHECK is untouched.
