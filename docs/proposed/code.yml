@@ -1,0 +1,328 @@
+# PROPOSED — owner review required. Not active: GitHub only runs files under .github/workflows/.
+# Copy over .github/workflows/code.yml in a reviewed PR to adopt.
+name: CODE
+run-name: CODE ${{ inputs.request_id }}
+on:
+  workflow_dispatch:
+    inputs:
+      request_id:
+        description: Existing owner-approved CODE request ID
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: code-${{ inputs.request_id }}
+  cancel-in-progress: false
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: CODE
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      instruction: ${{ steps.claim.outputs.instruction }}
+      artifact_id: ${{ steps.evidence.outputs.artifact-id }}
+    steps:
+      - name: Claim approved request
+        id: claim
+        env:
+          CODE_REQUEST: ${{ inputs.request_id }}
+          CODE_RUNNER_AUTH_URL: ${{ vars.CODE_RUNNER_AUTH_URL }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { appendFileSync } from 'node:fs';
+          import { randomUUID } from 'node:crypto';
+          const base = process.env.CODE_RUNNER_AUTH_URL;
+          if (!base) throw new Error('CODE runner authorization URL is not configured.');
+          const origin = new URL(base);
+          if (origin.protocol !== 'https:' || origin.username || origin.password || origin.pathname !== '/' || origin.search || origin.hash) {
+            throw new Error('CODE runner authorization URL must be a clean HTTPS origin.');
+          }
+          const tokenUrl = new URL(process.env.ACTIONS_ID_TOKEN_REQUEST_URL);
+          tokenUrl.searchParams.set('audience', 'jackboy-code-runner');
+          const tokenHeaders = new Headers();
+          tokenHeaders.set('Authorization', ['Bearer', process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN].join(' '));
+          const tokenResponse = await fetch(tokenUrl, {
+            headers: tokenHeaders,
+            redirect: 'error',
+            signal: AbortSignal.timeout(10000),
+          });
+          if (!tokenResponse.ok) throw new Error('Could not obtain GitHub Actions identity.');
+          const { value: token } = await tokenResponse.json();
+          if (typeof token !== 'string' || !token) throw new Error('GitHub Actions identity was empty.');
+          const runnerHeaders = new Headers({ 'Content-Type': 'application/json' });
+          runnerHeaders.set('Authorization', ['Bearer', token].join(' '));
+          const response = await fetch(new URL('/api/public/code/claim', origin), {
+            method: 'POST',
+            headers: runnerHeaders,
+            body: JSON.stringify({ requestId: process.env.CODE_REQUEST, stage: 'execute' }),
+            redirect: 'error',
+            signal: AbortSignal.timeout(15000),
+          });
+          if (!response.ok) throw new Error(`CODE request authorization failed (${response.status}).`);
+          const claim = await response.json();
+          if (
+            claim.authorized !== true ||
+            claim.requestId !== process.env.CODE_REQUEST ||
+            claim.revision !== process.env.GITHUB_SHA ||
+            typeof claim.instruction !== 'string' ||
+            !claim.instruction.trim() ||
+            claim.instruction.length > 4000
+          ) throw new Error('CODE approval did not match this workflow run.');
+          const delimiter = `CODE_INSTRUCTION_${randomUUID()}`;
+          appendFileSync(process.env.GITHUB_OUTPUT, `instruction<<${delimiter}\n${claim.instruction}\n${delimiter}\n`);
+          NODE
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: "1.4.4"
+      - name: Prepare dependencies
+        run: |
+          bun install --frozen-lockfile
+          git rev-parse HEAD > "$RUNNER_TEMP/code-base"
+      - name: Bind gateway access to this approved request
+        id: gateway
+        env:
+          CODE_REQUEST: ${{ inputs.request_id }}
+          CODE_RUNNER_AUTH_URL: ${{ vars.CODE_RUNNER_AUTH_URL }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { appendFileSync } from 'node:fs';
+          const origin = new URL(process.env.CODE_RUNNER_AUTH_URL);
+          if (origin.protocol !== 'https:' || origin.username || origin.password || origin.pathname !== '/' || origin.search || origin.hash) {
+            throw new Error('CODE gateway must be a clean HTTPS origin.');
+          }
+          if (!/^[0-9a-f-]{36}$/i.test(process.env.CODE_REQUEST)) throw new Error('Invalid CODE request.');
+          const tokenUrl = new URL(process.env.ACTIONS_ID_TOKEN_REQUEST_URL);
+          tokenUrl.searchParams.set('audience', 'jackboy-code-runner');
+          const response = await fetch(tokenUrl, {
+            headers: { Authorization: ['Bearer', process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN].join(' ') },
+            redirect: 'error',
+            signal: AbortSignal.timeout(10000),
+          });
+          if (!response.ok) throw new Error('GitHub Actions identity unavailable.');
+          const { value: token } = await response.json();
+          if (typeof token !== 'string' || !/^[\w.-]+$/.test(token)) throw new Error('Invalid GitHub Actions identity.');
+          console.log(`::add-mask::${token}`);
+          const endpoint = new URL('/api/public/code/provider/v1/responses', origin);
+          endpoint.searchParams.set('request_id', process.env.CODE_REQUEST);
+          appendFileSync(process.env.GITHUB_OUTPUT, `token=${token}\nendpoint=${endpoint.href}\n`);
+          NODE
+      - name: Codex prepares the scoped change
+        uses: openai/codex-action@13e9c17417b29e9a276f73ec6ed7fb574137d3c3
+        with:
+          # This input carries only the short-lived Actions identity, never a provider key.
+          openai-api-key: ${{ steps.gateway.outputs.token }}
+          responses-api-endpoint: ${{ steps.gateway.outputs.endpoint }}
+          sandbox: workspace-write
+          safety-strategy: drop-sudo
+          output-file: ${{ runner.temp }}/code-report.md
+          prompt: |
+            Implement this owner-approved CODE task in this repository:
+            ${{ steps.claim.outputs.instruction }}
+
+            Preserve the existing application, full-screen conversation and project memory.
+            Follow AGENTS.md. Make a small reviewable diff and run relevant tests.
+            Do not merge, deploy, push, change credentials/permissions, contact other agents,
+            or edit auth, passkeys, workflow files, dependencies, migrations or CODE itself.
+            Do not commit. Report actual tests and blockers; never invent successful results.
+      - name: Capture the model diff only (no repository code runs in this job)
+        run: |
+          mkdir -p "$RUNNER_TEMP/code-output"
+          git add -N .
+          git diff --binary "$(cat "$RUNNER_TEMP/code-base")" > "$RUNNER_TEMP/code-output/code.patch"
+          git diff --check "$(cat "$RUNNER_TEMP/code-base")"
+          cp "$RUNNER_TEMP/code-report.md" "$RUNNER_TEMP/code-output/report.md"
+          sha256sum "$RUNNER_TEMP/code-output/code.patch" | cut -d' ' -f1 > "$RUNNER_TEMP/code-output/code.patch.sha256"
+      - name: Preserve real diff and test logs
+        id: evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: code-evidence-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/code-output/
+          retention-days: 14
+          if-no-files-found: error
+  validate:
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # No environment, no OIDC, no write scope, no model credential: repository and
+    # model-produced code runs only here, inside an empty network namespace.
+    permissions:
+      contents: read
+    outputs:
+      artifact_id: ${{ steps.evidence.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: "1.4.4"
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          artifact-ids: ${{ needs.prepare.outputs.artifact_id }}
+          merge-multiple: true
+          path: ${{ runner.temp }}/code-model
+      - name: Verify digest and patch policy with the pristine gate, then apply
+        run: |
+          test "$(sha256sum "$RUNNER_TEMP/code-model/code.patch" | cut -d' ' -f1)" = "$(cat "$RUNNER_TEMP/code-model/code.patch.sha256")"
+          node scripts/code-patch.mjs "$RUNNER_TEMP/code-model/code.patch"
+          git apply --index "$RUNNER_TEMP/code-model/code.patch"
+          bun install --frozen-lockfile --ignore-scripts
+      - name: Run tests and build without network access
+        run: |
+          mkdir -p "$RUNNER_TEMP/code-output"
+          cp "$RUNNER_TEMP/code-model/"* "$RUNNER_TEMP/code-output/"
+          set +e
+          sudo unshare -n -- sudo -u "$(id -un)" env -i PATH="$PATH" HOME="$HOME" RUNNER_TEMP="$RUNNER_TEMP" bash -c '
+            ip link set lo up 2>/dev/null
+            bun run test > "$RUNNER_TEMP/code-output/tests.txt" 2>&1; t=$?
+            node --test tests/code-*.test.mjs > "$RUNNER_TEMP/code-output/code-tests.txt" 2>&1; c=$?
+            bun run build > "$RUNNER_TEMP/code-output/build.txt" 2>&1; b=$?
+            echo "tests=$t code_tests=$c build=$b" > "$RUNNER_TEMP/code-output/exit-codes.txt"
+            test $t -eq 0 -a $c -eq 0 -a $b -eq 0'
+          status=$?
+          exit $status
+        env:
+          RUNNER_TEMP: ${{ runner.temp }}
+      - name: Preserve validated patch and real test logs
+        id: evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: code-validated-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/code-output/
+          retention-days: 14
+          if-no-files-found: error
+  draft_pr:
+    needs: [prepare, validate]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: CODE-PUBLISH
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write
+    steps:
+      - name: Claim independent publishing authorization
+        env:
+          CODE_REQUEST: ${{ inputs.request_id }}
+          CODE_RUNNER_AUTH_URL: ${{ vars.CODE_RUNNER_AUTH_URL }}
+        run: |
+          node --input-type=module <<'NODE'
+          const base = process.env.CODE_RUNNER_AUTH_URL;
+          if (!base) throw new Error('CODE runner authorization URL is not configured.');
+          const origin = new URL(base);
+          if (origin.protocol !== 'https:' || origin.username || origin.password || origin.pathname !== '/' || origin.search || origin.hash) {
+            throw new Error('CODE runner authorization URL must be a clean HTTPS origin.');
+          }
+          const tokenUrl = new URL(process.env.ACTIONS_ID_TOKEN_REQUEST_URL);
+          tokenUrl.searchParams.set('audience', 'jackboy-code-runner');
+          const tokenHeaders = new Headers();
+          tokenHeaders.set('Authorization', ['Bearer', process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN].join(' '));
+          const tokenResponse = await fetch(tokenUrl, {
+            headers: tokenHeaders,
+            redirect: 'error',
+            signal: AbortSignal.timeout(10000),
+          });
+          if (!tokenResponse.ok) throw new Error('Could not obtain GitHub Actions identity.');
+          const { value: token } = await tokenResponse.json();
+          if (typeof token !== 'string' || !token) throw new Error('GitHub Actions identity was empty.');
+          const runnerHeaders = new Headers({ 'Content-Type': 'application/json' });
+          runnerHeaders.set('Authorization', ['Bearer', token].join(' '));
+          const response = await fetch(new URL('/api/public/code/claim', origin), {
+            method: 'POST',
+            headers: runnerHeaders,
+            body: JSON.stringify({ requestId: process.env.CODE_REQUEST, stage: 'publish' }),
+            redirect: 'error',
+            signal: AbortSignal.timeout(15000),
+          });
+          if (!response.ok) throw new Error(`CODE publishing authorization failed (${response.status}).`);
+          const claim = await response.json();
+          if (claim.authorized !== true) throw new Error('CODE publishing approval was not granted.');
+          NODE
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          artifact-ids: ${{ needs.validate.outputs.artifact_id }}
+          merge-multiple: true
+          path: ${{ runner.temp }}/code-evidence
+      - name: Validate with the pristine CODE gate, then apply
+        run: |
+          test "$(sha256sum "$RUNNER_TEMP/code-evidence/code.patch" | cut -d' ' -f1)" = "$(cat "$RUNNER_TEMP/code-evidence/code.patch.sha256")"
+          node scripts/code-patch.mjs "$RUNNER_TEMP/code-evidence/code.patch"
+          git apply --index "$RUNNER_TEMP/code-evidence/code.patch"
+      - name: Open a draft PR only
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CODE_REQUEST: ${{ inputs.request_id }}
+        run: |
+          branch="jackboy/code-$CODE_REQUEST"
+          git -c core.hooksPath=/dev/null -c user.name=Jackboy -c user.email=jackboy@users.noreply.github.com commit -m "CODE: scoped development task $CODE_REQUEST"
+          git -c core.hooksPath=/dev/null -c http.extraheader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)" push --no-verify "https://github.com/$GITHUB_REPOSITORY.git" "HEAD:refs/heads/$branch"
+          cat > "$RUNNER_TEMP/code-pr.md" <<'BODY'
+          CODE prepared this change after a scoped owner approval. Review the code and workflow evidence before merging.
+
+          The CODE workflow contains the real patch, model report, test output and build output as downloadable artifacts. No merge or deployment was performed. Roll back by closing this draft PR and deleting its work branch; if merged by the owner later, revert that merge through the existing passkey-protected path.
+          BODY
+          gh pr create --repo "$GITHUB_REPOSITORY" --base "${GITHUB_REF_NAME}" --head "$branch" --draft --title "CODE: scoped development task $CODE_REQUEST" --body-file "$RUNNER_TEMP/code-pr.md"
+  finish:
+    if: always()
+    needs: [prepare, validate, draft_pr]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      id-token: write
+    steps:
+      - name: Record the final task outcome
+        env:
+          CODE_REQUEST: ${{ inputs.request_id }}
+          CODE_RUNNER_AUTH_URL: ${{ vars.CODE_RUNNER_AUTH_URL }}
+          PREPARE_RESULT: ${{ needs.prepare.result }}
+          VALIDATE_RESULT: ${{ needs.validate.result }}
+          PUBLISH_RESULT: ${{ needs.draft_pr.result }}
+        run: |
+          node --input-type=module <<'NODE'
+          const base = process.env.CODE_RUNNER_AUTH_URL;
+          if (!base) throw new Error('CODE runner authorization URL is not configured.');
+          const origin = new URL(base);
+          if (origin.protocol !== 'https:' || origin.username || origin.password || origin.pathname !== '/' || origin.search || origin.hash) {
+            throw new Error('CODE runner authorization URL must be a clean HTTPS origin.');
+          }
+          const tokenUrl = new URL(process.env.ACTIONS_ID_TOKEN_REQUEST_URL);
+          tokenUrl.searchParams.set('audience', 'jackboy-code-runner');
+          const tokenHeaders = new Headers();
+          tokenHeaders.set('Authorization', ['Bearer', process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN].join(' '));
+          const tokenResponse = await fetch(tokenUrl, {
+            headers: tokenHeaders,
+            redirect: 'error',
+            signal: AbortSignal.timeout(10000),
+          });
+          if (!tokenResponse.ok) throw new Error('Could not obtain GitHub Actions identity.');
+          const { value: token } = await tokenResponse.json();
+          if (typeof token !== 'string' || !token) throw new Error('GitHub Actions identity was empty.');
+          const outcome = process.env.PREPARE_RESULT === 'success' && process.env.VALIDATE_RESULT === 'success' && process.env.PUBLISH_RESULT === 'success'
+            ? 'success'
+            : process.env.PREPARE_RESULT === 'cancelled' || process.env.VALIDATE_RESULT === 'cancelled' || process.env.PUBLISH_RESULT === 'cancelled'
+              ? 'cancelled'
+              : 'failure';
+          const runnerHeaders = new Headers({ 'Content-Type': 'application/json' });
+          runnerHeaders.set('Authorization', ['Bearer', token].join(' '));
+          const response = await fetch(new URL('/api/public/code/finish', origin), {
+            method: 'POST',
+            headers: runnerHeaders,
+            body: JSON.stringify({ requestId: process.env.CODE_REQUEST, outcome }),
+            redirect: 'error',
+            signal: AbortSignal.timeout(15000),
+          });
+          if (!response.ok) throw new Error(`CODE task outcome could not be recorded (${response.status}).`);
+          NODE

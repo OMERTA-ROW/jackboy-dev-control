@@ -262,9 +262,10 @@ test("expired, revoked, mismatched and unapproved requests fail before atomic cl
   assert.equal(rpcCalls, 0);
 });
 
-test("publishing is a separate, one-time claim requiring the successful prepare job", async () => {
+test("publishing is a separate, one-time claim requiring successful prepare and validate jobs", async () => {
   jobs = [
     { name: "prepare", status: "completed", conclusion: "success", run_attempt: 1 },
+    { name: "validate", status: "completed", conclusion: "success", run_attempt: 1 },
     { name: "draft_pr", status: "in_progress", conclusion: null, run_attempt: 1 },
   ];
   assert.equal((await claim("publish", makeToken({ environment: "CODE-PUBLISH" }))).status, 409);
@@ -275,6 +276,13 @@ test("publishing is a separate, one-time claim requiring the successful prepare 
     { name: "prepare", status: "completed", conclusion: "success", run_attempt: 1 },
     { name: "draft_pr", status: "in_progress", conclusion: null, run_attempt: 1 },
   ];
+  // Without a successful, separate validation job the publisher is refused.
+  assert.notEqual((await claim("publish", makeToken({ environment: "CODE-PUBLISH" }))).status, 200);
+  jobs[1] = { name: "validate", status: "completed", conclusion: "failure", run_attempt: 1 };
+  jobs.push({ name: "draft_pr", status: "in_progress", conclusion: null, run_attempt: 1 });
+  assert.notEqual((await claim("publish", makeToken({ environment: "CODE-PUBLISH" }))).status, 200);
+  assert.equal(row.runner_publish_claimed_at, null);
+  jobs[1] = { name: "validate", status: "completed", conclusion: "success", run_attempt: 1 };
   const publishes = await Promise.all([
     claim("publish", makeToken({ environment: "CODE-PUBLISH" })),
     claim("publish", makeToken({ environment: "CODE-PUBLISH" })),

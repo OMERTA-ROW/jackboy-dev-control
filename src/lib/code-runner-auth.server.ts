@@ -186,9 +186,10 @@ export async function verifyWorkflowRun(
   } else if (
     stage === "publish" &&
     (!jobs.some((job) => job.name === "draft_pr" && job.status === "in_progress") ||
-      !jobs.some(
-        (job) =>
-          job.name === "prepare" && job.status === "completed" && job.conclusion === "success",
+      !["prepare", "validate"].every((name) =>
+        jobs.some(
+          (job) => job.name === name && job.status === "completed" && job.conclusion === "success",
+        ),
       ))
   ) {
     throw new Error("CODE publisher stage is not independently authorized.");
