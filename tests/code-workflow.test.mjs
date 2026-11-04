@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const workflow = readFileSync(new URL("../.github/workflows/code.yml", import.meta.url), "utf8");
-const prepare = workflow.match(/^  prepare:\n([\s\S]*?)^  draft_pr:/m)?.[1] ?? "";
+const prepare = workflow.match(/^  prepare:\n([\s\S]*?)^  validate:/m)?.[1] ?? "";
 const publisher = workflow.match(/^  draft_pr:\n([\s\S]*?)^  finish:/m)?.[1] ?? "";
 const finish = workflow.match(/^  finish:\n([\s\S]*)$/m)?.[1] ?? "";
 
@@ -33,7 +33,7 @@ test("manual dispatch accepts only the approved request identifier", () => {
 });
 
 test("publisher is separately authorized and all Actions are pinned to full SHAs", () => {
-  assert.match(publisher, /needs: prepare/);
+  assert.match(publisher, /needs: \[prepare, validate\]/);
   assert.match(publisher, /environment: CODE-PUBLISH/);
   assert.match(publisher, /contents: write/);
   assert.match(publisher, /pull-requests: write/);
@@ -50,7 +50,7 @@ test("publisher is separately authorized and all Actions are pinned to full SHAs
 
 test("finalization records outcome without repository write permissions or an environment secret", () => {
   assert.match(finish, /if: always\(\)/);
-  assert.match(finish, /needs: \[prepare, draft_pr\]/);
+  assert.match(finish, /needs: \[prepare, validate, draft_pr\]/);
   assert.match(finish, /id-token: write/);
   assert.doesNotMatch(finish, /environment:|contents: write|pull-requests: write|secrets\./);
   assert.match(finish, /\/api\/public\/code\/finish/);

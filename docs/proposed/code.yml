@@ -1,5 +1,6 @@
-# PROPOSED — owner review required. Not active: GitHub only runs files under .github/workflows/.
-# Copy over .github/workflows/code.yml in a reviewed PR to adopt.
+# HISTORICAL PROPOSAL — do not copy this over the active workflow.
+# The reviewed replacement in .github/workflows/code.yml adds signed provenance,
+# a trusted prepare digest and container isolation absent from this draft.
 name: CODE
 run-name: CODE ${{ inputs.request_id }}
 on:

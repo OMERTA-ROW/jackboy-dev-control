@@ -142,6 +142,97 @@ The owner-only **Sync provider-reported costs** control reads OpenAI's organizat
 
 After an owner-approved merge: disable the CODE workflow, remove its owner-managed `CODE_TARGETS` entry in Settings and revoke `CODE_GITHUB_TOKEN` to stop new work. Remove/revoke the environment model credential if retiring the runner. Keep `action_requests`, audit logs and GitHub run evidence for accountability; there is no destructive migration to undo. Revert this PR through the existing owner/passkey process. Keep generic voice confirmations blocked unless an equally scoped replacement exists. A downstream CODE draft PR can be closed and its work branch deleted; if the owner merged it, revert that merge through the existing review path.
 
-## Runner isolation: proposed separation (Nov 2026)
+## Runner isolation: four-stage cutover, owner review pending (Nov 2026)
 
-`docs/proposed/code.yml` splits the CODE workflow into prepare (model via gateway only), validate (no OIDC/environment/write, tests and build inside `unshare -n`), draft_pr (no model, no repository code, digest-checked patch, `jackboy/*` draft PR only) and finish. `tests/code-runner-isolation.test.mjs` asserts each property. The backend publish claim now also requires a successful `validate` job, so the active workflow cannot publish until the owner adopts the proposal in a reviewed PR and re-pins the workflow SHA.
+`.github/workflows/code.yml` is the proposed release replacement, pending owner
+review and merge. `docs/proposed/code.yml` is historical design material, not a
+file to copy over the strengthened replacement.
+
+1. **Prepare:** owner-gated CODE environment, read-only checkout, request-bound
+   gateway identity and no provider secret. No dependency lifecycle, repository
+   tests or build runs here. Codex shell/unified-exec tools are disabled.
+   The job captures the patch digest as a trusted job output and signs its
+   provenance with the pinned GitHub attestation action.
+2. **Validate:** no environment, OIDC or write permission. Before applying the
+   patch, pristine helpers verify its digest and GitHub signature against the
+   repository, source/ref and signer revision. Dependencies install with scripts
+   disabled. Tests, strict types and build run inside a digest-pinned Node 26
+   container: no network, no capabilities, no privilege escalation, non-root,
+   resource limits, read-only source/Bun mounts and ephemeral writable storage.
+   No runner home, Docker socket, job files or credentials are mounted/inherited.
+   Container output is captured outside its filesystem; cleanup kills remaining
+   child processes. Code cannot modify the host patch, trusted digest or uploader.
+3. **Draft PR:** independently owner-gated CODE-PUBLISH environment. Both prepare
+   and validate must succeed; the server independently verifies their statuses.
+   It downloads the original immutable prepare artifact, not validator output,
+   verifies signature/digest again, then applies the pristine path gate. No model,
+   install, tests or build runs with publishing credentials. Only `jackboy/*`
+   branches and draft PRs are allowed; no merge or production publishing.
+4. **Finish:** records all three results, including validation failure/cancellation,
+   through the existing authenticated completion/audit path. Provider usage and
+   uncertain holds remain governed by the unchanged gateway ledger.
+
+`Verify` exercises the exact container boundary without CODE dispatch and a
+separate synthetic provenance canary (valid signature, modified artifact and
+unsigned artifact rejection). Static regressions cover permissions, patch
+tampering and job dependencies; they do not prove live CODE/passkey acceptance.
+The existing full PostgreSQL/OMNI acceptance workflow remains mandatory.
+Private repositories lacking GitHub attestation support fail closed; do not
+remove signature verification as a workaround.
+
+After review/merge only, an authenticated audited owner change must refresh the
+exact workflow blob allowlist. Do not refresh it for an unmerged PR, enable CODE,
+release Emergency Stop or change migration 0037 as part of this cutover.
+Production identity/schema/backup, provider enforcement and passkey activation
+gates remain independent and unverified by CI.
+
+### Release verification and operational blockers
+
+GitHub main `c1854a28fc373eb6171f6282ab75e3ecd1163efd` exactly matches the
+requested Lovable-synchronized source commit and includes merged repair #24
+(`d82d03ee46d175e980ef2789eb3c10a473bdb801`). This proves source ancestry,
+not the published application identity.
+
+Fresh hosted checks on runner repair `a744c826bc6296dd995fc57dece15ea524f63878`:
+
+- [Verify 41812285021](https://github.com/OMERTA-ROW/jackboy-dev-control/actions/runs/41812285021):
+  498 application tests, strict types and build pass. The actual container also
+  passed 498 application and 36 focused Node tests, with credential/filesystem/
+  network canaries. The provenance canary accepted the signed artifact and
+  rejected modified/unsigned content.
+- [Acceptance 41812369697](https://github.com/OMERTA-ROW/jackboy-dev-control/actions/runs/41812369697):
+  155 Node tests, zero skips/failures; real PostgreSQL full 0001–0042 replay,
+  rollback/reapply, spending and audit failure cases, plus real TLS
+  `TestCrossLanguage` and Go suites against pinned OMNI PR #3.
+
+Initial hosted failures (missing Git in the slim container and stale seed
+derivation) were repaired, not suppressed. The disposable seed now preserves the
+same signature, digest, isolated-validation and independent publishing gates;
+only model generation and application-specific checks become synthetic.
+No CODE job or real draft-PR publishing ran during these checks.
+
+`OMERTA-ROW/Omni#1` and `OMERTA-ROW/Omni#3` are still draft/unmerged; the latter
+is stacked on the former. The existing scoped handshake and fixed `protocol.self-test` runner are
+preserved. Hosting still requires a named Node 26+ HTTPS origin, a real owner/
+project/expiring approval scope, approved database access and two independently
+provisioned scoped secrets. Do not start the legacy general worker or claim a
+live bridge from loopback tests.
+
+Security inspection found main reviews/admin enforcement had been relaxed.
+The authorized baseline was restored and read back: one review, code-owner
+review, stale-review dismissal, last-push approval and admin enforcement.
+CODE and CODE-PUBLISH prevent self-review/admin bypass; an independent eligible
+reviewer/operator is required. TEST/LIVE remain private and Actions-disabled.
+GitHub App installation `177905883` remains all-repositories with Actions read
+and workflow write; restrict its repository/permission scope before live tests.
+The CODE environment still lists `OPENAI_API_KEY`; its value was never read.
+The gateway workflow does not use it. A provider administrator must revoke/
+rotate any previously exposed key and remove the legacy name safely.
+
+Production remains blocked: no authenticated published-SHA mapping, schema/
+migration inventory, verified backup/restore or rollback artifact, live audit/
+Emergency Stop observation or passkey-bound activation is available.
+Provider-enforced budget/pricing evidence remains required; migration 0037 is
+unchanged. Dependency audit still reports two moderate and one low advisory,
+not a clean security bill. No production migration/deployment, allowlist update,
+credential change, App change, Emergency Stop release or CODE enablement occurred.
