@@ -12,6 +12,7 @@ import { latestScans, projectStatus } from "@/lib/project-hub";
 import { groupProposals, optimisticApprove } from "@/lib/approval-state";
 import { setProposalStatus } from "@/lib/update-writer.functions";
 import { ProjectConnectButtons, ProjectResyncIcon } from "@/components/ProjectCardActions";
+import { WorkerSafetyBar } from "@/components/WorkerSafetyBar";
 
 export const Route = createFileRoute("/_authenticated/")({
   head: () => ({
@@ -79,6 +80,7 @@ function Home() {
   return (
     <>
       <PageHeader title="Home" subtitle="Select project → Scan → Review findings → Repair → Verify." />
+      <WorkerSafetyBar />
       <section className="panel mb-6 flex flex-col items-start gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="font-semibold">Add a project to Jackboy</h2>

@@ -30,6 +30,22 @@ export const getCodePrerequisites = createServerFn({ method: "POST" })
     };
   });
 
+/** Stops local admission first; external cancellation is requested, never described as instantaneous. */
+export const stopJackboyWork = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await requireOwner(context);
+    const { data: policy, error: readError } = await context.supabase.from("automation_policy").select("tier,max_files,max_lines").eq("id", 1).single();
+    if (readError || !policy) throw new Error("Emergency stop policy is unavailable.");
+    const { error } = await context.supabase.rpc("set_automation_policy", { _tier: policy.tier, _paused: true, _max_files: policy.max_files, _max_lines: policy.max_lines });
+    if (error) throw new Error("Global emergency pause could not be saved.");
+    const db = (await import("./untyped-db")).untyped((await import("@/integrations/supabase/client.server")).supabaseAdmin);
+    const { error: foundryError } = await db.from("foundry_schedule").update({ paused: true, updated_at: new Date().toISOString() }).eq("id", 1);
+    const { error: codeError } = await db.rpc("engage_code_kill_switch", { p_actor: context.userId });
+    const { error: auditError } = await context.supabase.rpc("write_audit", { _action: "worker.kill_switch", _detail: { global_paused: true, foundry_paused: !foundryError, code_stop_saved: !codeError }, _outcome: foundryError || codeError ? "partial" : "ok" });
+    return { paused: true, warning: foundryError || codeError || auditError ? "Global pause saved. Some worker controls or audit storage are unavailable; CODE stays blocked. Any external run must be cancelled and confirmed in GitHub." : "New work is blocked. Any already-running external job must be cancelled and confirmed in GitHub." };
+  });
+
 async function requireOwner(ctx: {
   supabase: { rpc: (f: "my_role") => PromiseLike<{ data: unknown }> };
 }) {
