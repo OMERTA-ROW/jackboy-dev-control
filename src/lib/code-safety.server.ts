@@ -12,7 +12,7 @@ export async function getCodeSafetyState(now = Date.now()): Promise<CodeSafetySt
   const { data, error } = await db
     .from("code_runtime_controls")
     .select(
-      "enabled, kill_switch, allowed_targets, active_request_id, consecutive_failures, daily_spend_limit_usd, provider_hard_cap_verified, provider_usage_at, usage_spike, paused_reason",
+      "enabled, kill_switch, allowed_targets, active_request_id, consecutive_failures, daily_spend_limit_usd, provider_hard_cap_verified, provider_usage_at, usage_spike, paused_reason, per_task_reserve_usd",
     )
     .eq("singleton", true)
     .single();
@@ -28,6 +28,17 @@ export async function getCodeSafetyState(now = Date.now()): Promise<CodeSafetySt
       .gte("occurred_at", new Date(now - 3_600_000).toISOString()),
   ]);
   if (today.error || hour.error) throw new Error("CODE provider spending data could not be read.");
+  const holds = await db
+    .from("code_spend_reservations")
+    .select("reserved_usd")
+    .neq("status", "settled");
+  const reservedHoldsUsd = holds.error
+    ? null
+    : (holds.data ?? []).reduce(
+        (total: number, row: { reserved_usd: number }) => total + Number(row.reserved_usd),
+        0,
+      );
+  const perTaskReserveUsd = Number(data.per_task_reserve_usd);
   const sum = (rows: { cost_usd: number }[] | null) =>
     (rows ?? []).reduce((total, row) => total + Number(row.cost_usd), 0);
   const providerSpendTodayUsd = sum(today.data);
@@ -87,6 +98,8 @@ export async function getCodeSafetyState(now = Date.now()): Promise<CodeSafetySt
     providerSpendTodayUsd,
     providerUsageAt,
     providerBudgetEnforced: data.provider_hard_cap_verified,
+    reservedHoldsUsd,
+    perTaskReserveUsd: Number.isFinite(perTaskReserveUsd) ? perTaskReserveUsd : null,
     usageSpike,
   };
 }

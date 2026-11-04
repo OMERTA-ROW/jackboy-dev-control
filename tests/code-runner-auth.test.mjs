@@ -204,6 +204,8 @@ beforeEach(() => {
     providerSpendTodayUsd: 0,
     providerUsageAt: new Date().toISOString(),
     providerBudgetEnforced: true,
+    reservedHoldsUsd: 0,
+    perTaskReserveUsd: 1,
     usageSpike: false,
   };
   globalThis.__codeSafety = safetyState;

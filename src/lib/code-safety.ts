@@ -26,6 +26,8 @@ export type CodeSafetyState = {
   providerSpendTodayUsd: number | null;
   providerUsageAt: string | null;
   providerBudgetEnforced: boolean;
+  reservedHoldsUsd: number | null;
+  perTaskReserveUsd: number | null;
   usageSpike: boolean;
 };
 
@@ -96,6 +98,23 @@ export function codeStartBlockReason(
     state.providerSpendTodayUsd >= state.dailySpendLimitUsd
   ) {
     return "CODE daily spending limit has been reached or is invalid.";
+  }
+  if (
+    state.reservedHoldsUsd === null ||
+    state.perTaskReserveUsd === null ||
+    !Number.isFinite(state.reservedHoldsUsd) ||
+    !Number.isFinite(state.perTaskReserveUsd) ||
+    state.reservedHoldsUsd < 0 ||
+    state.perTaskReserveUsd <= 0 ||
+    state.perTaskReserveUsd > CODE_DAILY_SPEND_LIMIT_USD
+  ) {
+    return "CODE is blocked because spend reservation data is unavailable.";
+  }
+  if (
+    state.providerSpendTodayUsd + state.reservedHoldsUsd + state.perTaskReserveUsd >
+    state.dailySpendLimitUsd
+  ) {
+    return "CODE is blocked because the task's worst-case spend reservation exceeds the remaining daily limit.";
   }
   return null;
 }
