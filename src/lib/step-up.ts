@@ -6,6 +6,9 @@ export const STEP_UP_ACTIONS = {
   revert_update: { label: "Revert a merged update", roles: ["owner"] },
   critical_change: { label: "Critical Code Foundry change (security/config/destructive files)", roles: ["owner"] },
   approve_integration: { label: "Approve a provider permission for one project", roles: ["owner"] },
+  autonomy_toggle: { label: "Turn on background work or Autopilot", roles: ["owner"] },
+  credential_change: { label: "Create or change a stored credential", roles: ["owner"] },
+  owner_settings: { label: "Change an owner-only setting", roles: ["owner"] },
   global_pause: { label: "Turn the Kill Switch / Global Pause on or off", roles: ["owner"] },
   production_deploy: { label: "Production deployment", roles: ["owner"] },
   privilege_escalation: { label: "Grant or raise a permission", roles: ["owner", "admin"] },
@@ -35,7 +38,10 @@ export function grantUsable(g: Grant | null, userId: string, action: string, tar
  * (merge, revert, deploy, critical changes, passkey removal, permission raises, package decisions) never qualify. */
 export const RECENT_VERIFICATION_MS = 10 * 60_000;
 const RECENT_TARGET_PREFIXES = ["repository_resync:", "github_repo:"] as const;
+/** Sensitive-but-routine owner actions share the short grace window after a real passkey check. */
+export const GRACE_ACTIONS = ["global_pause", "autonomy_toggle", "credential_change", "owner_settings"] as const;
 export function recentEligible(action: string, target: string): boolean {
+  if ((GRACE_ACTIONS as readonly string[]).includes(action)) return target.length > 0;
   return action === "approve_integration" && RECENT_TARGET_PREFIXES.some((p) => target.startsWith(p));
 }
 /** True when the user's latest ceremony-backed grant is recent and its passkey is still registered. */

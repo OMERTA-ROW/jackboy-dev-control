@@ -1,5 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
+import { useStepUp } from "@/lib/step-up-client";
 import { useCallback, useEffect, useState } from "react";
 import { PageHeader } from "@/components/AppShell";
 import { StatusPill, btn, field, primaryBtn } from "@/components/ProjectBits";
@@ -31,6 +32,7 @@ type D = Awaited<ReturnType<typeof getProjectDetail>>;
 function Detail() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
+  const stepUp = useStepUp();
   const load = useServerFn(getProjectDetail), scan = useServerFn(scanNow), fix = useServerFn(fixScan), auto = useServerFn(setProjectAutopilot);
   const save = useServerFn(saveProject), del = useServerFn(deleteProject), run = useServerFn(runNow);
   const [d, setD] = useState<D | null>(null);
@@ -71,7 +73,7 @@ function Detail() {
             {p.connect_error && <><dt className="text-muted-foreground">Problem</dt><dd className="text-destructive">{p.connect_error}</dd></>}
           </dl>
           <label className="mt-4 flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={p.autopilot} disabled={busy !== null} onChange={(e) => act("auto", async () => { await auto({ data: { id: p.id, on: e.target.checked } }); return `Autopilot ${e.target.checked ? "on" : "off"} for this project. The main Autopilot switch must also be on.`; })} />
+            <input type="checkbox" checked={p.autopilot} disabled={busy !== null} onChange={(e) => act("auto", async () => { const on = e.target.checked; await auto({ data: { id: p.id, on, grantId: on ? await stepUp("autonomy_toggle", `autopilot:${p.id}`) : undefined } }); return `Autopilot ${on ? "on" : "off"} for this project. The main Autopilot switch must also be on.`; })} />
             Autopilot for this project
           </label>
           <div className="mt-4 flex flex-wrap gap-2">

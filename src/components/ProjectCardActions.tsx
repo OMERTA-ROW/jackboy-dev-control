@@ -13,7 +13,7 @@ type P = { id: string; name: string; github_repo: string | null; repo_sync_statu
 export function ProjectResyncIcon({ p, onDone }: { p: P; onDone: (msg: string, gone: boolean) => void }) {
   const resync = useServerFn(resyncProject);
   const [busy, setBusy] = useState(false);
-  return <button type="button" className="rounded-md p-1 text-muted-foreground hover:text-electric disabled:opacity-50" title={`Recheck ${p.name}`} aria-label={`Recheck and reconnect ${p.name}`} disabled={busy}
+  return <button type="button" className="inline-flex min-h-9 min-w-9 items-center justify-center rounded-full p-1 text-muted-foreground hover:text-electric disabled:opacity-50" title={`Recheck ${p.name}`} aria-label={`Recheck and reconnect ${p.name}`} disabled={busy}
     onClick={async () => {
       setBusy(true);
       try {
@@ -31,7 +31,7 @@ export function ProjectConnectButtons({ p, gone, onRemoved }: { p: P; gone: bool
   const archive = useServerFn(archiveGoneProject);
   const [busy, setBusy] = useState(false);
   return <>
-    {!p.github_repo && <Link to="/project/$id" params={{ id: p.id }} hash="repo-conn" className={btn}>Connect</Link>}
+    <Link to="/project/$id" params={{ id: p.id }} hash="repo-conn" className={btn} aria-label={`${p.github_repo ? "Reconnect" : "Connect"} a GitHub repo for ${p.name}`}>{p.github_repo ? "Reconnect" : "Connect"}</Link>
     {(gone || p.repo_sync_status === "deleted") && <button type="button" className={btn} disabled={busy} onClick={async () => {
       if (!window.confirm(`Remove ${p.name} from your projects? GitHub reports its repo is gone. History and logs are kept, and you can restore it.`)) return;
       setBusy(true);

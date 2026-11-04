@@ -1,4 +1,5 @@
 import { useServerFn } from "@tanstack/react-start";
+import { useStepUp } from "@/lib/step-up-client";
 import { useEffect, useState } from "react";
 import { githubAppStatus, startGithubAppManifest } from "@/lib/github-app-setup.functions";
 import { PERMISSION_REASONS } from "@/lib/github-app-manifest";
@@ -8,6 +9,7 @@ type Status = Awaited<ReturnType<typeof githubAppStatus>>;
 
 export function GitHubAppPanel() {
   const status = useServerFn(githubAppStatus);
+  const stepUp = useStepUp();
   const start = useServerFn(startGithubAppManifest);
   const [s, setS] = useState<Status | null>(null);
   const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
@@ -23,7 +25,7 @@ export function GitHubAppPanel() {
   const create = async () => {
     setBusy(true); setErr("");
     try {
-      const r = await start({ data: { org: "OMERTA-ROW", origin: window.location.origin } });
+      const r = await start({ data: { org: "OMERTA-ROW", origin: window.location.origin, grantId: await stepUp("credential_change", "github_app:manifest") } });
       const f = document.createElement("form");
       f.method = "post"; f.action = r.action;
       const i = document.createElement("input"); i.type = "hidden"; i.name = "manifest"; i.value = r.manifest;

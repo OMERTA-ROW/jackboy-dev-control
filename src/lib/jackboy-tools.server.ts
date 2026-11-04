@@ -291,6 +291,7 @@ export function buildJackboyTools(userId: string) {
       inputSchema: z.object({ project: z.string(), on: z.boolean() }),
       execute: async ({ project, on }) => {
         const p = await findProject(project);
+        if (on) return { project: p.name, backgroundWork: false, blocked: "Turning background work on needs your passkey. Use the project's Connect page or the Connect list." };
         await supabaseAdmin.from("owner_projects").update({ dev_enabled: on }).eq("id", p.id);
         await log(userId, "projects.dev_enabled", { project: p.name, on, via: "chat" });
         return { project: p.name, backgroundWork: on };

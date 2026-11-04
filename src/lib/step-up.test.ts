@@ -47,6 +47,13 @@ describe("recent passkey verification", () => {
     expect(recentEligible("remove_passkey", "x")).toBe(false);
     expect(recentEligible("critical_change", "x")).toBe(false);
     expect(recentEligible("approve_integration", "github_actions:p1")).toBe(false);
+    // Owner-chosen grace window covers sensitive routine actions only.
+    expect(recentEligible("global_pause", "global_pause:on")).toBe(true);
+    expect(recentEligible("autonomy_toggle", "dev:p1")).toBe(true);
+    expect(recentEligible("credential_change", "github_app:manifest")).toBe(true);
+    expect(recentEligible("owner_settings", "x")).toBe(true);
+    expect(recentEligible("merge_update", "x")).toBe(false);
+    expect(recentEligible("privilege_escalation", "x")).toBe(false);
   });
   it("expires after 10 minutes and needs a still-registered key", () => {
     const now = Date.now();

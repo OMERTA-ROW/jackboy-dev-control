@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
+import { useStepUp } from "@/lib/step-up-client";
 import { useCallback, useEffect, useState } from "react";
 import { PageHeader } from "@/components/AppShell";
 import { Switch } from "@/components/ui/switch";
@@ -25,6 +26,7 @@ const CONNECT: Record<string, string> = { not_started: "Not connected", no_repo:
 const sev = (s: string) => (s === "high" ? "text-destructive" : s === "medium" ? "text-electric" : "text-muted-foreground");
 
 export function MasterSwitch({ compact = false }: { compact?: boolean }) {
+  const stepUp = useStepUp();
   const load = useServerFn(getAutopilot), setMaster = useServerFn(setMasterAutopilot);
   const [on, setOn] = useState<boolean | null>(null);
   useEffect(() => { load().then((r) => setOn(r.master)).catch(() => setOn(null)); }, [load]);
@@ -35,12 +37,13 @@ export function MasterSwitch({ compact = false }: { compact?: boolean }) {
         <div className="text-sm font-semibold">Autopilot {on ? <span className="text-success">ON</span> : <span className="text-muted-foreground">OFF</span>}</div>
         <p className="text-xs text-muted-foreground">{on ? "Fixes ship automatically for projects with Autopilot on, after checks pass." : "Every fix waits in the Update Queue for your approval."} <Link to="/autopilot" className="text-electric underline">Per-project switches</Link></p>
       </div>
-      <Switch aria-label="Master Autopilot" checked={on} onCheckedChange={async (v) => { setOn(v); try { await setMaster({ data: { on: v } }); } catch { setOn(!v); } }} />
+      <Switch aria-label="Master Autopilot" checked={on} onCheckedChange={async (v) => { setOn(v); try { await setMaster({ data: { on: v, grantId: v ? await stepUp("autonomy_toggle", "autopilot:master") : undefined } }); } catch { setOn(!v); } }} />
     </div>
   );
 }
 
 function AutopilotPage() {
+  const stepUp = useStepUp();
   const load = useServerFn(getAutopilot), setMaster = useServerFn(setMasterAutopilot), setProj = useServerFn(setProjectAutopilot);
   const scan = useServerFn(scanNow), fix = useServerFn(fixScan), connect = useServerFn(connectAndScan);
   const [d, setD] = useState<Data | null>(null);
@@ -66,7 +69,7 @@ function AutopilotPage() {
           <h2 className="text-lg font-semibold">Master Autopilot {d.master ? <span className="text-success">ON</span> : <span className="text-muted-foreground">OFF</span>}</h2>
           <p className="text-xs text-muted-foreground">Both this and a project's switch must be on for that project to ship automatically. Changes to sign-in, payments, secrets, permissions or the database, and repos without automated checks, always wait for you.</p>
         </div>
-        <Switch aria-label="Master Autopilot" checked={d.master} onCheckedChange={(v) => act("master", async () => { await setMaster({ data: { on: v } }); return `Master Autopilot ${v ? "on" : "off"}.`; })} />
+        <Switch aria-label="Master Autopilot" checked={d.master} onCheckedChange={(v) => act("master", async () => { await setMaster({ data: { on: v, grantId: v ? await stepUp("autonomy_toggle", "autopilot:master") : undefined } }); return `Master Autopilot ${v ? "on" : "off"}.`; })} />
       </div>
 
       <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-silver">Projects</h2>
@@ -82,7 +85,7 @@ function AutopilotPage() {
                     <div className="text-xs text-muted-foreground">{p.site_url ?? "No site URL"} · {CONNECT[p.connect_state] ?? p.connect_state}{p.connect_pr_url && <> · <a href={p.connect_pr_url} target="_blank" rel="noreferrer" className="text-electric underline">PR</a></>}</div>
                     {p.connect_error && <div className="text-xs text-destructive">{p.connect_error}</div>}
                   </div>
-                  <label className="flex items-center gap-2 text-xs">Autopilot <Switch aria-label={`Autopilot for ${p.name}`} checked={p.autopilot} onCheckedChange={(v) => act(p.id, async () => { await setProj({ data: { id: p.id, on: v } }); return `Autopilot ${v ? "on" : "off"} for ${p.name}.`; })} /></label>
+                  <label className="flex items-center gap-2 text-xs">Autopilot <Switch aria-label={`Autopilot for ${p.name}`} checked={p.autopilot} onCheckedChange={(v) => act(p.id, async () => { await setProj({ data: { id: p.id, on: v, grantId: v ? await stepUp("autonomy_toggle", `autopilot:${p.id}`) : undefined } }); return `Autopilot ${v ? "on" : "off"} for ${p.name}.`; })} /></label>
                 </div>
                 <div className="mt-2 text-xs text-muted-foreground">{last ? `Last scan ${new Date(last.created_at).toLocaleString()}: ${last.status === "done" ? `${last.findings.length} findings on ${last.pages_checked} pages` : last.status}` : "Not scanned yet"}</div>
                 <div className="mt-3 flex flex-wrap gap-2">

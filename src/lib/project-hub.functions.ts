@@ -111,9 +111,10 @@ export const setProjectPrefs = createServerFn({ method: "POST" }).middleware([re
 
 /** Owner explicitly activates/deactivates background development for ONE project. Audited. */
 export const setDevEnabled = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), enabled: z.boolean() }).parse(d))
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), enabled: z.boolean(), grantId: z.string().uuid().optional() }).parse(d))
   .handler(async ({ data, context }) => {
     await owner(context);
+    if (data.enabled) await (await import("./passkey.server")).consumeGrant(data.grantId, context.userId, "autonomy_toggle", `dev:${data.id}`);
     const { data: p, error } = await context.supabase.from("owner_projects").select("name").eq("id", data.id).single();
     if (error || !p) throw new Error("Project not found.");
     const { devPriority } = await import("./connect-select");

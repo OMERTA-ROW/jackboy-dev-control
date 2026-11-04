@@ -61,8 +61,9 @@ export const updateAgent = createServerFn({ method: "POST" })
 
 export const emergencyPause = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ paused: z.boolean() }).parse(d))
+  .inputValidator((d: unknown) => z.object({ paused: z.boolean(), grantId: z.string().uuid().optional() }).parse(d))
   .handler(async ({ data, context }) => {
+    await (await import("./passkey.server")).consumeGrant(data.grantId, context.userId, "global_pause", data.paused ? "global_pause:on" : "global_pause:off");
     const { data: p } = await context.supabase.from("automation_policy").select("*").eq("id", 1).single();
     if (!p) throw new Error("Policy missing.");
     const { error } = await context.supabase.rpc("set_automation_policy", { _tier: p.tier, _paused: data.paused, _max_files: p.max_files, _max_lines: p.max_lines });

@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
+import { useStepUp } from "@/lib/step-up-client";
 import { useCallback, useEffect, useState } from "react";
 import { PageHeader, GuidanceTip } from "@/components/AppShell";
 import { AUTONOMY, CAPABILITIES, OWNER_ONLY, autonomousCapabilities, type Autonomy, type AgentCategory } from "@/lib/guardian";
@@ -22,6 +23,7 @@ const btn = "rounded-md border border-border px-2.5 py-1 text-xs hover:border-el
 const input = "rounded-md border border-input bg-background px-3 py-2 text-sm";
 
 function Fleet() {
+  const stepUp = useStepUp();
   const load = useServerFn(getFleet);
   const f = { add: useServerFn(addAgent), upd: useServerFn(updateAgent), pause: useServerFn(emergencyPause), sim: useServerFn(simulateGuardian) };
   const [d, setD] = useState<Data | null>(null);
@@ -52,7 +54,7 @@ function Fleet() {
         <Stat label="Verified installed" value={d.agents.filter((a) => a.installed_verified).length} />
         <div className="flex flex-col justify-center gap-1">
           <span className={paused ? "font-semibold text-destructive" : "font-semibold text-success"}>{paused ? "EMERGENCY PAUSE ON" : "Running"}</span>
-          {owner && <button className="rounded-md bg-destructive px-3 py-1.5 text-xs font-medium text-destructive-foreground" onClick={() => act(f.pause({ data: { paused: !paused } }))}>{paused ? "Lift emergency pause" : "Emergency pause"}</button>}
+          {owner && <button className="rounded-md border border-border bg-secondary px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted" onClick={() => act(stepUp("global_pause", paused ? "global_pause:off" : "global_pause:on").then((grantId) => f.pause({ data: { paused: !paused, grantId } })))}>{paused ? "Lift emergency pause" : "Emergency pause"}</button>}
         </div>
       </section>
 
