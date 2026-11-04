@@ -76,7 +76,7 @@ export const migrationFiles = async () => {
     .sort()
     .filter((f) => {
       const name = f.slice(5);
-      if (seen.has(name)) return false;
+      if (name !== "migration.sql" && seen.has(name)) return false;
       seen.add(name);
       return true;
     });
