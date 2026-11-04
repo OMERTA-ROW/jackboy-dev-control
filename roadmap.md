@@ -1,9 +1,9 @@
 # Jackboy roadmap
 
 ## Frontend conversation workflow (Nov 4)
-- [ ] Center submitted messages with response space; preserve streaming/manual/history scroll.
-- [ ] Accessible message actions, stable timestamps, local forks and safe retry drafts; no execution on retry/branch.
-- [ ] Run regressions and authenticated desktop/mobile preview checks; no publish or safety-setting changes.
+- [x] Center submitted messages with response space; incremental-stream preview confirmed following, manual-scroll preservation and Jump to latest; older-history helper regressions preserved.
+- [x] Accessible message actions, stable timestamps, local forks and safe retry drafts; retry/branch produced no chat API calls. Immediate regeneration is blocked by the existing tool-enabled transport's lack of an enforced side-effect-free mode.
+- [x] 445 tests passed; automatic TypeScript/build checks passed; authenticated desktop/iPhone/iPad layouts, saved branch reload, keyboard-sized viewport and signed-out redirect checked. Browser streams were test fixtures, not paid model/CODE runs; real iOS keyboard/audio remains device-unverified. No publish or safety-setting changes.
 
 ## Feature-first queue and acting chat
 - [x] Suppress new standalone test proposals; preserve critical tests and require passing checks for the changed commit before new draft PR. Existing history retained.
