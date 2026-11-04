@@ -3,7 +3,7 @@ import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, isToolUIPart, type UIMessage } from "ai";
 import { useServerFn } from "@tanstack/react-start";
 import { Component, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ArrowLeft, ArrowUp, Check, ChevronDown, ChevronUp, Copy, ExternalLink, Hexagon, History, SlidersHorizontal, Square, SquarePen, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, Check, ThumbsDown, ThumbsUp, Volume2, ChevronDown, ChevronUp, Copy, ExternalLink, Hexagon, History, SlidersHorizontal, Square, SquarePen, Trash2 } from "lucide-react";
 import { getVoiceChatStatus, synthesizeJackboy } from "@/lib/passport.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { MessageResponse } from "@/components/ai-elements/message";
@@ -12,6 +12,7 @@ import { useChatVoice, VoiceButtons } from "@/components/ChatVoice";
 import { LiveCallBar, StartVoiceButton, useLiveCall, type LiveRow } from "@/components/LiveVoiceCall";
 import { CodeTasks, useCodeTasks } from "@/components/CodeTasks";
 import { VoiceOrb } from "@/components/VoiceOrb";
+import { feedbackKey, followTarget, isNearBottom, nextFollow, parseFeedback, speakableText, toggleFeedback, type Feedback } from "@/lib/chat-scroll";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { safeEvidenceUrl, type EvidenceLink } from "@/lib/chat-action";
 import { CREDIT_HELP_URL } from "@/lib/work-policy";
@@ -291,7 +292,7 @@ function ChatPage() {
         </SheetContent>
       </Sheet>
 
-      <main className="mx-auto w-full min-w-0 max-w-3xl flex-1 px-4 pb-6 select-text" aria-label={view === "code" ? "CODE conversation" : "Chat conversation"} aria-busy={busy}>
+      <main ref={convo} style={{ overflowAnchor: "none" }} className="mx-auto w-full min-w-0 max-w-3xl flex-1 px-4 pb-6 select-text" aria-label={view === "code" ? "CODE conversation" : "Chat conversation"} aria-busy={busy}>
         {live.live && <div className="flex justify-center py-6"><VoiceOrb mode={live.mode} level={live.level} size={96} onTap={() => live.call.setMuted(!live.call.muted)} actionLabel={live.call.muted ? "Unmute microphone" : "Mute microphone"} /></div>}
         {banner && <p role="status" className="mb-4 text-sm text-muted-foreground">{banner.text} <button className="ml-2 underline" onClick={() => setBanner(null)}>Dismiss</button></p>}
         {messages.length === 0 && liveRows.length === 0 && !(view === "code" && code.cards.length) ? (
@@ -312,7 +313,7 @@ function ChatPage() {
                 {collapsed ? <><ChevronDown className="size-3.5" />Show {hidden} earlier messages</> : <><ChevronUp className="size-3.5" />Hide earlier messages</>}
               </button>
             </li>}
-            {shown.map((m) => <MessageBoundary key={m.id} fallback={textOf(m)}><Bubble m={m} streaming={busy && m === tail && m.role === "assistant"} /></MessageBoundary>)}
+            {shown.map((m) => <MessageBoundary key={m.id} fallback={textOf(m)}><Bubble m={m} streaming={busy && m === tail && m.role === "assistant"} rating={feedback[m.id]} onRate={(v) => rate(m.id, v)} /></MessageBoundary>)}
             {liveRows.map((r, i) => <li key={`live-${i}`} className={r.role === "user" ? "self-end max-w-[85%] rounded-3xl bg-muted px-4 py-2.5 text-[15px]" : "text-[15px] leading-relaxed"}>{r.text}{links(r.evidence).map((l) => <a key={l.url} href={l.url} className="mr-3 text-xs text-primary underline">{l.label}</a>)}</li>)}
           </ol>
         )}
@@ -322,7 +323,9 @@ function ChatPage() {
       </main>
 
       <footer className="sticky bottom-0 bg-gradient-to-t from-background via-background to-background/0 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-4 sm:px-6">
-        <div className="mx-auto max-w-3xl">
+        <div className="relative mx-auto max-w-3xl">
+          {!atBottom && <button type="button" onClick={jumpToLatest} aria-label="Jump to latest message" title="Jump to latest"
+            className="absolute -top-10 left-1/2 inline-flex size-9 -translate-x-1/2 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow hover:text-electric focus-visible:outline-2 focus-visible:outline-electric"><ArrowDown className="size-4" /></button>}
           <LiveCallBar v={live} />
           {(error || voice.error || jackboyVoice.error) && <p role="alert" className="mb-2 px-2 text-xs text-destructive">{error ?? voice.error ?? jackboyVoice.error}</p>}
           {error && /credits|402/i.test(error) && <a href={CREDIT_HELP_URL} target="_blank" rel="noopener noreferrer" className="block px-2 text-xs text-primary underline">Paused: out of credits — open credit setup instructions</a>}
@@ -348,26 +351,54 @@ function ChatPage() {
 const links = (v: unknown): EvidenceLink[] => Array.isArray(v) ? v.filter((l): l is EvidenceLink => Boolean(l) && typeof (l as EvidenceLink).url === "string" && Boolean(safeEvidenceUrl((l as EvidenceLink).url))) : [];
 const textOf = (m: UIMessage) => m.parts.filter((x) => x.type === "text").map((x) => (x as { text: string }).text).join(" ");
 
-function Bubble({ m, streaming }: { m: UIMessage; streaming: boolean }) {
+function Bubble({ m, streaming, rating, onRate }: { m: UIMessage; streaming: boolean; rating?: Feedback | undefined; onRate?: (v: Feedback) => void }) {
   if (m.role === "user") return <li className="self-end max-w-[85%] min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere] rounded-3xl bg-muted px-4 py-2.5 text-[15px]">{textOf(m).replace(/^🎙\s*/, "")}</li>;
   const words = textOf(m);
   const retainedLinks = links((m.metadata as { evidence?: unknown } | undefined)?.evidence);
   return (
-    <li className="group min-w-0 max-w-full text-[15px] leading-relaxed [overflow-wrap:anywhere] [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:block [&_table]:overflow-x-auto">
+    <li className="group min-w-0 max-w-full text-[15px] leading-relaxed [overflow-wrap:anywhere] [&_pre]:max-h-[60vh] [&_pre]:max-w-full [&_pre]:overflow-auto [&_table]:block [&_table]:overflow-x-auto">
       {m.parts.map((part, i) => {
         if (part.type === "text") return <MessageResponse key={i} components={{ a: ({ children }) => <span>{children}</span> }}>{part.text}</MessageResponse>;
         if (isToolUIPart(part)) return <ToolLine key={i} name={part.type === "dynamic-tool" ? part.toolName : part.type.slice(5)} state={part.state} output={part.output} errorText={part.errorText} />;
         return null;
       })}
-      {!streaming && words.trim() && <CopyButton text={words} />}
+      {/* Fixed-height action row only after streaming ends, so tokens never shift it. */}
+      {!streaming && words.trim() && <div role="group" aria-label="Reply actions" className="mt-1 flex h-8 items-center gap-0.5">
+        <CopyButton text={words} />
+        <SpeakButton text={words} />
+        {onRate && <>
+          <button type="button" onClick={() => onRate("up")} aria-pressed={rating === "up"} aria-label="Good reply" title="Good reply" className={`${actBtn} ${rating === "up" ? "text-electric opacity-100" : ""}`}><ThumbsUp className="size-3.5" fill={rating === "up" ? "currentColor" : "none"} /></button>
+          <button type="button" onClick={() => onRate("down")} aria-pressed={rating === "down"} aria-label="Bad reply" title="Bad reply" className={`${actBtn} ${rating === "down" ? "text-electric opacity-100" : ""}`}><ThumbsDown className="size-3.5" fill={rating === "down" ? "currentColor" : "none"} /></button>
+        </>}
+      </div>}
       {retainedLinks.map((l) => <a key={l.url} href={l.url} className="mr-3 text-xs text-primary underline">{l.label}</a>)}
     </li>
   );
 }
 
+const actBtn = "inline-flex size-8 items-center justify-center rounded-full text-muted-foreground opacity-70 transition-colors hover:text-electric hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-electric";
+
 function CopyButton({ text }: { text: string }) {
   const [done, setDone] = useState(false);
-  return <button type="button" onClick={() => void navigator.clipboard.writeText(text).then(() => { setDone(true); setTimeout(() => setDone(false), 1500); })} className="mt-1 inline-flex min-h-8 items-center gap-1 text-xs text-muted-foreground opacity-70 hover:text-foreground hover:opacity-100" aria-label="Copy reply">{done ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}</button>;
+  return <button type="button" onClick={() => void navigator.clipboard.writeText(text).then(() => { setDone(true); setTimeout(() => setDone(false), 1500); })} className={actBtn} aria-label="Copy reply" title="Copy">{done ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}</button>;
+}
+
+/** Speak-back: reads this reply aloud with the device voice. Output only — it never uses the microphone. */
+function SpeakButton({ text }: { text: string }) {
+  const [playing, setPlaying] = useState(false);
+  const [supported, setSupported] = useState(true);
+  useEffect(() => { setSupported(typeof window !== "undefined" && "speechSynthesis" in window); }, []);
+  useEffect(() => () => { if (playing) window.speechSynthesis.cancel(); }, [playing]);
+  if (!supported) return <span className="inline-flex size-8 items-center justify-center text-muted-foreground/40" title="Reading aloud isn't supported in this browser" aria-label="Reading aloud unavailable in this browser" role="img"><Volume2 className="size-3.5" /></span>;
+  const toggle = () => {
+    const s = window.speechSynthesis;
+    if (playing) { s.cancel(); setPlaying(false); return; }
+    s.cancel();
+    const u = new SpeechSynthesisUtterance(speakableText(text));
+    u.onend = u.onerror = () => setPlaying(false);
+    setPlaying(true); s.speak(u);
+  };
+  return <button type="button" onClick={toggle} aria-pressed={playing} aria-label={playing ? "Stop reading aloud" : "Read reply aloud"} title={playing ? "Stop" : "Read aloud"} className={`${actBtn} ${playing ? "text-electric opacity-100" : ""}`}>{playing ? <Square className="size-3.5" /> : <Volume2 className="size-3.5" />}</button>;
 }
 
 /** Plays typed replies in the ElevenLabs "Jackboy" voice when configured; stoppable so the owner can interrupt. */
