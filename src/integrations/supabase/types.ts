@@ -562,6 +562,62 @@ export type Database = {
           },
         ]
       }
+      code_provider_calls: {
+        Row: {
+          actual_usd: number | null
+          call_key: string
+          ceiling_usd: number
+          created_at: string
+          dispatched_at: string | null
+          finished_at: string | null
+          id: string
+          model: string
+          overrun: boolean
+          provider_request_id: string | null
+          request_id: string
+          run_id: number
+          status: string
+        }
+        Insert: {
+          actual_usd?: number | null
+          call_key: string
+          ceiling_usd: number
+          created_at?: string
+          dispatched_at?: string | null
+          finished_at?: string | null
+          id?: string
+          model: string
+          overrun?: boolean
+          provider_request_id?: string | null
+          request_id: string
+          run_id: number
+          status?: string
+        }
+        Update: {
+          actual_usd?: number | null
+          call_key?: string
+          ceiling_usd?: number
+          created_at?: string
+          dispatched_at?: string | null
+          finished_at?: string | null
+          id?: string
+          model?: string
+          overrun?: boolean
+          provider_request_id?: string | null
+          request_id?: string
+          run_id?: number
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "code_provider_calls_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "action_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       code_provider_cost_day_reports: {
         Row: {
           bucket_count: number
@@ -2581,9 +2637,32 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      abort_code_provider_call: {
+        Args: { p_call_id: string; p_reason: string }
+        Returns: undefined
+      }
       accept_invitation: {
         Args: never
         Returns: Database["public"]["Enums"]["app_role"]
+      }
+      admit_code_provider_call: {
+        Args: {
+          p_call_key: string
+          p_ceiling_usd: number
+          p_model: string
+          p_request_id: string
+          p_run_id: number
+        }
+        Returns: string
+      }
+      apply_code_provider_call_cost: {
+        Args: {
+          p_actual_usd: number
+          p_call_id: string
+          p_provider_request_id: string
+          p_source: string
+        }
+        Returns: boolean
       }
       apply_project_repository_resync: {
         Args: { actor_id: string; changes: Json; review_id: string }
@@ -2636,12 +2715,20 @@ export type Database = {
         }
         Returns: boolean
       }
+      code_provider_call_holds: {
+        Args: { p_request_id: string }
+        Returns: number
+      }
       create_invitation: {
         Args: { _email: string; _role: Database["public"]["Enums"]["app_role"] }
         Returns: string
       }
       decide_proposal: {
         Args: { _approve: boolean; _id: string }
+        Returns: undefined
+      }
+      dispatch_code_provider_call: {
+        Args: { p_call_id: string }
         Returns: undefined
       }
       engage_code_kill_switch: {
@@ -2668,7 +2755,15 @@ export type Database = {
         Returns: boolean
       }
       is_manager: { Args: { _user_id: string }; Returns: boolean }
+      mark_code_provider_call_unknown: {
+        Args: { p_call_id: string; p_reason: string }
+        Returns: undefined
+      }
       my_role: { Args: never; Returns: Database["public"]["Enums"]["app_role"] }
+      reconcile_code_provider_day: {
+        Args: { p_actor: string; p_day: string; p_tolerance_usd?: number }
+        Returns: Json
+      }
       reconcile_code_spend_reservations: {
         Args: { p_actor: string }
         Returns: number
@@ -2700,6 +2795,15 @@ export type Database = {
         Returns: Json
       }
       repository_reference_inventory: { Args: never; Returns: Json }
+      resolve_code_provider_call: {
+        Args: {
+          p_actor: string
+          p_actual_usd: number
+          p_call_id: string
+          p_reason: string
+        }
+        Returns: boolean
+      }
       revoke_invitation: { Args: { _id: string }; Returns: undefined }
       set_automation_policy: {
         Args: {
@@ -2713,6 +2817,14 @@ export type Database = {
       set_jax_enrollment: {
         Args: { _enroll: boolean; _id: string; _purpose: string }
         Returns: undefined
+      }
+      settle_code_provider_call: {
+        Args: {
+          p_actual_usd: number
+          p_call_id: string
+          p_provider_request_id: string
+        }
+        Returns: boolean
       }
       write_audit: {
         Args: { _action: string; _detail: Json; _outcome: string }

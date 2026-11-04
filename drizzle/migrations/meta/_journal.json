@@ -302,6 +302,13 @@
       "when": 1793784470753,
       "tag": "0042_code_spend_hold_release",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1793784539774,
+      "tag": "0043_code_provider_gateway",
+      "breakpoints": true
     }
   ]
 }
