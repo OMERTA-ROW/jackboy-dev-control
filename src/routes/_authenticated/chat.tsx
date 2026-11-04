@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, type ErrorComponentProps } from "@tanstack/react-router";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, isToolUIPart, type UIMessage } from "ai";
 import { useServerFn } from "@tanstack/react-start";
@@ -35,11 +35,11 @@ export const Route = createFileRoute("/_authenticated/chat")({
 });
 
 /** Page-level recovery: saved conversations live in this browser, so reloading the chat keeps them. */
-function ChatError({ error, reset }: { error: Error; reset: () => void }) {
+function ChatError({ error, reset }: ErrorComponentProps) {
   return (
     <div role="alert" className="flex min-h-dvh flex-col items-center justify-center gap-3 bg-background px-6 text-center">
       <p className="text-lg font-semibold text-silver">The chat hit a problem</p>
-      <p className="max-w-sm text-sm text-muted-foreground">Your saved conversations are safe. {error.message.slice(0, 160)}</p>
+      <p className="max-w-sm text-sm text-muted-foreground">Your saved conversations are safe. {String(error?.message ?? "").slice(0, 160)}</p>
       <div className="flex gap-2">
         <button type="button" onClick={reset} className="rounded-full border border-border px-4 py-2 text-sm hover:border-silver">Try again</button>
         <button type="button" onClick={() => window.location.reload()} className="rounded-full border border-border px-4 py-2 text-sm hover:border-silver">Reload chat</button>
