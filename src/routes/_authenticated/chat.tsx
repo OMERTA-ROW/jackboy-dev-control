@@ -303,7 +303,7 @@ function ChatPage() {
   const historyAnchor = useRef<{ top: number; height: number } | null>(null);
   const toggleHistory = () => { historyAnchor.current = { top: window.scrollY, height: document.documentElement.scrollHeight }; followRef.current.follow = false; setCollapsed(!collapsed); };
   useLayoutEffect(() => { const a = historyAnchor.current; if (!a) return; historyAnchor.current = null; const top = preservedScrollTop(a.top, a.height, document.documentElement.scrollHeight); window.scrollTo({ top, behavior: "instant" as ScrollBehavior }); followRef.current.lastTop = top; }, [collapsed]);
-  useEffect(() => { textarea.current?.focus(); }, [activeId, view, status]);
+  useEffect(() => { textarea.current?.focus({ preventScroll: true }); }, [activeId, view]);
 
   const activity = deriveActivity({
     error: Boolean(error || voice.error || jackboyVoice.error || live.call.error),

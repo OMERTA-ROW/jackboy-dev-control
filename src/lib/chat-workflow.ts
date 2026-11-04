@@ -1,4 +1,4 @@
-import type { ChatMode, Conversation, StoredMessage } from "./chat-history";
+import { titleFrom, type ChatMode, type Conversation, type StoredMessage } from "./chat-history";
 
 export function messageTime(message: StoredMessage): number | null {
   const value = (message.metadata as { createdAt?: unknown } | undefined)?.createdAt;
@@ -19,9 +19,7 @@ export function forkConversation(messages: StoredMessage[], throughId: string, m
     }),
     metadata: { ...(messageTime(m) ? { createdAt: messageTime(m) } : {}), historical: true },
   }));
-  const first = context.find((m) => m.role === "user");
-  const text = first?.parts.map((p) => (p as { text?: string }).text ?? "").join(" ") ?? "Conversation";
-  return { id, mode, title: `Branch · ${text.slice(0, 45)}`, updatedAt: now, messages: context };
+  return { id, mode, title: `Branch · ${titleFrom(context).slice(0, 45)}`, updatedAt: now, messages: context };
 }
 
 /** Retry restores the same input for review, never sends to the tool-enabled transport. */
