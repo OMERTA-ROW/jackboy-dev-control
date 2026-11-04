@@ -19,7 +19,7 @@ const fingerprint = async (db) =>
   ).rows;
 
 test(
-  "an empty database replays the full chain 0001..0041 (fresh install)",
+  "an empty database replays the full chain 0001..0042 (fresh install)",
   { skip: skipNoPg },
   async () => {
     const db = await openDb();
@@ -27,7 +27,7 @@ test(
       await db.exec(supabaseStubs);
       const applied = await replay(db);
       assert.ok(applied.includes(baseline));
-      assert.equal(applied.at(-1), "0041_code_spend_hold_release.sql");
+      assert.equal(applied.at(-1), "0042_code_provider_gateway.sql");
       assert.ok(applied.indexOf(baseline) > applied.indexOf("0030_omni_sessions.sql"));
       assert.ok(
         applied.indexOf(baseline) < applied.indexOf("0031_repository_resync_drift_removals.sql"),
@@ -184,13 +184,16 @@ test(
 );
 
 test(
-  "rollback of 0041 then 0040 on the full chain restores 0037 and the chain re-applies",
+  "rollback of 0042, 0041 then 0040 on the full chain restores 0037 and the chain re-applies",
   { skip: skipNoPg },
   async () => {
     const db = await openDb();
     try {
       await db.exec(supabaseStubs);
       await replay(db);
+      await db.exec(
+        await readFile("drizzle/rollbacks/0042_code_provider_gateway.down.sql", "utf8"),
+      );
       await db.exec(
         await readFile("drizzle/rollbacks/0041_code_spend_hold_release.down.sql", "utf8"),
       );

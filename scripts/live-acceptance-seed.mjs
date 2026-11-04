@@ -34,11 +34,13 @@ const GITHUB_ONLY_BANNER =
   "# GITHUB-ONLY PLUMBING MODE. The Jackboy claim/finish calls are removed. This is NOT the production gate.\n";
 
 export function deriveWorkflow(source, { githubOnly = false } = {}) {
-  if (!CODEX_STEP.test(source) || !BUN_STEPS.test(source)) {
+  const gatewayStep = stepBlock("Bind gateway access to this approved request");
+  if (!CODEX_STEP.test(source) || !BUN_STEPS.test(source) || !gatewayStep.test(source)) {
     throw new Error("code.yml changed: update the acceptance seed derivation and review it.");
   }
   let out = source
     .replace(CODEX_STEP, DETERMINISTIC_STEP)
+    .replace(gatewayStep, "")
     .replace(
       BUN_STEPS,
       '      - name: Record base revision\n        run: git rev-parse HEAD > "$RUNNER_TEMP/code-base"\n',

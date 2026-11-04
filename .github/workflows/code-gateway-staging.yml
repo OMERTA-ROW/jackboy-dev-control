@@ -1,0 +1,63 @@
+name: CODE gateway staging (isolated)
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  gateway:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: "1.4.4"
+      - run: bun install --frozen-lockfile
+      - name: Prepare disposable database tools
+        run: |
+          set -euo pipefail
+          test -x "$(pg_config --bindir)/initdb"
+          npm install --prefix "$RUNNER_TEMP/gateway-pg-driver" pg@8.16.3 --ignore-scripts --no-audit --no-fund
+          mkdir -p "$RUNNER_TEMP/gateway-pg" "$RUNNER_TEMP/gateway-evidence"
+      - name: Real PostgreSQL and mocked gateway tests without outbound network
+        run: |
+          set -euo pipefail
+          export PG_BIN="$(pg_config --bindir)"
+          export PGROOT="$RUNNER_TEMP/gateway-pg"
+          export STAGING_PG_MODULE_FROM="$RUNNER_TEMP/gateway-pg-driver/package.json"
+          export STAGING_PG_URL=postgres://stg@127.0.0.1:54329/postgres
+          {
+            date -u +%FT%TZ
+            git rev-parse HEAD
+            node --version
+            bun --version
+            sudo --preserve-env=PATH,PG_BIN,PGROOT,STAGING_PG_MODULE_FROM,STAGING_PG_URL \
+              unshare -n bash -euo pipefail -c '
+                ip link set lo up
+                if curl --noproxy "*" -sS -m 3 https://api.openai.com/v1/models; then
+                  echo "Paid-provider egress reachable; refusing tests." >&2
+                  exit 1
+                fi
+                runuser -u runner -- "$PG_BIN/initdb" -D "$PGROOT/data" -U stg --auth=trust
+                trap '\''runuser -u runner -- "$PG_BIN/pg_ctl" -D "$PGROOT/data" -m fast stop'\'' EXIT
+                runuser -u runner -- "$PG_BIN/pg_ctl" -D "$PGROOT/data" -l "$PGROOT/postgres.log" \
+                  -o "-h 127.0.0.1 -p 54329 -k $PGROOT" -w start
+                runuser -u runner -- node --test --test-concurrency=1 \
+                  tests/code-migration-chain.test.mjs tests/code-spend-staging-pg.test.mjs \
+                  tests/code-spend-hold-release.test.mjs tests/code-provider-gateway-pg.test.mjs \
+                  tests/code-workflow.test.mjs tests/code-gateway-isolation.test.mjs
+                runuser -u runner -- bunx vitest run src/lib/code-gateway.test.ts src/lib/code-gateway.server.test.ts
+              '
+            date -u +%FT%TZ
+          } 2>&1 | tee "$RUNNER_TEMP/gateway-evidence/results.txt"
+      - name: Preserve verification evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: code-gateway-staging-${{ github.sha }}
+          path: ${{ runner.temp }}/gateway-evidence/
+          if-no-files-found: error
+          retention-days: 14

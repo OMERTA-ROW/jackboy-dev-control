@@ -2,9 +2,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
+import { dropClosedDatabase } from "./helpers/staging-pg.mjs";
 
 // Real-PostgreSQL staging checks. Skipped unless STAGING_PG_URL points at a LOOPBACK disposable
-// server. Each test creates and force-drops its own throwaway database; synthetic data only; no
+// server. Each test creates and drops its own throwaway database; synthetic data only; no
 // provider, GitHub or production system is reachable. The 0037 hard-cap CHECK is dropped in the
 // throwaway database ONLY, because the real schema can never admit a task by design.
 const url = process.env.STAGING_PG_URL;
@@ -59,7 +60,7 @@ async function open() {
     pool,
     close: async () => {
       await pool.end();
-      await admin.query(`DROP DATABASE ${name} WITH (FORCE)`);
+      await dropClosedDatabase(admin, name);
     },
   };
 }

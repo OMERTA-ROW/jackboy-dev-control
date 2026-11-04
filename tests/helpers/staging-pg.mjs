@@ -2,7 +2,7 @@ import { readFile, readdir } from "node:fs/promises";
 import { createRequire } from "node:module";
 
 // Disposable-PostgreSQL helper. Only ever connects to a LOOPBACK server named by STAGING_PG_URL and
-// creates/force-drops its own throwaway databases. Synthetic data only; no production credentials.
+// creates/drops its own throwaway databases. Synthetic data only; no production credentials.
 export const stagingUrl = process.env.STAGING_PG_URL;
 export const skipNoPg = stagingUrl ? false : "STAGING_PG_URL not set (no disposable PostgreSQL)";
 
@@ -26,9 +26,28 @@ export async function openDb({ connections = 8 } = {}) {
     exec: (sql) => pool.query(sql),
     close: async () => {
       await pool.end();
-      await admin.query(`DROP DATABASE ${name} WITH (FORCE)`);
+      await dropClosedDatabase(admin, name);
     },
   };
+}
+
+export async function dropClosedDatabase(connection, name) {
+  if (!/^(chain|spend|stg)_\d+_[a-z0-9]+$/.test(name)) {
+    throw new Error("Refusing to drop a non-test database");
+  }
+  // Pool.end() can finish before the server has processed every socket's Terminate.
+  // FORCE races those closing clients and can surface spurious FATAL errors in tests.
+  const deadline = Date.now() + 5000;
+  while (true) {
+    const sessions = await connection.query(
+      "SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname=$1 AND backend_type='client backend'",
+      [name],
+    );
+    if (sessions.rows[0].n === 0) break;
+    if (Date.now() >= deadline) throw new Error(`Test database ${name} still has open clients`);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  await connection.query(`DROP DATABASE ${name}`);
 }
 
 // Minimal stand-ins for the Supabase-managed objects the migrations reference.

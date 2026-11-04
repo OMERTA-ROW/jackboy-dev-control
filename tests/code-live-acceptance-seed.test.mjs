@@ -32,6 +32,7 @@ test("derived workflow keeps every production gate and removes only the paid mod
   }
   assert.equal(/secrets\./.test(derived), false, "no secret may be referenced");
   assert.equal(/openai|codex-action|setup-bun|\bbun /i.test(derived), false);
+  assert.doesNotMatch(derived, /steps\.gateway|\/code\/provider|name: Bind gateway/);
   assert.equal(/gh pr merge|--auto|workflow_run|schedule:|cron:/.test(derived), false);
   assert.match(derived, /workflow_dispatch:/);
   assert.equal(derived.match(/git .*push /g)?.length, 1);
@@ -39,6 +40,13 @@ test("derived workflow keeps every production gate and removes only the paid mod
 });
 
 test("derivation fails closed when production code.yml drifts", () => {
+  assert.throws(
+    () =>
+      deriveWorkflow(
+        prod.replace("Bind gateway access to this approved request", "Unknown gateway"),
+      ),
+    /code\.yml changed/,
+  );
   assert.throws(
     () => deriveWorkflow(prod.replace("Codex prepares the scoped change", "Something else")),
     /code\.yml changed/,

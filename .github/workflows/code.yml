@@ -83,10 +83,40 @@ jobs:
         run: |
           bun install --frozen-lockfile
           git rev-parse HEAD > "$RUNNER_TEMP/code-base"
+      - name: Bind gateway access to this approved request
+        id: gateway
+        env:
+          CODE_REQUEST: ${{ inputs.request_id }}
+          CODE_RUNNER_AUTH_URL: ${{ vars.CODE_RUNNER_AUTH_URL }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { appendFileSync } from 'node:fs';
+          const origin = new URL(process.env.CODE_RUNNER_AUTH_URL);
+          if (origin.protocol !== 'https:' || origin.username || origin.password || origin.pathname !== '/' || origin.search || origin.hash) {
+            throw new Error('CODE gateway must be a clean HTTPS origin.');
+          }
+          if (!/^[0-9a-f-]{36}$/i.test(process.env.CODE_REQUEST)) throw new Error('Invalid CODE request.');
+          const tokenUrl = new URL(process.env.ACTIONS_ID_TOKEN_REQUEST_URL);
+          tokenUrl.searchParams.set('audience', 'jackboy-code-runner');
+          const response = await fetch(tokenUrl, {
+            headers: { Authorization: ['Bearer', process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN].join(' ') },
+            redirect: 'error',
+            signal: AbortSignal.timeout(10000),
+          });
+          if (!response.ok) throw new Error('GitHub Actions identity unavailable.');
+          const { value: token } = await response.json();
+          if (typeof token !== 'string' || !/^[\w.-]+$/.test(token)) throw new Error('Invalid GitHub Actions identity.');
+          console.log(`::add-mask::${token}`);
+          const endpoint = new URL('/api/public/code/provider/v1/responses', origin);
+          endpoint.searchParams.set('request_id', process.env.CODE_REQUEST);
+          appendFileSync(process.env.GITHUB_OUTPUT, `token=${token}\nendpoint=${endpoint.href}\n`);
+          NODE
       - name: Codex prepares the scoped change
         uses: openai/codex-action@13e9c17417b29e9a276f73ec6ed7fb574137d3c3
         with:
-          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          # This input carries only the short-lived Actions identity, never a provider key.
+          openai-api-key: ${{ steps.gateway.outputs.token }}
+          responses-api-endpoint: ${{ steps.gateway.outputs.endpoint }}
           sandbox: workspace-write
           safety-strategy: drop-sudo
           output-file: ${{ runner.temp }}/code-report.md

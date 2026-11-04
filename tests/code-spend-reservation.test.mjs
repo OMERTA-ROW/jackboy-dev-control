@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { PGlite } from "@electric-sql/pglite";
 import { createRequire } from "node:module";
+import { dropClosedDatabase } from "./helpers/staging-pg.mjs";
 
 // Isolated in-memory PGlite databases with synthetic data only. Nothing here reaches a provider,
 // GitHub, or any real database. Tests that exercise the admission path drop the 0037 hard-cap CHECK
@@ -30,7 +31,7 @@ async function openDb() {
     exec: (sql) => pool.query(sql),
     close: async () => {
       await pool.end();
-      await admin.query(`DROP DATABASE ${name} WITH (FORCE)`);
+      await dropClosedDatabase(admin, name);
     },
   };
 }
