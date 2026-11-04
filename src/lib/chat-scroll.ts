@@ -57,3 +57,23 @@ export function parseFeedback(raw: string | null): Record<string, Feedback> {
     return Object.fromEntries(Object.entries(v).filter(([, x]) => x === "up" || x === "down")) as Record<string, Feedback>;
   } catch { return {}; }
 }
+
+/** Composer grows with its content up to ~40% of the visible viewport (keyboard-aware), clamped 120–320px. */
+export function composerHeight(contentHeight: number, viewportHeight: number): { height: number; overflow: boolean } {
+  const max = Math.round(Math.min(320, Math.max(120, viewportHeight * 0.4)));
+  return { height: Math.min(contentHeight, max), overflow: contentHeight > max };
+}
+
+/** When older history is inserted above, keep the same message under the reader's eyes. */
+export function preservedScrollTop(prevTop: number, prevHeight: number, nextHeight: number): number {
+  return Math.max(0, prevTop + (nextHeight - prevHeight));
+}
+
+/** Coalesces many calls in one frame into a single callback (streamed tokens, resize bursts). */
+export function frameBatcher(fn: () => void, raf: (cb: () => void) => number = (cb) => requestAnimationFrame(cb), caf: (id: number) => void = (id) => cancelAnimationFrame(id)) {
+  let id: number | null = null;
+  return {
+    schedule() { if (id === null) id = raf(() => { id = null; fn(); }); },
+    cancel() { if (id !== null) { caf(id); id = null; } },
+  };
+}
