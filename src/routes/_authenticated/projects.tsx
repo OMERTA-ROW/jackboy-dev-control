@@ -173,7 +173,7 @@ function Projects() {
                       </span>
                     </label>
                     <div className="flex flex-wrap items-center gap-2">
-                      <StatusPill status={projectStatus(p, last.get(p.id))} />
+                      <span className="w-full sm:w-auto"><StatusPill status={projectStatus(p, last.get(p.id))} /></span>
                       {!p.site_url && <AddSiteButton p={p} onSaved={(m) => { setNote(m); void refresh(); }} />}
                       <ProjectConnectButtons p={p} gone={gone.has(p.id)} onRemoved={(m) => { setNote(m); void refresh(); }} />
                       <Link to="/project/$id" params={{ id: p.id }} className={btn}>Manage</Link>
