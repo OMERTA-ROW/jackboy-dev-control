@@ -11,7 +11,7 @@ import { getProjectHub } from "@/lib/project-hub.functions";
 import { latestScans, projectStatus } from "@/lib/project-hub";
 import { groupProposals, optimisticApprove } from "@/lib/approval-state";
 import { setProposalStatus } from "@/lib/update-writer.functions";
-import { ProjectConnectButtons, ProjectResyncIcon } from "@/components/ProjectCardActions";
+import { AddSiteButton, ProjectConnectButtons, ProjectResyncIcon } from "@/components/ProjectCardActions";
 import { WorkerSafetyBar } from "@/components/WorkerSafetyBar";
 
 export const Route = createFileRoute("/_authenticated/")({
@@ -107,15 +107,16 @@ function Home() {
                 <li key={p.id} className="panel flex flex-col gap-3 p-4">
                   <div className="flex items-start justify-between gap-2">
                     <Link to="/project/$id" params={{ id: p.id }} className="font-semibold hover:text-electric">{p.name}</Link>
-                    <span className="flex items-center gap-1"><StatusPill status={projectStatus(p, last.get(p.id))} /><ProjectResyncIcon p={p} onDone={(m, g) => { setMsg(m); if (g) setGone((s) => new Set(s).add(p.id)); void refresh(); }} /></span>
+                    <StatusPill status={projectStatus(p, last.get(p.id))} />
                   </div>
                   <p className="truncate text-xs text-muted-foreground">{p.site_url ?? "No site address"}{waiting ? ` · ${waiting} waiting for approval` : ""}</p>
-                  <div className="mt-auto flex flex-wrap gap-2">
+                  <div className="mt-auto flex flex-wrap items-center gap-2">
                     {p.site_url
                       ? <button className={btn} disabled={busy !== null} aria-busy={busy === p.id} onClick={() => runScan(p.id, p.name)}>{busy === p.id ? "Scanning…" : "Scan & Review"}</button>
-                      : <Link to="/project/$id" params={{ id: p.id }} className={btn} title="Scanning needs the live site address">Add site address to scan</Link>}
+                      : <AddSiteButton p={p} onSaved={(m) => { setMsg(m); void refresh(); }} />}
                     <ProjectConnectButtons p={p} gone={gone.has(p.id)} onRemoved={(m) => { setMsg(m); void refresh(); }} />
                     <Link to="/project/$id" params={{ id: p.id }} className={btn}>Manage</Link>
+                    <ProjectResyncIcon p={p} onDone={(m, g) => { setMsg(m); if (g) setGone((s) => new Set(s).add(p.id)); void refresh(); }} />
                   </div>
                 </li>
               );
