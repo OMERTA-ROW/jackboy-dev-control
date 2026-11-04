@@ -1,9 +1,12 @@
 import { useServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import {
   checkCodeCancellation,
   engageCodeKillSwitch,
   getCodeSafetySettings,
+  getCodePrerequisites,
   setCodeDailySpendLimit,
   setCodeSafetyTarget,
   syncCodeProviderCosts,
@@ -13,6 +16,8 @@ type Settings = Awaited<ReturnType<typeof getCodeSafetySettings>>;
 
 export function CodeSafetyPanel() {
   const get = useServerFn(getCodeSafetySettings);
+  const checkPrerequisites = useServerFn(getCodePrerequisites);
+  const [prerequisites, setPrerequisites] = useState<Awaited<ReturnType<typeof getCodePrerequisites>> | null>(null);
   const setTarget = useServerFn(setCodeSafetyTarget);
   const setLimit = useServerFn(setCodeDailySpendLimit);
   const syncCosts = useServerFn(syncCodeProviderCosts);
@@ -35,7 +40,8 @@ export function CodeSafetyPanel() {
   );
   useEffect(() => {
     void load();
-  }, [load]);
+    void checkPrerequisites().then(setPrerequisites).catch(() => {});
+  }, [load, checkPrerequisites]);
   useEffect(() => {
     if (settings) setLimitValue(String(settings.dailySpendLimitUsd));
   }, [settings]);
@@ -105,21 +111,30 @@ export function CodeSafetyPanel() {
             verified. This panel never dispatches execution.
           </p>
         </div>
-        <button
+        <Button variant="outline"
           className="rounded-md border border-destructive px-3 py-2 text-xs font-semibold text-destructive hover:bg-destructive/10 disabled:opacity-50"
           disabled={busy || settings?.killSwitch === true}
           onClick={() => void run(() => stop())}
         >
           {settings?.killSwitch ? "Emergency stop engaged" : "Engage emergency stop"}
-        </button>
+        </Button>
       </div>
       {message && (
         <p role="status" className="mt-3 text-sm text-warning">
           {message}
         </p>
       )}
+      <div className="mt-3 flex items-center gap-3">
+        <Switch id="worker-supervised" checked={settings?.enabled === true} disabled aria-describedby="worker-activation-blocker" />
+        <label htmlFor="worker-supervised" className="text-sm">Worker 1 · supervised mode (owner only)</label>
+      </div>
+      <p id="worker-activation-blocker" className="mt-2 text-xs text-warning">Activation locked until CODE safety storage, bounded spending and isolated-runner acceptance are verified. Each run still requires owner approval in GitHub. No autonomous distribution.</p>
+      {prerequisites && <div className="mt-3 text-sm">
+        <p>Target policy: {prerequisites.repository} · {prerequisites.ref} only</p>
+        <p className="mt-1 text-xs text-muted-foreground">GitHub CODE / OPENAI_API_KEY: {prerequisites.openaiKeyPresent === true ? "name verified" : prerequisites.openaiKeyPresent === false ? "not found" : "secret-name access unavailable"}</p>
+      </div>}
       {!settings ? (
-        <p className="mt-3 text-sm text-muted-foreground">Loading owner-only safety status…</p>
+        <p className="mt-3 text-sm text-muted-foreground">{message ? "Safety storage unavailable — execution remains blocked." : "Loading owner-only safety status…"}</p>
       ) : (
         <>
           <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
@@ -170,13 +185,13 @@ export function CodeSafetyPanel() {
                 ? new Date(settings.providerCostsSyncedAt).toLocaleString()
                 : "Never"}
             </p>
-            <button
+            <Button variant="outline"
               className="mt-2 rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50"
               disabled={busy}
               onClick={() => void run(() => syncCosts())}
             >
               Sync provider-reported costs
-            </button>
+            </Button>
           </div>
           {settings.killSwitch &&
             settings.activeRunId &&
@@ -186,13 +201,13 @@ export function CodeSafetyPanel() {
                 <p className="text-sm font-medium text-warning">
                   CODE is disabled, but the active GitHub run is not yet confirmed stopped.
                 </p>
-                <button
+                <Button variant="outline"
                   className="mt-2 rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50"
                   disabled={busy}
                   onClick={() => void run(() => checkCancellation())}
                 >
                   Check status and retry cancellation
-                </button>
+                </Button>
               </div>
             )}
           <div className="mt-3">
@@ -211,7 +226,7 @@ export function CodeSafetyPanel() {
                 onChange={(event) => setLimitValue(event.target.value)}
                 className="w-28 rounded-md border border-border bg-background px-2 py-1 text-sm"
               />
-              <button
+              <Button variant="outline"
                 className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50"
                 disabled={
                   busy ||
@@ -223,7 +238,7 @@ export function CodeSafetyPanel() {
                 onClick={() => void run(() => setLimit({ data: { limitUsd: Number(limit) } }))}
               >
                 Save cap
-              </button>
+              </Button>
             </div>
           </div>
           <div className="mt-3">
@@ -236,7 +251,7 @@ export function CodeSafetyPanel() {
               ))}
               {!Object.keys(settings.targets).length && <li>No repository is allowed.</li>}
             </ul>
-            <button
+            <Button variant="outline"
               className="mt-2 rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50"
               disabled={
                 busy ||
@@ -246,7 +261,7 @@ export function CodeSafetyPanel() {
               onClick={() => void run(() => setTarget())}
             >
               Verify and allow OMERTA-ROW/jackboy-dev-control on main
-            </button>
+            </Button>
           </div>
           {settings.pausedReason && (
             <p className="mt-3 text-xs text-warning">{settings.pausedReason}</p>

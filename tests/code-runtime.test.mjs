@@ -60,7 +60,7 @@ const projectId = '00000000-0000-4000-8000-000000000001';
 globalThis.fetch = async (url, init = {}) => {
   const path = new URL(url).pathname;
   const json = data => Response.json(data);
-  if (path === '/repos/owner/repo') return json({ default_branch: 'main' });
+  if (path === '/repos/OMERTA-ROW/jackboy-dev-control') return json({ default_branch: 'main' });
   if (path.endsWith('/commits/main')) return json({ sha: 'b'.repeat(40) });
   if (path.includes('/contents/')) return json({ sha: 'a'.repeat(40) });
   if (path.endsWith('/actions/workflows/code.yml')) return json({ state: 'active' });
@@ -71,27 +71,27 @@ globalThis.fetch = async (url, init = {}) => {
   if (path.endsWith('/dispatches')) {
     dispatches++;
     if (uncertain) throw new Error('connection reset after request');
-    run = { id: 42, display_title: `CODE ${JSON.parse(init.body).inputs.request_id}`, status: 'in_progress', conclusion: null, html_url: 'https://github.com/owner/repo/actions/runs/42' };
+    run = { id: 42, display_title: `CODE ${JSON.parse(init.body).inputs.request_id}`, status: 'in_progress', conclusion: null, html_url: 'https://github.com/OMERTA-ROW/jackboy-dev-control/actions/runs/42' };
     return new Response(null, { status: 204 });
   }
   if (path.endsWith('/cancel')) { cancellations++; run.status = 'completed'; run.conclusion = 'cancelled'; return new Response(null, { status: 202 }); }
   if (path.endsWith('/rerun-failed-jobs')) { retries++; run.status = 'queued'; run.conclusion = null; return new Response(null, { status: 201 }); }
   if (path.endsWith('/jobs')) return json({ jobs: [{ name: 'prepare', status: run.status, conclusion: run.conclusion }] });
   if (path.endsWith('/artifacts')) return json({ artifacts: [{ id: 7, name: 'code-evidence', expired: false }] });
-  if (path.endsWith('/pulls')) return json(run?.conclusion === 'success' ? [{ draft: true, html_url: 'https://github.com/owner/repo/pull/8' }] : []);
+  if (path.endsWith('/pulls')) return json(run?.conclusion === 'success' ? [{ draft: true, html_url: 'https://github.com/OMERTA-ROW/jackboy-dev-control/pull/8' }] : []);
   if (path.endsWith('/runs/42')) return json(run);
   if (path.endsWith('/runs')) return json({ workflow_runs: run ? [run] : [] });
   throw new Error(`Unexpected GitHub request ${path}`);
 };
 beforeEach(() => {
   Object.values(records).forEach(rows => rows.splice(0));
-  records.owner_projects.push({ id: projectId, name: 'Jackboy', github_repo: 'owner/repo', dev_enabled: true });
+  records.owner_projects.push({ id: projectId, name: 'Jackboy', github_repo: 'OMERTA-ROW/jackboy-dev-control', dev_enabled: true });
   records.omni_connection.push({ id: true, verified: false });
   records.code_runtime_controls.push({
     singleton: true,
     enabled: true,
     kill_switch: false,
-    allowed_targets: { 'owner/repo': { ref: 'main', workflowSha: 'a'.repeat(40) } },
+    allowed_targets: { 'OMERTA-ROW/jackboy-dev-control': { ref: 'main', workflowSha: 'a'.repeat(40) } },
     active_request_id: null,
     consecutive_failures: 0,
     daily_spend_limit_usd: 5,
@@ -102,6 +102,7 @@ beforeEach(() => {
     paused_reason: null,
   });
   process.env.CODE_GITHUB_TOKEN = 'isolated-test-placeholder';
+  process.env.CODE_TARGETS = JSON.stringify({ 'OMERTA-ROW/jackboy-dev-control': { ref: 'main', workflowSha: 'a'.repeat(40) } });
   process.env.OMNI_API_URL = 'https://omni.example';
   process.env.OMNI_API_KEY = 'isolated-test-api-key';
   process.env.OMNI_CALLBACK_SECRET = 'isolated-test-callback-secret';
@@ -116,8 +117,8 @@ test('voice/text intent → pending approval → real server dispatch path → e
   assert.equal(records.action_requests.find(r => r.id === card.id).resources.runId, 42);
   run.status = 'completed'; run.conclusion = 'success';
   const finished = await getCode(card.id, 'owner');
-  assert.equal(finished.run.pr, 'https://github.com/owner/repo/pull/8');
-  assert.equal(finished.run.downloads[0].url, 'https://github.com/owner/repo/actions/runs/42/artifacts/7');
+  assert.equal(finished.run.pr, 'https://github.com/OMERTA-ROW/jackboy-dev-control/pull/8');
+  assert.equal(finished.run.downloads[0].url, 'https://github.com/OMERTA-ROW/jackboy-dev-control/actions/runs/42/artifacts/7');
   assert.ok(records.audit_logs.some(x => x.action === 'code.allow'));
 });
 test('replay, wrong nonce, wrong owner, wrong session and expiry cannot dispatch', async () => {
@@ -176,9 +177,9 @@ test('unknown dispatch outcome is not automatically redispatched', async () => {
 test('unapproved workflow, disabled project, missing credential and failed audit fail closed', async () => {
   records.code_runtime_controls[0].allowed_targets = {};
   await assert.rejects(() => requestCode(projectId, 'Fix footer', 'owner', 'session'));
-  records.code_runtime_controls[0].allowed_targets = { 'owner/repo': { ref: 'main', workflowSha: 'b'.repeat(40) } };
+  records.code_runtime_controls[0].allowed_targets = { 'OMERTA-ROW/jackboy-dev-control': { ref: 'main', workflowSha: 'b'.repeat(40) } };
   await assert.rejects(() => requestCode(projectId, 'Fix footer', 'owner', 'session'));
-  records.code_runtime_controls[0].allowed_targets = { 'owner/repo': { ref: 'main', workflowSha: 'a'.repeat(40) } };
+  records.code_runtime_controls[0].allowed_targets = { 'OMERTA-ROW/jackboy-dev-control': { ref: 'main', workflowSha: 'a'.repeat(40) } };
   records.owner_projects[0].dev_enabled = false;
   await assert.rejects(() => requestCode(projectId, 'Fix footer', 'owner', 'session'));
   records.owner_projects[0].dev_enabled = true;
@@ -205,6 +206,30 @@ test('invalid or unverified admission meter never dispatches', async () => {
   Object.assign(controls, { provider_hard_cap_verified: true, provider_usage_at: new Date().toISOString() });
   records.code_usage_events.push({ cost_usd: -1, occurred_at: new Date().toISOString() });
   await assert.rejects(requestCode(projectId, 'Fix footer', 'owner', 'session'));
+  assert.equal(dispatches, 0);
+});
+
+test('a delayed $5 report immediately returns stopped state and records a pause alert', async () => {
+  const { getCodeSafetyState } = await import('../src/lib/code-safety.server.ts');
+  records.code_runtime_controls[0].provider_hard_cap_verified = false;
+  records.code_runtime_controls[0].provider_usage_at = null;
+  records.code_usage_events.push({ cost_usd: 5, occurred_at: new Date().toISOString() });
+  const safety = await getCodeSafetyState();
+  assert.equal(safety.enabled, false);
+  assert.equal(safety.killSwitch, true);
+  assert.equal(records.code_runtime_controls[0].kill_switch, true);
+  assert.ok(records.audit_logs.some(event => event.action === 'code.usage_spike_pause' || event.action === 'code.daily_spend_cap_pause'));
+  assert.equal(dispatches, 0);
+});
+
+test('a $2.50 hourly spike pauses and audits without needing a fresh admission meter', async () => {
+  const { getCodeSafetyState } = await import('../src/lib/code-safety.server.ts');
+  records.code_runtime_controls[0].provider_usage_at = null;
+  records.code_usage_events.push({ cost_usd: 2.5, occurred_at: new Date().toISOString() });
+  const safety = await getCodeSafetyState();
+  assert.equal(safety.usageSpike, true);
+  assert.equal(safety.killSwitch, true);
+  assert.ok(records.audit_logs.some(event => event.action === 'code.usage_spike_pause'));
   assert.equal(dispatches, 0);
 });
 

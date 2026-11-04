@@ -1,5 +1,11 @@
 # Jackboy roadmap
 
+## Worker 1 supervised readiness (Nov 4)
+- [x] Saved CODE_TARGETS for OMERTA-ROW/jackboy-dev-control/main, pinned live workflow blob 82c0c44e9afeacb45e666ff131e34b90ae2da23b; policy only narrows stored approval. GitHub refused environment secret-name read; owner confirmation remains unverified independently.
+- [x] Hardened delayed cost/spike pause and same-request stopped state; owner dashboard stop and locked supervised toggle. 490 app tests, 44 safe CODE tests and 22 isolated database tests passed (30 skipped). Git-creating standalone tests cannot run under sandbox restrictions; no workaround attempted.
+- [ ] Hosted CODE activation blocked: code_runtime_controls, reservations/provider-call storage and OMNI config_hash are absent; reviewed migrations 0036–0042, enforceable spending/runner isolation and GitHub reviewer acceptance remain required. No shared database migration or activation was authorized/applied.
+- [ ] OMNI live proof failed: HTTPS handshake unavailable; hosted worker endpoint/matching keys and missing config_hash migration need owner review. CODE remains excluded from OMNI. No dispatch, workflow changes or publishing.
+
 ## Frontend conversation workflow (Nov 4)
 - [x] Center submitted messages with response space; incremental-stream preview confirmed following, manual-scroll preservation and Jump to latest; older-history helper regressions preserved.
 - [x] Accessible message actions, stable timestamps, local forks and safe retry drafts; retry/branch produced no chat API calls. Immediate regeneration is blocked by the existing tool-enabled transport's lack of an enforced side-effect-free mode.

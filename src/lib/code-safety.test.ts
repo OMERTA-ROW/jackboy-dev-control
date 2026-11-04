@@ -6,6 +6,7 @@ import {
   codeStartBlockReason,
   nextConsecutiveFailures,
   parseCodeTargets,
+  restrictCodeTargets,
   shouldPauseForSpend,
   type CodeSafetyState,
 } from "./code-safety";
@@ -30,6 +31,20 @@ const state = (overrides: Partial<CodeSafetyState> = {}): CodeSafetyState => ({
 });
 
 describe("CODE runtime safety policy", () => {
+  it("allows only the Jackboy main workflow matching both environment policy and stored approval", () => {
+    const targets = { [repo]: { ref: "main", workflowSha: "a".repeat(40) } };
+    expect(restrictCodeTargets(targets, JSON.stringify(targets))).toEqual(targets);
+    expect(restrictCodeTargets(targets, undefined)).toEqual({});
+    expect(restrictCodeTargets({}, JSON.stringify(targets))).toEqual({});
+    expect(restrictCodeTargets(targets, JSON.stringify({ [repo]: { ref: "main", workflowSha: "b".repeat(40) } }))).toEqual({});
+    expect(() => restrictCodeTargets(targets, JSON.stringify({ [repo]: { ref: "dev", workflowSha: "a".repeat(40) } }))).toThrow(/main/);
+    expect(() => restrictCodeTargets(targets, JSON.stringify({ "OMERTA-ROW/Omni": targets[repo] }))).toThrow(/only/);
+  });
+  it("pauses at the exact $5 daily cap, including delayed reporting, and uses the edited threshold", () => {
+    expect(shouldPauseForSpend(5, 0, 5)).toBe(true);
+    expect(shouldPauseForSpend(4.99, 0, 5)).toBe(false);
+    expect(shouldPauseForSpend(2, 0, 2)).toBe(true);
+  });
   it("accepts exact repository allowlists and rejects malformed targets", () => {
     expect(parseCodeTargets({ [repo]: { ref: "main", workflowSha: "a".repeat(40) } })).toEqual({
       [repo]: { ref: "main", workflowSha: "a".repeat(40) },

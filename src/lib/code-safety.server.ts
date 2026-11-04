@@ -4,6 +4,7 @@ const db = untyped(typedDb);
 import {
   codeStartBlockReason,
   parseCodeTargets,
+  restrictCodeTargets,
   shouldPauseForSpend,
   type CodeSafetyState,
 } from "./code-safety";
@@ -45,13 +46,7 @@ export async function getCodeSafetyState(now = Date.now()): Promise<CodeSafetySt
   const hourlySpend = sum(hour.data);
   const dailySpendLimitUsd = Number(data.daily_spend_limit_usd);
   const providerUsageAt = data.provider_usage_at;
-  const meterFresh =
-    !!providerUsageAt &&
-    now - Date.parse(providerUsageAt) <= 5 * 60_000 &&
-    Date.parse(providerUsageAt) <= now + 30_000;
   const spendPause =
-    data.provider_hard_cap_verified &&
-    meterFresh &&
     Number.isFinite(dailySpendLimitUsd) &&
     shouldPauseForSpend(providerSpendTodayUsd, hourlySpend, dailySpendLimitUsd);
   const usageSpike = data.usage_spike || (spendPause && hourlySpend >= dailySpendLimitUsd * 0.5);
@@ -89,9 +84,9 @@ export async function getCodeSafetyState(now = Date.now()): Promise<CodeSafetySt
   }
 
   return {
-    enabled: data.enabled,
-    killSwitch: data.kill_switch,
-    allowedTargets: parseCodeTargets(data.allowed_targets),
+    enabled: spendPause ? false : data.enabled,
+    killSwitch: spendPause ? true : data.kill_switch,
+    allowedTargets: restrictCodeTargets(parseCodeTargets(data.allowed_targets), process.env["CODE_TARGETS"]),
     activeRequestId: data.active_request_id,
     consecutiveFailures: data.consecutive_failures,
     dailySpendLimitUsd,

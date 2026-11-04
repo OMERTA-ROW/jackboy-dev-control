@@ -119,6 +119,17 @@ export function codeStartBlockReason(
   return null;
 }
 
+/** Environment policy may narrow stored approval, never add permission or a new workflow. */
+export function restrictCodeTargets(stored: Record<string, CodeTarget>, configured: string | undefined): Record<string, CodeTarget> {
+  if (!configured) return {};
+  const policy = parseCodeTargets(JSON.parse(configured));
+  const entries = Object.entries(policy);
+  if (entries.length !== 1 || entries[0]?.[0] !== "OMERTA-ROW/jackboy-dev-control" || entries[0]?.[1].ref !== "main") {
+    throw new Error("CODE_TARGETS must allow only OMERTA-ROW/jackboy-dev-control on main.");
+  }
+  return Object.fromEntries(entries.filter(([repo, target]) => stored[repo]?.ref === target.ref && stored[repo]?.workflowSha === target.workflowSha));
+}
+
 export function nextConsecutiveFailures(current: number, outcome: "success" | "failure") {
   if (!Number.isInteger(current) || current < 0) throw new Error("Invalid CODE failure counter.");
   return outcome === "success" ? 0 : current + 1;
