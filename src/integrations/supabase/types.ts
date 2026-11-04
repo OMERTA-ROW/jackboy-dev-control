@@ -30,7 +30,14 @@ export type Database = {
           project_id: string | null
           requested_by: string
           resources: Json
+          revoked_at: string | null
           risk: string
+          runner_claimed_at: string | null
+          runner_publish_claimed_at: string | null
+          runner_revision: string | null
+          runner_run_attempt: number | null
+          runner_run_id: number | null
+          runner_workflow_sha: string | null
           status: string
           task_id: string | null
           tier: string
@@ -50,7 +57,14 @@ export type Database = {
           project_id?: string | null
           requested_by: string
           resources?: Json
+          revoked_at?: string | null
           risk?: string
+          runner_claimed_at?: string | null
+          runner_publish_claimed_at?: string | null
+          runner_revision?: string | null
+          runner_run_attempt?: number | null
+          runner_run_id?: number | null
+          runner_workflow_sha?: string | null
           status?: string
           task_id?: string | null
           tier: string
@@ -70,7 +84,14 @@ export type Database = {
           project_id?: string | null
           requested_by?: string
           resources?: Json
+          revoked_at?: string | null
           risk?: string
+          runner_claimed_at?: string | null
+          runner_publish_claimed_at?: string | null
+          runner_revision?: string | null
+          runner_run_attempt?: number | null
+          runner_run_id?: number | null
+          runner_workflow_sha?: string | null
           status?: string
           task_id?: string | null
           tier?: string
@@ -537,6 +558,251 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "owner_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      code_provider_calls: {
+        Row: {
+          actual_usd: number | null
+          call_key: string
+          ceiling_usd: number
+          created_at: string
+          dispatched_at: string | null
+          finished_at: string | null
+          id: string
+          model: string
+          overrun: boolean
+          provider_request_id: string | null
+          request_id: string
+          run_id: number
+          status: string
+        }
+        Insert: {
+          actual_usd?: number | null
+          call_key: string
+          ceiling_usd: number
+          created_at?: string
+          dispatched_at?: string | null
+          finished_at?: string | null
+          id?: string
+          model: string
+          overrun?: boolean
+          provider_request_id?: string | null
+          request_id: string
+          run_id: number
+          status?: string
+        }
+        Update: {
+          actual_usd?: number | null
+          call_key?: string
+          ceiling_usd?: number
+          created_at?: string
+          dispatched_at?: string | null
+          finished_at?: string | null
+          id?: string
+          model?: string
+          overrun?: boolean
+          provider_request_id?: string | null
+          request_id?: string
+          run_id?: number
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "code_provider_calls_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "action_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      code_provider_cost_day_reports: {
+        Row: {
+          bucket_count: number
+          created_at: string
+          id: string
+          recorded_by: string
+          reported_cost_usd: number
+          synced_at: string
+          utc_day: string
+        }
+        Insert: {
+          bucket_count: number
+          created_at?: string
+          id?: string
+          recorded_by: string
+          reported_cost_usd: number
+          synced_at: string
+          utc_day: string
+        }
+        Update: {
+          bucket_count?: number
+          created_at?: string
+          id?: string
+          recorded_by?: string
+          reported_cost_usd?: number
+          synced_at?: string
+          utc_day?: string
+        }
+        Relationships: []
+      }
+      code_runtime_controls: {
+        Row: {
+          active_request_id: string | null
+          active_run_id: number | null
+          allowed_targets: Json
+          cancellation_status: string
+          closed_day_lag_seconds: number
+          consecutive_failures: number
+          daily_spend_limit_usd: number
+          enabled: boolean
+          kill_switch: boolean
+          paused_reason: string | null
+          per_task_reserve_usd: number
+          provider_costs_synced_at: string | null
+          provider_hard_cap_verified: boolean
+          provider_usage_at: string | null
+          reconcile_grace_seconds: number
+          singleton: boolean
+          stop_requested_at: string | null
+          updated_at: string
+          usage_spike: boolean
+        }
+        Insert: {
+          active_request_id?: string | null
+          active_run_id?: number | null
+          allowed_targets?: Json
+          cancellation_status?: string
+          closed_day_lag_seconds?: number
+          consecutive_failures?: number
+          daily_spend_limit_usd?: number
+          enabled?: boolean
+          kill_switch?: boolean
+          paused_reason?: string | null
+          per_task_reserve_usd?: number
+          provider_costs_synced_at?: string | null
+          provider_hard_cap_verified?: boolean
+          provider_usage_at?: string | null
+          reconcile_grace_seconds?: number
+          singleton?: boolean
+          stop_requested_at?: string | null
+          updated_at?: string
+          usage_spike?: boolean
+        }
+        Update: {
+          active_request_id?: string | null
+          active_run_id?: number | null
+          allowed_targets?: Json
+          cancellation_status?: string
+          closed_day_lag_seconds?: number
+          consecutive_failures?: number
+          daily_spend_limit_usd?: number
+          enabled?: boolean
+          kill_switch?: boolean
+          paused_reason?: string | null
+          per_task_reserve_usd?: number
+          provider_costs_synced_at?: string | null
+          provider_hard_cap_verified?: boolean
+          provider_usage_at?: string | null
+          reconcile_grace_seconds?: number
+          singleton?: boolean
+          stop_requested_at?: string | null
+          updated_at?: string
+          usage_spike?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "code_runtime_controls_active_request_id_fkey"
+            columns: ["active_request_id"]
+            isOneToOne: false
+            referencedRelation: "action_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      code_spend_reservations: {
+        Row: {
+          created_at: string
+          finished_at: string | null
+          id: string
+          outcome: string | null
+          released_usd: number
+          request_id: string
+          reserved_usd: number
+          run_id: number
+          settled_at: string | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          finished_at?: string | null
+          id?: string
+          outcome?: string | null
+          released_usd?: number
+          request_id: string
+          reserved_usd: number
+          run_id: number
+          settled_at?: string | null
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          finished_at?: string | null
+          id?: string
+          outcome?: string | null
+          released_usd?: number
+          request_id?: string
+          reserved_usd?: number
+          run_id?: number
+          settled_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "code_spend_reservations_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: true
+            referencedRelation: "action_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      code_usage_events: {
+        Row: {
+          cost_usd: number
+          created_at: string
+          id: string
+          occurred_at: string
+          provider_event_id: string
+          request_id: string | null
+          source: string
+        }
+        Insert: {
+          cost_usd: number
+          created_at?: string
+          id?: string
+          occurred_at: string
+          provider_event_id: string
+          request_id?: string | null
+          source: string
+        }
+        Update: {
+          cost_usd?: number
+          created_at?: string
+          id?: string
+          occurred_at?: string
+          provider_event_id?: string
+          request_id?: string | null
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "code_usage_events_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "action_requests"
             referencedColumns: ["id"]
           },
         ]
@@ -1296,6 +1562,7 @@ export type Database = {
       omni_connection: {
         Row: {
           capabilities: Json
+          config_hash: string | null
           id: boolean
           last_checked_at: string | null
           last_error: string | null
@@ -1305,6 +1572,7 @@ export type Database = {
         }
         Insert: {
           capabilities?: Json
+          config_hash?: string | null
           id?: boolean
           last_checked_at?: string | null
           last_error?: string | null
@@ -1314,6 +1582,7 @@ export type Database = {
         }
         Update: {
           capabilities?: Json
+          config_hash?: string | null
           id?: boolean
           last_checked_at?: string | null
           last_error?: string | null
@@ -1636,6 +1905,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      provider_permission_events: {
+        Row: {
+          actor: string
+          after_access: string | null
+          before_access: string | null
+          created_at: string
+          detail: Json
+          event: string
+          event_id: string
+          permission: string
+          provider: string
+          reason: string | null
+          request_id: string | null
+          target: string
+        }
+        Insert: {
+          actor: string
+          after_access?: string | null
+          before_access?: string | null
+          created_at?: string
+          detail?: Json
+          event: string
+          event_id?: string
+          permission: string
+          provider: string
+          reason?: string | null
+          request_id?: string | null
+          target: string
+        }
+        Update: {
+          actor?: string
+          after_access?: string | null
+          before_access?: string | null
+          created_at?: string
+          detail?: Json
+          event?: string
+          event_id?: string
+          permission?: string
+          provider?: string
+          reason?: string | null
+          request_id?: string | null
+          target?: string
+        }
+        Relationships: []
       }
       razul_feedback: {
         Row: {
@@ -2323,9 +2637,32 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      abort_code_provider_call: {
+        Args: { p_call_id: string; p_reason: string }
+        Returns: undefined
+      }
       accept_invitation: {
         Args: never
         Returns: Database["public"]["Enums"]["app_role"]
+      }
+      admit_code_provider_call: {
+        Args: {
+          p_call_key: string
+          p_ceiling_usd: number
+          p_model: string
+          p_request_id: string
+          p_run_id: number
+        }
+        Returns: string
+      }
+      apply_code_provider_call_cost: {
+        Args: {
+          p_actual_usd: number
+          p_call_id: string
+          p_provider_request_id: string
+          p_source: string
+        }
+        Returns: boolean
       }
       apply_project_repository_resync: {
         Args: { actor_id: string; changes: Json; review_id: string }
@@ -2343,12 +2680,71 @@ export type Database = {
         Args: { _approve: boolean; _id: string }
         Returns: undefined
       }
+      claim_code_runner: {
+        Args: {
+          p_operation: string
+          p_owner_id: string
+          p_ref: string
+          p_repository: string
+          p_request_id: string
+          p_revision: string
+          p_run_attempt: number
+          p_run_id: number
+          p_session_hash: string
+          p_stage: string
+          p_workflow_blob_sha: string
+        }
+        Returns: {
+          approved_ref: string
+          base_sha: string
+          instruction: string
+          operation: string
+          owner_id: string
+          repository: string
+          request_id: string
+          session_hash: string
+        }[]
+      }
+      claim_code_runtime_slot: {
+        Args: {
+          p_ref: string
+          p_repository: string
+          p_request_id: string
+          p_run_id: number
+          p_workflow_sha: string
+        }
+        Returns: boolean
+      }
+      code_provider_call_holds: {
+        Args: { p_request_id: string }
+        Returns: number
+      }
       create_invitation: {
         Args: { _email: string; _role: Database["public"]["Enums"]["app_role"] }
         Returns: string
       }
       decide_proposal: {
         Args: { _approve: boolean; _id: string }
+        Returns: undefined
+      }
+      dispatch_code_provider_call: {
+        Args: { p_call_id: string }
+        Returns: undefined
+      }
+      engage_code_kill_switch: {
+        Args: { p_actor: string }
+        Returns: {
+          active_request_id: string
+          active_run_id: number
+        }[]
+      }
+      finish_code_runtime_slot: {
+        Args: {
+          p_outcome: string
+          p_request_id: string
+          p_run_attempt: number
+          p_run_id: number
+        }
         Returns: undefined
       }
       has_role: {
@@ -2359,13 +2755,55 @@ export type Database = {
         Returns: boolean
       }
       is_manager: { Args: { _user_id: string }; Returns: boolean }
+      mark_code_provider_call_unknown: {
+        Args: { p_call_id: string; p_reason: string }
+        Returns: undefined
+      }
       my_role: { Args: never; Returns: Database["public"]["Enums"]["app_role"] }
+      reconcile_code_provider_day: {
+        Args: { p_actor: string; p_day: string; p_tolerance_usd?: number }
+        Returns: Json
+      }
+      reconcile_code_spend_reservations: {
+        Args: { p_actor: string }
+        Returns: number
+      }
+      record_code_cancellation_status: {
+        Args: { p_actor: string; p_status: string }
+        Returns: undefined
+      }
+      record_code_closed_day_costs: {
+        Args: {
+          p_actor: string
+          p_day: string
+          p_rows: Json
+          p_synced_at: string
+        }
+        Returns: string
+      }
+      record_code_provider_costs: {
+        Args: { p_actor: string; p_rows: Json; p_synced_at: string }
+        Returns: undefined
+      }
+      release_code_spend_holds: {
+        Args: { p_actor: string; p_reason: string; p_request_ids: string[] }
+        Returns: number
+      }
       remove_member: { Args: { _user_id: string }; Returns: undefined }
       remove_owner_passkey: {
         Args: { _actor: string; _grant: string; _key: string }
         Returns: Json
       }
       repository_reference_inventory: { Args: never; Returns: Json }
+      resolve_code_provider_call: {
+        Args: {
+          p_actor: string
+          p_actual_usd: number
+          p_call_id: string
+          p_reason: string
+        }
+        Returns: boolean
+      }
       revoke_invitation: { Args: { _id: string }; Returns: undefined }
       set_automation_policy: {
         Args: {
@@ -2379,6 +2817,14 @@ export type Database = {
       set_jax_enrollment: {
         Args: { _enroll: boolean; _id: string; _purpose: string }
         Returns: undefined
+      }
+      settle_code_provider_call: {
+        Args: {
+          p_actual_usd: number
+          p_call_id: string
+          p_provider_request_id: string
+        }
+        Returns: boolean
       }
       write_audit: {
         Args: { _action: string; _detail: Json; _outcome: string }

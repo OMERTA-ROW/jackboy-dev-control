@@ -274,6 +274,41 @@
       "when": 1793720002000,
       "tag": "0038_code_provider_costs",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1793784321448,
+      "tag": "0039_code_runner_claims",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1793784337493,
+      "tag": "0040_provider_permission_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1793784429855,
+      "tag": "0041_code_spend_reservations",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1793784470753,
+      "tag": "0042_code_spend_hold_release",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1793784539774,
+      "tag": "0043_code_provider_gateway",
+      "breakpoints": true
     }
   ]
 }
