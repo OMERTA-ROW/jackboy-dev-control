@@ -265,6 +265,7 @@ test("expired, revoked, mismatched and unapproved requests fail before atomic cl
 test("publishing is a separate, one-time claim requiring successful prepare and validate jobs", async () => {
   jobs = [
     { name: "prepare", status: "completed", conclusion: "success", run_attempt: 1 },
+    { name: "validate", status: "completed", conclusion: "success", run_attempt: 1 },
     { name: "draft_pr", status: "in_progress", conclusion: null, run_attempt: 1 },
   ];
   assert.equal((await claim("publish", makeToken({ environment: "CODE-PUBLISH" }))).status, 409);
