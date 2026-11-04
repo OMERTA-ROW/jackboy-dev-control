@@ -54,7 +54,7 @@ function Automation() {
         </div>
         {owner && (
           <div className="flex gap-2">
-            <button className="rounded-md bg-destructive px-3 py-1.5 text-xs font-medium text-destructive-foreground" onClick={() => save({ paused: !p.paused })}>{p.paused ? "Resume" : "Pause all automation"}</button>
+            <button className="rounded-md border border-border bg-secondary px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted" onClick={() => act(stepUp("global_pause", p.paused ? "global_pause:off" : "global_pause:on").then((grantId) => f.set({ data: { tier: p.tier, paused: !p.paused, maxFiles: p.max_files, maxLines: p.max_lines, grantId } })))}>{p.paused ? "Resume" : "Pause all automation"}</button>
             <button className={btn} disabled={p.tier === 0} onClick={() => save({ tier: 0 })}>Revoke to tier 0</button>
           </div>
         )}
