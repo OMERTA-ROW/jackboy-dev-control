@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
+import { useStepUp } from "@/lib/step-up-client";
 import { useCallback, useEffect, useState } from "react";
 import { PageHeader } from "@/components/AppShell";
 import { Switch } from "@/components/ui/switch";
@@ -25,6 +26,7 @@ const CONNECT: Record<string, string> = { not_started: "Not connected", no_repo:
 const sev = (s: string) => (s === "high" ? "text-destructive" : s === "medium" ? "text-electric" : "text-muted-foreground");
 
 export function MasterSwitch({ compact = false }: { compact?: boolean }) {
+  const stepUp = useStepUp();
   const load = useServerFn(getAutopilot), setMaster = useServerFn(setMasterAutopilot);
   const [on, setOn] = useState<boolean | null>(null);
   useEffect(() => { load().then((r) => setOn(r.master)).catch(() => setOn(null)); }, [load]);
@@ -41,6 +43,7 @@ export function MasterSwitch({ compact = false }: { compact?: boolean }) {
 }
 
 function AutopilotPage() {
+  const stepUp = useStepUp();
   const load = useServerFn(getAutopilot), setMaster = useServerFn(setMasterAutopilot), setProj = useServerFn(setProjectAutopilot);
   const scan = useServerFn(scanNow), fix = useServerFn(fixScan), connect = useServerFn(connectAndScan);
   const [d, setD] = useState<Data | null>(null);

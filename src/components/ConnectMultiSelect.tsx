@@ -1,4 +1,5 @@
 import { useServerFn } from "@tanstack/react-start";
+import { useStepUp } from "@/lib/step-up-client";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Search } from "lucide-react";
@@ -19,6 +20,7 @@ const STATUS: Record<ConnectRow["status"], string> = { saved_only: "Not connecte
 const TONE: Record<string, string> = { Online: "text-success", Working: "text-electric", Blocked: "text-destructive", Offline: "text-muted-foreground" };
 
 export function MultiSelect({ hub, onPick, reload }: { hub: Hub | null; onPick: (name: string, ref: string | null) => void; reload: () => Promise<unknown> }) {
+  const stepUp = useStepUp();
   const setDev = useServerFn(setDevEnabled);
   const resync = useServerFn(resyncProject);
   const save = useServerFn(saveProject), inspect = useServerFn(foundryInspect), foundry = useServerFn(getFoundry);

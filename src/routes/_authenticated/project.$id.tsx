@@ -1,5 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
+import { useStepUp } from "@/lib/step-up-client";
 import { useCallback, useEffect, useState } from "react";
 import { PageHeader } from "@/components/AppShell";
 import { StatusPill, btn, field, primaryBtn } from "@/components/ProjectBits";
@@ -31,6 +32,7 @@ type D = Awaited<ReturnType<typeof getProjectDetail>>;
 function Detail() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
+  const stepUp = useStepUp();
   const load = useServerFn(getProjectDetail), scan = useServerFn(scanNow), fix = useServerFn(fixScan), auto = useServerFn(setProjectAutopilot);
   const save = useServerFn(saveProject), del = useServerFn(deleteProject), run = useServerFn(runNow);
   const [d, setD] = useState<D | null>(null);

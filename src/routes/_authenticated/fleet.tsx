@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
+import { useStepUp } from "@/lib/step-up-client";
 import { useCallback, useEffect, useState } from "react";
 import { PageHeader, GuidanceTip } from "@/components/AppShell";
 import { AUTONOMY, CAPABILITIES, OWNER_ONLY, autonomousCapabilities, type Autonomy, type AgentCategory } from "@/lib/guardian";
@@ -22,6 +23,7 @@ const btn = "rounded-md border border-border px-2.5 py-1 text-xs hover:border-el
 const input = "rounded-md border border-input bg-background px-3 py-2 text-sm";
 
 function Fleet() {
+  const stepUp = useStepUp();
   const load = useServerFn(getFleet);
   const f = { add: useServerFn(addAgent), upd: useServerFn(updateAgent), pause: useServerFn(emergencyPause), sim: useServerFn(simulateGuardian) };
   const [d, setD] = useState<Data | null>(null);
