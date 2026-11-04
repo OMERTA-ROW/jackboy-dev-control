@@ -55,3 +55,33 @@ A mutation check (removing the holds term from the claim inequality) makes 3 of 
 5. A reviewed owner procedure for releasing cross-day holds.
 
 Migration numbering: `0039_recovery_codes.sql` has no `_journal.json` entry on `main`; this PR does not change the journal.
+
+## Round 12: real-PostgreSQL staging verification
+
+Environment: a disposable, loopback-only PostgreSQL 18 (embedded-postgres, no production credentials, synthetic data, no outbound provider access). Nothing here is a production or hosted staging database.
+
+Run the same suites against it with:
+
+```sh
+STAGING_PG_URL=postgres://<user>:<pw>@127.0.0.1:<port>/postgres \
+STAGING_PG_MODULE_FROM=/path/to/dir/with/pg/package.json \
+node --test tests/code-spend-reservation.test.mjs tests/code-spend-staging-pg.test.mjs
+```
+
+- `tests/code-spend-reservation.test.mjs` runs on PGlite by default; with `STAGING_PG_URL` it runs unchanged on real PostgreSQL (one throwaway database per test). Non-loopback hosts are refused.
+- `tests/code-spend-staging-pg.test.mjs` (skipped without `STAGING_PG_URL`) adds true multi-connection checks: 16 parallel workers over many backend connections never exceed the daily limit; a competing claim is observed blocked on the controls row lock (`wait_event_type = Lock`); rolled-back claims leave no hold; audit-log failure, unreadable usage table and missing/stale/future provider data all fail closed with zero holds; `anon`/`authenticated` are denied; the cost-report lifecycle (hold → finish → report → reconcile → refund) and non-owner denial; a cross-UTC-day hold is never auto-released.
+- Mutation check: removing `held_spend` from the claim makes 3 of the real-PostgreSQL tests fail.
+
+### Known gaps found
+
+- Cross-day holds: an unsettled hold from an earlier UTC day still counts against today's limit and nothing releases it. This is fail-closed but can permanently shrink the budget. It needs a reviewed owner release procedure (not implemented; releasing without authoritative evidence would weaken the gate).
+- `0031_repository_resync_drift_removals.sql` and `0033_unified_project_repository_resync.sql` reference `repository_resync_reviews`, which no migration creates, so the migration chain cannot be replayed from an empty database (unrelated to 0040; production presumably has the object from elsewhere). Chain replay in staging needs that object provisioned first.
+
+### What must exist before `provider_hard_cap_verified` can be enabled
+
+Reservations bound _admission_, not _spend_. One of the following authoritative controls is required, with evidence recorded by a separate reviewed migration:
+
+1. A provider-enforced limit on a dedicated, CODE-only project and key (hard budget or per-key cap that the provider itself rejects over), verified by an owner-observed provider-side setting and a staging probe that is refused at the cap; or
+2. An admission/metering proxy that holds the only copy of the provider credential, counts tokens per request against the reservation, rejects over-budget calls before they reach the provider, and writes usage to `code_usage_events` transactionally; runner jobs never see the raw key.
+
+Until then the 0037 CHECK stays in force and the gate stays closed.
