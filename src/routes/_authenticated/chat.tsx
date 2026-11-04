@@ -3,7 +3,7 @@ import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, isToolUIPart, type UIMessage } from "ai";
 import { useServerFn } from "@tanstack/react-start";
 import { Component, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ArrowDown, ArrowLeft, ArrowUp, Check, ThumbsDown, ThumbsUp, Volume2, ChevronDown, ChevronUp, Copy, ExternalLink, Hexagon, History, SlidersHorizontal, Square, SquarePen, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, ChevronDown, ChevronUp, ExternalLink, Hexagon, History, SlidersHorizontal, Square, SquarePen, Trash2 } from "lucide-react";
 import { getVoiceChatStatus, synthesizeJackboy } from "@/lib/passport.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { MessageResponse } from "@/components/ai-elements/message";
@@ -12,7 +12,9 @@ import { useChatVoice, VoiceButtons } from "@/components/ChatVoice";
 import { LiveCallBar, StartVoiceButton, useLiveCall, type LiveRow } from "@/components/LiveVoiceCall";
 import { CodeTasks, useCodeTasks } from "@/components/CodeTasks";
 import { VoiceOrb } from "@/components/VoiceOrb";
-import { composerHeight, frameBatcher, preservedScrollTop, feedbackKey, followTarget, isNearBottom, nextFollow, parseFeedback, speakableText, toggleFeedback, type Feedback } from "@/lib/chat-scroll";
+import { ChatMessageActions } from "@/components/ChatMessageActions";
+import { forkConversation, messageTime, responseReserve, retryDraft } from "@/lib/chat-workflow";
+import { composerHeight, frameBatcher, preservedScrollTop, feedbackKey, followTarget, isNearBottom, nextFollow, parseFeedback, toggleFeedback, type Feedback } from "@/lib/chat-scroll";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { safeEvidenceUrl, type EvidenceLink } from "@/lib/chat-action";
 import { CREDIT_HELP_URL } from "@/lib/work-policy";
@@ -81,7 +83,7 @@ function ChatPage() {
   useEffect(() => {
     if (view !== "code" || repos) return;
     // Only project names reach the browser view; repository paths stay in Projects.
-    hub().then((h) => { const list = h.projects.filter((p) => p.github_repo).map((p) => ({ id: p.id, name: p.name })); setRepos(list); if (list[0]) setTarget((t) => t || list[0]!.name); })
+    hub().then((h) => { const list = h.projects.filter((p) => p.github_repo).map((p) => ({ id: p.id, name: p.name })); setRepos(list); if (list[0]) setTarget((t) => t || list[0]?.name ?? ""); })
       .catch((e) => setRepoErr((e as Error).message));
   }, [view, repos, hub]);
   const [error, setError] = useState<string | null>(null);
@@ -95,6 +97,20 @@ function ChatPage() {
   }), []);
   const { messages, sendMessage, setMessages, status, stop } = useChat({ transport, onError: (e) => setError(e.message.includes("402") ? "AI credits are used up. Add credits in Settings → Plans & credits." : e.message) });
   const busy = status === "submitted" || status === "streaming";
+  const [draftNotice, setDraftNotice] = useState<string | null>(null);
+  const observedTimes = useRef(new Map<string, number>());
+  const loadedIds = useRef(new Set<string>());
+  // Record arrival once, never Date.now() in a rendered timestamp. Legacy history stays unknown.
+  useEffect(() => {
+    let changed = false;
+    const stamped = messages.map((m) => {
+      if (messageTime(m as StoredMessage) !== null || loadedIds.current.has(m.id)) return m;
+      const createdAt = observedTimes.current.get(m.id) ?? Date.now();
+      observedTimes.current.set(m.id, createdAt); changed = true;
+      return { ...m, metadata: { ...(m.metadata as object ?? {}), createdAt } };
+    });
+    if (changed) setMessages(stamped);
+  }, [messages, setMessages]);
 
   // History is keyed by the signed-in account; switching accounts reloads a different list.
   useEffect(() => {
@@ -107,6 +123,7 @@ function ChatPage() {
       setView(mode);
       const latest = list.find((c) => c.mode === mode);
       setActiveId(latest?.id ?? crypto.randomUUID());
+      loadedIds.current = new Set((latest?.messages ?? []).map((m) => m.id));
       setMessages((latest?.messages ?? []) as UIMessage[]);
     };
     void supabase.auth.getSession().then(({ data }) => load(data.session?.user.id ?? null));
@@ -124,9 +141,10 @@ function ChatPage() {
   }, [messages, status, userId, activeId, view]);
 
   const openConversation = (c: Conversation | null, mode: ChatMode = c?.mode ?? view) => {
-    stop(); setError(null); setCollapsed(false);
+    stop(); setError(null); setCollapsed(false); setDraftNotice(null); setSubmitAnchor(null);
     setView(mode); try { sessionStorage.setItem("jackboy.chat.view", mode); } catch { /* ignore */ }
     setActiveId(c?.id ?? crypto.randomUUID());
+    loadedIds.current = new Set((c?.messages ?? []).map((m) => m.id));
     setMessages((c?.messages ?? []) as UIMessage[]);
     setHistoryOpen(false);
   };
@@ -156,13 +174,17 @@ function ChatPage() {
   const chatContext = () => messages.slice(-12).map((m) => `${m.role === "user" ? "Owner" : "Jackboy"}: ${textOf(m)}`).join("\n").slice(-6000);
   const [liveRows, setLiveRows] = useState<LiveRow[]>([]);
   const addVoiceTranscript = (rows: LiveRow[]) =>
-    setMessages((cur) => [...cur, ...rows.filter((r) => r.text.trim() || r.evidence?.length).map((r, i) => ({ id: `voice-${Date.now()}-${i}`, role: r.role, metadata: { voice: true, evidence: r.evidence ?? [] }, parts: [{ type: "text" as const, text: r.text.trim() }] }))]);
+    setMessages((cur) => [...cur, ...rows.filter((r) => r.text.trim() || r.evidence?.length).map((r, i) => ({ id: `voice-${Date.now()}-${i}`, role: r.role, metadata: { voice: true, createdAt: Date.now(), evidence: r.evidence ?? [] }, parts: [{ type: "text" as const, text: r.text.trim() }] }))]);
   const live = useLiveCall({ chatContext, onLiveRows: setLiveRows, onTranscript: addVoiceTranscript, onCodeCard: code.receive });
 
-  const addUser = (t: string) => setMessages((cur) => [...cur, { id: crypto.randomUUID(), role: "user", parts: [{ type: "text", text: t }] }]);
+  const addUser = (t: string) => {
+    const id = crypto.randomUUID();
+    setSubmitAnchor({ id, reserve: 0, pending: true });
+    setMessages((cur) => [...cur, { id, role: "user", metadata: { createdAt: Date.now() }, parts: [{ type: "text", text: t }] }]);
+  };
   const send = async (t: string) => {
-    if (!t.trim() || busy) return;
-    setError(null); jackboyVoice.stop(); voice.stopSpeaking();
+    if (!t.trim() || busy || code.busy) return;
+    setError(null); setDraftNotice(null); jackboyVoice.stop(); voice.stopSpeaking();
     if (view === "code") {
       // Allow/Deny phrases still go to the pending card; anything else becomes a request for the selected project.
       const direct = /^\s*(CODE\s+[^:\n]+:|(allow|deny)\s+CODE\s)/i.test(t);
@@ -171,7 +193,9 @@ function ChatPage() {
       return;
     }
     if (await code.submit(t)) { addUser(t); setText(""); setFromVoice(false); return; }
-    sendMessage(fromVoice ? { text: t, metadata: { voice: true } } : { text: t });
+    const id = crypto.randomUUID();
+    setSubmitAnchor({ id, reserve: 0, pending: true });
+    void sendMessage({ messageId: id, text: t, metadata: { createdAt: Date.now(), ...(fromVoice ? { voice: true } : {}) } });
     setText(""); setFromVoice(false);
   };
 
@@ -179,6 +203,10 @@ function ChatPage() {
   // scroll releases follow so streamed tokens never yank them away. Growth is observed with a
   // ResizeObserver and pinned instantly (no smooth animation fighting token updates = no jitter).
   const end = useRef<HTMLDivElement>(null);
+  const chatHeader = useRef<HTMLElement>(null);
+  const composerFooter = useRef<HTMLElement>(null);
+  const spacer = useRef<HTMLDivElement>(null);
+  const [submitAnchor, setSubmitAnchor] = useState<{ id: string; reserve: number; pending: boolean } | null>(null);
   const convo = useRef<HTMLElement>(null);
   const followRef = useRef({ follow: true, lastTop: 0 });
   const [atBottom, setAtBottom] = useState(true);
@@ -194,19 +222,61 @@ function ChatPage() {
     const batch = frameBatcher(pin);
     const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => batch.schedule()) : null;
     if (convo.current) ro?.observe(convo.current);
-    const vv = () => batch.schedule();
+    const vv = () => {
+      const viewport = window.visualViewport;
+      const obscured = viewport ? Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop) : 0;
+      if (composerFooter.current) composerFooter.current.style.bottom = `${obscured}px`;
+      batch.schedule();
+    };
+    vv();
     window.visualViewport?.addEventListener("resize", vv); window.addEventListener("resize", vv);
     return () => { batch.cancel(); window.removeEventListener("scroll", on); window.removeEventListener("wheel", wheel); window.removeEventListener("touchmove", up); ro?.disconnect(); window.visualViewport?.removeEventListener("resize", vv); window.removeEventListener("resize", vv); };
   }, [pin]);
   const tail = messages.at(-1);
   useEffect(() => { const id = requestAnimationFrame(pin); return () => cancelAnimationFrame(id); }, [messages.length, tail && textOf(tail).length, liveRows, status, pin]);
   const jumpToLatest = () => { followRef.current.follow = true; setAtBottom(true); pin(); };
-  // Sending a message always means "show me the reply".
-  useEffect(() => { if (status === "submitted") jumpToLatest(); }, [status]); // eslint-disable-line react-hooks/exhaustive-deps
+  // A short submitted turn lands mid-viewport; reserved space is consumed by the reply.
+  useLayoutEffect(() => {
+    if (!submitAnchor?.pending) return;
+    const node = document.getElementById(`message-${submitAnchor.id}`);
+    if (!node) return;
+    const usable = Math.max(0, (window.visualViewport?.height ?? window.innerHeight) - (chatHeader.current?.offsetHeight ?? 0) - (composerFooter.current?.offsetHeight ?? 0));
+    const reserve = responseReserve(usable, node.offsetHeight);
+    if (spacer.current) spacer.current.style.height = `${reserve}px`;
+    followRef.current.follow = true; setAtBottom(true);
+    setSubmitAnchor({ id: submitAnchor.id, reserve, pending: false });
+    pin();
+  }, [messages, submitAnchor, pin]);
+  useLayoutEffect(() => {
+    if (!submitAnchor || submitAnchor.pending || !spacer.current) return;
+    const node = document.getElementById(`message-${submitAnchor.id}`);
+    if (!node) return;
+    const growth = Math.max(0, (end.current?.getBoundingClientRect().top ?? 0) - node.getBoundingClientRect().bottom);
+    spacer.current.style.height = `${Math.max(0, submitAnchor.reserve - growth)}px`;
+  }, [messages, liveRows, submitAnchor, status]);
 
   const [feedback, setFeedback] = useState<Record<string, Feedback>>({});
   useEffect(() => { if (userId) setFeedback(parseFeedback(localStorage.getItem(feedbackKey(userId)))); }, [userId]);
-  const rate = (id: string, v: Feedback) => setFeedback((f) => { const n = toggleFeedback(f, id, v); if (userId) localStorage.setItem(feedbackKey(userId), JSON.stringify(n)); return n; });
+  const rate = (id: string, v: Feedback) => {
+    const next = toggleFeedback(feedback, id, v);
+    try {
+      if (!userId) throw new Error("Sign in to save a rating.");
+      localStorage.setItem(feedbackKey(userId), JSON.stringify(next)); setFeedback(next);
+    } catch { setError("Rating could not be saved on this device. Please check browser storage permissions."); }
+  };
+  const branch = (id: string, mode: ChatMode, retry = false) => {
+    if (busy || code.busy || live.live || !userId) return;
+    const request = retry ? retryDraft(messages as StoredMessage[], id) : null;
+    if (retry && !request) { setError("The original request is unavailable."); return; }
+    const nextBranch = forkConversation(messages as StoredMessage[], request?.throughId ?? id, mode, crypto.randomUUID(), Date.now());
+    // Persist before switching: failed storage never produces a fake saved branch.
+    const next = upsertConversation(convos, nextBranch);
+    try { localStorage.setItem(`jackboy.conversations.v1.${userId}`, JSON.stringify(next)); }
+    catch { setError("Branch could not be saved. Your original conversation is unchanged."); return; }
+    setConvos(next); openConversation(nextBranch, mode);
+    if (request) setText(request.text);
+    setDraftNotice(retry ? "Retry draft ready. Nothing was rerun. Review before sending; commands may repeat external actions." : mode === "code" ? "CODE branch saved. Nothing submitted or executed. Choose a project and review your draft." : "Conversation branched. The original is unchanged; past actions are not rerun.");
+  };
 
   const [banner, setBanner] = useState<{ ok: boolean; text: string } | null>(null);
   useEffect(() => {
@@ -243,7 +313,7 @@ function ChatPage() {
 
   return (
     <div className="flex min-h-dvh flex-col bg-background">
-      <header className="sticky top-0 z-10 flex items-center gap-1 bg-background/90 px-2 py-2 backdrop-blur sm:gap-2 sm:px-6">
+      <header ref={chatHeader} className="sticky top-0 z-10 flex items-center gap-1 bg-background/90 px-2 py-2 backdrop-blur sm:gap-2 sm:px-6">
         <Link to="/" aria-label="Back to dashboard" className={iconBtn}><ArrowLeft className="size-5" /></Link>
         <button type="button" onClick={() => setHistoryOpen(true)} aria-label="Conversations" title="Conversations" className={iconBtn}><History className="size-5" /></button>
         <div role="tablist" aria-label="Mode" className="ml-1 inline-flex rounded-full border border-border p-0.5 text-xs">
@@ -323,20 +393,22 @@ function ChatPage() {
                 {collapsed ? <><ChevronDown className="size-3.5" />Show {hidden} earlier messages</> : <><ChevronUp className="size-3.5" />Hide earlier messages</>}
               </button>
             </li>}
-            {shown.map((m) => <MessageBoundary key={m.id} fallback={textOf(m)}><Bubble m={m} streaming={busy && m === tail && m.role === "assistant"} rating={feedback[m.id]} onRate={(v) => rate(m.id, v)} /></MessageBoundary>)}
+            {shown.map((m) => <MessageBoundary key={m.id} fallback={textOf(m)}><Bubble m={m} streaming={busy && m === tail && m.role === "assistant"} disabled={busy || code.busy || live.live} rating={feedback[m.id]} onRate={(v) => rate(m.id, v)} onRetry={() => branch(m.id, view, true)} onBranch={(mode) => branch(m.id, mode)} /></MessageBoundary>)}
             {liveRows.map((r, i) => <li key={`live-${i}`} className={r.role === "user" ? "self-end max-w-[85%] rounded-3xl bg-muted px-4 py-2.5 text-[15px]" : "text-[15px] leading-relaxed"}>{r.text}{links(r.evidence).map((l) => <a key={l.url} href={l.url} className="mr-3 text-xs text-primary underline">{l.label}</a>)}</li>)}
           </ol>
         )}
         {/* CODE approval/execution controls stay intact; in Chat only cards needing a decision surface. */}
         <CodeTasks tasks={view === "code" ? code : { ...code, cards: code.cards.filter((c) => c.status === "pending") }} />
         <div ref={end} />
+        <div ref={spacer} aria-hidden="true" />
       </main>
 
-      <footer className="sticky bottom-0 bg-gradient-to-t from-background via-background to-background/0 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-4 sm:px-6">
+      <footer ref={composerFooter} className="sticky bottom-0 bg-gradient-to-t from-background via-background to-background/0 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-4 sm:px-6">
         <div className="relative mx-auto max-w-3xl">
           {!atBottom && <button type="button" onClick={jumpToLatest} aria-label="Jump to latest message" title="Jump to latest"
             className="absolute -top-10 left-1/2 inline-flex size-9 -translate-x-1/2 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow hover:text-electric focus-visible:outline-2 focus-visible:outline-electric"><ArrowDown className="size-4" /></button>}
           <LiveCallBar v={live} />
+          {draftNotice && <p role="status" className="mb-2 px-2 text-xs text-warning">{draftNotice}</p>}
           {(error || voice.error || jackboyVoice.error) && <p role="alert" className="mb-2 px-2 text-xs text-destructive">{error ?? voice.error ?? jackboyVoice.error}</p>}
           {error && /credits|402/i.test(error) && <a href={CREDIT_HELP_URL} target="_blank" rel="noopener noreferrer" className="block px-2 text-xs text-primary underline">Paused: out of credits — open credit setup instructions</a>}
           {jackboyVoice.speaking && <button type="button" onClick={jackboyVoice.stop} className="mb-2 ml-2 inline-flex items-center gap-1 text-xs text-muted-foreground underline"><Square className="size-3" />Stop speaking</button>}
@@ -361,54 +433,25 @@ function ChatPage() {
 const links = (v: unknown): EvidenceLink[] => Array.isArray(v) ? v.filter((l): l is EvidenceLink => Boolean(l) && typeof (l as EvidenceLink).url === "string" && Boolean(safeEvidenceUrl((l as EvidenceLink).url))) : [];
 const textOf = (m: UIMessage) => m.parts.filter((x) => x.type === "text").map((x) => (x as { text: string }).text).join(" ");
 
-function Bubble({ m, streaming, rating, onRate }: { m: UIMessage; streaming: boolean; rating?: Feedback | undefined; onRate?: (v: Feedback) => void }) {
-  if (m.role === "user") return <li className="self-end max-w-[85%] min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere] rounded-3xl bg-muted px-4 py-2.5 text-[15px]">{textOf(m).replace(/^🎙\s*/, "")}</li>;
+function Bubble({ m, streaming, disabled, rating, onRate, onRetry, onBranch }: {
+  m: UIMessage; streaming: boolean; disabled: boolean; rating?: Feedback | undefined;
+  onRate: (v: Feedback) => void; onRetry: () => void; onBranch: (mode: ChatMode) => void;
+}) {
   const words = textOf(m);
+  const user = m.role === "user";
   const retainedLinks = links((m.metadata as { evidence?: unknown } | undefined)?.evidence);
   return (
-    <li className="group min-w-0 max-w-full text-[15px] leading-relaxed [overflow-wrap:anywhere] [content-visibility:auto] [contain-intrinsic-size:auto_120px] [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_pre]:overflow-y-hidden [&_table]:block [&_table]:overflow-x-auto">
-      {m.parts.map((part, i) => {
+    <li id={`message-${m.id}`} className={user ? "group self-end max-w-[90%] min-w-0 text-[15px] [overflow-wrap:anywhere]" : "group min-w-0 max-w-full text-[15px] leading-relaxed [overflow-wrap:anywhere] [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_pre]:overflow-y-hidden [&_table]:block [&_table]:overflow-x-auto"}>
+      {user ? <div className="whitespace-pre-wrap rounded-3xl bg-muted px-4 py-2.5">{words.replace(/^🎙\s*/, "")}</div> : m.parts.map((part, i) => {
         if (part.type === "text") return <MessageResponse key={i} components={{ a: ({ children }) => <span>{children}</span> }}>{part.text}</MessageResponse>;
         if (isToolUIPart(part)) return <ToolLine key={i} name={part.type === "dynamic-tool" ? part.toolName : part.type.slice(5)} state={part.state} output={part.output} errorText={part.errorText} />;
         return null;
       })}
-      {/* Fixed-height action row only after streaming ends, so tokens never shift it. */}
-      {!streaming && words.trim() && <div role="group" aria-label="Reply actions" className="mt-1 flex h-8 items-center gap-0.5">
-        <CopyButton text={words} />
-        <SpeakButton text={words} />
-        {onRate && <>
-          <button type="button" onClick={() => onRate("up")} aria-pressed={rating === "up"} aria-label="Good reply" title="Good reply" className={`${actBtn} ${rating === "up" ? "text-electric opacity-100" : ""}`}><ThumbsUp className="size-3.5" fill={rating === "up" ? "currentColor" : "none"} /></button>
-          <button type="button" onClick={() => onRate("down")} aria-pressed={rating === "down"} aria-label="Bad reply" title="Bad reply" className={`${actBtn} ${rating === "down" ? "text-electric opacity-100" : ""}`}><ThumbsDown className="size-3.5" fill={rating === "down" ? "currentColor" : "none"} /></button>
-        </>}
-      </div>}
+      {m.parts.filter((p) => p.type === "file").map((p, i) => p.type === "file" && <details key={i} className="text-xs text-muted-foreground"><summary>{p.filename ?? "Attachment"}</summary><span>{p.mediaType}</span></details>)}
       {retainedLinks.map((l) => <a key={l.url} href={l.url} className="mr-3 text-xs text-primary underline">{l.label}</a>)}
+      <ChatMessageActions text={words} assistant={!user} streaming={streaming} disabled={disabled} time={messageTime(m as StoredMessage)} rating={rating} onRate={onRate} onRetry={onRetry} onBranch={onBranch} />
     </li>
   );
-}
-
-const actBtn = "inline-flex size-8 items-center justify-center rounded-full text-muted-foreground opacity-70 transition-colors hover:text-electric hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-electric";
-
-function CopyButton({ text }: { text: string }) {
-  const [done, setDone] = useState(false);
-  return <button type="button" onClick={() => void navigator.clipboard.writeText(text).then(() => { setDone(true); setTimeout(() => setDone(false), 1500); })} className={actBtn} aria-label="Copy reply" title="Copy">{done ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}</button>;
-}
-
-/** Speak-back: reads this reply aloud with the device voice. Output only — it never uses the microphone. */
-function SpeakButton({ text }: { text: string }) {
-  const [playing, setPlaying] = useState(false);
-  const [supported, setSupported] = useState(true);
-  useEffect(() => { setSupported(typeof window !== "undefined" && "speechSynthesis" in window); }, []);
-  useEffect(() => () => { if (playing) window.speechSynthesis.cancel(); }, [playing]);
-  if (!supported) return <span className="inline-flex size-8 items-center justify-center text-muted-foreground/40" title="Reading aloud isn't supported in this browser" aria-label="Reading aloud unavailable in this browser" role="img"><Volume2 className="size-3.5" /></span>;
-  const toggle = () => {
-    const s = window.speechSynthesis;
-    if (playing) { s.cancel(); setPlaying(false); return; }
-    s.cancel();
-    const u = new SpeechSynthesisUtterance(speakableText(text));
-    u.onend = u.onerror = () => setPlaying(false);
-    setPlaying(true); s.speak(u);
-  };
-  return <button type="button" onClick={toggle} aria-pressed={playing} aria-label={playing ? "Stop reading aloud" : "Read reply aloud"} title={playing ? "Stop" : "Read aloud"} className={`${actBtn} ${playing ? "text-electric opacity-100" : ""}`}>{playing ? <Square className="size-3.5" /> : <Volume2 className="size-3.5" />}</button>;
 }
 
 /** Plays typed replies in the ElevenLabs "Jackboy" voice when configured; stoppable so the owner can interrupt. */
