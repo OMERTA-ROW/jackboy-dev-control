@@ -98,6 +98,9 @@ export function parseOpenAICostPage(
       });
     }
   }
+  if (new Set(rows.map((row) => row.provider_event_id)).size !== rows.length) {
+    throw new Error("OpenAI costs response contains duplicate bucket entries.");
+  }
   const nextPage = page["next_page"];
   if (page["has_more"] && (typeof nextPage !== "string" || nextPage.length === 0)) {
     throw new Error("OpenAI costs pagination is incomplete.");

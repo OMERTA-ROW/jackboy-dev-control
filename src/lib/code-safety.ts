@@ -74,13 +74,16 @@ export function codeStartBlockReason(
     !state.providerBudgetEnforced ||
     state.providerSpendTodayUsd === null ||
     !Number.isFinite(state.providerSpendTodayUsd) ||
+    state.providerSpendTodayUsd < 0 ||
     !state.providerUsageAt
   ) {
     return "CODE is blocked because authoritative provider spending data is unavailable.";
   }
   const measuredAt = Date.parse(state.providerUsageAt);
   if (
+    !Number.isFinite(now) ||
     !Number.isFinite(measuredAt) ||
+    new Date(measuredAt).toISOString().slice(0, 10) !== new Date(now).toISOString().slice(0, 10) ||
     measuredAt > now + 30_000 ||
     now - measuredAt > CODE_USAGE_MAX_AGE_MS
   ) {

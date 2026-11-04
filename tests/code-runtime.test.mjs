@@ -184,3 +184,22 @@ test('unapproved workflow, disabled project, missing credential and failed audit
   await assert.rejects(() => requestCode(projectId, 'Fix footer', 'owner', 'session'));
   assert.equal(dispatches, 0);
 });
+
+
+test('invalid or unverified admission meter never dispatches', async () => {
+  const controls = records.code_runtime_controls[0];
+  for (const patch of [
+    { provider_hard_cap_verified: false },
+    { provider_usage_at: null },
+    { provider_usage_at: new Date(Date.now() - 360_000).toISOString() },
+    { provider_usage_at: new Date(Date.now() + 60_000).toISOString() },
+  ]) {
+    Object.assign(controls, { provider_hard_cap_verified: true, provider_usage_at: new Date().toISOString() }, patch);
+    await assert.rejects(requestCode(projectId, 'Fix footer', 'owner', 'session'));
+    assert.equal(dispatches, 0);
+  }
+  Object.assign(controls, { provider_hard_cap_verified: true, provider_usage_at: new Date().toISOString() });
+  records.code_usage_events.push({ cost_usd: -1, occurred_at: new Date().toISOString() });
+  await assert.rejects(requestCode(projectId, 'Fix footer', 'owner', 'session'));
+  assert.equal(dispatches, 0);
+});
