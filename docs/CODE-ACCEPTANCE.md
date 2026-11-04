@@ -27,6 +27,8 @@ ignores TypeScript failures or falls back to a non-frozen dependency install.
 Default GitHub CodeQL analysis on repair PRs supplies a fresh JavaScript/TypeScript
 and Actions scan; an old dynamic scan that cannot be retried is not fresh evidence.
 These workflows never deploy, apply production migrations or dispatch CODE.
+Full acceptance runs on every pull request because it is a required main-branch
+check; path filtering would leave unrelated pull requests permanently pending.
 
 The application repository's `CODE-PUBLISH` environment requires the owner,
 disallows self-review and administrator bypass, and accepts protected branches

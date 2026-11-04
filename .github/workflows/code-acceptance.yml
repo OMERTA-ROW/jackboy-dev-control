@@ -5,13 +5,6 @@ name: CODE acceptance (isolated, mocked providers)
 on:
   workflow_dispatch:
   pull_request:
-    paths:
-      - .github/workflows/code-acceptance.yml
-      - .github/workflows/code-gateway-staging.yml
-      - tests/**
-      - drizzle/**
-      - src/lib/code*
-      - docs/CODE-ACCEPTANCE.md
 permissions:
   contents: read
 concurrency:
