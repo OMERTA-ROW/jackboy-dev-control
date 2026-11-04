@@ -26,25 +26,20 @@ export const runOmniHandshake = createServerFn({ method: "POST" })
     return omniHandshake(context.userId);
   });
 
-/** Non-mutating live proof for readiness checks; never sends work or stores credential-derived proof. */
+/** Read-only check of the reviewed OMNI-initiated link (omni.link/v2, PR #3 design).
+ * OMNI calls Jackboy, so Jackboy never calls OMNI here; it never sends work or reads secret values. */
 export const probeOmniConnection = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     await requireOwner(context);
-    const url = process.env["OMNI_API_URL"], key = process.env["OMNI_API_KEY"], secret = process.env["OMNI_CALLBACK_SECRET"];
-    if (!url || !key || !secret) return { verified: false, error: "Set OMNI_API_URL, OMNI_API_KEY and OMNI_CALLBACK_SECRET on Jackboy; matching keys must be configured on the hosted OMNI worker." };
-    const { parseHandshake, hmacHex, safeEqual } = await import("./omni-link");
-    const challenge = crypto.randomUUID().replaceAll("-", "") + crypto.randomUUID().replaceAll("-", "");
-    try {
-      const endpoint = new URL(url);
-      if (endpoint.protocol !== "https:") return { verified: false, error: "OMNI_API_URL must be an HTTPS worker origin." };
-      const response = await fetch(`${url.replace(/\/$/, "")}/jackboy/handshake`, { method: "POST", redirect: "error", signal: AbortSignal.timeout(10000), headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" }, body: JSON.stringify({ challenge }) });
-      if (!response.ok) return { verified: false, error: `OMNI handshake returned HTTP ${response.status}; check worker hosting and matching OMNI_API_KEY.` };
-      const handshake = parseHandshake(await response.json());
-      if (typeof handshake === "string") return { verified: false, error: "OMNI returned an unsupported handshake contract." };
-      if (!safeEqual(handshake.proof, await hmacHex(secret, challenge))) return { verified: false, error: "OMNI callback proof failed; re-enter matching OMNI_CALLBACK_SECRET on both sides." };
-      return { verified: true, version: handshake.version, capabilities: handshake.capabilities };
-    } catch { return { verified: false, error: "OMNI handshake could not complete; check hosted HTTPS origin and /jackboy/handshake availability." }; }
+    const { linkConfig } = await import("./omni-session.server");
+    const { reverseLinkReport, REVERSE_LINK_VARS } = await import("./omni-link-readiness");
+    const env = Object.fromEntries(REVERSE_LINK_VARS.map((n) => [n, process.env[n]]));
+    const db = (await import("./untyped-db")).untyped((await import("@/integrations/supabase/client.server")).supabaseAdmin);
+    const { data, error } = await db.from("omni_link_sessions").select("expires_at").order("expires_at", { ascending: false }).limit(1);
+    const rows = (data ?? []) as { expires_at: string }[];
+    const report = reverseLinkReport({ env, configValid: linkConfig() !== null, storageReady: !error, lastSessionAt: rows[0]?.expires_at ?? null });
+    return { ...report, error: report.verified ? null : report.missing.join(" · ") };
   });
 
 export const dispatchOmniNow = createServerFn({ method: "POST" })
