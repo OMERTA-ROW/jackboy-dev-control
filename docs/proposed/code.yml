@@ -162,7 +162,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
-      - uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
         with:
           bun-version: "1.4.4"
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
@@ -181,13 +181,13 @@ jobs:
           mkdir -p "$RUNNER_TEMP/code-output"
           cp "$RUNNER_TEMP/code-model/"* "$RUNNER_TEMP/code-output/"
           set +e
-          sudo unshare -n -- sudo -u "$(id -un)" env -i PATH="$PATH" HOME="$HOME" bash -c '
+          sudo unshare -n -- sudo -u "$(id -un)" env -i PATH="$PATH" HOME="$HOME" RUNNER_TEMP="$RUNNER_TEMP" bash -c '
             ip link set lo up 2>/dev/null
             bun run test > "$RUNNER_TEMP/code-output/tests.txt" 2>&1; t=$?
             node --test tests/code-*.test.mjs > "$RUNNER_TEMP/code-output/code-tests.txt" 2>&1; c=$?
             bun run build > "$RUNNER_TEMP/code-output/build.txt" 2>&1; b=$?
             echo "tests=$t code_tests=$c build=$b" > "$RUNNER_TEMP/code-output/exit-codes.txt"
-            test $t -eq 0 -a $c -eq 0 -a $b -eq 0' RUNNER_TEMP="$RUNNER_TEMP"
+            test $t -eq 0 -a $c -eq 0 -a $b -eq 0'
           status=$?
           exit $status
         env:
