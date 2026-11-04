@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # No runner home, socket, environment, writable host workspace or job-control files enter the container.
-image="node:26-bookworm-slim@sha256:bc0a2afd3b74ce12222fc8bab99271e66257f021078f5f4a5d687a77d280c1d9"
+image="node:26-bookworm@sha256:fa52d1669505e29b58c042875b1d65c229e0787a3610fd52869b22b68e480853"
 output="$RUNNER_TEMP/code-validation"
 mkdir -p "$output"
 docker pull "$image"

@@ -26,6 +26,10 @@ test("derived workflow keeps every production gate and removes only the paid mod
     "--draft",
     'branch="jackboy/code-$CODE_REQUEST"',
     "node scripts/code-patch.mjs",
+    "node scripts/code-evidence.mjs",
+    "gh attestation verify",
+    "needs: [prepare, validate]",
+    'run: bash "$RUNNER_TEMP/code-validation.sh"',
     "id-token: write",
   ]) {
     assert.ok(prod.includes(kept) && derived.includes(kept), `missing ${kept}`);
@@ -63,6 +67,13 @@ test("seed is self-contained, matches the real patch gate byte-for-byte and refe
     files["scripts/code-patch.mjs"],
     readFileSync(new URL("../scripts/code-patch.mjs", import.meta.url), "utf8"),
   );
+  assert.equal(
+    files["scripts/code-evidence.mjs"],
+    readFileSync(new URL("../scripts/code-evidence.mjs", import.meta.url), "utf8"),
+  );
+  assert.match(files["scripts/code-validation.sh"], /--network none/);
+  assert.match(files["scripts/code-validation.sh"], /--read-only --cap-drop ALL/);
+  assert.match(files["scripts/code-validation.sh"], /node --test tests\//);
   assert.equal(
     Object.keys(files).some((p) => /^\.env|drizzle|src\//.test(p)),
     false,

@@ -68,7 +68,7 @@ test("untrusted validation has no writable host mount, network, Docker socket or
     "--init",
   ])
     assert.ok(script.includes(flag), flag);
-  assert.match(script, /node:26-bookworm-slim@sha256:[a-f0-9]{64}/);
+  assert.match(script, /node:26-bookworm@sha256:[a-f0-9]{64}/);
   assert.match(script, /src=\$PWD,dst=\/source,readonly/);
   assert.doesNotMatch(
     script,
