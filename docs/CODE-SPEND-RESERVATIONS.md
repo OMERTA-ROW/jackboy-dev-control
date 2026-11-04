@@ -1,6 +1,6 @@
 # CODE atomic spend reservations (migration 0040)
 
-Status: **implemented and tested in isolated PGlite databases only. Not applied to any real database. The provider hard-cap gate is unchanged and CODE admission remains blocked.**
+Status: **implemented and tested in isolated PGlite and disposable loopback PostgreSQL databases only. Not applied to any hosted database. The provider hard-cap gate is unchanged and CODE admission remains blocked.**
 
 ## What this adds, and what it does not
 
@@ -29,7 +29,7 @@ Controls added: `per_task_reserve_usd` (default 1.00, 0 < x <= 5.00) and `reconc
 
 ## Known limits (deliberate, fail-closed)
 
-- Holds for tasks spanning a UTC midnight are never released automatically and keep consuming capacity until a reviewed owner-release procedure exists (not implemented here).
+- Holds for tasks spanning a UTC midnight are never released automatically; they keep consuming capacity until an owner invokes the evidence-based release procedure added in 0041.
 - Holds can only be released by a provider cost report; delayed or failed syncs reduce capacity, not safety.
 - The per-task reserve is an owner-configured estimate, not a measured bound.
 - The 5-minute freshness and hourly spike rules from 0037 are unchanged.
@@ -48,11 +48,10 @@ A mutation check (removing the holds term from the claim inequality) makes 3 of 
 
 ## Live verification still required (not done)
 
-1. Concurrency on a real multi-connection Postgres (PGlite is single-connection; correctness relies on the row lock, and is not demonstrated under true parallel sessions).
-2. Applying 0040 to a staging database that mirrors production, and a staged rollback.
-3. A real OpenAI cost-report cycle in a non-production project to confirm that reports land within the grace window; tune `reconcile_grace_seconds` from evidence.
-4. A credential-bound admission proxy or provider-enforced daily cap, then an owner-reviewed migration to open the hard-cap gate. Until then CODE stays blocked.
-5. Owner-gated server functions and passkey step-up for the 0041 hold-release RPCs.
+1. Concurrency and transaction rollback behavior have been checked with the disposable loopback PostgreSQL suite described in Round 12. Applying 0040 to a hosted staging database that mirrors production, and a staged migration rollback, remain unverified.
+2. A real OpenAI cost-report cycle in a non-production project to confirm that reports land within the grace window; tune `reconcile_grace_seconds` from evidence.
+3. A credential-bound admission proxy or provider-enforced daily cap, then an owner-reviewed migration to open the hard-cap gate. Until then CODE stays blocked.
+4. Owner-gated server functions and passkey step-up for the 0041 hold-release RPCs.
 
 Migration numbering: `0039_recovery_codes.sql` has no `_journal.json` entry on `main`; this PR does not change the journal.
 
@@ -80,3 +79,35 @@ Reservations bound admission, not what a running job spends.
 - **B. Credential-holding admission proxy.** The only design that could enforce the limit: the runner never holds the key; every request reserves its worst case (input estimate + `max_tokens` ceiling) atomically before forwarding; retries are new reservations; streams are cut at the ceiling; settlement uses provider-reported usage; uncertain usage stays reserved; the proxy fails closed when the DB or audit log is unreachable. It must be tested with a real provider in staging and its coverage of every outbound path proven.
 
 Neither can be verified in an offline/mocked environment, so the gate is **BLOCKED**, `provider_hard_cap_verified` remains false and the 0037 CHECK is untouched.
+
+## Round 12: real-PostgreSQL staging verification (historical)
+
+The findings below describe the state before the Round 13 changes. The Round 13 additions above provide the migration-chain baseline and evidence-based cross-day hold-release RPCs; the remaining follow-up is to expose the RPCs through owner-gated server functions with passkey step-up.
+
+Environment: a disposable, loopback-only PostgreSQL 18 (embedded-postgres, no production credentials, synthetic data, no outbound provider access). Nothing here is a production or hosted staging database.
+
+Run the same suites against it with:
+
+```sh
+STAGING_PG_URL=postgres://<user>:<pw>@127.0.0.1:<port>/postgres \
+STAGING_PG_MODULE_FROM=/path/to/dir/with/pg/package.json \
+node --test tests/code-spend-reservation.test.mjs tests/code-spend-staging-pg.test.mjs
+```
+
+- `tests/code-spend-reservation.test.mjs` runs on PGlite by default; with `STAGING_PG_URL` it runs unchanged on real PostgreSQL (one throwaway database per test). Non-loopback hosts are refused.
+- `tests/code-spend-staging-pg.test.mjs` (skipped without `STAGING_PG_URL`) adds true multi-connection checks: 16 parallel workers over many backend connections never exceed the daily limit; a competing claim is observed blocked on the controls row lock (`wait_event_type = Lock`); rolled-back claims leave no hold; audit-log failure, unreadable usage table and missing/stale/future provider data all fail closed with zero holds; `anon`/`authenticated` are denied; the cost-report lifecycle (hold → finish → report → reconcile → refund) and non-owner denial; a cross-UTC-day hold is never auto-released.
+- Mutation check: removing `held_spend` from the claim makes 3 of the real-PostgreSQL tests fail.
+
+### Known gaps found at Round 12
+
+- Cross-day holds: an unsettled hold from an earlier UTC day still counted against that day's limit and had no release path. The evidence-based procedure was added in Round 13 above; without authoritative evidence, releasing such a hold would weaken the gate.
+- `0031_repository_resync_drift_removals.sql` and `0033_unified_project_repository_resync.sql` referenced `repository_resync_reviews`, which no migration created, so the migration chain could not be replayed from an empty database. The Round 13 baseline above addresses this gap.
+
+### What must exist before `provider_hard_cap_verified` can be enabled
+
+Reservations bound _admission_, not _spend_. One of the following authoritative controls is required, with evidence recorded by a separate reviewed migration:
+
+1. A provider-enforced limit on a dedicated, CODE-only project and key (hard budget or per-key cap that the provider itself rejects over), verified by an owner-observed provider-side setting and a staging probe that is refused at the cap; or
+2. An admission/metering proxy that holds the only copy of the provider credential, counts tokens per request against the reservation, rejects over-budget calls before they reach the provider, and writes usage to `code_usage_events` transactionally; runner jobs never see the raw key.
+
+Until then the 0037 CHECK stays in force and the gate stays closed.

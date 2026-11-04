@@ -2,10 +2,39 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { PGlite } from "@electric-sql/pglite";
+import { createRequire } from "node:module";
 
 // Isolated in-memory PGlite databases with synthetic data only. Nothing here reaches a provider,
 // GitHub, or any real database. Tests that exercise the admission path drop the 0037 hard-cap CHECK
 // in the throwaway database ONLY, because the real schema (correctly) can never admit a task yet.
+
+// By default every test runs on an in-memory PGlite. When STAGING_PG_URL points at a LOOPBACK
+// disposable PostgreSQL server (no production credentials), the same tests run on real PostgreSQL
+// through a connection pool, one throwaway database per test. Non-loopback hosts are refused.
+const stagingUrl = process.env.STAGING_PG_URL;
+let pgPool;
+async function openDb() {
+  if (!stagingUrl) return new PGlite();
+  const url = new URL(stagingUrl);
+  if (!["127.0.0.1", "localhost", "::1", "[::1]"].includes(url.hostname)) {
+    throw new Error("STAGING_PG_URL must be a loopback host; refusing to connect");
+  }
+  const pg = createRequire(process.env.STAGING_PG_MODULE_FROM ?? import.meta.url)("pg");
+  const admin = (pgPool ??= new pg.Pool({ connectionString: stagingUrl, max: 2 }));
+  const name = `spend_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  await admin.query(`CREATE DATABASE ${name}`);
+  url.pathname = `/${name}`;
+  const pool = new pg.Pool({ connectionString: url.toString(), max: 12 });
+  return {
+    query: (sql, params) => pool.query(sql, params),
+    exec: (sql) => pool.query(sql),
+    close: async () => {
+      await pool.end();
+      await admin.query(`DROP DATABASE ${name} WITH (FORCE)`);
+    },
+  };
+}
+process.on("exit", () => pgPool?.end());
 
 const ownerId = "00000000-0000-4000-8000-000000000001";
 const nonOwnerId = "00000000-0000-4000-8000-000000000009";
@@ -18,11 +47,11 @@ const secondsIntoUtcDay = () => {
 };
 
 async function baseDatabase() {
-  const db = new PGlite();
+  const db = await openDb();
   await db.exec(`
-    CREATE ROLE anon;
-    CREATE ROLE authenticated;
-    CREATE ROLE service_role;
+    DO $$ BEGIN CREATE ROLE anon; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+    DO $$ BEGIN CREATE ROLE authenticated; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+    DO $$ BEGIN CREATE ROLE service_role; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
     CREATE TABLE public.action_requests (
       id uuid PRIMARY KEY,
       requested_by uuid NOT NULL,
