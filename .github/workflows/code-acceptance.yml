@@ -63,7 +63,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/acceptance"
           sudo -E env "PATH=$PATH" unshare -n sh -c '
             ip link set lo up
-            node --test tests/code-*.test.mjs tests/omni-*.test.mjs
+            timeout 300 node --test --test-timeout=60000 --test-reporter=spec tests/code-*.test.mjs tests/omni-*.test.mjs
           ' 2>&1 | tee "$RUNNER_TEMP/acceptance/node-tests.txt"
           test "${PIPESTATUS[0]}" -eq 0
       - name: OMNI Go suites (no network)
@@ -71,7 +71,7 @@ jobs:
         env:
           GOTOOLCHAIN: local
         run: |
-          sudo -E env "PATH=$PATH" unshare -n sh -c 'ip link set lo up && go test ./... -count=1' 2>&1 | tee "$RUNNER_TEMP/acceptance/go-tests.txt"
+          sudo -E env "PATH=$PATH" unshare -n sh -c 'ip link set lo up && timeout 300 go test ./... -count=1 -timeout 120s' 2>&1 | tee "$RUNNER_TEMP/acceptance/go-tests.txt"
           test "${PIPESTATUS[0]}" -eq 0
       - name: Assert nothing was skipped
         run: |
