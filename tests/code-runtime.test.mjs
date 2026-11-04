@@ -3,7 +3,7 @@ import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { registerHooks } from 'node:module';
 const records = { action_requests: [], owner_projects: [], audit_logs: [], omni_connection: [], omni_jobs: [], code_runtime_controls: [], code_usage_events: [] };
-let run, dispatches, omniDispatches, cancellations, retries, auditFails, uncertain;
+let run, dispatches, omniDispatches, cancellations, retries, auditFails, uncertain, afterAllowAudit, failingTable;
 class Query {
   constructor(table) { this.table = table; this.filters = []; this.operation = 'select'; }
   select() { return this; }
@@ -17,6 +17,7 @@ class Query {
   order() { return this; }
   limit(n) { this.limitValue = n; return this; }
   execute(single = false) {
+    if (this.table === failingTable) return { data: null, error: { message: 'source unavailable' } };
     if (this.table === 'audit_logs' && auditFails) return { data: null, error: { message: 'audit unavailable' } };
     let rows = records[this.table].filter(r => this.filters.every(f => f(r)));
     if (this.operation === 'insert' || this.operation === 'upsert') {
@@ -35,6 +36,7 @@ class Query {
           ...this.value,
         };
         records[this.table].push(row); rows = [row];
+        if (this.table === 'audit_logs' && row.action === 'code.allow') afterAllowAudit?.();
       }
     }
     if (this.operation === 'update') rows.forEach(r => Object.assign(r, this.value));
@@ -101,7 +103,7 @@ beforeEach(() => {
   process.env.OMNI_API_URL = 'https://omni.example';
   process.env.OMNI_API_KEY = 'isolated-test-api-key';
   process.env.OMNI_CALLBACK_SECRET = 'isolated-test-callback-secret';
-  run = undefined; dispatches = omniDispatches = cancellations = retries = 0; auditFails = uncertain = false;
+  run = undefined; dispatches = omniDispatches = cancellations = retries = 0; auditFails = uncertain = false; afterAllowAudit = undefined; failingTable = undefined;
 });
 test('voice/text intent → pending approval → real server dispatch path → evidence and draft PR (mock transport)', async () => {
   assert.equal(await codeProjectId('Jackboy'), projectId);
@@ -201,5 +203,37 @@ test('invalid or unverified admission meter never dispatches', async () => {
   Object.assign(controls, { provider_hard_cap_verified: true, provider_usage_at: new Date().toISOString() });
   records.code_usage_events.push({ cost_usd: -1, occurred_at: new Date().toISOString() });
   await assert.rejects(requestCode(projectId, 'Fix footer', 'owner', 'session'));
+  assert.equal(dispatches, 0);
+});
+
+
+for (const [name, invalidate] of [
+  ['stale usage', () => { records.code_runtime_controls[0].provider_usage_at = new Date(Date.now() - 360_000).toISOString(); }],
+  ['missing usage', () => { records.code_runtime_controls[0].provider_usage_at = null; }],
+  ['future usage', () => { records.code_runtime_controls[0].provider_usage_at = new Date(Date.now() + 60_000).toISOString(); }],
+  ['unverified cap', () => { records.code_runtime_controls[0].provider_hard_cap_verified = false; }],
+  ['exhausted budget', () => { records.code_usage_events.push({ cost_usd: 5, occurred_at: new Date().toISOString() }); }],
+  ['negative spend', () => { records.code_usage_events.push({ cost_usd: -1, occurred_at: new Date().toISOString() }); }],
+  ['missing controls', () => { records.code_runtime_controls.splice(0); }],
+  ['failed meter source', () => { failingTable = 'code_usage_events'; }],
+  ['emergency stop', () => { records.code_runtime_controls[0].kill_switch = true; }],
+]) {
+  test(`evidence becoming invalid after approval audit blocks dispatch: ${name}`, async () => {
+    const c = await requestCode(projectId, 'Fix footer', 'owner', 'session');
+    afterAllowAudit = invalidate;
+    await assert.rejects(decideCode(c.id, c.nonce, 'allow', 'owner', 'session'));
+    assert.equal(dispatches, 0);
+    assert.equal(omniDispatches, 0);
+    assert.equal(records.action_requests[0].status, 'allowed');
+    assert.match(records.action_requests[0].outcome, /blocked/i);
+    await assert.rejects(decideCode(c.id, c.nonce, 'allow', 'owner', 'session'));
+    assert.equal(dispatches, 0);
+  });
+}
+test('evidence invalidated while approval card waits is rejected before consuming consent', async () => {
+  const c = await requestCode(projectId, 'Fix footer', 'owner', 'session');
+  records.code_runtime_controls[0].provider_usage_at = new Date(0).toISOString();
+  await assert.rejects(decideCode(c.id, c.nonce, 'allow', 'owner', 'session'));
+  assert.equal(records.action_requests[0].status, 'pending');
   assert.equal(dispatches, 0);
 });
