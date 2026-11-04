@@ -12,7 +12,7 @@ import { useChatVoice, VoiceButtons } from "@/components/ChatVoice";
 import { LiveCallBar, StartVoiceButton, useLiveCall, type LiveRow } from "@/components/LiveVoiceCall";
 import { CodeTasks, useCodeTasks } from "@/components/CodeTasks";
 import { VoiceOrb } from "@/components/VoiceOrb";
-import { feedbackKey, followTarget, isNearBottom, nextFollow, parseFeedback, speakableText, toggleFeedback, type Feedback } from "@/lib/chat-scroll";
+import { composerHeight, frameBatcher, preservedScrollTop, feedbackKey, followTarget, isNearBottom, nextFollow, parseFeedback, speakableText, toggleFeedback, type Feedback } from "@/lib/chat-scroll";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { safeEvidenceUrl, type EvidenceLink } from "@/lib/chat-action";
 import { CREDIT_HELP_URL } from "@/lib/work-policy";
@@ -190,10 +190,13 @@ function ChatPage() {
     const up = () => { if (!isNearBottom(metrics(), 8)) { followRef.current.follow = false; setAtBottom(false); } };
     const wheel = (e: WheelEvent) => { if (e.deltaY < 0) { followRef.current.follow = false; setAtBottom(false); } };
     window.addEventListener("scroll", on, { passive: true }); window.addEventListener("wheel", wheel, { passive: true }); window.addEventListener("touchmove", up, { passive: true });
-    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => requestAnimationFrame(pin)) : null;
+    // All growth/resize signals coalesce into at most one pin per frame (no lag, no jitter).
+    const batch = frameBatcher(pin);
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => batch.schedule()) : null;
     if (convo.current) ro?.observe(convo.current);
-    window.visualViewport?.addEventListener("resize", pin);
-    return () => { window.removeEventListener("scroll", on); window.removeEventListener("wheel", wheel); window.removeEventListener("touchmove", up); ro?.disconnect(); window.visualViewport?.removeEventListener("resize", pin); };
+    const vv = () => batch.schedule();
+    window.visualViewport?.addEventListener("resize", vv); window.addEventListener("resize", vv);
+    return () => { batch.cancel(); window.removeEventListener("scroll", on); window.removeEventListener("wheel", wheel); window.removeEventListener("touchmove", up); ro?.disconnect(); window.visualViewport?.removeEventListener("resize", vv); window.removeEventListener("resize", vv); };
   }, [pin]);
   const tail = messages.at(-1);
   useEffect(() => { const id = requestAnimationFrame(pin); return () => cancelAnimationFrame(id); }, [messages.length, tail && textOf(tail).length, liveRows, status, pin]);
@@ -215,7 +218,14 @@ function ChatPage() {
   }, []);
 
   const textarea = useRef<HTMLTextAreaElement>(null);
-  useEffect(() => { const t = textarea.current; if (t) { t.style.height = "auto"; t.style.height = `${Math.min(t.scrollHeight, 200)}px`; } }, [text]);
+  // Auto-grow up to a keyboard-aware max; only then does the box scroll internally.
+  const sizeComposer = useCallback(() => { const t = textarea.current; if (!t) return; t.style.height = "auto"; const r = composerHeight(t.scrollHeight, window.visualViewport?.height ?? window.innerHeight); t.style.height = `${r.height}px`; t.style.overflowY = r.overflow ? "auto" : "hidden"; }, []);
+  useLayoutEffect(sizeComposer, [text, sizeComposer]);
+  useEffect(() => { const vv = window.visualViewport; vv?.addEventListener("resize", sizeComposer); return () => vv?.removeEventListener("resize", sizeComposer); }, [sizeComposer]);
+  // Revealing earlier history inserts content above: keep the reader's place.
+  const historyAnchor = useRef<{ top: number; height: number } | null>(null);
+  const toggleHistory = () => { historyAnchor.current = { top: window.scrollY, height: document.documentElement.scrollHeight }; followRef.current.follow = false; setCollapsed(!collapsed); };
+  useLayoutEffect(() => { const a = historyAnchor.current; if (!a) return; historyAnchor.current = null; const top = preservedScrollTop(a.top, a.height, document.documentElement.scrollHeight); window.scrollTo({ top, behavior: "instant" as ScrollBehavior }); followRef.current.lastTop = top; }, [collapsed]);
   useEffect(() => { textarea.current?.focus(); }, [activeId, view, status]);
 
   const activity = deriveActivity({
@@ -309,7 +319,7 @@ function ChatPage() {
         ) : (
           <ol className="flex flex-col gap-6 pt-4">
             {messages.length > KEEP_VISIBLE + 2 && <li className="self-center">
-              <button type="button" onClick={() => setCollapsed(!collapsed)} aria-expanded={!collapsed} className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1 text-xs text-muted-foreground hover:text-foreground">
+              <button type="button" onClick={toggleHistory} aria-expanded={!collapsed} className="inline-flex items-center gap-1 rounded-full border border-border px-3 py-1 text-xs text-muted-foreground hover:text-foreground">
                 {collapsed ? <><ChevronDown className="size-3.5" />Show {hidden} earlier messages</> : <><ChevronUp className="size-3.5" />Hide earlier messages</>}
               </button>
             </li>}
@@ -335,7 +345,7 @@ function ChatPage() {
             <textarea id="jb-msg" ref={textarea} rows={1} value={text} placeholder={view === "code" ? (target ? `Change for ${target}…` : "Describe the code change") : "Message Jackboy"}
               onChange={(e) => { setText(e.target.value); if (!e.target.value.trim()) setFromVoice(false); }}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); send(text); } }}
-              className="max-h-[200px] min-h-9 min-w-0 flex-1 resize-none overflow-y-auto overscroll-contain bg-transparent [overflow-wrap:anywhere] py-1.5 text-[15px] outline-none placeholder:text-muted-foreground" />
+              aria-multiline="true" className="min-h-9 min-w-0 flex-1 resize-none overflow-y-hidden overscroll-contain [scrollbar-width:thin] bg-transparent [overflow-wrap:anywhere] py-1.5 text-[15px] outline-none placeholder:text-muted-foreground" />
             <VoiceButtons v={voice} />
             {busy ? <button type="button" onClick={stop} aria-label="Stop reply" className="inline-flex size-9 items-center justify-center rounded-full bg-foreground text-background"><Square className="size-3.5" /></button>
               : text.trim() ? <button type="submit" aria-label="Send message" className="inline-flex size-9 items-center justify-center rounded-full bg-primary text-primary-foreground"><ArrowUp className="size-4" /></button>
@@ -356,7 +366,7 @@ function Bubble({ m, streaming, rating, onRate }: { m: UIMessage; streaming: boo
   const words = textOf(m);
   const retainedLinks = links((m.metadata as { evidence?: unknown } | undefined)?.evidence);
   return (
-    <li className="group min-w-0 max-w-full text-[15px] leading-relaxed [overflow-wrap:anywhere] [&_pre]:max-h-[60vh] [&_pre]:max-w-full [&_pre]:overflow-auto [&_table]:block [&_table]:overflow-x-auto">
+    <li className="group min-w-0 max-w-full text-[15px] leading-relaxed [overflow-wrap:anywhere] [content-visibility:auto] [contain-intrinsic-size:auto_120px] [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_pre]:overflow-y-hidden [&_table]:block [&_table]:overflow-x-auto">
       {m.parts.map((part, i) => {
         if (part.type === "text") return <MessageResponse key={i} components={{ a: ({ children }) => <span>{children}</span> }}>{part.text}</MessageResponse>;
         if (isToolUIPart(part)) return <ToolLine key={i} name={part.type === "dynamic-tool" ? part.toolName : part.type.slice(5)} state={part.state} output={part.output} errorText={part.errorText} />;
