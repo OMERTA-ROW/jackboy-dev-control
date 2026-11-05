@@ -1,5 +1,11 @@
 # Jackboy roadmap
 
+## Workflow pin repair and activation readiness (Nov 5, 21:30 UTC)
+- [ ] Independently verify GitHub main workflow bytes and both stored pins; prepare approval-only repair without changing scope.
+- [ ] Verify production stop, disabled runtime and 0037 invariant; no dispatch or paid calls.
+- [ ] Add permanent evidence-based activation checklist; local tests never imply production acceptance.
+- [ ] Report OMNI, bridge, gateway, spending, deployment, backup, passkey and App evidence; identify exact owner blockers.
+
 ## Post-merge production integration (Nov 5)
 - [x] Source equals GitHub main 38664ae; exact published commit unavailable from public assets (needs trusted publish record).
 - [x] Read applied history and safety constraints: CODE chain present, recovery/OMNI sessions absent; 0037 unchanged. Backup is owner-reported Nov 3 23:38 UTC, no restore test verified.
