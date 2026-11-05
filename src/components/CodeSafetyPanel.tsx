@@ -10,7 +10,6 @@ import {
   getCodeSafetySettings,
   getCodePrerequisites,
   setCodeDailySpendLimit,
-  setCodeSafetyTarget,
   syncCodeProviderCosts,
 } from "@/lib/code-safety.functions";
 
@@ -20,7 +19,6 @@ export function CodeSafetyPanel() {
   const get = useServerFn(getCodeSafetySettings);
   const checkPrerequisites = useServerFn(getCodePrerequisites);
   const [prerequisites, setPrerequisites] = useState<Awaited<ReturnType<typeof getCodePrerequisites>> | null>(null);
-  const setTarget = useServerFn(setCodeSafetyTarget);
   const setLimit = useServerFn(setCodeDailySpendLimit);
   const syncCosts = useServerFn(syncCodeProviderCosts);
   const stop = useServerFn(engageCodeKillSwitch);
@@ -91,7 +89,7 @@ export function CodeSafetyPanel() {
           `Imported ${result.bucketCount} provider-reported cost rows ($${Number(result.reportedCostUsd).toFixed(2)}). This delayed report does not enforce a hard daily cap.`,
         );
       } else {
-        setMessage("The CODE allowlist was verified against GitHub and saved.");
+        setMessage("CODE safety status refreshed.");
       }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "CODE safety action failed.");
@@ -136,10 +134,15 @@ export function CodeSafetyPanel() {
       <p id="worker-activation-blocker" className="mt-2 text-xs text-warning">Activation locked until CODE safety storage, bounded spending and isolated-runner acceptance are verified. Each run still requires owner approval in GitHub. No autonomous distribution.</p>
       {prerequisites && <div className="mt-3 text-sm">
         <p>Target policy: {prerequisites.repository} · {prerequisites.ref} only</p>
-        <p className="mt-1 text-xs text-muted-foreground">GitHub CODE / OPENAI_API_KEY: {prerequisites.openaiKeyPresent === true ? "name verified" : prerequisites.openaiKeyPresent === false ? "not found" : "secret-name access unavailable"}</p>
+        <p className="mt-1 break-all text-xs text-muted-foreground">Live main workflow: {prerequisites.workflowPins.liveSha ?? "unverified"}</p>
+        <p className="mt-1 break-all text-xs text-muted-foreground">Jackboy setting: {prerequisites.workflowPins.configuredSha ?? "unavailable or invalid"}</p>
+        <p className="mt-1 text-xs text-warning">{prerequisites.workflowPins.matches ? "Workflow pins match." : "Workflow pins are stale, mismatched or unverified. Owner-approved update required; nothing changed."}</p>
+        {prerequisites.workflowCheckError && <p className="mt-1 text-xs text-warning">{prerequisites.workflowCheckError}</p>}
+        {Object.entries(prerequisites.environments).map(([name, evidence]) => <p key={name} className="mt-1 text-xs text-muted-foreground">{name} reviewer gate: {evidence.protected ? "reviewers, no self-review and no admin bypass verified" : evidence.readable ? "required protections not verified" : "GitHub access unavailable"}</p>)}
+        <p className="mt-1 text-xs text-muted-foreground">Provider access is gateway-only. OPENAI_API_KEY on the GitHub runner is not a readiness requirement. This read-only check does not rerun isolation acceptance.</p>
       </div>}
       {omni && <div className="mt-3 text-sm" aria-label="OMNI link check">
-        <p>OMNI link (OMNI connects to Jackboy, {omni.contract}): <span className={omni.verified ? "text-success" : "text-warning"}>{omni.verified ? "pass" : "fail"}</span></p>
+        <p>OMNI link readiness ({omni.contract}): <span className={omni.verified ? "text-success" : "text-warning"}>{omni.verified ? "unexpired session recorded; live bridge not tested" : "blocked"}</span></p>
         <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground">
           {omni.steps.map((step) => <li key={step.name}>{step.ok ? "✓" : "✗"} {step.name}: {step.detail}</li>)}
         </ul>
@@ -250,24 +253,20 @@ export function CodeSafetyPanel() {
             </div>
           </div>
           <div className="mt-3">
-            <p className="text-xs text-muted-foreground">Owner-managed CODE_TARGETS allowlist</p>
+            <p className="text-xs text-muted-foreground">Database repository allowlist (separate from Jackboy’s setting)</p>
             <ul className="mt-1 text-sm">
               {Object.entries(settings.targets).map(([repo, target]) => (
-                <li key={repo}>
+                <li key={repo} className="break-all">
                   {repo} · {target.ref} · workflow {target.workflowSha.slice(0, 12)}…
                 </li>
               ))}
               {!Object.keys(settings.targets).length && <li>No repository is allowed.</li>}
             </ul>
             <Button variant="outline" size="sm"
-              disabled={
-                busy ||
-                (Object.keys(settings.targets).length === 1 &&
-                  settings.targets["OMERTA-ROW/jackboy-dev-control"]?.ref === "main")
-              }
-              onClick={() => void run(() => setTarget())}
+              disabled={busy}
+              onClick={() => void run(async () => { setPrerequisites(await checkPrerequisites()); })}
             >
-              Verify and allow OMERTA-ROW/jackboy-dev-control on main
+              Refresh workflow evidence
             </Button>
           </div>
           {settings.pausedReason && (

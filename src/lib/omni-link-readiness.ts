@@ -24,9 +24,12 @@ export function reverseLinkReport(input: {
   configValid: boolean;
   storageReady: boolean;
   lastSessionAt: string | null;
+  now?: number;
 }): ReverseLinkReport {
   const missingVars = REVERSE_LINK_VARS.filter((n) => !input.env[n]);
   const enabledFlag = input.env["OMNI_LINK_ENABLED"] === "true";
+  const sessionExpiry = input.lastSessionAt ? Date.parse(input.lastSessionAt) : NaN;
+  const activeSession = Number.isFinite(sessionExpiry) && sessionExpiry > (input.now ?? Date.now());
   const steps = [
     {
       name: "Jackboy link settings",
@@ -42,13 +45,13 @@ export function reverseLinkReport(input: {
     {
       name: "Jackboy link storage",
       ok: input.storageReady,
-      detail: input.storageReady ? "Session tables are installed" : "Migration 0030_omni_sessions.sql is not applied",
+      detail: input.storageReady ? "Session-table read succeeded" : "Session storage could not be verified; check migration 0030_omni_sessions.sql and database access",
     },
     {
-      name: "OMNI has connected",
-      ok: !!input.lastSessionAt,
+      name: "Unexpired OMNI session",
+      ok: activeSession,
       detail: input.lastSessionAt
-        ? `Last OMNI session issued (expires ${input.lastSessionAt})`
+        ? activeSession ? `Session expires ${input.lastSessionAt}; live bridge reachability not tested` : "Last recorded OMNI session expired or has an invalid expiry; a fresh handshake is required"
         : "No OMNI-initiated session recorded yet; OMNI must call /api/public/omni/link",
     },
   ];
