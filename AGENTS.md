@@ -10,6 +10,7 @@
 <!-- LOVABLE:END -->
 
 ## Jackboy rules
+- Post-merge readiness compares live workflow blob, configured policy and database pins read-only; historical OMNI sessions never prove current bridge reachability.
 - CODE environment policy narrows the stored workflow allowlist; missing or mismatched policy fails closed. Readiness probes never dispatch, and activation stays locked until storage, spend enforcement and runner isolation pass.
 - New generated work prioritizes product fixes/features; test-only proposals require a named verified feature blocker. Draft PR creation is gated by passing checks for its changed commit, not static validation alone. Shared chat tools supply validated evidence links; credit failures pause paid work without inference probes or invented balance APIs.
 - Per-project permission refresh stores live read results and provider-declared write grants separately for GITHUB_TOKEN and the actual App work credential; never prove write by launching jobs or auto-resuming work. Passkey removal atomically consumes an owner/device-scoped grant and invalidates unused grants from that credential.
