@@ -38,7 +38,7 @@ export const probeOmniConnection = createServerFn({ method: "POST" })
     const db = (await import("./untyped-db")).untyped((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const { data, error } = await db.from("omni_link_sessions").select("expires_at").order("expires_at", { ascending: false }).limit(1);
     const rows = (data ?? []) as { expires_at: string }[];
-    const report = reverseLinkReport({ env, configValid: linkConfig() !== null, storageReady: !error, lastSessionAt: rows[0]?.expires_at ?? null });
+    const report = reverseLinkReport({ env, configValid: linkConfig() !== null, storageReady: !error && Array.isArray(data), lastSessionAt: rows[0]?.expires_at ?? null });
     return { ...report, error: report.verified ? null : report.missing.join(" · ") };
   });
 

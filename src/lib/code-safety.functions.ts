@@ -16,17 +16,27 @@ export const getCodePrerequisites = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     await requireOwner(context);
-    const [secrets, workflow] = await Promise.allSettled([
-      fetchGithub<{ secrets: { name: string }[]; total_count: number }>("/environments/CODE/secrets?per_page=100"),
+    const [execution, publishing, workflow] = await Promise.allSettled([
+      fetchGithub<{ protection_rules?: { type: string; prevent_self_review?: boolean; reviewers?: unknown[] }[]; can_admins_bypass?: boolean }>("/environments/CODE"),
+      fetchGithub<{ protection_rules?: { type: string; prevent_self_review?: boolean; reviewers?: unknown[] }[]; can_admins_bypass?: boolean }>("/environments/CODE-PUBLISH"),
       fetchGithub<{ sha: string }>(`/contents/.github/workflows/${CODE_WORKFLOW}?ref=main`),
     ]);
+    const db = (await import("./untyped-db")).untyped((await import("@/integrations/supabase/client.server")).supabaseAdmin);
+    const { data, error } = await db.from("code_runtime_controls").select("allowed_targets").eq("singleton", true).single();
+    const { workflowPinReport } = await import("./code-workflow-readiness");
+    const liveSha = workflow.status === "fulfilled" ? workflow.value.sha : null;
+    const environment = (result: typeof execution) => {
+      if (result.status === "rejected") return { readable: false, protected: false };
+      const reviewers = result.value.protection_rules?.find((rule) => rule.type === "required_reviewers");
+      return { readable: true, protected: reviewers?.prevent_self_review === true && (reviewers.reviewers?.length ?? 0) > 0 && result.value.can_admins_bypass === false };
+    };
     return {
+      checkedAt: new Date().toISOString(),
       repository: REPOSITORY,
       ref: "main",
-      secretNamesVerified: secrets.status === "fulfilled",
-      openaiKeyPresent: secrets.status === "fulfilled" ? secrets.value.secrets.some((s) => s.name === "OPENAI_API_KEY") : null,
-      secretCheckError: secrets.status === "rejected" ? "GitHub refused CODE environment secret-name access; owner must verify OPENAI_API_KEY in GitHub." : null,
-      workflowSha: workflow.status === "fulfilled" && /^[a-f0-9]{40}$/.test(workflow.value.sha) ? workflow.value.sha : null,
+      environments: { CODE: environment(execution), "CODE-PUBLISH": environment(publishing) },
+      workflowPins: workflowPinReport(error ? null : data?.allowed_targets, process.env["CODE_TARGETS"], liveSha),
+      workflowCheckError: workflow.status === "rejected" ? (workflow.reason instanceof Error ? workflow.reason.message : "GitHub workflow could not be read.") : null,
     };
   });
 
@@ -136,6 +146,7 @@ export const getCodeSafetySettings = createServerFn({ method: "POST" })
       Date.parse(data.provider_usage_at) <= Date.now() + 30_000;
     return {
       targets,
+      checkedAt: new Date().toISOString(),
       enabled: data.enabled,
       killSwitch: data.kill_switch,
       activeRequestId: data.active_request_id,

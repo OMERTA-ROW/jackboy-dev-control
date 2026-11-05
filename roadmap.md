@@ -1,5 +1,19 @@
 # Jackboy roadmap
 
+## Workflow pin repair and activation readiness (Nov 5, 21:30 UTC)
+- [x] Independently hashed GitHub main bytes: ebc71c1923c3d6ab925ec6b9e4fa971e311f3761; both saved pins remain 82c0c44…; scope unchanged.
+- [x] Production read confirms Stop ON, enabled=false, no active run and 0037 false invariant; no dispatch or paid calls.
+- [x] Permanent Settings checklist distinguishes live safety reads from dated integration observations; 21 targeted tests, changed-file lint and automatic build passed; owner desktop/phone rendering verified.
+- [x] Integration evidence and exact owner steps recorded in docs/WORKFLOW-PIN-REPAIR.md; OMNI drafts open, gateway/bridge blocked, physical passkey/restore/published commit unverified, App scope overbroad.
+- [ ] Pin repair awaits explicit approval: two independent stores cannot update atomically; proposed coordinated fail-closed repair with atomic database+audit portion is not applied.
+
+## Post-merge production integration (Nov 5)
+- [x] Source equals GitHub main 38664ae; exact published commit unavailable from public assets (needs trusted publish record).
+- [x] Read applied history and safety constraints: CODE chain present, recovery/OMNI sessions absent; 0037 unchanged. Backup is owner-reported Nov 3 23:38 UTC, no restore test verified.
+- [x] Owner pages and signed-out denial checked; original production passkey retained, physical-device assertion untested. Proposed merged workflow ebc71c19 pin, not applied. OMNI live link blocked on storage/config/hosting.
+- [x] Repaired stale workflow/status evidence and expired OMNI-session reporting; 502 app tests and affected lint/build passed. CODE disabled, Stop on; no GitHub/workflow/secret changes.
+- [x] Completion report records exact owner steps, pending OMNI PRs and verification limitations.
+
 ## Worker 1 supervised readiness (Nov 4)
 - [x] Saved CODE_TARGETS for OMERTA-ROW/jackboy-dev-control/main, pinned live workflow blob 82c0c44e9afeacb45e666ff131e34b90ae2da23b; policy only narrows stored approval. GitHub refused environment secret-name read; owner confirmation remains unverified independently.
 - [x] Hardened delayed cost/spike pause and same-request stopped state; owner dashboard stop and locked supervised toggle. 490 app tests, 44 safe CODE tests and 22 isolated database tests passed (30 skipped). Git-creating standalone tests cannot run under sandbox restrictions; no workaround attempted.
