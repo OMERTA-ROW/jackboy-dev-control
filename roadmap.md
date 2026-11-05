@@ -1,11 +1,11 @@
 # Jackboy roadmap
 
 ## Post-merge production integration (Nov 5)
-- [ ] Compare merged main/source and published deployment independently.
-- [ ] Read applied database history, safety constraints, audit and backup evidence without mutations.
-- [ ] Verify owner access, OMNI reverse-link readiness and workflow pin; propose any pin update without applying it.
-- [ ] Repair verified application status issues and run affected tests; keep CODE disabled and Emergency Stop on.
-- [ ] Report exact remaining owner actions and verification limitations.
+- [x] Source equals GitHub main 38664ae; exact published commit unavailable from public assets (needs trusted publish record).
+- [x] Read applied history and safety constraints: CODE chain present, recovery/OMNI sessions absent; 0037 unchanged. Backup is owner-reported Nov 3 23:38 UTC, no restore test verified.
+- [x] Owner pages and signed-out denial checked; original production passkey retained, physical-device assertion untested. Proposed merged workflow ebc71c19 pin, not applied. OMNI live link blocked on storage/config/hosting.
+- [x] Repaired stale workflow/status evidence and expired OMNI-session reporting; 502 app tests and affected lint/build passed. CODE disabled, Stop on; no GitHub/workflow/secret changes.
+- [x] Completion report records exact owner steps, pending OMNI PRs and verification limitations.
 
 ## Worker 1 supervised readiness (Nov 4)
 - [x] Saved CODE_TARGETS for OMERTA-ROW/jackboy-dev-control/main, pinned live workflow blob 82c0c44e9afeacb45e666ff131e34b90ae2da23b; policy only narrows stored approval. GitHub refused environment secret-name read; owner confirmation remains unverified independently.
