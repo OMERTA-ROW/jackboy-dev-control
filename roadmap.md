@@ -6,6 +6,7 @@
 - [x] Permanent Settings checklist distinguishes live safety reads from dated integration observations; 21 targeted tests, changed-file lint and automatic build passed; owner desktop/phone rendering verified.
 - [x] Integration evidence and exact owner steps recorded in docs/WORKFLOW-PIN-REPAIR.md; OMNI drafts open, gateway/bridge blocked, physical passkey/restore/published commit unverified, App scope overbroad.
 - [ ] Pin repair awaits explicit approval: two independent stores cannot update atomically; proposed coordinated fail-closed repair with atomic database+audit portion is not applied.
+- [ ] Verify and give the exact CODE_TARGETS JSON for the approved mapping before the owner enters it; cancelled form made no changes.
 
 ## Post-merge production integration (Nov 5)
 - [x] Source equals GitHub main 38664ae; exact published commit unavailable from public assets (needs trusted publish record).
