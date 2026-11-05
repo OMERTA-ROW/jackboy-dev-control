@@ -31,6 +31,7 @@ export const getCodePrerequisites = createServerFn({ method: "POST" })
       return { readable: true, protected: reviewers?.prevent_self_review === true && (reviewers.reviewers?.length ?? 0) > 0 && result.value.can_admins_bypass === false };
     };
     return {
+      checkedAt: new Date().toISOString(),
       repository: REPOSITORY,
       ref: "main",
       environments: { CODE: environment(execution), "CODE-PUBLISH": environment(publishing) },
@@ -145,6 +146,7 @@ export const getCodeSafetySettings = createServerFn({ method: "POST" })
       Date.parse(data.provider_usage_at) <= Date.now() + 30_000;
     return {
       targets,
+      checkedAt: new Date().toISOString(),
       enabled: data.enabled,
       killSwitch: data.kill_switch,
       activeRequestId: data.active_request_id,
