@@ -1,5 +1,12 @@
 # Jackboy roadmap
 
+## Post-merge production integration (Nov 5)
+- [ ] Compare merged main/source and published deployment independently.
+- [ ] Read applied database history, safety constraints, audit and backup evidence without mutations.
+- [ ] Verify owner access, OMNI reverse-link readiness and workflow pin; propose any pin update without applying it.
+- [ ] Repair verified application status issues and run affected tests; keep CODE disabled and Emergency Stop on.
+- [ ] Report exact remaining owner actions and verification limitations.
+
 ## Worker 1 supervised readiness (Nov 4)
 - [x] Saved CODE_TARGETS for OMERTA-ROW/jackboy-dev-control/main, pinned live workflow blob 82c0c44e9afeacb45e666ff131e34b90ae2da23b; policy only narrows stored approval. GitHub refused environment secret-name read; owner confirmation remains unverified independently.
 - [x] Hardened delayed cost/spike pause and same-request stopped state; owner dashboard stop and locked supervised toggle. 490 app tests, 44 safe CODE tests and 22 isolated database tests passed (30 skipped). Git-creating standalone tests cannot run under sandbox restrictions; no workaround attempted.
