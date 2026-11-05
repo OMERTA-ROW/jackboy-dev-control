@@ -14,7 +14,9 @@ Scope in both copies remains exactly one repository, `OMERTA-ROW/jackboy-dev-con
 
 At 21:31:40 UTC, production reads confirmed `enabled=false`, `kill_switch=true`, `provider_hard_cap_verified=false`, no active request/run, and the 0037 constraint `CHECK (provider_hard_cap_verified = false)`. Nothing changed in production. No CODE dispatch, paid model call, GitHub mutation, publication, secret change or activation was performed.
 
-## Proposed repair — not applied
+## Approved coordinated repair — completed at 21:55:48 UTC
+
+Owner explicitly approved the coordinated repair and saved CODE_TARGETS through the secure form. Its effective development value was read back and independently compared with newly fetched GitHub bytes. A guarded database statement then updated the expected old mapping and inserted audit `312337a6-43c4-437b-b11e-777eb763405b` plus Site Log `430acbc7-bc7b-4ed3-8460-8e6ef19ea443` atomically. The SQL tool is not browser-authenticated; the audit explicitly attributes execution to the agent on owner authorization. Production readback confirms Stop ON, enabled=false, hard-cap false and 0037 intact. Signed-in Settings reports matching workflow pins and a disabled supervised switch. No publication occurred: the published application's environment snapshot is not confirmed updated until a separately authorized publish.
 
 Exact replacement mapping for both references:
 
@@ -40,7 +42,7 @@ This is a **coordinated fail-closed repair**, not a cross-store atomic update. I
 | Task | Status | Evidence / next action |
 |---|---|---|
 | Current workflow blob | PASS | Independent byte hash equals GitHub SHA above, 21:31:39 UTC. |
-| Stored pin alignment | OWNER ACTION | Both copies stale; approve the coordinated repair or choose strict-atomic redesign. |
+| Stored pin alignment | PASS (saved setting/database/preview) | Approved repair at 21:55:48 UTC; both match independently hashed GitHub workflow. Published environment snapshot not verified. |
 | Production stop / disabled / 0037 | PASS | Production database read, 21:31:40 UTC; unchanged. Supervised switch remains disabled. |
 | CODE and CODE-PUBLISH gates | PASS | Live metadata, 21:32:13–29 UTC: required reviewers, no self-review, no admin bypass. Not runner acceptance. |
 | Permanent checklist | PASS (preview only) | Settings → Autonomous Activation Readiness; dated observations and live safety evidence, no activation path. |
@@ -66,4 +68,4 @@ This is a **coordinated fail-closed repair**, not a cross-store atomic update. I
 
 ## Next task
 
-Resolve the two-copy pin repair approval first. Independent spending enforcement remains the next unconditional activation blocker, even after pins match. OMNI and CODE are separate acceptance boundaries; a reverse OMNI session does not authorize CODE.
+Saved-setting/database pin repair is complete. Independent spending enforcement remains the next unconditional activation blocker. Published environment adoption requires separate publication authorization and verification. OMNI and CODE are separate acceptance boundaries; a reverse OMNI session does not authorize CODE.
