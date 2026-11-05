@@ -5,7 +5,8 @@
 - [x] Production read confirms Stop ON, enabled=false, no active run and 0037 false invariant; no dispatch or paid calls.
 - [x] Permanent Settings checklist distinguishes live safety reads from dated integration observations; 21 targeted tests, changed-file lint and automatic build passed; owner desktop/phone rendering verified.
 - [x] Integration evidence and exact owner steps recorded in docs/WORKFLOW-PIN-REPAIR.md; OMNI drafts open, gateway/bridge blocked, physical passkey/restore/published commit unverified, App scope overbroad.
-- [ ] Pin repair awaits explicit approval: two independent stores cannot update atomically; proposed coordinated fail-closed repair with atomic database+audit portion is not applied.
+- [x] Owner approved coordinated repair; saved CODE_TARGETS read back, database pin+audit+Site Log atomically updated at 21:55:48 UTC. All three hashes match; signed-in Settings confirms Stop engaged and supervised switch disabled. Published runtime secret snapshot not verified without publishing.
+- [x] Verified parser and live byte hash; supplied exact approved CODE_TARGETS JSON. Existing configuration remains unchanged; the cancelled form did not run.
 
 ## Post-merge production integration (Nov 5)
 - [x] Source equals GitHub main 38664ae; exact published commit unavailable from public assets (needs trusted publish record).
