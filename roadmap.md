@@ -1,10 +1,11 @@
 # Jackboy roadmap
 
 ## Workflow pin repair and activation readiness (Nov 5, 21:30 UTC)
-- [ ] Independently verify GitHub main workflow bytes and both stored pins; prepare approval-only repair without changing scope.
-- [ ] Verify production stop, disabled runtime and 0037 invariant; no dispatch or paid calls.
-- [ ] Add permanent evidence-based activation checklist; local tests never imply production acceptance.
-- [ ] Report OMNI, bridge, gateway, spending, deployment, backup, passkey and App evidence; identify exact owner blockers.
+- [x] Independently hashed GitHub main bytes: ebc71c1923c3d6ab925ec6b9e4fa971e311f3761; both saved pins remain 82c0c44…; scope unchanged.
+- [x] Production read confirms Stop ON, enabled=false, no active run and 0037 false invariant; no dispatch or paid calls.
+- [x] Permanent Settings checklist distinguishes live safety reads from dated integration observations; 21 targeted tests, changed-file lint and automatic build passed; owner desktop/phone rendering verified.
+- [x] Integration evidence and exact owner steps recorded in docs/WORKFLOW-PIN-REPAIR.md; OMNI drafts open, gateway/bridge blocked, physical passkey/restore/published commit unverified, App scope overbroad.
+- [ ] Pin repair awaits explicit approval: two independent stores cannot update atomically; proposed coordinated fail-closed repair with atomic database+audit portion is not applied.
 
 ## Post-merge production integration (Nov 5)
 - [x] Source equals GitHub main 38664ae; exact published commit unavailable from public assets (needs trusted publish record).
