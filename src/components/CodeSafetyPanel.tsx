@@ -1,4 +1,5 @@
 import { useServerFn } from "@tanstack/react-start";
+import { ActivationReadiness } from "./ActivationReadiness";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -264,7 +265,10 @@ export function CodeSafetyPanel() {
             </ul>
             <Button variant="outline" size="sm"
               disabled={busy}
-              onClick={() => void run(async () => { setPrerequisites(await checkPrerequisites()); })}
+              onClick={() => void run(async () => {
+                const [freshPrerequisites, freshSettings, freshOmni] = await Promise.all([checkPrerequisites(), get(), probeOmni()]);
+                setPrerequisites(freshPrerequisites); setSettings(freshSettings); setOmni(freshOmni);
+              })}
             >
               Refresh workflow evidence
             </Button>
@@ -274,6 +278,14 @@ export function CodeSafetyPanel() {
           )}
         </>
       )}
+      <ActivationReadiness live={settings && prerequisites ? {
+        checkedAt: settings.checkedAt < prerequisites.checkedAt ? settings.checkedAt : prerequisites.checkedAt,
+        pinsMatch: prerequisites.workflowPins.matches,
+        disabled: settings.enabled === false,
+        stopped: settings.killSwitch === true,
+        noActiveRun: settings.activeRequestId === null && settings.activeRunId === null,
+        gatesProtected: prerequisites.environments.CODE.protected && prerequisites.environments["CODE-PUBLISH"].protected,
+      } : null} />
     </section>
   );
 }
