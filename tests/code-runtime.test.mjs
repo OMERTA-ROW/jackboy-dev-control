@@ -48,7 +48,13 @@ class Query {
   maybeSingle() { return this.single(); }
   then(resolve, reject) { return Promise.resolve(this.execute()).then(resolve, reject); }
 }
-globalThis.__codeDb = { from: table => new Query(table) };
+let totalGuard; // stand-in for code_total_spend_guard_status(); null = guard not installed
+globalThis.__codeDb = {
+  from: table => new Query(table),
+  rpc: async name => name === 'code_total_spend_guard_status' && totalGuard
+    ? { data: totalGuard, error: null }
+    : { data: null, error: { message: 'function does not exist' } },
+};
 registerHooks({ resolve(specifier, context, next) {
   if (specifier === '@/integrations/supabase/client.server') return next('data:text/javascript,export const supabaseAdmin = globalThis.__codeDb', context);
   if (specifier.startsWith('./') && !/\.[a-z]+$/.test(specifier)) return next(`${specifier}.ts`, context);
@@ -106,7 +112,7 @@ beforeEach(() => {
   process.env.OMNI_API_URL = 'https://omni.example';
   process.env.OMNI_API_KEY = 'isolated-test-api-key';
   process.env.OMNI_CALLBACK_SECRET = 'isolated-test-callback-secret';
-  run = undefined; dispatches = omniDispatches = cancellations = retries = 0; auditFails = uncertain = false; afterAllowAudit = undefined; failingTable = undefined;
+  run = undefined; dispatches = omniDispatches = cancellations = retries = 0; auditFails = uncertain = false; afterAllowAudit = undefined; failingTable = undefined; totalGuard = { enforced: true, limit_usd: 10, committed_usd: 0 };
 });
 test('voice/text intent → pending approval → real server dispatch path → evidence and draft PR (mock transport)', async () => {
   assert.equal(await codeProjectId('Jackboy'), projectId);
@@ -247,6 +253,9 @@ for (const [name, invalidate] of [
   ['missing per-task reserve', () => { records.code_runtime_controls[0].per_task_reserve_usd = null; }],
   ['failed meter source', () => { failingTable = 'code_usage_events'; }],
   ['emergency stop', () => { records.code_runtime_controls[0].kill_switch = true; }],
+  ['cumulative $10 guard not installed', () => { totalGuard = null; }],
+  ['cumulative $10 guard not enforced', () => { totalGuard = { enforced: false, limit_usd: 10, committed_usd: 0 }; }],
+  ['cumulative $10 total would be exceeded', () => { totalGuard = { enforced: true, limit_usd: 10, committed_usd: 9.5 }; }],
 ]) {
   test(`evidence becoming invalid after approval audit blocks dispatch: ${name}`, async () => {
     const c = await requestCode(projectId, 'Fix footer', 'owner', 'session');

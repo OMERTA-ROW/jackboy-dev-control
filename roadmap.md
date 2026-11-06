@@ -1,5 +1,13 @@
 # Jackboy roadmap
 
+## CODE activation prep (Nov 6, 23:55 UTC) — nothing applied
+- [x] Staged pin update to 37368194…, cumulative $10 guard and hard-cap gate (staging/code-activation/0046–0048 + rollbacks); 15 isolated database tests pass.
+- [x] App mirrors the $10 guard (fails closed when absent) and Settings shows its status; 527 app tests + CODE runtime tests pass.
+- [ ] Apply 0046 → 0047 → 0048 — blocked: owner approval.
+- [ ] Fresh provider cost meter — blocked: OPENAI_ADMIN_KEY, OPENAI_CODE_PROJECT_ID, OPENAI_CODE_API_KEY_ID absent.
+- [ ] Owner passkey control to set the hard-cap attestation — blocked: needs 0048 applied and separate approval.
+- [ ] Release Emergency Stop / enable CODE — owner only.
+
 ## Workflow pin repair and activation readiness (Nov 5, 21:30 UTC)
 - [x] Independently hashed GitHub main bytes: ebc71c1923c3d6ab925ec6b9e4fa971e311f3761; both saved pins remain 82c0c44…; scope unchanged.
 - [x] Production read confirms Stop ON, enabled=false, no active run and 0037 false invariant; no dispatch or paid calls.

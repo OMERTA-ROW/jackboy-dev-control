@@ -182,6 +182,16 @@ export function CodeSafetyPanel() {
               </dd>
             </div>
             <div>
+              <dt className="text-xs text-muted-foreground">Total spending guard</dt>
+              <dd>
+                {!settings.totalSpendGuard
+                  ? "Not installed · CODE stays blocked"
+                  : settings.totalSpendGuard.enforced
+                    ? `$${settings.totalSpendGuard.committedUsd.toFixed(2)} of $${settings.totalSpendGuard.limitUsd.toFixed(2)} used, all time`
+                    : "Installed but not enforced · CODE stays blocked"}
+              </dd>
+            </div>
+            <div>
               <dt className="text-xs text-muted-foreground">Admission meter</dt>
               <dd>
                 {settings.meterFresh ? "fresh" : "unavailable or stale"} · usage spike{" "}
