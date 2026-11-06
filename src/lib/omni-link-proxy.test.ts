@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { LINK_PATH, linkRequestUrl } from "./omni-session";
 import { handleOmniLink, type LinkConfig, type LinkStore } from "./omni-session.server";
