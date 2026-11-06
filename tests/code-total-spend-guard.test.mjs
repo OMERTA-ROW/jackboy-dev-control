@@ -22,7 +22,7 @@ let gated; // + 0047 + 0048
 // Every in-memory database is closed at the end so the test process can exit.
 const open = [];
 const clone = async (db) => {
-  const copy = await db.clone();
+  const copy = await clone(db);
   open.push(copy);
   return copy;
 };
@@ -44,9 +44,9 @@ before(async () => {
   await chain.query("UPDATE public.code_runtime_controls SET allowed_targets = $1::jsonb", [
     JSON.stringify({ [repo]: { ref: "main", workflowSha: oldSha } }),
   ]);
-  guarded = await chain.clone();
+  guarded = await clone(chain);
   await guarded.exec(await proposed("0047_code_total_spend_guard.sql"));
-  gated = await guarded.clone();
+  gated = await clone(guarded);
   await gated.exec(await proposed("0048_code_hard_cap_gate.sql"));
 });
 
@@ -111,14 +111,14 @@ const run = (db) =>
 
 // Gate opened the only allowed way, then CODE switched on (test database only).
 async function openDb() {
-  const db = await gated.clone();
+  const db = await clone(gated);
   await attest(db);
   await run(db);
   return db;
 }
 
 test("0047 alone: $10 default, bounded limit, guard enforced, 0037 still forces the flag false", async () => {
-  const db = await guarded.clone();
+  const db = await clone(guarded);
   const c = await controls(db);
   assert.equal(c.total_limit, 10);
   assert.equal(c.enabled, false);
@@ -276,7 +276,7 @@ test("a disabled trigger or tampered function is detected and blocks claims", as
 });
 
 test("hard-cap flag: raw writes and non-owners refused; owner only while stopped and guarded", async () => {
-  const db = await gated.clone();
+  const db = await clone(gated);
   const c0 = await controls(db);
   assert.equal(c0.verified, false);
   await assert.rejects(
@@ -318,7 +318,7 @@ test("turning the flag off and engaging the stop always work, even with the guar
 });
 
 test("0048 refuses to install without 0047", async () => {
-  const db = await chain.clone();
+  const db = await clone(chain);
   await assert.rejects(db.exec(await proposed("0048_code_hard_cap_gate.sql")), /Apply 0047/);
   await assert.rejects(
     db.query("UPDATE public.code_runtime_controls SET provider_hard_cap_verified = true"),
@@ -350,7 +350,7 @@ test("rollbacks restore the 0037 forced-false invariant and can be re-applied", 
 });
 
 test("0047 rollback refuses while the 0048 gate is installed", async () => {
-  const db = await gated.clone();
+  const db = await clone(gated);
   await assert.rejects(
     db.exec(await proposed("0047_code_total_spend_guard.down.sql")),
     /Roll back 0048/,
@@ -359,7 +359,7 @@ test("0047 rollback refuses while the 0048 gate is installed", async () => {
 
 test("pin update moves only the expected stopped pin, audits atomically and is idempotent", async () => {
   const sql = await proposed("0046_code_workflow_pin_37368194.sql");
-  const db = await chain.clone();
+  const db = await clone(chain);
   await db.exec(sql);
   const c = await controls(db);
   assert.deepEqual(c.allowed_targets, { [repo]: { ref: "main", workflowSha: newSha } });
@@ -377,7 +377,7 @@ test("pin update moves only the expected stopped pin, audits atomically and is i
     "UPDATE public.code_runtime_controls SET enabled = true, kill_switch = false",
     `UPDATE public.code_runtime_controls SET allowed_targets = '{"other/repo":{"ref":"main","workflowSha":"${"b".repeat(40)}"}}'`,
   ]) {
-    const refused = await chain.clone();
+    const refused = await clone(chain);
     await refused.exec(setup);
     await assert.rejects(refused.exec(sql), /refused/);
     assert.equal(await audits(refused, "code.workflow_pin_repair"), 0);
