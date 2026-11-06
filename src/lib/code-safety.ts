@@ -123,6 +123,17 @@ export function codeStartBlockReason(
   return totalSpendBlockReason(state.totalSpendGuard, state.perTaskReserveUsd);
 }
 
+/** Parses code_total_spend_guard_status(); anything unexpected becomes null (fail closed). */
+export function parseTotalSpendGuard(value: unknown): CodeSafetyState["totalSpendGuard"] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const row = value as Record<string, unknown>;
+  const limitUsd = Number(row["limit_usd"]);
+  const committedUsd = Number(row["committed_usd"]);
+  if (row["limit_usd"] == null || row["committed_usd"] == null) return null;
+  if (!Number.isFinite(limitUsd) || !Number.isFinite(committedUsd)) return null;
+  return { enforced: row["enforced"] === true, limitUsd, committedUsd };
+}
+
 /** Mirrors the database's cumulative guard: committed + this task's reservation must fit the total. */
 export function totalSpendBlockReason(
   guard: CodeSafetyState["totalSpendGuard"],
