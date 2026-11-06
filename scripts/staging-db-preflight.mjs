@@ -42,6 +42,26 @@ export function failureCategory(error) {
   return "unclassified";
 }
 
+export function decodeCaCertificate(encoded) {
+  if (
+    typeof encoded !== "string" ||
+    encoded.length === 0 ||
+    encoded.length > 32768 ||
+    !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(encoded)
+  ) {
+    throw new PreflightError("invalid_ca_certificate");
+  }
+  const bytes = Buffer.from(encoded, "base64");
+  if (bytes.toString("base64") !== encoded) {
+    throw new PreflightError("invalid_ca_certificate");
+  }
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    throw new PreflightError("invalid_ca_certificate");
+  }
+}
+
 export function connectionOptions(
   raw,
   expectedHost,
@@ -160,7 +180,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       host: process.env.STAGING_EXPECTED_HOST,
       port: process.env.STAGING_EXPECTED_PORT,
       database: process.env.STAGING_EXPECTED_DATABASE,
-      ca: process.env.STAGING_DB_CA_CERT,
+      ca: decodeCaCertificate(process.env.STAGING_DB_CA_CERT),
     });
     console.log(JSON.stringify(result));
   } catch (error) {
