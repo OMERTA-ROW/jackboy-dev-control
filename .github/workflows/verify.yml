@@ -102,3 +102,5 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run test
       - run: bun run build
+      - name: Verify Railway Node build and credential-free production startup
+        run: bun run test:railway
