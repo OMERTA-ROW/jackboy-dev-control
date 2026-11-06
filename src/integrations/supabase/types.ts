@@ -1592,6 +1592,53 @@ export type Database = {
         }
         Relationships: []
       }
+      omni_inbound_jobs: {
+        Row: {
+          approval_id: string
+          client_id: string
+          created_at: string
+          deadline: string
+          id: string
+          kind: string
+          project_id: string
+          result: Json | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          approval_id: string
+          client_id: string
+          created_at?: string
+          deadline: string
+          id: string
+          kind: string
+          project_id: string
+          result?: Json | null
+          status: string
+          updated_at?: string
+        }
+        Update: {
+          approval_id?: string
+          client_id?: string
+          created_at?: string
+          deadline?: string
+          id?: string
+          kind?: string
+          project_id?: string
+          result?: Json | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "omni_inbound_jobs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "owner_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       omni_jobs: {
         Row: {
           attempts: number
@@ -1669,6 +1716,38 @@ export type Database = {
             columns: ["report_id"]
             isOneToOne: false
             referencedRelation: "agent_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      omni_link_sessions: {
+        Row: {
+          approval_id: string
+          client_id: string
+          expires_at: string
+          project_id: string
+          token_hash: string
+        }
+        Insert: {
+          approval_id: string
+          client_id: string
+          expires_at: string
+          project_id: string
+          token_hash: string
+        }
+        Update: {
+          approval_id?: string
+          client_id?: string
+          expires_at?: string
+          project_id?: string
+          token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "omni_link_sessions_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "owner_projects"
             referencedColumns: ["id"]
           },
         ]
@@ -2760,6 +2839,7 @@ export type Database = {
         Returns: undefined
       }
       my_role: { Args: never; Returns: Database["public"]["Enums"]["app_role"] }
+      omni_link_action: { Args: { _a: Json; _op: string }; Returns: Json }
       reconcile_code_provider_day: {
         Args: { p_actor: string; p_day: string; p_tolerance_usd?: number }
         Returns: Json
