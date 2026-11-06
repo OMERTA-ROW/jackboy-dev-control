@@ -26,13 +26,7 @@ test("local-only CODE gate migration and rollback preserve safety controls", asy
       /check constraint/i,
     );
 
-    // Test-only migration: never included in the deployable migration directories.
-    await db.exec(`
-      BEGIN;
-      ALTER TABLE public.code_runtime_controls
-        DROP CONSTRAINT code_runtime_controls_provider_hard_cap_verified_check;
-      COMMIT;
-    `);
+    await db.exec(await readFile("tests/fixtures/code-local-staging-up.sql", "utf8"));
     const control = await db.query(`
       SELECT enabled, kill_switch, provider_hard_cap_verified, daily_spend_limit_usd::float AS limit
       FROM public.code_runtime_controls
@@ -83,22 +77,10 @@ test("local-only CODE gate migration and rollback preserve safety controls", asy
 
     // Simulate a verified flag only in this isolated fixture and prove rollback fails closed.
     await db.query("UPDATE public.code_runtime_controls SET provider_hard_cap_verified = true");
-    await assert.rejects(
-      db.exec(`
-        ALTER TABLE public.code_runtime_controls
-          ADD CONSTRAINT code_runtime_controls_provider_hard_cap_verified_check
-          CHECK (provider_hard_cap_verified = false);
-      `),
-      /check constraint/i,
-    );
+    const rollback = await readFile("tests/fixtures/code-local-staging-down.sql", "utf8");
+    await assert.rejects(db.exec(rollback), /check constraint/i);
     await db.query("UPDATE public.code_runtime_controls SET provider_hard_cap_verified = false");
-    await db.exec(`
-      BEGIN;
-      ALTER TABLE public.code_runtime_controls
-        ADD CONSTRAINT code_runtime_controls_provider_hard_cap_verified_check
-        CHECK (provider_hard_cap_verified = false);
-      COMMIT;
-    `);
+    await db.exec(rollback);
     await assert.rejects(
       db.query("UPDATE public.code_runtime_controls SET provider_hard_cap_verified = true"),
       /check constraint/i,

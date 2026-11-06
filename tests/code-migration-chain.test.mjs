@@ -19,6 +19,30 @@ const fingerprint = async (db) =>
   ).rows;
 
 test(
+  "local-only staging SQL refuses real PostgreSQL without changing the cap constraint",
+  { skip: skipNoPg },
+  async () => {
+    const db = await openDb();
+    try {
+      await db.exec(supabaseStubs);
+      await replay(db);
+      for (const file of ["code-local-staging-up.sql", "code-local-staging-down.sql"]) {
+        await assert.rejects(
+          db.exec(await readFile(`tests/fixtures/${file}`, "utf8")),
+          /requires PGlite/,
+        );
+      }
+      await assert.rejects(
+        db.query("UPDATE public.code_runtime_controls SET provider_hard_cap_verified = true"),
+        /check constraint/i,
+      );
+    } finally {
+      await db.close();
+    }
+  },
+);
+
+test(
   "an empty database replays the full chain through scoped dispatch (fresh install)",
   { skip: skipNoPg },
   async () => {

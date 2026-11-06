@@ -1,7 +1,11 @@
 # CODE local staging fixture
 
-The local-only migration in `tests/code-local-staging.test.mjs` runs inside a new
-in-memory PGlite instance with synthetic data. It removes the 0037 constraint only
+The local-only migration and rollback under `tests/fixtures/code-local-staging-*.sql`
+are exercised by `tests/code-local-staging.test.mjs` in a new in-memory PGlite
+instance with synthetic data. They reject ordinary PostgreSQL based on its
+server version; that check alone does not prove a PGlite instance is in-memory.
+The test harness itself only creates an in-memory instance and never accepts a
+connection URL. The migration removes the 0037 constraint only
 in that disposable instance, leaves the flag false and CODE disabled, checks the
 $5 daily bound, service-role privileges, owner-only emergency stop and audit,
 and restores the constraint. It accepts no database URL and is not in either
