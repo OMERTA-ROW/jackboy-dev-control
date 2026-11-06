@@ -73,3 +73,14 @@ does not prove cluster isolation, identity, authorization, privileges, database
 emptiness, or readiness. Both workflows use the same pinned CA-only transport;
 hostname identity remains unverified. A new approved commit and target are
 required after review; no workflow is run by creating or merging this draft.
+
+The separate `staging-environment-preflight.yml` workflow uses the protected
+`staging` GitHub environment and its environment-scoped secrets. It reports an
+absent, matching, or conflicting marker and catalog presence flags in a
+read-only transaction. A conflicting marker fails the workflow. A fresh
+database is expected to have no marker: bootstrap creates it. A matching marker
+is still only an assertion, not independent identity evidence; absent or matching
+does not establish that the database is empty or that bootstrap is safe.
+Changing secrets after preflight invalidates its evidence. Merging this workflow
+changes the main commit, so bootstrap requires a separate approval for that new
+exact commit and target. Environment review remains required for each workflow.
