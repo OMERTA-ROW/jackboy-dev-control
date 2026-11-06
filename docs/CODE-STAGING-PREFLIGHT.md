@@ -18,3 +18,10 @@ username or password as inputs. Certificate verification is mandatory; a TLS
 failure is a blocker, not a reason to disable validation. This preflight does not
 perform credential-scope, application authorization, audit, Emergency Stop,
 rollback, or live-provider tests.
+
+On failure, the script prints only a fixed category, never the URL, raw error,
+username or password. Categories distinguish malformed or unexpected URL
+options, target mismatch, database mismatch, selected TLS certificate errors,
+authentication errors and selected connection errors. Unrecognized errors are
+reported as `unclassified`; these categories are diagnostic hints, not proof of
+the cause. A successful preflight still does not establish Railway identity.
