@@ -6,6 +6,7 @@ import {
   codeStartBlockReason,
   nextConsecutiveFailures,
   parseCodeTargets,
+  parseTotalSpendGuard,
   restrictCodeTargets,
   shouldPauseForSpend,
   type CodeSafetyState,
@@ -27,6 +28,7 @@ const state = (overrides: Partial<CodeSafetyState> = {}): CodeSafetyState => ({
   reservedHoldsUsd: 0,
   perTaskReserveUsd: 1,
   usageSpike: false,
+  totalSpendGuard: { enforced: true, limitUsd: 10, committedUsd: 0 },
   ...overrides,
 });
 
@@ -107,6 +109,36 @@ describe("CODE runtime safety policy", () => {
     ]) {
       expect(codeStartBlockReason(state(overrides), repo, now)).toMatch(/reservation data is unavailable/);
     }
+  });
+
+  it("blocks CODE at the cumulative $10 total: 9 + 1 fits, 9.01 + 1 does not", () => {
+    const guard = (committedUsd: number) => ({ enforced: true, limitUsd: 10, committedUsd });
+    expect(codeStartBlockReason(state({ totalSpendGuard: guard(9) }), repo, now)).toBeNull();
+    expect(codeStartBlockReason(state({ totalSpendGuard: guard(9.01) }), repo, now)).toMatch(
+      /cumulative spending total/,
+    );
+    expect(codeStartBlockReason(state({ totalSpendGuard: guard(10) }), repo, now)).toMatch(
+      /cumulative spending total/,
+    );
+  });
+
+  it("fails closed when the $10 guard is missing, unenforced, malformed or above $10", () => {
+    for (const totalSpendGuard of [
+      null,
+      { enforced: false, limitUsd: 10, committedUsd: 0 },
+      { enforced: true, limitUsd: 10.01, committedUsd: 0 },
+      { enforced: true, limitUsd: Number.NaN, committedUsd: 0 },
+      { enforced: true, limitUsd: 10, committedUsd: -1 },
+    ]) {
+      expect(codeStartBlockReason(state({ totalSpendGuard }), repo, now)).toMatch(/not installed or not enforced/);
+    }
+    expect(parseTotalSpendGuard(null)).toBeNull();
+    expect(parseTotalSpendGuard({ enforced: true })).toBeNull();
+    expect(parseTotalSpendGuard({ enforced: "true", limit_usd: "10", committed_usd: "2.5" })).toEqual({
+      enforced: false,
+      limitUsd: 10,
+      committedUsd: 2.5,
+    });
   });
 
   it("pauses after a usage spike or cap is reached", () => {

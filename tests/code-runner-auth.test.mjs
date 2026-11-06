@@ -207,6 +207,7 @@ beforeEach(() => {
     reservedHoldsUsd: 0,
     perTaskReserveUsd: 1,
     usageSpike: false,
+    totalSpendGuard: { enforced: true, limitUsd: 10, committedUsd: 0 },
   };
   globalThis.__codeSafety = safetyState;
   process.env.CODE_TARGETS = JSON.stringify({ "owner/repo": { ref: "main", workflowSha } });
