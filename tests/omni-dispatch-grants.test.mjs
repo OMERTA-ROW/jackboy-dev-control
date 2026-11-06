@@ -19,7 +19,7 @@ await db.exec(`
 `);
 await db.exec(
   await readFile(
-    new URL("../drizzle/migrations/0044_omni_dispatch_grants.sql", import.meta.url),
+    new URL("../drizzle/migrations/0045_omni_dispatch_grants.sql", import.meta.url),
     "utf8",
   ),
 );
