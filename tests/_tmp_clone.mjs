@@ -1,0 +1,14 @@
+import { PGlite } from "@electric-sql/pglite";
+import { readFile } from "node:fs/promises";
+import { supabaseStubs, migrationFiles } from "./helpers/staging-pg.mjs";
+const db = new PGlite();
+await db.exec(supabaseStubs);
+let t=Date.now();
+for (const f of await migrationFiles()) await db.exec(await readFile(`drizzle/migrations/${f}`, "utf8"));
+console.error("replay", Date.now()-t); t=Date.now();
+await db.exec(await readFile("staging/code-activation/0047_code_total_spend_guard.sql","utf8"));
+console.error("0047", Date.now()-t); t=Date.now();
+const c = await db.clone();
+console.error("clone", Date.now()-t);
+console.error((await c.query("select total_spend_limit_usd from public.code_runtime_controls")).rows);
+process.exit(0);
