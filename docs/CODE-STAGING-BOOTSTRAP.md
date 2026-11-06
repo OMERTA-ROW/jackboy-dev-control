@@ -84,3 +84,18 @@ does not establish that the database is empty or that bootstrap is safe.
 Changing secrets after preflight invalidates its evidence. Merging this workflow
 changes the main commit, so bootstrap requires a separate approval for that new
 exact commit and target. Environment review remains required for each workflow.
+
+## Transactional staging safety checks
+
+The manual `staging-safety-checks.yml` workflow is separately reviewed and
+requires exact-commit approval and staging environment review. It checks the
+stopped state, marker, paused automation, synthetic role privileges, owner-only
+Emergency Stop and its audit entry, then applies the #35 rollback and tests the
+restored constraint inside one transaction that is deliberately rolled back.
+It refuses existing owners and unsettled spend reservations. It does not enable
+CODE or dispatch any job. The previous staging gate state remains after rollback;
+this is a rollback test, not a persistent gate restoration. Read-only state is
+checked afterward; if interrupted or failed, inspect staging before retrying.
+The synthetic checks are not real authentication, credential isolation, passkey,
+provider or end-to-end authorization tests. Database login merely establishes
+that the supplied credential can connect. CA-only TLS does not verify hostname.
