@@ -7,6 +7,7 @@ import {
   decodeCaCertificate,
   failureCategory,
 } from "./staging-db-preflight.mjs";
+import { createStandins } from "./staging-standins.mjs";
 
 const host = "shinkansen.proxy.rlwy.net";
 const port = "48734";
@@ -246,9 +247,15 @@ async function main() {
   );
   const sql = postgres(options);
   try {
-    await sql.begin(async (tx) =>
-      applyBootstrap((text, params = []) => tx.unsafe(text, params), plan),
-    );
+    await sql.begin(async (tx) => {
+      const query = (text, params = []) => tx.unsafe(text, params);
+      if (process.env.STAGING_STANDINS === "create-disposable-standins") {
+        await createStandins(query);
+      } else if (process.env.STAGING_STANDINS !== "use-existing-managed-prerequisites") {
+        throw new BootstrapError("standin_selection");
+      }
+      await applyBootstrap(query, plan);
+    });
     console.log("Staging bootstrap committed; CODE remains disabled and Emergency Stop engaged.");
   } finally {
     await sql.end({ timeout: 5 });
