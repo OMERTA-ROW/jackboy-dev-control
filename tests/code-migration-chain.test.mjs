@@ -19,7 +19,7 @@ const fingerprint = async (db) =>
   ).rows;
 
 test(
-  "an empty database replays the full chain 0001..0042 (fresh install)",
+  "an empty database replays the full chain through scoped dispatch (fresh install)",
   { skip: skipNoPg },
   async () => {
     const db = await openDb();
@@ -27,7 +27,8 @@ test(
       await db.exec(supabaseStubs);
       const applied = await replay(db);
       assert.ok(applied.includes(baseline));
-      assert.equal(applied.at(-1), "0042_code_provider_gateway.sql");
+      assert.ok(applied.includes("0042_code_provider_gateway.sql"));
+      assert.equal(applied.at(-1), "0044_omni_dispatch_grants.sql");
       assert.ok(applied.indexOf(baseline) > applied.indexOf("0030_omni_sessions.sql"));
       assert.ok(
         applied.indexOf(baseline) < applied.indexOf("0031_repository_resync_drift_removals.sql"),
@@ -177,6 +178,10 @@ test(
       assert.ok(
         (await db.query("SELECT to_regclass('public.code_spend_reservations') AS t")).rows[0].t,
       );
+      assert.equal(
+        (await db.query("SELECT to_regclass('public.omni_dispatch_grants') AS t")).rows[0].t,
+        "omni_dispatch_grants",
+      );
     } finally {
       await db.close();
     }
@@ -204,9 +209,13 @@ test(
         "SELECT to_regclass('public.code_spend_reservations') AS t, (SELECT count(*)::int FROM pg_constraint WHERE conname = 'code_runtime_controls_provider_hard_cap_verified_check') AS cap",
       );
       assert.deepEqual(gone.rows[0], { t: null, cap: 1 });
-      await replay(db, { from: "0040" });
+      await replay(db, { from: "0040", through: "0042" });
       assert.ok(
         (await db.query("SELECT to_regclass('public.code_spend_reservations') AS t")).rows[0].t,
+      );
+      assert.equal(
+        (await db.query("SELECT to_regclass('public.omni_dispatch_grants') AS t")).rows[0].t,
+        "omni_dispatch_grants",
       );
     } finally {
       await db.close();

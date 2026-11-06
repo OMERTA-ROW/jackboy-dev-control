@@ -6,11 +6,8 @@ const supabaseAdmin = untyped(typedAdmin);
 import { logSite } from "./site-log.server";
 import {
   DEFAULT_CALLBACK_URL,
-  dispatchBackoffMs,
   hmacHex,
   isOmniVerificationFresh,
-  JOB_CONTRACT,
-  MAX_DISPATCH_ATTEMPTS,
   nextStatus,
   omniEndpointFingerprint,
   parseHandshake,
@@ -81,39 +78,13 @@ export async function omniHandshake(actor: string) {
   }
 }
 
-/** Sends due queued jobs to OMNI. Never sends unless the handshake has verified OMNI. */
-export async function dispatchOmniJobs(limit = 10) {
-  const c = config();
-  if (c.missing.length) {
-    await isOmniVerified();
-    return { sent: 0, failed: 0, skipped: "OMNI configuration is incomplete" };
-  }
-  const { data: due } = await supabaseAdmin.from("omni_jobs").select("id, kind, instructions, repo, project_id, attempts, code_request_id")
-    .eq("status", "queued").is("code_request_id", null).lte("next_attempt_at", new Date().toISOString()).order("created_at").limit(limit);
-  const out = { sent: 0, failed: 0 };
-  for (const j of due ?? []) {
-    try {
-      const handshake = await omniHandshake("jackboy");
-      if (!handshake.verified) throw new Error("OMNI handshake failed before dispatch.");
-      const r = await fetch(`${c.url}/jackboy/jobs`, {
-        method: "POST", signal: AbortSignal.timeout(15_000),
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${c.key}`, "Idempotency-Key": j.id },
-        body: JSON.stringify({ contract: JOB_CONTRACT, jobId: j.id, kind: j.kind, repo: j.repo, instructions: j.instructions, callbackUrl: c.callbackUrl }),
-      });
-      const text = await r.text();
-      if (r.status !== 202 && r.status !== 200) throw new Error(`HTTP ${r.status}: ${text.slice(0, 200)}`);
-      let ref: string | null = null;
-      try { ref = String((JSON.parse(text) as { ref?: unknown }).ref ?? "") || null; } catch { /* body optional */ }
-      await supabaseAdmin.from("omni_jobs").update({ status: "sent", sent_at: new Date().toISOString(), attempts: j.attempts + 1, last_error: null, omni_job_ref: ref }).eq("id", j.id).eq("status", "queued");
-      await logSite({ actor: "jackboy", action: "omni.dispatch", category: "delivery", status: "ok", summary: `Job ${j.id.slice(0, 8)} accepted by OMNI`, repo: j.repo });
-      out.sent++;
-    } catch (e) {
-      const attempts = j.attempts + 1, msg = (e as Error).message.slice(0, 300);
-      await supabaseAdmin.from("omni_jobs").update({ attempts, last_error: msg, status: attempts >= MAX_DISPATCH_ATTEMPTS ? "failed" : "queued", next_attempt_at: new Date(Date.now() + dispatchBackoffMs(attempts)).toISOString() }).eq("id", j.id);
-      out.failed++;
-    }
-  }
-  return out;
+/** A transport handshake is not a job-scoped owner authorization. */
+export async function dispatchOmniJobs() {
+  return {
+    sent: 0,
+    failed: 0,
+    skipped: "Legacy OMNI dispatch is disabled until job-scoped owner authorization is available.",
+  };
 }
 
 /** Applies a verified, fresh, non-replayed OMNI result. */

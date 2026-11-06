@@ -6,7 +6,30 @@
 
 The existing `omni-link.ts` HMAC implementation, service-side Supabase client, `owner_projects`, owner roles, global automation pause, callback nonce store and append-only Site Log are reused. Two new service-only tables separate short-lived sessions and inbound jobs from existing outbound `omni_jobs`; this avoids changing CODE's routing or approval semantics. Audits use the `config` category and fixed text/IDs, never request bodies, tokens, signatures, provider errors or subprocess output.
 
-Existing Jackboy → OMNI dispatch and signed result callbacks remain unchanged. The reverse session does **not** set `omni_connection.verified`. CODE's owner approvals, workflow allowlist, GitHub fallback and verified-OMNI gate remain unchanged. No GitHub App installation token, CODE credential or provider secret is sent across the new link. The fixture repair in PR #8 is retained as the base of this branch.
+Jackboy → OMNI legacy dispatch and its unscoped result callback are disabled: a successful transport handshake does not authorize queued jobs, and old callbacks now return HTTP 410. Previously sent jobs cannot receive legacy updates until a separately reviewed reconciliation path exists. The reverse session does **not** set `omni_connection.verified`. CODE's owner approvals, workflow allowlist, GitHub fallback and verified-OMNI gate remain unchanged. No GitHub App installation token, CODE credential or provider secret is sent across the reverse link.
+
+The replacement outbound protocol is disabled by default. An explicit owner-only server function invokes a Node-only client that revalidates the grant, audits the request, signs it, verifies TLS and response proofs, and records the verified quarantine/cancellation receipt. The owner review panel previews the exact queued job and requires a fresh passkey; there is no scheduler or automatic sender. The Mothership has a disabled receive-only route and transactional quarantine storage. `omni_jobs.project_id` references `agent_projects`, while the reverse link uses `owner_projects`; the two IDs must not be assumed interchangeable. The isolated cross-repository TLS test simulates passkey and MFA identity and checks the same canonical payload digest on both sides; it does not prove the real authentication ceremonies or distributed revocation.
+
+The local, unapplied `0044_omni_dispatch_grants.sql` migration prepares a service-role-only, 15-minute receive-only grant for a single queued test job. Issuance consumes a registered owner passkey confirmation bound to that job and atomically appends an audit record. Revalidation checks the original project, repository, job contents and global pause; revocation is durable. Owner-only server functions expose issuance, revocation and explicit dispatch. A point-in-time check alone cannot prevent revocation racing with remote receipt: Jackboy and Mothership grants must be revoked separately, and the Mothership quarantine must remain non-executing. Review migration numbering and actual database history before any application.
+
+A disabled-by-default `jackboy.dispatch-callback/v2` receiver accepts only signed
+`quarantined` or `cancelled` state for an exact, currently valid grant and
+payload digest. Its nonce, receipt and audit commit together; cancelled receipts
+cannot reopen. The legacy callback remains HTTP 410. An explicit Mothership
+owner action can send its stored quarantine state over certificate-verified TLS;
+the isolated test exercises this path with simulated identities and two local
+databases. A signed receipt does not authorize execution, and a missing
+acknowledgement needs reconciliation rather than an automatic retry. The
+callback's separately scoped client ID and HMAC secret must remain unset until
+reviewed staging configuration is approved.
+
+For a future approved staging setup only, Jackboy's sender requires
+`OMNI_DISPATCH_ENABLED`, `OMNI_DISPATCH_ORIGIN`, `OMNI_DISPATCH_CA_FILE`,
+`OMNI_DISPATCH_CLIENT_ID`, and `OMNI_DISPATCH_HMAC_SECRET`. Its callback receiver
+requires `OMNI_DISPATCH_CALLBACK_ENABLED`, `OMNI_DISPATCH_CALLBACK_CLIENT_ID`,
+and `OMNI_DISPATCH_CALLBACK_SECRET`. Use separate managed secrets for each
+direction and exact HTTPS names covered by the server certificates. These
+settings are not configured by this change.
 
 ## Protocol and storage
 
