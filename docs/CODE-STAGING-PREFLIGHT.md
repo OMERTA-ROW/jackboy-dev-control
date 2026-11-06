@@ -15,7 +15,9 @@ Do not treat this preflight as approval to alter the 0037 constraint.
 After review and merge, an authorized owner may manually run the workflow with
 the exact non-secret staging hostname, port and database. Do not provide the URL,
 username or password as inputs. The owner supplies a single trusted PEM certificate
-as `STAGING_DB_CA_CERT`; absent or invalid certificates fail closed. The connection
+encoded as canonical single-line base64 in `STAGING_DB_CA_CERT`. The preflight
+decodes it in memory without logging it; absent, malformed, or invalid certificates
+fail closed. The connection
 uses only that trust anchor and verifies certificate chains and validity, but
 **does not verify the hostname** at the owner's explicit request for this
 read-only preflight. Anyone with a valid certificate under that CA could impersonate

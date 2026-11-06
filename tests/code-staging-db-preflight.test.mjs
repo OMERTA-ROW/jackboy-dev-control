@@ -7,6 +7,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { createServer, connect, checkServerIdentity } from "node:tls";
 import {
   connectionOptions,
+  decodeCaCertificate,
   failureCategory,
   inspectStaging,
 } from "../scripts/staging-db-preflight.mjs";
@@ -35,6 +36,7 @@ for (const name of ["trusted", "untrusted"]) {
 }
 after(() => rmSync(dir, { recursive: true, force: true }));
 const ca = readFileSync(join(dir, "trusted.crt"), "utf8");
+const encodedCa = Buffer.from(ca).toString("base64");
 
 const config = {
   url: "postgresql://test:synthetic@staging.example.test:1234/fixture",
@@ -67,6 +69,32 @@ test("staging target and TLS options are fixed before connecting", () => {
       /invalid_ca_certificate/,
     );
   }
+});
+
+test("decodes a canonical single-line base64 CA and rejects malformed input", () => {
+  assert.equal(decodeCaCertificate(encodedCa), ca);
+  for (const invalid of [
+    undefined,
+    "",
+    `${encodedCa}\n`,
+    `${encodedCa}!`,
+    "AB==",
+    Buffer.from([255]).toString("base64"),
+    "A".repeat(32772),
+  ]) {
+    assert.throws(() => decodeCaCertificate(invalid), /invalid_ca_certificate/);
+  }
+  assert.throws(
+    () =>
+      connectionOptions(
+        config.url,
+        config.host,
+        config.port,
+        config.database,
+        decodeCaCertificate(Buffer.from("not a certificate").toString("base64")),
+      ),
+    /invalid_ca_certificate/,
+  );
 });
 
 test("CA-only TLS accepts a trusted hostname mismatch and rejects another certificate", async () => {
@@ -186,9 +214,28 @@ test("CLI prints only the safe failure category, not the supplied URL", () => {
       STAGING_EXPECTED_HOST: config.host,
       STAGING_EXPECTED_PORT: config.port,
       STAGING_EXPECTED_DATABASE: config.database,
+      STAGING_DB_CA_CERT: encodedCa,
     },
   });
   assert.equal(result.status, 1);
   assert.match(result.stderr, /target_mismatch/);
   assert.doesNotMatch(result.stdout + result.stderr, new RegExp(secret));
+});
+
+test("CLI rejects malformed base64 without logging it", () => {
+  const secret = "synthetic-private-value!";
+  const result = spawnSync(process.execPath, ["scripts/staging-db-preflight.mjs"], {
+    encoding: "utf8",
+    env: {
+      PATH: process.env.PATH,
+      STAGING_DATABASE_URL: config.url,
+      STAGING_EXPECTED_HOST: config.host,
+      STAGING_EXPECTED_PORT: config.port,
+      STAGING_EXPECTED_DATABASE: config.database,
+      STAGING_DB_CA_CERT: secret,
+    },
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /invalid_ca_certificate/);
+  assert.doesNotMatch(result.stdout + result.stderr, /synthetic-private-value/);
 });
