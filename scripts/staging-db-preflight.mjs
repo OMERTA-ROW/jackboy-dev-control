@@ -1,4 +1,5 @@
 import { pathToFileURL } from "node:url";
+import { X509Certificate } from "node:crypto";
 import postgres from "postgres";
 
 class PreflightError extends Error {
@@ -41,7 +42,13 @@ export function failureCategory(error) {
   return "unclassified";
 }
 
-export function connectionOptions(raw, expectedHost, expectedPort, expectedDatabase) {
+export function connectionOptions(
+  raw,
+  expectedHost,
+  expectedPort,
+  expectedDatabase,
+  caCertificate,
+) {
   let url;
   try {
     url = new URL(raw);
@@ -81,13 +88,32 @@ export function connectionOptions(raw, expectedHost, expectedPort, expectedDatab
   } catch {
     throw new PreflightError("invalid_url");
   }
+  if (
+    typeof caCertificate !== "string" ||
+    !/^\s*-----BEGIN CERTIFICATE-----\s+[A-Za-z0-9+/=\s]+-----END CERTIFICATE-----\s*$/.test(
+      caCertificate,
+    )
+  ) {
+    throw new PreflightError("invalid_ca_certificate");
+  }
+  try {
+    new X509Certificate(caCertificate);
+  } catch {
+    throw new PreflightError("invalid_ca_certificate");
+  }
   return {
     host: expectedHost,
     port: Number(expectedPort),
     database: expectedDatabase,
     username,
     password,
-    ssl: { rejectUnauthorized: true, servername: expectedHost },
+    // CA-only verification is explicitly limited to this read-only staging preflight.
+    ssl: {
+      rejectUnauthorized: true,
+      servername: expectedHost,
+      ca: caCertificate,
+      checkServerIdentity: () => undefined,
+    },
     max: 1,
     connect_timeout: 10,
     idle_timeout: 5,
@@ -96,7 +122,13 @@ export function connectionOptions(raw, expectedHost, expectedPort, expectedDatab
 }
 
 export async function inspectStaging(config, createClient = postgres) {
-  const options = connectionOptions(config.url, config.host, config.port, config.database);
+  const options = connectionOptions(
+    config.url,
+    config.host,
+    config.port,
+    config.database,
+    config.ca,
+  );
   const sql = createClient(options);
   try {
     return await sql.begin("read only", async (tx) => {
@@ -128,6 +160,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       host: process.env.STAGING_EXPECTED_HOST,
       port: process.env.STAGING_EXPECTED_PORT,
       database: process.env.STAGING_EXPECTED_DATABASE,
+      ca: process.env.STAGING_DB_CA_CERT,
     });
     console.log(JSON.stringify(result));
   } catch (error) {

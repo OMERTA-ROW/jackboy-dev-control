@@ -1,6 +1,6 @@
 # Staging database preflight
 
-The manually dispatched workflow performs a TLS-verified, read-only PostgreSQL
+The manually dispatched workflow performs a CA-verified, read-only PostgreSQL
 preflight. It compares the secret URL against the separately supplied expected
 host, port and database, rejects URL options, and reports only whether the CODE
 controls and 0037 constraint exist. The workflow runs only on `main`; no secret
@@ -14,8 +14,15 @@ Do not treat this preflight as approval to alter the 0037 constraint.
 
 After review and merge, an authorized owner may manually run the workflow with
 the exact non-secret staging hostname, port and database. Do not provide the URL,
-username or password as inputs. Certificate verification is mandatory; a TLS
-failure is a blocker, not a reason to disable validation. This preflight does not
+username or password as inputs. The owner supplies a single trusted PEM certificate
+as `STAGING_DB_CA_CERT`; absent or invalid certificates fail closed. The connection
+uses only that trust anchor and verifies certificate chains and validity, but
+**does not verify the hostname** at the owner's explicit request for this
+read-only preflight. Anyone with a valid certificate under that CA could impersonate
+the target. Input matching does not authenticate the endpoint or independently
+establish Railway environment or service identity. Do not use this mode for
+database writes. A TLS failure is a blocker, not a reason to disable chain
+verification. This preflight does not
 perform credential-scope, application authorization, audit, Emergency Stop,
 rollback, or live-provider tests.
 
