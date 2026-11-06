@@ -1,5 +1,12 @@
 # Jackboy roadmap
 
+## Settings audit: Lovable vs Railway vs GitHub (Nov 6, read-only)
+- [x] Sorted the 17 requested settings plus Railway/GitHub needs by name only; report saved in docs/SETTINGS-AUDIT-2026-11-06.md. No values read, created or changed; Stop ON, CODE off.
+- [ ] Blocked on owner: confirm GitHub `CODE_RUNNER_AUTH_URL` points to Railway (GitHub access denied to read it).
+- [ ] Blocked on owner: add `CODE_GATEWAY_PRICES` and `CODE_GATEWAY_PER_CALL_CAP_USD` on Railway; confirm `CODE_PROVIDER_API_KEY` there.
+- [ ] Blocked on approval: reviewed Railway database-access design (service role key unavailable on Lovable Cloud).
+- [ ] Blocked on approval: cumulative $10 spend-reservation guard not present in code; activation BLOCKED.
+
 ## Workflow pin repair and activation readiness (Nov 5, 21:30 UTC)
 - [x] Independently hashed GitHub main bytes: ebc71c1923c3d6ab925ec6b9e4fa971e311f3761; both saved pins remain 82c0c44…; scope unchanged.
 - [x] Production read confirms Stop ON, enabled=false, no active run and 0037 false invariant; no dispatch or paid calls.
