@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { CheckCircle2, ShieldAlert } from "lucide-react";
-import { dispatchOmniNow, getOmniLink, runOmniHandshake } from "@/lib/omni-link.functions";
+import { getOmniLink, runOmniHandshake } from "@/lib/omni-link.functions";
+import { OmniDispatchReview } from "./OmniDispatchReview";
 
 type Link = Awaited<ReturnType<typeof getOmniLink>>;
 
 /** Live OMNI connection state from the server handshake, plus the job delivery queue. */
 export function OmniLinkPanel() {
-  const load = useServerFn(getOmniLink), hs = useServerFn(runOmniHandshake), send = useServerFn(dispatchOmniNow);
+  const load = useServerFn(getOmniLink), hs = useServerFn(runOmniHandshake);
   const [d, setD] = useState<Link | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -22,19 +23,20 @@ export function OmniLinkPanel() {
 
   const verified = Boolean(d?.connection?.verified);
   return (
+    <>
     <section className="panel mb-4 p-4 text-sm" aria-labelledby="omni-link">
       <div className="flex flex-wrap items-center gap-2">
         {verified ? <CheckCircle2 className="h-4 w-4 text-success" /> : <ShieldAlert className="h-4 w-4 text-warning" />}
         <h2 id="omni-link" className="font-semibold">{verified ? `OMNI connected (${d?.connection?.omni_version})` : "OMNI not connected"}</h2>
         <div className="ml-auto flex gap-2">
           <button className="rounded-md border border-border px-3 py-1.5 hover:bg-muted disabled:opacity-50" disabled={busy || !d?.config.configured} onClick={() => act(() => hs(), "Check")}>Check connection</button>
-          <button className="rounded-md border border-border px-3 py-1.5 hover:bg-muted disabled:opacity-50" disabled={busy || !verified} onClick={() => act(() => send(), "Send")}>Send waiting jobs</button>
         </div>
       </div>
       {d && !d.config.configured && <p className="mt-2 text-muted-foreground">Waiting for these secrets: {d.config.missing.join(", ")}.</p>}
       {d && !d.config.keyConfigured && <p role="alert" className="mt-2 text-destructive">OMNI key not configured. Add OMNI_API_KEY in Project Settings → Secrets and the same value on the OMNI worker host; this is separate from GITHUB_TOKEN. Add OMNI_API_URL and matching OMNI_CALLBACK_SECRET, then check the connection.</p>}
       {d?.connection?.last_error && <p className="mt-2 text-destructive">Last check: {d.connection.last_error}</p>}
       {d && <p className="mt-1 text-xs text-muted-foreground">OMNI reports results to {d.config.callbackUrl}</p>}
+      <p className="mt-1 text-xs text-muted-foreground">Queued jobs remain unsent: a connection check does not authorize dispatch.</p>
       {msg && <p className="mt-2 break-words text-xs text-muted-foreground" role="status">{msg}</p>}
       {d && d.jobs.length > 0 && (
         <ul className="mt-3 divide-y divide-border">
@@ -50,5 +52,7 @@ export function OmniLinkPanel() {
         </ul>
       )}
     </section>
+    <OmniDispatchReview />
+    </>
   );
 }

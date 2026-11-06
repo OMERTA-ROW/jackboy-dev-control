@@ -9,12 +9,15 @@
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",
+    "build:railway": "NITRO_PRESET=node-server vite build",
+    "start": "NITRO_HOST=0.0.0.0 node .output/server/index.mjs",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write .",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:railway": "bun run build:railway && node --test tests/railway-start.test.mjs"
   },
   "overrides": {
     "rolldown": "1.2.1",

@@ -20,6 +20,11 @@ describe("passkey step-up", () => {
     expect(mayRequest("production_deploy", "admin").ok).toBe(false);
     expect(mayRequest("building_control", "owner").ok).toBe(false);
   });
+  it("OMNI receipt authorization requires a fresh owner passkey", () => {
+    expect(mayRequest("omni_dispatch", "owner").ok).toBe(true);
+    expect(mayRequest("omni_dispatch", "admin").ok).toBe(false);
+    expect(recentEligible("omni_dispatch", "omni-job:123")).toBe(false);
+  });
   it("permission increases require an owner or administrator", () => {
     expect(mayRequest("privilege_escalation", "owner").ok).toBe(true);
     expect(mayRequest("privilege_escalation", "admin").ok).toBe(true);
