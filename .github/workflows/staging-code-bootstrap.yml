@@ -8,6 +8,13 @@ on:
       staging_confirmation:
         description: Enter verified-staging-only after independent target and credential verification
         required: true
+      prerequisites:
+        description: Select existing managed prerequisites or dedicated disposable-cluster stand-ins
+        required: true
+        type: choice
+        options:
+          - use-existing-managed-prerequisites
+          - create-disposable-standins
 permissions:
   contents: read
 concurrency:
@@ -31,6 +38,7 @@ jobs:
         env:
           APPROVED_COMMIT: ${{ inputs.approved_commit }}
           STAGING_CONFIRMATION: ${{ inputs.staging_confirmation }}
+          STAGING_STANDINS: ${{ inputs.prerequisites }}
           STAGING_DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
           STAGING_DB_CA_CERT: ${{ secrets.STAGING_DB_CA_CERT }}
         run: node scripts/staging-code-bootstrap.mjs

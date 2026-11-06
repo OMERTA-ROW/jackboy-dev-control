@@ -10,8 +10,7 @@ The existing preflight found no CODE controls, not a compatible Supabase
 installation. The workflow requires existing `auth.users`, `auth.uid()`,
 `storage.objects`, and the `anon`, `authenticated`, and `service_role` roles.
 It checks selected required columns, storage RLS and the service role's RLS
-bypass attribute, but does not create simulated managed services or roles.
-Their presence does not
+bypass attribute. The optional stand-in mode is described below. Their presence does not
 prove that authentication, authorization, RLS or storage are correctly managed;
 independently establish compatibility and credential scope before use. The
 bootstrap refuses an existing Drizzle schema or user-created public tables,
@@ -48,3 +47,29 @@ Successful bootstrap is not a live safety or integration check. Separately
 approved staging-only credential, authorization, audit, Emergency Stop and
 rollback checks remain necessary. #35 rollback restores the original 0037
 constraint but does not undo the application schema.
+
+## Optional disposable-cluster stand-ins
+
+The `create-disposable-standins` input creates minimal `auth` and `storage`
+schemas and three NOLOGIN roles in the same transaction as the bootstrap.
+It refuses to proceed if either schema or any named role already exists; it
+never modifies or reuses pre-existing roles. PostgreSQL roles are **cluster-wide**,
+and `service_role` has BYPASSRLS. A successful commit persists those roles for
+every database on the cluster. Independently establish that the entire cluster
+is dedicated to disposable staging, that no credentials or other databases can
+assume those roles, and that role creation is authorized before any dispatch.
+The database user may lack the privileges needed to create BYPASSRLS roles; the
+bootstrap will fail and roll back rather than weaken that requirement.
+
+These are inert test scaffolds, not a Supabase deployment. `auth.uid()` always
+returns NULL: no one can sign in through these stubs, and they cannot validate
+JWTs, sessions, invitations, real credential isolation, managed API behavior,
+passkeys, object storage, or realistic RLS authorization. They create no
+login credentials, memberships, auth service, or storage service. Do not start
+the application or expose the database as an authentication backend.
+
+The separate manual diagnostics workflow only reads catalog presence flags. It
+does not prove cluster isolation, identity, authorization, privileges, database
+emptiness, or readiness. Both workflows use the same pinned CA-only transport;
+hostname identity remains unverified. A new approved commit and target are
+required after review; no workflow is run by creating or merging this draft.
