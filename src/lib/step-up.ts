@@ -6,6 +6,7 @@ export const STEP_UP_ACTIONS = {
   revert_update: { label: "Revert a merged update", roles: ["owner"] },
   critical_change: { label: "Critical Code Foundry change (security/config/destructive files)", roles: ["owner"] },
   approve_integration: { label: "Approve a provider permission for one project", roles: ["owner"] },
+  omni_dispatch: { label: "Approve one OMNI job for receipt only", roles: ["owner"] },
   autonomy_toggle: { label: "Turn on background work or Autopilot", roles: ["owner"] },
   credential_change: { label: "Create or change a stored credential", roles: ["owner"] },
   owner_settings: { label: "Change an owner-only setting", roles: ["owner"] },
