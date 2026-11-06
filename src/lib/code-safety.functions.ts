@@ -110,7 +110,7 @@ export const getCodeSafetySettings = createServerFn({ method: "POST" })
   .handler(async ({ context }) => {
     await requireOwner(context);
     const { getCodeSafetyState } = await import("./code-safety.server");
-    await getCodeSafetyState();
+    const safetyState = await getCodeSafetyState();
     const db = (await import("./untyped-db")).untyped((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const { data, error } = await db
       .from("code_runtime_controls")
@@ -162,6 +162,8 @@ export const getCodeSafetySettings = createServerFn({ method: "POST" })
       cancellationStatus: data.cancellation_status,
       providerCostsSyncedAt: data.provider_costs_synced_at,
       maxDailySpendUsd: CODE_DAILY_SPEND_LIMIT_USD,
+      // Read-only report of the cumulative guard; null until its reviewed migration is applied.
+      totalSpendGuard: safetyState.totalSpendGuard,
     };
   });
 
