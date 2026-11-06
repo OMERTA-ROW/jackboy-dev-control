@@ -1,0 +1,35 @@
+name: Staging database read-only preflight
+on:
+  workflow_dispatch:
+    inputs:
+      expected_host:
+        description: Expected staging PostgreSQL hostname (non-secret)
+        required: true
+      expected_port:
+        description: Expected staging PostgreSQL port (non-secret)
+        required: true
+      expected_database:
+        description: Expected staging database name (non-secret)
+        required: true
+permissions:
+  contents: read
+jobs:
+  preflight:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: "1.4.4"
+      - run: bun install --frozen-lockfile
+      - name: Check staging target without writes
+        env:
+          STAGING_DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+          STAGING_EXPECTED_HOST: ${{ inputs.expected_host }}
+          STAGING_EXPECTED_PORT: ${{ inputs.expected_port }}
+          STAGING_EXPECTED_DATABASE: ${{ inputs.expected_database }}
+        run: node scripts/staging-db-preflight.mjs
