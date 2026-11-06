@@ -1,4 +1,4 @@
-import { test, before } from "node:test";
+import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { PGlite } from "@electric-sql/pglite";
@@ -18,6 +18,17 @@ const proposed = (f) => readFile(`staging/code-activation/${f}`, "utf8");
 let chain; // applied production chain + seed
 let guarded; // + 0047
 let gated; // + 0047 + 0048
+
+// Every in-memory database is closed at the end so the test process can exit.
+const open = [];
+const clone = async (db) => {
+  const copy = await db.clone();
+  open.push(copy);
+  return copy;
+};
+after(async () => {
+  for (const db of [...open, gated, guarded, chain]) await db?.close().catch(() => {});
+});
 
 before(async () => {
   chain = new PGlite();
@@ -40,13 +51,17 @@ before(async () => {
 });
 
 const one = async (db, sql, params) => (await db.query(sql, params)).rows[0];
-const controls = (db) =>
-  one(
-    db,
-    `SELECT enabled, kill_switch, provider_hard_cap_verified AS verified, paused_reason,
-            allowed_targets, total_spend_limit_usd::float AS total_limit
-     FROM public.code_runtime_controls`,
-  );
+const controls = async (db) => {
+  const { c } = await one(db, "SELECT to_jsonb(r) AS c FROM public.code_runtime_controls AS r");
+  return {
+    enabled: c.enabled,
+    kill_switch: c.kill_switch,
+    verified: c.provider_hard_cap_verified,
+    paused_reason: c.paused_reason,
+    allowed_targets: c.allowed_targets,
+    total_limit: c.total_spend_limit_usd === undefined ? undefined : Number(c.total_spend_limit_usd),
+  };
+};
 const committed = async (db) =>
   (await one(db, "SELECT public.code_total_spend_committed()::float AS c")).c;
 const status = async (db) => (await one(db, "SELECT public.code_total_spend_guard_status() AS s")).s;

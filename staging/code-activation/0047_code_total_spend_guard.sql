@@ -157,10 +157,11 @@ BEGIN
     FROM public.code_runtime_controls WHERE singleton = true FOR UPDATE;
   committed := public.code_total_spend_committed();
   IF lim IS NULL OR committed IS NULL OR committed > lim THEN
-    IF TG_LEVEL = 'ROW' AND TG_TABLE_NAME = 'code_spend_reservations'
-      AND TG_OP = 'INSERT' AND NEW.status = 'reserved'
-    THEN
-      RAISE EXCEPTION 'CODE total spend guard: this reservation would exceed the cumulative spending limit';
+    -- Nested IFs: PL/pgSQL does not short-circuit, and NEW does not exist for statement triggers.
+    IF TG_LEVEL = 'ROW' AND TG_TABLE_NAME = 'code_spend_reservations' AND TG_OP = 'INSERT' THEN
+      IF NEW.status = 'reserved' THEN
+        RAISE EXCEPTION 'CODE total spend guard: this reservation would exceed the cumulative spending limit';
+      END IF;
     END IF;
     UPDATE public.code_runtime_controls
       SET kill_switch = true,
