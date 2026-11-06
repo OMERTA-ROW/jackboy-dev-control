@@ -3,6 +3,7 @@ import { untyped } from "./untyped-db";
 const db = untyped(typedDb);
 import {
   codeStartBlockReason,
+  parseTotalSpendGuard,
   parseCodeTargets,
   restrictCodeTargets,
   shouldPauseForSpend,
@@ -40,6 +41,9 @@ export async function getCodeSafetyState(now = Date.now()): Promise<CodeSafetySt
         0,
       );
   const perTaskReserveUsd = Number(data.per_task_reserve_usd);
+  // Absent until the reviewed cumulative-guard migration is applied; any error fails closed.
+  const guardResult = await db.rpc("code_total_spend_guard_status");
+  const totalSpendGuard = parseTotalSpendGuard(guardResult.error ? null : guardResult.data);
   const sum = (rows: { cost_usd: number }[] | null) =>
     (rows ?? []).reduce((total, row) => total + Number(row.cost_usd), 0);
   const providerSpendTodayUsd = sum(today.data);
@@ -96,6 +100,7 @@ export async function getCodeSafetyState(now = Date.now()): Promise<CodeSafetySt
     reservedHoldsUsd,
     perTaskReserveUsd: Number.isFinite(perTaskReserveUsd) ? perTaskReserveUsd : null,
     usageSpike,
+    totalSpendGuard,
   };
 }
 

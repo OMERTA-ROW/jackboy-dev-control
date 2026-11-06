@@ -1,4 +1,6 @@
 export const CODE_DAILY_SPEND_LIMIT_USD = 5;
+/** Cumulative ceiling across every reservation and recorded provider cost, ever. */
+export const CODE_TOTAL_SPEND_LIMIT_USD = 10;
 export const CODE_MAX_CONSECUTIVE_FAILURES = 2;
 export const CODE_USAGE_MAX_AGE_MS = 5 * 60_000;
 
@@ -29,6 +31,8 @@ export type CodeSafetyState = {
   reservedHoldsUsd: number | null;
   perTaskReserveUsd: number | null;
   usageSpike: boolean;
+  /** Database-reported cumulative guard; null when the guard is not installed or unreadable. */
+  totalSpendGuard: { enforced: boolean; limitUsd: number; committedUsd: number } | null;
 };
 
 export function parseCodeTargets(value: unknown): Record<string, CodeTarget> {
@@ -115,6 +119,40 @@ export function codeStartBlockReason(
     state.dailySpendLimitUsd
   ) {
     return "CODE is blocked because the task's worst-case spend reservation exceeds the remaining daily limit.";
+  }
+  return totalSpendBlockReason(state.totalSpendGuard, state.perTaskReserveUsd);
+}
+
+/** Parses code_total_spend_guard_status(); anything unexpected becomes null (fail closed). */
+export function parseTotalSpendGuard(value: unknown): CodeSafetyState["totalSpendGuard"] {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const row = value as Record<string, unknown>;
+  const limitUsd = Number(row["limit_usd"]);
+  const committedUsd = Number(row["committed_usd"]);
+  if (row["limit_usd"] == null || row["committed_usd"] == null) return null;
+  if (!Number.isFinite(limitUsd) || !Number.isFinite(committedUsd)) return null;
+  return { enforced: row["enforced"] === true, limitUsd, committedUsd };
+}
+
+/** Mirrors the database's cumulative guard: committed + this task's reservation must fit the total. */
+export function totalSpendBlockReason(
+  guard: CodeSafetyState["totalSpendGuard"],
+  perTaskReserveUsd: number,
+): string | null {
+  if (
+    !guard ||
+    guard.enforced !== true ||
+    !Number.isFinite(guard.limitUsd) ||
+    !Number.isFinite(guard.committedUsd) ||
+    guard.limitUsd <= 0 ||
+    guard.limitUsd > CODE_TOTAL_SPEND_LIMIT_USD ||
+    guard.committedUsd < 0
+  ) {
+    return "CODE is blocked because the cumulative $10 spending guard is not installed or not enforced.";
+  }
+  // Compare in cents so 9 + 1 = 10.00 fits exactly.
+  if (Math.round((guard.committedUsd + perTaskReserveUsd) * 100) > Math.round(guard.limitUsd * 100)) {
+    return "CODE is blocked because the cumulative spending total would exceed its limit.";
   }
   return null;
 }
