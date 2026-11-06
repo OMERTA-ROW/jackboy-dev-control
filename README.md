@@ -25,3 +25,9 @@ npm i
 npm run dev
 ```
 
+## Railway startup
+
+Railway requires `bun run build:railway` followed by `bun run start`; the default
+Lovable build emits a Cloudflare Worker, not a Node listener. See
+[Railway production startup](docs/RAILWAY.md) for host/port requirements,
+diagnosis and credential-free verification.
