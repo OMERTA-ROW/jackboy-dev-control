@@ -29,6 +29,7 @@ jobs:
       - name: Check staging target without writes
         env:
           STAGING_DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+          STAGING_DB_CA_CERT: ${{ secrets.STAGING_DB_CA_CERT }}
           STAGING_EXPECTED_HOST: ${{ inputs.expected_host }}
           STAGING_EXPECTED_PORT: ${{ inputs.expected_port }}
           STAGING_EXPECTED_DATABASE: ${{ inputs.expected_database }}
