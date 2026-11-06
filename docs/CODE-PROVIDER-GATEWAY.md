@@ -1,5 +1,9 @@
 # CODE provider gateway and final cutover
 
+Production step 3a preparation and read-only verification gates are documented
+in [`CODE-PRODUCTION-STEP-3A.md`](CODE-PRODUCTION-STEP-3A.md). That plan does
+not authorize a migration or establish production readiness.
+
 Status: **implemented; production activation blocked pending independent staging evidence**.
 `provider_hard_cap_verified` remains false and migration 0037's CHECK is intact.
 No CODE jobs, paid calls, production migrations, deployment or Emergency Stop release are part of this verification.
