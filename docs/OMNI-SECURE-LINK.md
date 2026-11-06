@@ -10,7 +10,7 @@ Jackboy → OMNI legacy dispatch and its unscoped result callback are disabled: 
 
 The replacement outbound protocol is disabled by default. An explicit owner-only server function invokes a Node-only client that revalidates the grant, audits the request, signs it, verifies TLS and response proofs, and records the verified quarantine/cancellation receipt. The owner review panel previews the exact queued job and requires a fresh passkey; there is no scheduler or automatic sender. The Mothership has a disabled receive-only route and transactional quarantine storage. `omni_jobs.project_id` references `agent_projects`, while the reverse link uses `owner_projects`; the two IDs must not be assumed interchangeable. The isolated cross-repository TLS test simulates passkey and MFA identity and checks the same canonical payload digest on both sides; it does not prove the real authentication ceremonies or distributed revocation.
 
-The local, unapplied `0044_omni_dispatch_grants.sql` migration prepares a service-role-only, 15-minute receive-only grant for a single queued test job. Issuance consumes a registered owner passkey confirmation bound to that job and atomically appends an audit record. Revalidation checks the original project, repository, job contents and global pause; revocation is durable. Owner-only server functions expose issuance, revocation and explicit dispatch. A point-in-time check alone cannot prevent revocation racing with remote receipt: Jackboy and Mothership grants must be revoked separately, and the Mothership quarantine must remain non-executing. Review migration numbering and actual database history before any application.
+The local, unapplied `0045_omni_dispatch_grants.sql` migration prepares a service-role-only, 15-minute receive-only grant for a single queued test job. Issuance consumes a registered owner passkey confirmation bound to that job and atomically appends an audit record. Revalidation checks the original project, repository, job contents and global pause; revocation is durable. Owner-only server functions expose issuance, revocation and explicit dispatch. A point-in-time check alone cannot prevent revocation racing with remote receipt: Jackboy and Mothership grants must be revoked separately, and the Mothership quarantine must remain non-executing. Review migration numbering and actual database history before any application.
 
 A disabled-by-default `jackboy.dispatch-callback/v2` receiver accepts only signed
 `quarantined` or `cancelled` state for an exact, currently valid grant and
@@ -53,37 +53,45 @@ OMNI retries transient job transport failures at most three attempts with the sa
 
 Jackboy's current web build targets Cloudflare Workers. That environment cannot run this subprocess. The web route stays disabled by default and reports `ready: false` without an explicitly supported Node runner; it refuses job submission/execution. Do not configure the Node runner flag on the Cloudflare deployment.
 
-The optional `scripts/omni-link-server.mjs` hosts the **same handler** on an owner-provisioned Node 26+ HTTPS host. Tested with Node 26.13.0. It binds loopback by default, validates Host/path/method, uses TLS 1.2 minimum, caps concurrent requests at 32, and has request/header timeouts. It does not start the legacy OMNI inbox worker or schedule jobs.
+**Chosen hosting (owner decision, Nov 6 2026): Railway.** The Jackboy app is built for Node (`NITRO_PRESET=node-server`, see `railway.json`) and serves the link from the **existing web route** `/api/public/omni/link` behind Railway's public HTTPS edge. `package.json` pins `engines.node >=26`, so the runner check can pass on that host. There is no separate link server, bind address, or TLS certificate/key files: Railway terminates TLS.
+
+Railway forwards plain HTTP to the container. The route treats such a request as HTTPS only when `OMNI_LINK_BEHIND_HTTPS_PROXY=true`, `JACKBOY_LINK_ORIGIN` is a clean `https://` origin, the proxy-appended (last) `X-Forwarded-Proto` value is exactly `https`, and the forwarded/Host host equals that origin's host (`linkRequestUrl` in `src/lib/omni-session.ts`). Without the flag, plain HTTP is still refused with `https_post_required`, and the Lovable/Cloudflare deployment behaves as before. All signature, nonce, freshness, path and body-size checks are unchanged.
+
+`scripts/omni-link-server.mjs` is kept **only** for the local cross-repository TLS test. It is not used for deployment.
 
 The child uses a temporary directory, empty inherited environment, fixed trusted JavaScript, Node permission restrictions, no shell and no caller-controlled arguments. Node's [permission model](https://nodejs.org/api/permissions.html) is **not a sandbox for malicious code**. This implementation must not be extended to execute submitted scripts or repository tests without a separately reviewed OS/container isolation system. The old OMNI inbox worker's temporary checkout is also not such a sandbox and is not activated here.
 
 ## Required owner permissions — not performed by this PR
 
 1. Review this PR and its dependency, CODE fixture PR #8. Review the companion OMNI PR based on the existing inbox PR #1. Merge/deploy decisions remain separate owner actions.
-2. Approve and apply `drizzle/migrations/0030_omni_sessions.sql` through the existing migration process. It grants the new RPC/tables only to `service_role`; browser roles cannot call/read them. No migration was run against Cloud in this work.
+2. Session storage: **applied** on 2026-11-05 22:36 UTC (recorded in the migration journal as `0044_omni_sessions.sql`, identical SQL to `0030_omni_sessions.sql`). It grants the RPC/tables only to `service_role`; browser roles cannot call/read them.
 3. Approve one active `owner_projects.id`, its actual owner UUID, a new approval UUID and an expiry no more than 24 hours away. No project inventory, chat instruction or existing connection creates this grant automatically. Owner-role and project ownership are checked on the server.
 4. Provision two **new, independent**, random 32-byte hex secrets in the hosts' managed backend secret stores: `OMNI_LINK_BOOTSTRAP_KEY` and `OMNI_LINK_HMAC_SECRET`. Do not reuse GitHub App, CODE, OMNI legacy or model credentials. Do not put values in chat, command arguments, source, `.env` committed to Git, or logs. At-rest encryption and access policy are provided by the chosen secret manager. Session tokens are never stored in a file.
-5. Provision a dedicated Node host and valid HTTPS certificate/private key. Approve its network exposure and access to the existing Jackboy Supabase service role. This implementation cannot provision or expand those permissions. Keep the listener private/firewalled to the OMNI host where practical.
+5. Provision the Railway production service from this repository (`railway.json`). Railway provides the public HTTPS edge; no certificate files are needed. **Blocker:** the link storage needs `SUPABASE_SERVICE_ROLE_KEY`, which Lovable Cloud does not expose, so the Railway copy fails closed (`link_unavailable`) until a separately reviewed storage path is approved.
 6. Explicitly authorize enabling **only the protocol self-test** using the variables below. General CODE jobs continue through existing owner cards and provider-native workflows; this grant cannot unlock them.
 
-Jackboy Node host configuration (values supplied through managed secrets/config, not printed):
+Railway production service variables (names only; values supplied through Railway's variable store, never printed):
 
 | Variable | Purpose |
 |---|---|
-| `OMNI_LINK_ENABLED=true` | Explicit API opt-in; otherwise 503 |
-| `OMNI_LINK_NODE_RUNNER_ENABLED=true` | Explicit fixed-test runner opt-in, Node host only |
+| `OMNI_LINK_ENABLED` | **Leave unset/off** until the self-test is separately approved; otherwise 503 |
+| `OMNI_LINK_NODE_RUNNER_ENABLED` | **Leave unset/off** until the self-test is separately approved |
 | `OMNI_LINK_CLIENT_ID` | 1–64 alphanumeric/underscore/hyphen identity |
 | `OMNI_LINK_PROJECT_ID` | Authorized existing owner project UUID |
 | `OMNI_LINK_OWNER_ID` | Actual owner UUID |
 | `OMNI_LINK_APPROVAL_ID` | Owner-reviewed grant UUID |
 | `OMNI_LINK_APPROVAL_EXPIRES_AT` | ISO timestamp, at most 24 hours ahead |
 | `OMNI_LINK_BOOTSTRAP_KEY`, `OMNI_LINK_HMAC_SECRET` | Independent scoped secrets |
-| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Existing backend database access, Node host only |
-| `JACKBOY_LINK_ORIGIN` | HTTPS origin, no path/query/credentials |
-| `OMNI_LINK_TLS_CERT_FILE`, `OMNI_LINK_TLS_KEY_FILE` | Managed certificate and protected key paths |
-| `OMNI_LINK_BIND_ADDRESS` | Defaults to `127.0.0.1`; changing exposure needs owner approval |
+| `JACKBOY_LINK_ORIGIN` | Railway public `https://` origin, no path/query/credentials |
+| `OMNI_LINK_BEHIND_HTTPS_PROXY` | `true` — trust Railway's forwarded HTTPS (rules above) |
+| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Backend database access (service role key not available from Lovable Cloud) |
+| `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_SUPABASE_PROJECT_ID` | Public build-time values for the app bundle |
+| `NITRO_PRESET` | `node-server`; already set in `railway.json`'s build command |
+| `PORT` | Set automatically by Railway |
 
-After approval/setup only: `node scripts/omni-link-server.mjs`. There is no install service or startup automation. Stop the listener to disable the link. Preserve database audit/job rows; do not drop tables as a routine rollback. Remove opt-in settings and revoke the dedicated secrets to withdraw permission. No existing GitHub credential rotation is needed.
+No longer used: `OMNI_LINK_TLS_CERT_FILE`, `OMNI_LINK_TLS_KEY_FILE`, `OMNI_LINK_BIND_ADDRESS`. Deliberately not on Railway (least privilege): GitHub App/token, CODE/provider keys, `OPENAI_API_KEY`, `LOVABLE_API_KEY`, `OWNER_EMAIL`, mail and other app secrets; other pages on the Railway copy fail closed without them.
+
+After separate self-test approval only: set the two opt-in flags on the Railway service and redeploy. Unset `OMNI_LINK_ENABLED` (or stop the Railway service) to disable the link. Preserve database audit/job rows; do not drop tables as a routine rollback. Remove opt-in settings and revoke the dedicated secrets to withdraw permission. No existing GitHub credential rotation is needed.
 
 ## Verification
 

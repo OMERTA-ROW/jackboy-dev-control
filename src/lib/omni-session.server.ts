@@ -1,5 +1,13 @@
 import { hmacHex, safeEqual } from "./omni-link";
-import { digest, LINK_CONTRACT, LINK_PATH, SCOPES, UUID, verifyRequest } from "./omni-session";
+import {
+  digest,
+  LINK_CONTRACT,
+  LINK_PATH,
+  linkRequestUrl,
+  SCOPES,
+  UUID,
+  verifyRequest,
+} from "./omni-session";
 import { runProtocolSelfTest, protocolRunnerAvailable } from "./omni-session-runner.server";
 
 export type LinkConfig = {
@@ -96,16 +104,13 @@ export async function handleOmniLink(
   c: LinkConfig | null = linkConfig(),
   store: LinkStore = databaseStore,
   runner = runProtocolSelfTest,
+  env: Record<string, string | undefined> = process.env,
 ): Promise<Response> {
   const plain = (status: number, error: string) =>
     Response.json({ error }, { status, headers: { "Cache-Control": "no-store" } });
   if (!c) return plain(503, "link_disabled");
-  if (
-    new URL(request.url).protocol !== "https:" ||
-    new URL(request.url).pathname !== LINK_PATH ||
-    new URL(request.url).search ||
-    request.method !== "POST"
-  )
+  const url = linkRequestUrl(request, env);
+  if (!url || url.pathname !== LINK_PATH || url.search || request.method !== "POST")
     return plain(400, "https_post_required");
   const context = {
     clientId: c.clientId,

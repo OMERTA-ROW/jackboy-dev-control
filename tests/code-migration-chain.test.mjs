@@ -52,7 +52,7 @@ test(
       const applied = await replay(db);
       assert.ok(applied.includes(baseline));
       assert.ok(applied.includes("0042_code_provider_gateway.sql"));
-      assert.equal(applied.at(-1), "0044_omni_dispatch_grants.sql");
+      assert.equal(applied.at(-1), "0045_omni_dispatch_grants.sql");
       assert.ok(applied.indexOf(baseline) > applied.indexOf("0030_omni_sessions.sql"));
       assert.ok(
         applied.indexOf(baseline) < applied.indexOf("0031_repository_resync_drift_removals.sql"),

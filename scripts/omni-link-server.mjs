@@ -1,4 +1,5 @@
-// Explicit Node HTTPS host for the existing link handler. Never started by web builds/cron.
+// TEST-ONLY local HTTPS adapter for the cross-repository TLS test. Not for deployment:
+// production serves /api/public/omni/link from the web app behind Railway's HTTPS edge.
 import { registerHooks } from "node:module";
 import { createServer } from "node:https";
 import { Readable } from "node:stream";
