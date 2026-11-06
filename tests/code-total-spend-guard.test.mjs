@@ -22,7 +22,7 @@ let gated; // + 0047 + 0048
 // Every in-memory database is closed at the end so the test process can exit.
 const open = [];
 const clone = async (db) => {
-  const copy = await clone(db);
+  const copy = await db.clone();
   open.push(copy);
   return copy;
 };
