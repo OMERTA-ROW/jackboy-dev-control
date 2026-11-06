@@ -1,37 +1,92 @@
 import { pathToFileURL } from "node:url";
 import postgres from "postgres";
 
+class PreflightError extends Error {
+  constructor(category) {
+    super(category);
+    this.category = category;
+  }
+}
+
+export function failureCategory(error) {
+  if (error instanceof PreflightError) return error.category;
+  const code = error?.code;
+  if (
+    [
+      "CERT_HAS_EXPIRED",
+      "CERT_NOT_YET_VALID",
+      "DEPTH_ZERO_SELF_SIGNED_CERT",
+      "ERR_TLS_CERT_ALTNAME_INVALID",
+      "SELF_SIGNED_CERT_IN_CHAIN",
+      "UNABLE_TO_GET_ISSUER_CERT",
+      "UNABLE_TO_GET_ISSUER_CERT_LOCALLY",
+      "UNABLE_TO_VERIFY_LEAF_SIGNATURE",
+    ].includes(code)
+  ) {
+    return "tls_certificate";
+  }
+  if (code === "28000" || code === "28P01") return "authentication";
+  if (
+    [
+      "ENOTFOUND",
+      "EAI_AGAIN",
+      "ECONNREFUSED",
+      "ETIMEDOUT",
+      "ECONNRESET",
+      "CONNECT_TIMEOUT",
+    ].includes(code)
+  ) {
+    return "connection";
+  }
+  return "unclassified";
+}
+
 export function connectionOptions(raw, expectedHost, expectedPort, expectedDatabase) {
   let url;
   try {
     url = new URL(raw);
   } catch {
-    throw new Error("Invalid staging database URL.");
+    throw new PreflightError("invalid_url");
   }
   if (
-    !["postgres:", "postgresql:"].includes(url.protocol) ||
     !expectedHost ||
     !/^[a-z0-9.-]+$/.test(expectedHost) ||
     !/^[0-9]{1,5}$/.test(expectedPort ?? "") ||
     Number(expectedPort) < 1 ||
     Number(expectedPort) > 65535 ||
-    !/^[a-zA-Z0-9_-]+$/.test(expectedDatabase ?? "") ||
-    url.hostname !== expectedHost ||
-    url.port !== expectedPort ||
-    url.pathname !== `/${expectedDatabase}` ||
+    !/^[a-zA-Z0-9_-]+$/.test(expectedDatabase ?? "")
+  ) {
+    throw new PreflightError("invalid_expected_target");
+  }
+  if (
+    !["postgres:", "postgresql:"].includes(url.protocol) ||
     !url.username ||
     !url.password ||
     url.search ||
     url.hash
   ) {
-    throw new Error("Staging database target or URL options do not match the expected target.");
+    throw new PreflightError("invalid_url_options");
+  }
+  if (
+    url.hostname !== expectedHost ||
+    url.port !== expectedPort ||
+    url.pathname !== `/${expectedDatabase}`
+  ) {
+    throw new PreflightError("target_mismatch");
+  }
+  let username, password;
+  try {
+    username = decodeURIComponent(url.username);
+    password = decodeURIComponent(url.password);
+  } catch {
+    throw new PreflightError("invalid_url");
   }
   return {
     host: expectedHost,
     port: Number(expectedPort),
     database: expectedDatabase,
-    username: decodeURIComponent(url.username),
-    password: decodeURIComponent(url.password),
+    username,
+    password,
     ssl: { rejectUnauthorized: true, servername: expectedHost },
     max: 1,
     connect_timeout: 10,
@@ -57,7 +112,7 @@ export async function inspectStaging(config, createClient = postgres) {
           ) AS code_cap_constraint_present
       `;
       if (rows.length !== 1 || rows[0].database !== config.database) {
-        throw new Error("Database identity did not match.");
+        throw new PreflightError("database_mismatch");
       }
       return rows[0];
     });
@@ -75,8 +130,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       database: process.env.STAGING_EXPECTED_DATABASE,
     });
     console.log(JSON.stringify(result));
-  } catch {
-    console.error("Staging preflight failed. No database changes were attempted.");
+  } catch (error) {
+    console.error(
+      `Staging preflight failed (${failureCategory(error)}). No database changes were attempted.`,
+    );
     process.exitCode = 1;
   }
 }
