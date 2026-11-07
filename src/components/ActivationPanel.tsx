@@ -149,7 +149,7 @@ export function ActivationPanel({
             : stepUp("global_pause", "global_pause:on", {
                 applyingText: "Turning the Kill Switch on…",
                 apply: (grantId) => pauseAll({ data: { grantId } }),
-                doneText: () => "Kill Switch is on. All work is paused.",
+                doneText: (r) => `Kill Switch is on. ${r.warning}`,
               }),
         )
       }
@@ -299,7 +299,7 @@ export function ActivationPanel({
               stepUp("code_enable", CODE_ENABLE_TARGET, {
                 applyingText: "Re-checking every gate and turning CODE on…",
                 apply: (grantId) => enableCode({ data: { grantId } }),
-                doneText: () => "CODE is on.",
+                doneText: (r) => (r.codeEnabled ? "CODE is on." : "The request finished, but CODE still reads as off. Check the steps below."),
               }),
             )
           }
