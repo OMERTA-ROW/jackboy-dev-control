@@ -80,6 +80,8 @@ export async function requestInspectStop(projectId: string, runId: string, actor
 export async function inspectProject(projectId: string, actor: string, source: "manual" | "scheduled", limit = 1, opts: { runId?: string | undefined } = {}) {
   const runId = opts.runId;
   const tag = (d: Record<string, unknown> = {}) => (runId ? { ...d, runId } : d);
+  const paused = await (await import("./global-pause.server")).readGlobalPause();
+  if (paused) { await event({ id: null as never, project_id: projectId }, "inspect_blocked", actor, null, null, paused, tag()); return { created: 0, blocked: paused }; }
   const spike = await spikeGuard(actor);
   if (spike) return { created: 0, blocked: spike };
   const { data: p } = await supabaseAdmin.from("owner_projects").select("id, name, github_repo").eq("id", projectId).single();
@@ -258,6 +260,7 @@ export async function decide(id: string, actor: string, decision: "approve" | "r
 
 /** Performs ONLY the approved action, idempotently, with bounded retries. Never merges or deploys. */
 export async function execute(id: string, actor: string) {
+  await (await import("./global-pause.server")).assertWorkAllowed();
   const t = await load(id);
   const bad = canExecute(t); if (bad) throw new Error(bad);
   const action = t.approved_action as ApprovedAction;
@@ -351,6 +354,11 @@ export async function foundryTick() {
   const { data: s } = await supabaseAdmin.from("foundry_schedule").select("*").eq("id", 1).single();
   const result: Record<string, unknown> = {};
   if (!s) return { skipped: "no schedule row" };
+  const killed = await (await import("./global-pause.server")).readGlobalPause();
+  if (killed) {
+    await supabaseAdmin.from("foundry_schedule").update({ last_tick_at: new Date().toISOString(), last_tick_result: { skipped: killed } as never }).eq("id", 1);
+    return { skipped: killed };
+  }
   const spike = s && !s.paused ? await spikeGuard("scheduler") : null;
   if (s.paused || spike) result["skipped"] = spike ?? s.spike_reason ?? "paused";
   else {
