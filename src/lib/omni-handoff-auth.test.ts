@@ -132,3 +132,12 @@ describe("OMNI build/test handoff authorization", () => {
     expect(wireKind("test")).toBe("test");
   });
 });
+
+describe("link-loss revocation stays in sync with the database trigger", () => {
+  it("uses the exact aged-link message the trigger exempts", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { LINK_AGED_MESSAGE } = await import("./omni-handoff-auth");
+    const sql = readFileSync("drizzle/migrations/0052_omni_handoff_authorization.sql", "utf8");
+    expect(sql).toContain(`'${LINK_AGED_MESSAGE}'`);
+  });
+});
