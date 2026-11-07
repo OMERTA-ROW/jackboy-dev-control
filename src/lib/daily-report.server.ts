@@ -54,7 +54,7 @@ async function safety(since: string): Promise<ReportInput["safety"]> {
   try {
     const { getCodeSafetyState } = await import("./code-safety.server");
     const s = await getCodeSafetyState();
-    const { count } = await supabaseAdmin.from("site_log").select("id", { count: "exact", head: true }).gte("at", since).in("action", ["code.auto_stop", "code.failure_stop", "code.spike_stop", "task.stopped"]);
+    const { count } = await supabaseAdmin.from("site_log").select("id", { count: "exact", head: true }).gte("at", since).in("action", ["code.auto_stop", "code.failure_stop", "code.spike_stop"]);
     return { killSwitch: s.killSwitch, codeEnabled: s.enabled, autoStops: count ?? 0 };
   } catch { return { killSwitch: null, codeEnabled: null, autoStops: 0 }; }
 }

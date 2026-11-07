@@ -204,3 +204,4 @@ The spoken acronym “NLOA” is unconfirmed in Notion. Do not infer a technical
 - [ ] Daily morning report (what Jackboy/CODE did, spend, waiting approvals) — plan shown; waiting on owner choices (channel, time).
 - [ ] Phone alerts when a run needs passkey or GitHub approval — plan shown; waiting on owner channel choice + connection.
 - [ ] One-press Undo for every CODE change (passkey when it touches main/live) — plan shown; waiting on owner choice for merge step.
+- [ ] Connect phone alerts to the owner's Firebase project jackboy-b6bb5 (web config from GOOGLE_API_KEY secret, VAPID key requested separately, opt-in permission, diagnostics); sending needs a server credential for that project.
