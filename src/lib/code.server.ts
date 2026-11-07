@@ -36,12 +36,16 @@ async function project(id: string) {
   // Re-measure the live gateway ledger first: only the meter can stamp the 5-minute freshness.
   const safetyBlock = await codeSafetyBlockReason(p.github_repo!, Date.now(), { refreshMeter: true });
   if (safetyBlock) throw new Error(safetyBlock);
+  const taskBudgetUsd = (await getCodeSafetyState()).perTaskReserveUsd;
+  if (taskBudgetUsd === null || !Number.isFinite(taskBudgetUsd) || taskBudgetUsd <= 0) {
+    throw new Error("CODE is blocked because its per-task spend reservation is unavailable.");
+  }
   const revision = await gh<{ sha: string }>(
     p.github_repo!,
     `/commits/${encodeURIComponent(target.ref)}`,
   );
   if (!/^[a-f0-9]{40}$/.test(revision.sha)) throw new Error("CODE target revision could not be verified.");
-  return { id: p.id, repo: p.github_repo!, ...target, baseSha: revision.sha };
+  return { id: p.id, repo: p.github_repo!, ...target, baseSha: revision.sha, taskBudgetUsd };
 }
 async function verify(p: { repo: string; ref: string; workflowSha: string; baseSha?: string }) {
   const [file, workflow, repo] = await Promise.all([
@@ -112,6 +116,7 @@ export async function requestCode(
     sessionHash,
     correlation: id,
     operation: retry ? "retry" : "dispatch",
+    taskBudgetUsd: p.taskBudgetUsd,
   };
   // Automatic lane: only when the owner switched it on for this site (passkey) and every low-risk rule holds.
   // Without the staged storage, autoLaneAllowed is false and every request stays in the reviewed lane.
@@ -155,7 +160,7 @@ async function findRun(scope: CodeScope): Promise<Run | undefined> {
 }
 export async function getCode(id: string, userId: string): Promise<CodeCard> {
   const r = await row(id, userId), s = r.resources as unknown as CodeScope;
-  const card: CodeCard = { id: r.id, projectId: r.project_id!, repo: s.repo, instruction: s.instruction, status: r.status, expiresAt: r.expires_at, permissions: r.permissions, outcome: r.outcome };
+  const card: CodeCard = { id: r.id, projectId: r.project_id!, repo: s.repo, instruction: s.instruction, status: r.status, expiresAt: r.expires_at, permissions: r.permissions, outcome: r.outcome, taskBudgetUsd: typeof s.taskBudgetUsd === "number" && Number.isFinite(s.taskBudgetUsd) ? s.taskBudgetUsd : null };
   if (r.status !== "allowed") return card;
   const run = await findRun(s);
   if (!run) return { ...card, outcome: "Awaiting GitHub run registration. If dispatch was interrupted, reconcile here before requesting another job." };
