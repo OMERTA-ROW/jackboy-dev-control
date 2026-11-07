@@ -1,5 +1,12 @@
 # Jackboy roadmap
 
+## OMNI build/test handoffs (Nov 7, 17:09 UTC)
+- [x] Handoffs for build and test jobs that need a live OMNI link (< 5 min), owner + own enrolled project, a current unrevoked project access, and the Kill Switch off — checked at approval and at every send. 717 tests pass.
+- [ ] First real handoff — blocked: OMNI's live link isn't verified and no registered project is enrolled with a GitHub repo; OMNI's side must also accept `build`.
+
+## GitHub issue/PR preparation (Nov 7, 17:19 UTC)
+- [ ] Prepare GitHub issues and pull requests with CI evidence and review-status summaries; no merge or deploy permissions.
+
 ## Autonomy master brief (Nov 7, 16:16 UTC)
 - [x] Audit: switches vs real runs vs GitHub CODE gates (docs/AUTONOMY-AUDIT-2026-11-07.md).
 - [x] Kill Switch now stops every background and owner-started work path (was only Task Mode + CODE).
