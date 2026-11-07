@@ -22,6 +22,11 @@ test("applied guard migration is the reviewed staged 0047 (header comment aside)
   assert.equal(body(applied), body(await proposed("0047_code_total_spend_guard.sql")));
 });
 
+test("applied hard-cap gate migration is the reviewed staged 0048 (header comment aside)", async () => {
+  const applied = await readFile("drizzle/migrations/0047_code_hard_cap_gate.sql", "utf8");
+  assert.equal(body(applied), body(await proposed("0048_code_hard_cap_gate.sql")));
+});
+
 let chain; // applied production chain + seed
 let guarded; // + 0047
 let gated; // + 0047 + 0048

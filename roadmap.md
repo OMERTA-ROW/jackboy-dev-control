@@ -5,7 +5,7 @@
 - [x] App mirrors the $10 guard (fails closed when absent) and Settings shows its status; 527 app tests + CODE runtime tests pass.
 - [x] 0046 applied Nov 7 00:20 UTC on owner approval: CODE_TARGETS parsed to the same SHA first; stored pin 37368194…, 1 audit + 1 Site Log row; CODE off, Stop on.
 - [x] Staged 0047 ($10 guard) applied Nov 7 00:24 UTC on owner approval (journal entry 0046_code_total_spend_guard); status enforced=true, limit $10, committed $0; CODE off, Stop on, hard cap false.
-- [ ] Apply staged 0048 (hard-cap gate) — blocked: separate owner approval.
+- [x] Staged 0048 (hard-cap gate) applied Nov 7 00:27 UTC on owner approval (journal 0047_code_hard_cap_gate); forced-false CHECK removed, gate trigger on; flag still false, guard enforced, CODE off, Stop on.
 - [x] Cost-meter secrets OPENAI_ADMIN_KEY, OPENAI_CODE_PROJECT_ID, OPENAI_CODE_API_KEY_ID now exist (values not checked against OpenAI).
 - [ ] Owner passkey control to set the hard-cap attestation — blocked: needs 0048 applied and separate approval.
 - [ ] Release Emergency Stop / enable CODE — owner only.
