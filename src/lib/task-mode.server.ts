@@ -124,6 +124,10 @@ export async function startTask(ownerId: string, taskId: string) {
 /** Advance until a checkpoint, the end, a stop, or the per-call budget. Each step is claimed atomically so it never runs twice. */
 export async function runTask(taskId: string, budget = { steps: 3, ms: 25_000 }) {
   const t0 = Date.now();
+  // A step whose worker died never stays "running" forever: after 10 minutes it counts as a failure.
+  const stale = new Date(Date.now() - 10 * 60_000).toISOString();
+  const { data: dead } = await supabaseAdmin.from("task_steps").update({ status: "failed", error: "No result after 10 minutes.", finished_at: now() }).eq("task_id", taskId).eq("status", "running").lt("started_at", stale).select("id");
+  if (dead?.length) { const { task } = await load(taskId); await supabaseAdmin.from("tasks").update({ failures: task.failures + 1 }).eq("id", taskId); await event(taskId, "step_failed", "A step gave no result after 10 minutes.", dead[0]!.id); }
   for (let n = 0; n < budget.steps && Date.now() - t0 < budget.ms; n++) {
     const { task, steps } = await load(taskId);
     const ctx = await taskContext();
@@ -161,7 +165,9 @@ export async function runTask(taskId: string, budget = { steps: 3, ms: 25_000 })
       const o = out as { blocked?: boolean; reason?: string; error?: string } | null;
       if (o && typeof o === "object" && (o.blocked || typeof o.error === "string")) err = o.reason ?? o.error ?? "Blocked.";
     } catch (e) { err = e instanceof Error ? e.message : "Step failed."; }
-    const result = JSON.parse(redact(JSON.stringify(out ?? null)).slice(0, 6000).replace(/[\s\S]*/, (s) => { try { JSON.parse(s); return s; } catch { return JSON.stringify({ truncated: s.slice(0, 5000) }); } }));
+    const raw = redact(JSON.stringify(out ?? null) ?? "null");
+    let result: unknown = { truncated: raw.slice(0, 5000) };
+    if (raw.length <= 6000) { try { result = JSON.parse(raw); } catch { /* keep truncated text */ } }
     if (err) {
       const failures = task.failures + 1;
       await supabaseAdmin.from("task_steps").update({ status: "failed", error: redact(err).slice(0, 1000), result, finished_at: now() }).eq("id", step.id);
