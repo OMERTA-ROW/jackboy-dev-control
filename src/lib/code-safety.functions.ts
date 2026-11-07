@@ -371,45 +371,12 @@ export const getCodeSafetySettings = createServerFn({ method: "POST" })
     };
   });
 
+/** Retired: allow-list changes go only through the fresh-passkey "Add to CODE" flow (code-onboarding.functions.ts). */
 export const setCodeSafetyTarget = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     await requireOwner(context);
-    const [repository, workflow, workflowFile] = await Promise.all([
-      fetchGithub<{ default_branch: string }>(""),
-      fetchGithub<{ state: string }>(`/actions/workflows/${CODE_WORKFLOW}`),
-      fetchGithub<{ sha: string }>(`/contents/.github/workflows/${CODE_WORKFLOW}?ref=main`),
-    ]);
-    if (
-      repository.default_branch !== "main" ||
-      workflow.state !== "active" ||
-      !/^[a-f0-9]{40}$/.test(workflowFile.sha)
-    ) {
-      throw new Error(
-        "The requested CODE repository, main branch, or active workflow could not be verified.",
-      );
-    }
-    const targets = parseCodeTargets({
-      [REPOSITORY]: { ref: "main", workflowSha: workflowFile.sha },
-    });
-    const db = (await import("./untyped-db")).untyped((await import("@/integrations/supabase/client.server")).supabaseAdmin);
-    const { error } = await db
-      .from("code_runtime_controls")
-      .update({
-        allowed_targets: targets,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("singleton", true);
-    if (error) throw new Error("CODE repository allowlist could not be saved.");
-    const { error: auditError } = await db.from("audit_logs").insert({
-      actor: context.userId,
-      action: "code.target_allowlist_updated",
-      detail: { allowed_targets: targets },
-      outcome: "ok",
-    });
-    if (auditError)
-      throw new Error("CODE allowlist changed but its audit record could not be written.");
-    return { targets };
+    throw new Error("Pin changes need your passkey: use Add to CODE on the project page.");
   });
 
 export const setCodeDailySpendLimit = createServerFn({ method: "POST" })
