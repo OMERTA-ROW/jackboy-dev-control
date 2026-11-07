@@ -7,7 +7,7 @@ import type { SavedKey } from "./passkey-method";
 
 export type PasskeyKind = "auth" | "register";
 export type Prepared = { kind: PasskeyKind; challengeId: string; options: unknown; keys?: SavedKey[] };
-export type PasskeyJob<T> = {
+export type PasskeyJob<V, T = V> = {
   title: string;
   description?: string;
   /** e.g. "Passkey 2 of 3 · OMNI" when several confirmations run in a row. */
@@ -15,13 +15,13 @@ export type PasskeyJob<T> = {
   /** Server call that creates a fresh single-use challenge. Runs before the tap. */
   prepare: () => Promise<Prepared>;
   /** Server call that verifies the device response. Runs after the device sheet closes. */
-  finish: (challengeId: string, response: unknown) => Promise<unknown>;
+  finish: (challengeId: string, response: unknown) => Promise<V>;
   /** Optional follow-up that uses the verified result (e.g. the grant) to make the change, shown in the same window. */
-  apply?: (verified: unknown) => Promise<T>;
+  apply?: (verified: V) => Promise<T>;
   applyingText?: string;
   successText?: (result: T) => string;
 };
-export type ActiveJob = PasskeyJob<unknown> & { id: number; resolve: (v: unknown) => void; reject: (e: Error) => void };
+export type ActiveJob = PasskeyJob<unknown, unknown> & { id: number; resolve: (v: unknown) => void; reject: (e: Error) => void };
 
 let active: ActiveJob | null = null;
 let seq = 0;
@@ -35,14 +35,14 @@ export function subscribePasskeyJob(fn: (j: ActiveJob | null) => void): () => vo
 }
 
 /** Opens the passkey window and resolves with the final result (apply's result when given), or rejects with a plain reason. */
-export function requestPasskey<T>(job: PasskeyJob<T>): Promise<T> {
+export function requestPasskey<V, T = V>(job: PasskeyJob<V, T>): Promise<T> {
   if (listeners.size === 0) return Promise.reject(new Error("The passkey window isn't ready yet. Reload the page and try again."));
   if (active) return Promise.reject(new Error("Another passkey check is already open. Finish or cancel it first."));
   return new Promise<T>((resolve, reject) => {
     const id = ++seq;
     const done = () => { if (active?.id === id) { active = null; emit(); } };
     active = {
-      ...(job as unknown as PasskeyJob<unknown>), id,
+      ...(job as unknown as PasskeyJob<unknown, unknown>), id,
       resolve: (v) => { done(); resolve(v as T); },
       reject: (e) => { done(); reject(e); },
     };
