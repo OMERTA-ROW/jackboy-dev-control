@@ -1,5 +1,6 @@
 import { useServerFn } from "@tanstack/react-start";
 import { ActivationReadiness } from "./ActivationReadiness";
+import { ActivationPanel } from "./ActivationPanel";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -7,17 +8,15 @@ import { useStepUp } from "@/lib/step-up-client";
 import { probeOmniConnection } from "@/lib/omni-link.functions";
 import {
   checkCodeCancellation,
-  enableCodeRuntime,
   engageCodeKillSwitch,
   getCodeEnableGates,
   getCodeSafetySettings,
   getCodePrerequisites,
   reconcileCodeClosedDay,
   setCodeDailySpendLimit,
-  setCodeHardCapVerified,
   syncCodeProviderCosts,
 } from "@/lib/code-safety.functions";
-import { CODE_ENABLE_TARGET, HARD_CAP_EVIDENCE_MAX, HARD_CAP_TARGET, hardCapChangeBlockReason, meterReasonText } from "@/lib/code-safety";
+import { meterReasonText } from "@/lib/code-safety";
 
 type Settings = Awaited<ReturnType<typeof getCodeSafetySettings>>;
 
@@ -28,19 +27,17 @@ export function CodeSafetyPanel() {
   const setLimit = useServerFn(setCodeDailySpendLimit);
   const syncCosts = useServerFn(syncCodeProviderCosts);
   const stop = useServerFn(engageCodeKillSwitch);
-  const setHardCap = useServerFn(setCodeHardCapVerified);
   const loadGates = useServerFn(getCodeEnableGates);
-  const enableCode = useServerFn(enableCodeRuntime);
   const reconcileDay = useServerFn(reconcileCodeClosedDay);
   const [gates, setGates] = useState<Awaited<ReturnType<typeof getCodeEnableGates>> | null>(null);
   const [gatesError, setGatesError] = useState<string | null>(null);
-  const [capNote, setCapNote] = useState("");
   const stepUp = useStepUp();
   const probeOmni = useServerFn(probeOmniConnection);
   const [omni, setOmni] = useState<Awaited<ReturnType<typeof probeOmniConnection>> | null>(null);
   const checkCancellation = useServerFn(checkCodeCancellation);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [messageSource, setMessageSource] = useState<"activation" | "safety">("safety");
   const [busy, setBusy] = useState(false);
   const [limit, setLimitValue] = useState("5");
   const load = useCallback(
@@ -67,9 +64,10 @@ export function CodeSafetyPanel() {
     if (settings) setLimitValue(String(settings.dailySpendLimitUsd));
   }, [settings]);
 
-  const run = async (action: () => Promise<unknown>) => {
+  const run = async (action: () => Promise<unknown>, source: "activation" | "safety" = "safety") => {
     setBusy(true);
     setMessage(null);
+    setMessageSource(source);
     try {
       const result = await action();
       if (result && typeof result === "object" && "cancellation" in result) {
@@ -105,10 +103,11 @@ export function CodeSafetyPanel() {
             : "CODE did not turn on. Nothing changed.",
         );
       } else if (result && typeof result === "object" && "hardCapVerified" in result && "codeEnabled" in result && "emergencyStop" in result) {
-        setCapNote("");
         setMessage(
           `Hard cap is now ${result.hardCapVerified ? "marked verified" : "unverified"}. CODE is ${result.codeEnabled ? "ON" : "still OFF"} and Emergency Stop is ${result.emergencyStop ? "still ON" : "OFF"}.`,
         );
+      } else if (result && typeof result === "object" && "paused" in result && Object.keys(result).length === 1) {
+        setMessage(result.paused ? "Global pause is on." : "Global pause is off. CODE stays off until you turn it on in the last step.");
       } else if (
         result &&
         typeof result === "object" &&
@@ -129,7 +128,35 @@ export function CodeSafetyPanel() {
     }
   };
 
+  const activationState = settings ? {
+    enabled: settings.enabled,
+    killSwitch: settings.killSwitch,
+    activeRequestId: settings.activeRequestId,
+    activeRunId: settings.activeRunId,
+    providerBudgetEnforced: settings.providerBudgetEnforced,
+    totalSpendGuard: settings.totalSpendGuard,
+  } : null;
+
   return (
+    <>
+    <ActivationPanel
+      state={activationState}
+      gates={gates?.gates ?? null}
+      gatesError={gatesError}
+      busy={busy}
+      run={(action) => run(action, "activation")}
+      message={messageSource === "activation" ? message : null}
+      evidence={
+  <ActivationReadiness live={settings && prerequisites ? {
+        checkedAt: settings.checkedAt < prerequisites.checkedAt ? settings.checkedAt : prerequisites.checkedAt,
+        pinsMatch: prerequisites.workflowPins.matches,
+        disabled: settings.enabled === false,
+        stopped: settings.killSwitch === true,
+        noActiveRun: settings.activeRequestId === null && settings.activeRunId === null,
+        gatesProtected: prerequisites.environments.CODE.protected && prerequisites.environments["CODE-PUBLISH"].protected,
+      } : null} />
+      }
+    />
     <section className="panel mb-4 p-4" aria-labelledby="code-safety-heading">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -137,7 +164,7 @@ export function CodeSafetyPanel() {
             id="code-safety-heading"
             className="text-sm font-semibold uppercase tracking-wider text-silver"
           >
-            CODE safety controls
+            CODE safety details
           </h2>
           <p className="mt-1 text-xs text-muted-foreground">
             Supervised execution is {settings?.enabled ? "ON" : "off"}. The live meter counts the
@@ -152,7 +179,7 @@ export function CodeSafetyPanel() {
           {settings?.killSwitch ? "Emergency stop engaged" : "Engage emergency stop"}
         </Button>
       </div>
-      {message && (
+      {message && messageSource === "safety" && (
         <p role="status" className="mt-3 text-sm text-warning">
           {message}
         </p>
@@ -161,7 +188,7 @@ export function CodeSafetyPanel() {
         <Switch id="worker-supervised" checked={settings?.enabled === true} disabled aria-describedby="worker-activation-blocker" />
         <label htmlFor="worker-supervised" className="text-sm">Worker 1 · supervised mode (owner only)</label>
       </div>
-      <p id="worker-activation-blocker" className="mt-2 text-xs text-warning">This switch only shows the current state. Turn CODE on with the passkey button below once every check passes. Each run still requires owner approval in GitHub. No autonomous distribution.</p>
+      <p id="worker-activation-blocker" className="mt-2 text-xs text-warning">This switch only shows the current state. Turn CODE on in the last step of CODE activation above. Each run still requires owner approval in GitHub. No autonomous distribution.</p>
       {prerequisites && <div className="mt-3 text-sm">
         <p>Target policy: {prerequisites.repository} · {prerequisites.ref} only</p>
         <p className="mt-1 break-all text-xs text-muted-foreground">Live main workflow: {prerequisites.workflowPins.liveSha ?? "unverified"}</p>
@@ -239,57 +266,6 @@ export function CodeSafetyPanel() {
               <dd>{settings.pausedReason ?? "None"}</dd>
             </div>
           </dl>
-          {(() => {
-            const marking = !settings.providerBudgetEnforced;
-            const current = {
-              enabled: settings.enabled,
-              killSwitch: settings.killSwitch,
-              activeRequestId: settings.activeRequestId,
-              activeRunId: settings.activeRunId,
-              providerBudgetEnforced: settings.providerBudgetEnforced,
-              totalSpendGuard: settings.totalSpendGuard,
-            };
-            const blocked = hardCapChangeBlockReason({ verified: marking, evidence: capNote, current });
-            // State reasons (CODE on, stop off, guard missing) show even before a note is typed.
-            const stateBlocked = hardCapChangeBlockReason({ verified: marking, evidence: "evidence-ok", current });
-            return (
-              <div className="mt-3 rounded-md border border-border p-3" aria-labelledby="hard-cap-heading">
-                <p id="hard-cap-heading" className="text-sm font-medium">
-                  Provider hard cap: {settings.providerBudgetEnforced ? "marked verified by owner" : "unverified"}
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {marking
-                    ? "Mark it verified only after you have confirmed the spending cap with the provider. This does not turn CODE on or release the Emergency Stop."
-                    : "Un-marking blocks every new CODE task until you mark it again."}{" "}
-                  Needs a new passkey check every time, and works only while CODE is off and the Emergency Stop is on.
-                </p>
-                <label htmlFor="hard-cap-note" className="mt-2 block text-xs text-muted-foreground">
-                  Evidence note (what you checked, where and when)
-                </label>
-                <textarea
-                  id="hard-cap-note"
-                  value={capNote}
-                  maxLength={HARD_CAP_EVIDENCE_MAX}
-                  rows={2}
-                  onChange={(event) => setCapNote(event.target.value)}
-                  className="mt-1 w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
-                />
-                {blocked && (capNote.trim().length > 0 || stateBlocked) && (
-                  <p className="mt-1 text-xs text-warning">{stateBlocked ?? blocked}</p>
-                )}
-                <Button variant="outline" size="sm" className="mt-2"
-                  disabled={busy || blocked !== null}
-                  onClick={() => void run(() =>
-                    stepUp("code_hard_cap", marking ? HARD_CAP_TARGET.mark : HARD_CAP_TARGET.unmark).then((grantId) =>
-                      setHardCap({ data: { grantId, verified: marking, evidence: capNote.trim() } }),
-                    ),
-                  )}
-                >
-                  {marking ? "Mark hard cap verified with passkey" : "Un-mark hard cap with passkey"}
-                </Button>
-              </div>
-            );
-          })()}
           <div className="mt-3">
             <p className="text-xs text-muted-foreground">
               Provider report last synced:{" "}
@@ -316,35 +292,6 @@ export function CodeSafetyPanel() {
                 ? `Waiting on OpenAI's report for: ${settings.spendMeter.unreportedDays.join(", ")}.`
                 : "Days CODE ran must be checked against OpenAI by the end of the next day, or new tasks are blocked."}
             </p>
-          </div>
-          <div className="mt-3 rounded-md border border-border p-3" aria-labelledby="code-enable-heading">
-            <p id="code-enable-heading" className="text-sm font-medium">
-              Turn CODE on: {settings.enabled && !settings.killSwitch ? "CODE is ON" : "CODE is off"}
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Releases the CODE Emergency Stop and turns CODE on. Needs a new passkey check every time and
-              works only when every check below passes. To turn CODE off, use Engage emergency stop.
-            </p>
-            {gatesError && <p className="mt-2 text-xs text-warning">{gatesError}</p>}
-            {gates && (
-              <ul className="mt-2 space-y-1 text-xs" aria-label="CODE on-switch checks">
-                {gates.gates.map((gate) => (
-                  <li key={gate.id} className={gate.ok ? "text-muted-foreground" : "text-warning"}>
-                    <span aria-hidden="true">{gate.ok ? "✓" : "✗"}</span>{" "}
-                    <span className="sr-only">{gate.ok ? "Passed:" : "Not passed:"}</span>
-                    {gate.label} — {gate.detail}
-                  </li>
-                ))}
-              </ul>
-            )}
-            <Button variant="outline" size="sm" className="mt-2"
-              disabled={busy || !gates || gates.gates.some((gate) => !gate.ok)}
-              onClick={() => void run(() =>
-                stepUp("code_enable", CODE_ENABLE_TARGET).then((grantId) => enableCode({ data: { grantId } })),
-              )}
-            >
-              Release CODE stop and turn CODE on with passkey
-            </Button>
           </div>
           {settings.killSwitch &&
             settings.activeRunId &&
@@ -417,14 +364,8 @@ export function CodeSafetyPanel() {
           )}
         </>
       )}
-      <ActivationReadiness live={settings && prerequisites ? {
-        checkedAt: settings.checkedAt < prerequisites.checkedAt ? settings.checkedAt : prerequisites.checkedAt,
-        pinsMatch: prerequisites.workflowPins.matches,
-        disabled: settings.enabled === false,
-        stopped: settings.killSwitch === true,
-        noActiveRun: settings.activeRequestId === null && settings.activeRunId === null,
-        gatesProtected: prerequisites.environments.CODE.protected && prerequisites.environments["CODE-PUBLISH"].protected,
-      } : null} />
+
     </section>
+    </>
   );
 }
