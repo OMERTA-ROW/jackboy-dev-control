@@ -68,7 +68,10 @@ export function ActivationPanel({ state, gates, gatesError, busy, run, message, 
 
   // Auto-advance only moves what is shown: when a fresh server read marks the step done, the next one
   // appears. It never presses a button; every change still needs the owner's own press and passkey.
+  const stepsRef = useRef(steps);
+  stepsRef.current = steps;
   useEffect(() => {
+    const steps = stepsRef.current;
     if (!guided || !steps) return;
     const previous = lastIndex.current;
     if (previous !== null && currentIndex !== previous) {
@@ -81,7 +84,7 @@ export function ActivationPanel({ state, gates, gatesError, busy, run, message, 
     }
     lastIndex.current = currentIndex;
     stepHeading.current?.focus();
-  }, [guided, currentIndex, steps]);
+  }, [guided, currentIndex]);
 
   const startGuide = () => {
     lastIndex.current = null;
