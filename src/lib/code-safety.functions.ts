@@ -282,11 +282,12 @@ async function fetchGithub<T>(path: string): Promise<T> {
   const headers = new Headers({
     Accept: "application/vnd.github+json",
     "X-GitHub-Api-Version": "2022-11-28",
+    "User-Agent": "Jackboy",
   });
   headers.set("Authorization", ["Bearer", token].join(" "));
   const response = await fetch(`https://api.github.com/repos/${REPOSITORY}${path}`, {
     headers,
-    redirect: "error",
+    redirect: "manual",
     signal: AbortSignal.timeout(10_000),
   });
   if (!response.ok)
@@ -514,6 +515,7 @@ export const engageCodeKillSwitch = createServerFn({ method: "POST" })
           const headers = new Headers({
             Accept: "application/vnd.github+json",
             "X-GitHub-Api-Version": "2022-11-28",
+            "User-Agent": "Jackboy",
           });
           headers.set("Authorization", ["Bearer", token].join(" "));
           const response = await fetch(
@@ -521,7 +523,7 @@ export const engageCodeKillSwitch = createServerFn({ method: "POST" })
             {
               method: "POST",
               headers,
-              redirect: "error",
+              redirect: "manual",
               signal: AbortSignal.timeout(10_000),
             },
           );
@@ -590,13 +592,14 @@ export const checkCodeCancellation = createServerFn({ method: "POST" })
     const headers = new Headers({
       Accept: "application/vnd.github+json",
       "X-GitHub-Api-Version": "2022-11-28",
+      "User-Agent": "Jackboy",
     });
     headers.set("Authorization", ["Bearer", token].join(" "));
     let status: "pending" | "requested" | "confirmed" | "completed" | "unverified";
     try {
       const runResponse = await fetch(
         `https://api.github.com/repos/${repo}/actions/runs/${controls.active_run_id}`,
-        { headers, redirect: "error", signal: AbortSignal.timeout(10_000) },
+        { headers, redirect: "manual", signal: AbortSignal.timeout(10_000) },
       );
       if (!runResponse.ok) throw new Error("GitHub run status could not be retrieved.");
       const run = (await runResponse.json()) as { status?: unknown; conclusion?: unknown };
@@ -606,7 +609,7 @@ export const checkCodeCancellation = createServerFn({ method: "POST" })
       } else if (reconciliation === "active") {
         const cancelResponse = await fetch(
           `https://api.github.com/repos/${repo}/actions/runs/${controls.active_run_id}/cancel`,
-          { method: "POST", headers, redirect: "error", signal: AbortSignal.timeout(10_000) },
+          { method: "POST", headers, redirect: "manual", signal: AbortSignal.timeout(10_000) },
         );
         if (!cancelResponse.ok) status = "unverified";
         else status = "requested";

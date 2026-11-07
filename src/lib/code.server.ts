@@ -16,8 +16,8 @@ async function gh<T>(repo: string, path: string, method = "GET", body?: unknown)
   if (!token) throw new Error("CODE is blocked: configure a repository-scoped GitHub Actions credential through backend secrets.");
   if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) throw new Error("Invalid repository.");
   const response = await fetch(`https://api.github.com/repos/${repo}${path}`, {
-    method, redirect: "error", signal: AbortSignal.timeout(15_000),
-    headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", "Content-Type": "application/json" },
+    method, redirect: "manual", signal: AbortSignal.timeout(15_000),
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "Jackboy", "Content-Type": "application/json" },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
   if (!response.ok) throw new Error(`CODE GitHub request failed (${response.status}). Check the workflow, Actions scope and provider authorization.`);
