@@ -113,7 +113,11 @@ export function ActivationPanel({
 
   const engageStop = () =>
     void run(() =>
-      stepUp("global_pause", "global_pause:on").then((grantId) => stop({ data: { grantId } })),
+      stepUp("global_pause", "global_pause:on", {
+        applyingText: "Engaging the CODE emergency stop…",
+        apply: (grantId) => stop({ data: { grantId } }),
+        doneText: () => "CODE emergency stop engaged.",
+      }),
     );
   const emergencyStop = (
     <Button
@@ -137,12 +141,16 @@ export function ActivationPanel({
       onClick={() =>
         void run(() =>
           globalPaused
-            ? stepUp("global_pause", "global_pause:off").then((grantId) =>
-                resume({ data: { grantId } }),
-              )
-            : stepUp("global_pause", "global_pause:on").then((grantId) =>
-                pauseAll({ data: { grantId } }),
-              ),
+            ? stepUp("global_pause", "global_pause:off", {
+                applyingText: "Turning the Kill Switch off…",
+                apply: (grantId) => resume({ data: { grantId } }),
+                doneText: () => "Kill Switch is off. Work can run again.",
+              })
+            : stepUp("global_pause", "global_pause:on", {
+                applyingText: "Turning the Kill Switch on…",
+                apply: (grantId) => pauseAll({ data: { grantId } }),
+                doneText: (r) => `Kill Switch is on. ${r.warning}`,
+              }),
         )
       }
     >
@@ -226,13 +234,16 @@ export function ActivationPanel({
             disabled={busy || blocked !== null}
             onClick={() =>
               void run(async () => {
-                const grantId = await stepUp(
+                const result = await stepUp(
                   "code_hard_cap",
                   marking ? HARD_CAP_TARGET.mark : HARD_CAP_TARGET.unmark,
+                  {
+                    applyingText: marking ? "Marking the hard cap verified…" : "Un-marking the hard cap…",
+                    apply: (grantId) =>
+                      setHardCap({ data: { grantId, verified: marking, evidence: capNote.trim() } }),
+                    doneText: () => (marking ? "Hard cap marked verified." : "Hard cap un-marked."),
+                  },
                 );
-                const result = await setHardCap({
-                  data: { grantId, verified: marking, evidence: capNote.trim() },
-                });
                 setCapNote("");
                 return result;
               })
@@ -264,9 +275,11 @@ export function ActivationPanel({
           disabled={busy || step.status !== "current"}
           onClick={() =>
             void run(() =>
-              stepUp("global_pause", "global_pause:off").then((grantId) =>
-                resume({ data: { grantId } }),
-              ),
+              stepUp("global_pause", "global_pause:off", {
+                applyingText: "Turning the Kill Switch off…",
+                apply: (grantId) => resume({ data: { grantId } }),
+                doneText: () => "Kill Switch is off. Work can run again.",
+              }),
             )
           }
         >
@@ -283,9 +296,11 @@ export function ActivationPanel({
           disabled={busy || !allGatesPass}
           onClick={() =>
             void run(() =>
-              stepUp("code_enable", CODE_ENABLE_TARGET).then((grantId) =>
-                enableCode({ data: { grantId } }),
-              ),
+              stepUp("code_enable", CODE_ENABLE_TARGET, {
+                applyingText: "Re-checking every gate and turning CODE on…",
+                apply: (grantId) => enableCode({ data: { grantId } }),
+                doneText: (r) => (r.codeEnabled ? "CODE is on." : "The request finished, but CODE still reads as off. Check the steps below."),
+              }),
             )
           }
         >

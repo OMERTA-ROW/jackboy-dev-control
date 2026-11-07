@@ -47,7 +47,7 @@ export function PasskeyPanel() {
     const r = await requestPasskey({
       title: "Test my passkey",
       description: "Checks your passkey without changing anything.",
-      prepare: async () => { const o = await tOpts(); return { kind: "auth", challengeId: o.challengeId, options: o.options }; },
+      prepare: async () => { const o = await tOpts(); return { kind: "auth", challengeId: o.challengeId, options: o.options, keys: o.keys }; },
       finish: (challengeId, response) => tVerify({ data: { challengeId, response } }),
       successText: (x) => `Passkey verified: ${x.label}.`,
     });

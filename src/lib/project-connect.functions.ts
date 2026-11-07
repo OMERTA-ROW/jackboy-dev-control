@@ -1,5 +1,6 @@
 // Owner-only Connect/Reconnect for one project: link a repo the account can write, approve with passkey,
-// verify with real GitHub calls, then (only if verified) enable background work and run the first scan.
+// verify with real GitHub calls, then (only if verified) run the first scan. A (re)connect always leaves
+// background work off, so the owner activates it again with its own passkey step.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
@@ -46,7 +47,7 @@ export const connectProject = createServerFn({ method: "POST" }).middleware([req
     const ws = await import("./repo-workspace.server");
     const usable = (await ws.listAccessibleRepos()).find((r) => r.repo.toLowerCase() === data.repo.toLowerCase());
     if (!usable?.usable) throw new Error(`The connected GitHub account cannot write ${data.repo}. Grant it access on GitHub first.`);
-    const { error } = await context.supabase.from("owner_projects").update({ github_repo: usable.repo, updated_at: new Date().toISOString() }).eq("id", data.projectId);
+    const { error } = await context.supabase.from("owner_projects").update({ github_repo: usable.repo, dev_enabled: false, updated_at: new Date().toISOString() }).eq("id", data.projectId);
     if (error) throw new Error(error.message);
     const ac = await import("./autoconnect.server");
     await ac.approveCapability("github_repo", data.projectId, actor, context.userId);
@@ -56,9 +57,8 @@ export const connectProject = createServerFn({ method: "POST" }).middleware([req
       await logSite({ actor, action: "project_connect", category: "config", status: "blocked", project_id: data.projectId, repo: usable.repo, summary: `Connect ${usable.repo} blocked: ${v.detail}` });
       return { connected: false, detail: v.detail, scan: "not run" };
     }
-    await context.supabase.from("owner_projects").update({ dev_enabled: true }).eq("id", data.projectId);
     let scan: string = "not run";
     try { scan = JSON.stringify(await (await import("./foundry.server")).inspectProject(data.projectId, actor, "manual", 1)); } catch (e) { scan = `error: ${(e as Error).message}`; }
-    await logSite({ actor, action: "project_connect", category: "config", status: "ok", project_id: data.projectId, repo: usable.repo, summary: `Connected ${usable.repo} (${v.detail}). Background work enabled; first scan: ${scan.slice(0, 200)}` });
+    await logSite({ actor, action: "project_connect", category: "config", status: "ok", project_id: data.projectId, repo: usable.repo, summary: `Connected ${usable.repo} (${v.detail}). Background work left off until the owner activates it; first scan: ${scan.slice(0, 200)}` });
     return { connected: true, detail: v.detail, scan };
   });
