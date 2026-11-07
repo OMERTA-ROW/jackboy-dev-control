@@ -179,7 +179,7 @@ export function ReadinessChecks({
                   {r && <p className="mt-0.5 text-xs">{r.reason}</p>}
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     {r?.at
-                      ? `${r.source === "live" ? "Seen in real use" : "Tested"} ${when(r.at)}. `
+                      ? `${r.source === "live" ? "Read live" : "Tested"} ${when(r.at)}. `
                       : ""}
                     {def.what}
                     {offLive ? " You're not on the live site, so a test here won't count." : ""}
