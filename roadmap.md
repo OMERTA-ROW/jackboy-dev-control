@@ -201,7 +201,8 @@ The spoken acronym “NLOA” is unconfirmed in Notion. Do not infer a technical
 - [x] Project cards: inline Add site (saved + live check), Connect for unlinked repos, refresh icon rechecks repo access + site, evidence-based connection status/last check/next step.
 - [ ] Pending CODE-safety / provider-permission migrations (0036–0038) not applied → existing type errors; needs owner approval to apply to the shared backend.
 ## Owner requests Nov 7 (plan first, build after current queue)
-- [ ] Daily morning report (what Jackboy/CODE did, spend, waiting approvals) — plan shown; waiting on owner choices (channel, time).
-- [ ] Phone alerts when a run needs passkey or GitHub approval — plan shown; waiting on owner channel choice + connection.
-- [ ] One-press Undo for every CODE change (passkey when it touches main/live) — plan shown; waiting on owner choice for merge step.
-- [ ] Connect phone alerts to the owner's Firebase project jackboy-b6bb5 (web config from GOOGLE_API_KEY secret, VAPID key requested separately, opt-in permission, diagnostics); sending needs a server credential for that project.
+- [x] Restored today's lost work (activation panel, passkey prompt, readiness, activity feed, Add-to-CODE, lanes) from the backup with GitHub PR #47 re-applied on top.
+- [x] Daily morning report (7 AM Eastern, Reports page, saved once per day) and phone alerts (push, dedupe, one reminder, 30/day cap, quiet hours, retry) built; schedule every 2 minutes created.
+- [x] One-press Undo: draft PRs close; merged changes need a fresh passkey, refuse on clashes, Jackboy merges its own revert after checks pass.
+- [ ] Live proof: publish, register a phone on the published site, send a test alert, and receive the first 7 AM report — owner only.
+- [x] Connect phone alerts to the owner's Firebase project jackboy-b6bb5 (web config from GOOGLE_API_KEY secret, VAPID key requested separately, opt-in permission, diagnostics); sending needs a server credential for that project.
