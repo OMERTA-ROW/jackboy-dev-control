@@ -5,7 +5,13 @@ import { getReadiness, testReadiness } from "@/lib/readiness.functions";
 import { testCodeProviderGateway } from "@/lib/code-safety.functions";
 import { passkeyTestOptions, passkeyTestVerify } from "@/lib/passkey.functions";
 import { requestPasskey } from "@/lib/passkey-prompt";
-import { PUBLISHED_RP_ID, READINESS, type ReadinessDef, type ReadinessId, type ReadinessResult } from "@/lib/readiness";
+import {
+  PUBLISHED_RP_ID,
+  READINESS,
+  type ReadinessDef,
+  type ReadinessId,
+  type ReadinessResult,
+} from "@/lib/readiness";
 
 type Props = {
   /** True while another control in the panel is running; when it finishes the list re-reads. */
@@ -28,7 +34,12 @@ function when(at: string) {
 
 /** Live readiness: every item has a real read-only Test, and statuses follow real use anywhere on the
  * site (re-read on focus, every minute, and after any control in this panel). */
-export function ReadinessChecks({ busy, onEmergencyStop, onStartActivation, emergencyStopEngaged }: Props) {
+export function ReadinessChecks({
+  busy,
+  onEmergencyStop,
+  onStartActivation,
+  emergencyStopEngaged,
+}: Props) {
   const load = useServerFn(getReadiness);
   const test = useServerFn(testReadiness);
   const testGateway = useServerFn(testCodeProviderGateway);
@@ -46,7 +57,9 @@ export function ReadinessChecks({ busy, onEmergencyStop, onStartActivation, emer
           setItems(r.items);
           setError(null);
         })
-        .catch((e: unknown) => setError(e instanceof Error ? e.message : "Readiness could not be read.")),
+        .catch((e: unknown) =>
+          setError(e instanceof Error ? e.message : "Readiness could not be read."),
+        ),
     [load],
   );
 
@@ -129,10 +142,16 @@ export function ReadinessChecks({ busy, onEmergencyStop, onStartActivation, emer
             Readiness checks
           </h3>
           <p className="text-xs text-muted-foreground" aria-live="polite">
-            {items ? `${passed} of ${READINESS.length} passing.` : "Reading live status…"} Tests only read; they never turn anything on.
+            {items ? `${passed} of ${READINESS.length} passing.` : "Reading live status…"} Tests
+            only read; they never turn anything on.
           </p>
         </div>
-        <Button variant="outline" size="sm" disabled={running !== null} onClick={() => void runAll()}>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={running !== null}
+          onClick={() => void runAll()}
+        >
           {running === "all" ? "Testing…" : "Test all"}
         </Button>
       </div>
@@ -151,27 +170,54 @@ export function ReadinessChecks({ busy, onEmergencyStop, onStartActivation, emer
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium">
                     {def.name}{" "}
-                    <span className={`text-xs font-semibold ${r ? tone(r.status) : "text-muted-foreground"}`}>{r?.status ?? "…"}</span>
+                    <span
+                      className={`text-xs font-semibold ${r ? tone(r.status) : "text-muted-foreground"}`}
+                    >
+                      {r?.status ?? "…"}
+                    </span>
                   </p>
                   {r && <p className="mt-0.5 text-xs">{r.reason}</p>}
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    {r?.at ? `${r.source === "live" ? "Seen in real use" : "Tested"} ${when(r.at)}. ` : ""}
+                    {r?.at
+                      ? `${r.source === "live" ? "Seen in real use" : "Tested"} ${when(r.at)}. `
+                      : ""}
                     {def.what}
                     {offLive ? " You're not on the live site, so a test here won't count." : ""}
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Button variant="outline" size="sm" disabled={running !== null} aria-label={`Test ${def.name}`} onClick={() => void run(def)}>
-                    {running === def.id ? "Testing…" : def.test === "passkey" ? "Test with passkey" : "Test"}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={running !== null}
+                    aria-label={`Test ${def.name}`}
+                    onClick={() => void run(def)}
+                  >
+                    {running === def.id
+                      ? "Testing…"
+                      : def.test === "passkey"
+                        ? "Test with passkey"
+                        : "Test"}
                   </Button>
                   {def.block === "emergency_stop" && (
-                    <Button variant="destructive" size="sm" disabled={busy || emergencyStopEngaged} aria-label={`Block ${def.name}`} onClick={onEmergencyStop}>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      disabled={busy || emergencyStopEngaged}
+                      aria-label={`Block ${def.name}`}
+                      onClick={onEmergencyStop}
+                    >
                       Block
                     </Button>
                   )}
                   {def.unblock === "start_activation" &&
                     (def.id === "code_runtime" ? emergencyStopEngaged : r?.status !== "PASS") && (
-                      <Button size="sm" disabled={busy} aria-label={`Unblock ${def.name}`} onClick={onStartActivation}>
+                      <Button
+                        size="sm"
+                        disabled={busy}
+                        aria-label={`Unblock ${def.name}`}
+                        onClick={onStartActivation}
+                      >
                         Unblock
                       </Button>
                     )}

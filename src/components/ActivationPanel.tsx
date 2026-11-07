@@ -116,7 +116,12 @@ export function ActivationPanel({
       stepUp("global_pause", "global_pause:on").then((grantId) => stop({ data: { grantId } })),
     );
   const emergencyStop = (
-    <Button variant="destructive" size="sm" disabled={busy || !state || state.killSwitch} onClick={engageStop}>
+    <Button
+      variant="destructive"
+      size="sm"
+      disabled={busy || !state || state.killSwitch}
+      onClick={engageStop}
+    >
       <OctagonX aria-hidden />
       {state?.killSwitch ? "Emergency stop engaged" : "Engage emergency stop"}
     </Button>
@@ -507,7 +512,9 @@ export function ActivationPanel({
             stepList
           ))}
       <details className="mt-4 border-t border-border pt-3" open={!progress?.complete}>
-        <summary className="cursor-pointer text-xs text-muted-foreground">Readiness checks and tests</summary>
+        <summary className="cursor-pointer text-xs text-muted-foreground">
+          Readiness checks and tests
+        </summary>
         <div className="mt-2">
           <ReadinessChecks
             busy={busy}
@@ -515,7 +522,9 @@ export function ActivationPanel({
             onEmergencyStop={engageStop}
             onStartActivation={() => {
               startGuide();
-              document.getElementById("activation")?.scrollIntoView({ behavior: "smooth", block: "start" });
+              document
+                .getElementById("activation")
+                ?.scrollIntoView({ behavior: "smooth", block: "start" });
             }}
           />
           {evidence}
