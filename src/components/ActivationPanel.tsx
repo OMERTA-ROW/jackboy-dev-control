@@ -297,6 +297,12 @@ export function ActivationPanel({ state, gates, gatesError, busy, run, message, 
           <Check className="size-4" aria-hidden /> {justDone}
         </p>
       )}
+      {!justDone && steps && currentIndex > 0 && (
+        <p className="mb-3 flex items-center gap-2 text-sm text-success">
+          <Check className="size-4" aria-hidden />
+          {currentIndex === 1 ? "Step 1 is" : `Steps 1–${currentIndex} are`} already done.
+        </p>
+      )}
       {!steps ? (
         <p className="text-sm text-muted-foreground">Checking each step…</p>
       ) : !guideStep ? (
