@@ -237,3 +237,28 @@ export async function controlCode(id: string, op: "cancel" | "retry", userId: st
   if (run.status !== "completed") await gh(scope.repo, `/actions/runs/${run.id}/cancel`, "POST");
   return getCode(id, userId);
 }
+/** Read-only scan for phone alerts and the daily report: CODE requests waiting for the owner in Jackboy,
+ * runs paused for GitHub environment approval, and finished runs with a draft PR ready to review. */
+export async function codeWaitingScan(sinceMs = 24 * 3600_000) {
+  const r = await db.from("action_requests").select("id, status, resources, expires_at").eq("action", CODE_ACTION).gte("created_at", new Date(Date.now() - sinceMs).toISOString()).order("created_at", { ascending: false }).limit(20);
+  if (r.error) throw new Error("CODE requests are unavailable.");
+  const pending: { id: string; repo: string }[] = [], githubWaiting: { id: string; repo: string; runUrl: string }[] = [], prReady: { id: string; repo: string }[] = [];
+  let checked = 0;
+  for (const row of r.data ?? []) {
+    const s = row.resources as unknown as CodeScope;
+    if (!s?.repo) continue;
+    if (row.status === "pending" && Date.parse(row.expires_at) > Date.now()) { pending.push({ id: row.id, repo: s.repo }); continue; }
+    if (row.status !== "allowed" || checked >= 5) continue;
+    checked++;
+    try {
+      const run = await findRun(s);
+      if (!run) continue;
+      if (run.status === "waiting") githubWaiting.push({ id: row.id, repo: s.repo, runUrl: run.html_url });
+      else if (run.status === "completed" && run.conclusion === "success") {
+        const prs = await gh<{ draft: boolean; state: string }[]>(s.repo, `/pulls?state=open&head=${encodeURIComponent(`${s.repo.split("/")[0]}:jackboy/code-${s.correlation}`)}`);
+        if (prs.some((p) => p.draft && p.state === "open")) prReady.push({ id: row.id, repo: s.repo });
+      }
+    } catch { /* unreadable runs are skipped, never guessed */ }
+  }
+  return { pending, githubWaiting, prReady };
+}

@@ -40,6 +40,7 @@ import { Route as AuthenticatedProjectsRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedProviderAccessRouteImport } from './routes/_authenticated/provider-access'
 import { Route as AuthenticatedRazulRouteImport } from './routes/_authenticated/razul'
 import { Route as AuthenticatedReleasesRouteImport } from './routes/_authenticated/releases'
+import { Route as AuthenticatedReportsRouteImport } from './routes/_authenticated/reports'
 import { Route as AuthenticatedResearchRouteImport } from './routes/_authenticated/research'
 import { Route as AuthenticatedSecurityRouteImport } from './routes/_authenticated/security'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
@@ -63,6 +64,7 @@ import { Route as ApiPublicFoundryWebhookRouteImport } from './routes/api/public
 import { Route as ApiPublicGithubManifestRouteImport } from './routes/api/public/github/manifest'
 import { Route as ApiPublicGithubSetupRouteImport } from './routes/api/public/github/setup'
 import { Route as ApiPublicGithubWebhookRouteImport } from './routes/api/public/github/webhook'
+import { Route as ApiPublicJobsOwnerAlertsRouteImport } from './routes/api/public/jobs/owner-alerts'
 import { Route as ApiPublicJobsReleasesRouteImport } from './routes/api/public/jobs/releases'
 import { Route as ApiPublicJobsSiteMonitorRouteImport } from './routes/api/public/jobs/site-monitor'
 import { Route as ApiPublicJobsUpdateWriterRouteImport } from './routes/api/public/jobs/update-writer'
@@ -234,6 +236,11 @@ const AuthenticatedReleasesRoute = AuthenticatedReleasesRouteImport.update({
   path: '/releases',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedReportsRoute = AuthenticatedReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedResearchRoute = AuthenticatedResearchRouteImport.update({
   id: '/research',
   path: '/research',
@@ -350,6 +357,12 @@ const ApiPublicGithubWebhookRoute = ApiPublicGithubWebhookRouteImport.update({
   path: '/api/public/github/webhook',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicJobsOwnerAlertsRoute =
+  ApiPublicJobsOwnerAlertsRouteImport.update({
+    id: '/api/public/jobs/owner-alerts',
+    path: '/api/public/jobs/owner-alerts',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicJobsReleasesRoute = ApiPublicJobsReleasesRouteImport.update({
   id: '/api/public/jobs/releases',
   path: '/api/public/jobs/releases',
@@ -448,6 +461,7 @@ export interface FileRoutesByFullPath {
   '/provider-access': typeof AuthenticatedProviderAccessRoute
   '/razul': typeof AuthenticatedRazulRoute
   '/releases': typeof AuthenticatedReleasesRoute
+  '/reports': typeof AuthenticatedReportsRoute
   '/research': typeof AuthenticatedResearchRoute
   '/security': typeof AuthenticatedSecurityRoute
   '/settings': typeof AuthenticatedSettingsRoute
@@ -471,6 +485,7 @@ export interface FileRoutesByFullPath {
   '/api/public/github/manifest': typeof ApiPublicGithubManifestRoute
   '/api/public/github/setup': typeof ApiPublicGithubSetupRoute
   '/api/public/github/webhook': typeof ApiPublicGithubWebhookRoute
+  '/api/public/jobs/owner-alerts': typeof ApiPublicJobsOwnerAlertsRoute
   '/api/public/jobs/releases': typeof ApiPublicJobsReleasesRoute
   '/api/public/jobs/site-monitor': typeof ApiPublicJobsSiteMonitorRoute
   '/api/public/jobs/update-writer': typeof ApiPublicJobsUpdateWriterRoute
@@ -514,6 +529,7 @@ export interface FileRoutesByTo {
   '/provider-access': typeof AuthenticatedProviderAccessRoute
   '/razul': typeof AuthenticatedRazulRoute
   '/releases': typeof AuthenticatedReleasesRoute
+  '/reports': typeof AuthenticatedReportsRoute
   '/research': typeof AuthenticatedResearchRoute
   '/security': typeof AuthenticatedSecurityRoute
   '/settings': typeof AuthenticatedSettingsRoute
@@ -538,6 +554,7 @@ export interface FileRoutesByTo {
   '/api/public/github/manifest': typeof ApiPublicGithubManifestRoute
   '/api/public/github/setup': typeof ApiPublicGithubSetupRoute
   '/api/public/github/webhook': typeof ApiPublicGithubWebhookRoute
+  '/api/public/jobs/owner-alerts': typeof ApiPublicJobsOwnerAlertsRoute
   '/api/public/jobs/releases': typeof ApiPublicJobsReleasesRoute
   '/api/public/jobs/site-monitor': typeof ApiPublicJobsSiteMonitorRoute
   '/api/public/jobs/update-writer': typeof ApiPublicJobsUpdateWriterRoute
@@ -583,6 +600,7 @@ export interface FileRoutesById {
   '/_authenticated/provider-access': typeof AuthenticatedProviderAccessRoute
   '/_authenticated/razul': typeof AuthenticatedRazulRoute
   '/_authenticated/releases': typeof AuthenticatedReleasesRoute
+  '/_authenticated/reports': typeof AuthenticatedReportsRoute
   '/_authenticated/research': typeof AuthenticatedResearchRoute
   '/_authenticated/security': typeof AuthenticatedSecurityRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
@@ -607,6 +625,7 @@ export interface FileRoutesById {
   '/api/public/github/manifest': typeof ApiPublicGithubManifestRoute
   '/api/public/github/setup': typeof ApiPublicGithubSetupRoute
   '/api/public/github/webhook': typeof ApiPublicGithubWebhookRoute
+  '/api/public/jobs/owner-alerts': typeof ApiPublicJobsOwnerAlertsRoute
   '/api/public/jobs/releases': typeof ApiPublicJobsReleasesRoute
   '/api/public/jobs/site-monitor': typeof ApiPublicJobsSiteMonitorRoute
   '/api/public/jobs/update-writer': typeof ApiPublicJobsUpdateWriterRoute
@@ -653,6 +672,7 @@ export interface FileRouteTypes {
     | '/provider-access'
     | '/razul'
     | '/releases'
+    | '/reports'
     | '/research'
     | '/security'
     | '/settings'
@@ -676,6 +696,7 @@ export interface FileRouteTypes {
     | '/api/public/github/manifest'
     | '/api/public/github/setup'
     | '/api/public/github/webhook'
+    | '/api/public/jobs/owner-alerts'
     | '/api/public/jobs/releases'
     | '/api/public/jobs/site-monitor'
     | '/api/public/jobs/update-writer'
@@ -719,6 +740,7 @@ export interface FileRouteTypes {
     | '/provider-access'
     | '/razul'
     | '/releases'
+    | '/reports'
     | '/research'
     | '/security'
     | '/settings'
@@ -743,6 +765,7 @@ export interface FileRouteTypes {
     | '/api/public/github/manifest'
     | '/api/public/github/setup'
     | '/api/public/github/webhook'
+    | '/api/public/jobs/owner-alerts'
     | '/api/public/jobs/releases'
     | '/api/public/jobs/site-monitor'
     | '/api/public/jobs/update-writer'
@@ -787,6 +810,7 @@ export interface FileRouteTypes {
     | '/_authenticated/provider-access'
     | '/_authenticated/razul'
     | '/_authenticated/releases'
+    | '/_authenticated/reports'
     | '/_authenticated/research'
     | '/_authenticated/security'
     | '/_authenticated/settings'
@@ -811,6 +835,7 @@ export interface FileRouteTypes {
     | '/api/public/github/manifest'
     | '/api/public/github/setup'
     | '/api/public/github/webhook'
+    | '/api/public/jobs/owner-alerts'
     | '/api/public/jobs/releases'
     | '/api/public/jobs/site-monitor'
     | '/api/public/jobs/update-writer'
@@ -845,6 +870,7 @@ export interface RootRouteChildren {
   ApiPublicGithubManifestRoute: typeof ApiPublicGithubManifestRoute
   ApiPublicGithubSetupRoute: typeof ApiPublicGithubSetupRoute
   ApiPublicGithubWebhookRoute: typeof ApiPublicGithubWebhookRoute
+  ApiPublicJobsOwnerAlertsRoute: typeof ApiPublicJobsOwnerAlertsRoute
   ApiPublicJobsReleasesRoute: typeof ApiPublicJobsReleasesRoute
   ApiPublicJobsSiteMonitorRoute: typeof ApiPublicJobsSiteMonitorRoute
   ApiPublicJobsUpdateWriterRoute: typeof ApiPublicJobsUpdateWriterRoute
@@ -1078,6 +1104,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedReleasesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/reports': {
+      id: '/_authenticated/reports'
+      path: '/reports'
+      fullPath: '/reports'
+      preLoaderRoute: typeof AuthenticatedReportsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/research': {
       id: '/_authenticated/research'
       path: '/research'
@@ -1239,6 +1272,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicGithubWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/jobs/owner-alerts': {
+      id: '/api/public/jobs/owner-alerts'
+      path: '/api/public/jobs/owner-alerts'
+      fullPath: '/api/public/jobs/owner-alerts'
+      preLoaderRoute: typeof ApiPublicJobsOwnerAlertsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/jobs/releases': {
       id: '/api/public/jobs/releases'
       path: '/api/public/jobs/releases'
@@ -1351,6 +1391,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedProviderAccessRoute: typeof AuthenticatedProviderAccessRoute
   AuthenticatedRazulRoute: typeof AuthenticatedRazulRoute
   AuthenticatedReleasesRoute: typeof AuthenticatedReleasesRoute
+  AuthenticatedReportsRoute: typeof AuthenticatedReportsRoute
   AuthenticatedResearchRoute: typeof AuthenticatedResearchRoute
   AuthenticatedSecurityRoute: typeof AuthenticatedSecurityRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
@@ -1389,6 +1430,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedProviderAccessRoute: AuthenticatedProviderAccessRoute,
   AuthenticatedRazulRoute: AuthenticatedRazulRoute,
   AuthenticatedReleasesRoute: AuthenticatedReleasesRoute,
+  AuthenticatedReportsRoute: AuthenticatedReportsRoute,
   AuthenticatedResearchRoute: AuthenticatedResearchRoute,
   AuthenticatedSecurityRoute: AuthenticatedSecurityRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
@@ -1425,6 +1467,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicGithubManifestRoute: ApiPublicGithubManifestRoute,
   ApiPublicGithubSetupRoute: ApiPublicGithubSetupRoute,
   ApiPublicGithubWebhookRoute: ApiPublicGithubWebhookRoute,
+  ApiPublicJobsOwnerAlertsRoute: ApiPublicJobsOwnerAlertsRoute,
   ApiPublicJobsReleasesRoute: ApiPublicJobsReleasesRoute,
   ApiPublicJobsSiteMonitorRoute: ApiPublicJobsSiteMonitorRoute,
   ApiPublicJobsUpdateWriterRoute: ApiPublicJobsUpdateWriterRoute,

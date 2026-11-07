@@ -351,6 +351,13 @@
       "when": 1794030019533,
       "tag": "0049_task_mode",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1794059984729,
+      "tag": "0050_reports_alerts_undo",
+      "breakpoints": true
     }
   ]
 }

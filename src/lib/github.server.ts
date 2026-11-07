@@ -63,8 +63,32 @@ export async function commitToNewBranch(owner: string, repo: string, base: strin
   return commit.sha;
 }
 
-export async function openPullRequest(owner: string, repo: string, head: string, base: string, title: string, body: string) {
-  return gh<{ number: number; html_url: string }>(`${r(owner, repo)}/pulls`, { method: "POST", body: JSON.stringify({ title, head, base, body, draft: true }) });
+export async function openPullRequest(owner: string, repo: string, head: string, base: string, title: string, body: string, draft = true) {
+  return gh<{ number: number; html_url: string; head: { sha: string } }>(`${r(owner, repo)}/pulls`, { method: "POST", body: JSON.stringify({ title, head, base, body, draft }) });
+}
+
+export type PullRequest = { number: number; html_url: string; state: "open" | "closed"; merged: boolean; draft: boolean; merge_commit_sha: string | null; head: { ref: string; sha: string }; base: { ref: string } };
+export async function getPullRequest(owner: string, repo: string, n: number) {
+  return gh<PullRequest>(`${r(owner, repo)}/pulls/${n}`);
+}
+/** The PR whose head is exactly this branch (any state), or null. */
+export async function findPullByHead(owner: string, repo: string, branch: string): Promise<PullRequest | null> {
+  const list = await gh<{ number: number }[]>(`${r(owner, repo)}/pulls?state=all&per_page=5&head=${encodeURIComponent(`${owner}:${branch}`)}`);
+  return list[0] ? getPullRequest(owner, repo, list[0].number) : null;
+}
+export async function listPullFiles(owner: string, repo: string, n: number) {
+  return gh<{ filename: string; status: string; previous_filename?: string }[]>(`${r(owner, repo)}/pulls/${n}/files?per_page=100`);
+}
+export async function getCommitParents(owner: string, repo: string, sha: string): Promise<string[]> {
+  const c = await gh<{ parents: { sha: string }[] }>(`${r(owner, repo)}/commits/${encodeURIComponent(sha)}`);
+  return c.parents.map((p) => p.sha);
+}
+/** Git blob id of a file at a ref, or null when the file doesn't exist there. */
+export async function fileBlobSha(owner: string, repo: string, path: string, ref: string): Promise<string | null> {
+  try {
+    const f = await gh<{ sha: string; type: string }>(`${r(owner, repo)}/contents/${path.split("/").map(encodeURIComponent).join("/")}?ref=${encodeURIComponent(ref)}`);
+    return f.type === "file" ? f.sha : null;
+  } catch (e) { if (e instanceof GitHubError && e.status === 404) return null; throw e; }
 }
 
 export async function closePullRequest(owner: string, repo: string, n: number) {

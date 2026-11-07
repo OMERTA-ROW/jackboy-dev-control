@@ -1,4 +1,3 @@
--- Daily report, phone alerts and CODE undo storage. Owners read; only the server (service role) writes.
 CREATE TABLE public.owner_alert_settings (
   singleton boolean PRIMARY KEY DEFAULT true CHECK (singleton),
   timezone text NOT NULL DEFAULT 'America/New_York' CHECK (char_length(timezone) BETWEEN 3 AND 64),

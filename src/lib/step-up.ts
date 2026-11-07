@@ -16,6 +16,7 @@ export const STEP_UP_ACTIONS = {
   code_site_pin: { label: "Add a site to the CODE allow list or remove it", roles: ["owner"] },
   task_step: { label: "Approve one Task Mode step", roles: ["owner"] },
   code_auto_lane: { label: "Turn the CODE automatic lane on or off for one site", roles: ["owner"] },
+  code_undo: { label: "Undo a merged CODE change (Jackboy merges the revert after checks pass)", roles: ["owner"] },
   task_skip_rule: { label: "Change which task steps can skip approval", roles: ["owner"] },
   production_deploy: { label: "Production deployment", roles: ["owner"] },
   privilege_escalation: { label: "Grant or raise a permission", roles: ["owner", "admin"] },
@@ -53,7 +54,7 @@ export function recentEligible(action: string, target: string): boolean {
   return action === "approve_integration" && RECENT_TARGET_PREFIXES.some((p) => target.startsWith(p));
 }
 /** Actions that always need a new device ceremony: never grace-eligible, and reused grants are refused. */
-export const FRESH_ONLY_ACTIONS = ["code_hard_cap", "code_enable", "code_site_pin", "task_step", "task_skip_rule", "code_auto_lane"] as const;
+export const FRESH_ONLY_ACTIONS = ["code_hard_cap", "code_enable", "code_site_pin", "task_step", "task_skip_rule", "code_auto_lane", "code_undo"] as const;
 /** A grant minted by recent-verification reuse carries a "recent:" credential and is not fresh. */
 export function grantIsFresh(g: { credential_id?: string | null } | null): boolean {
   return !!g && typeof g.credential_id === "string" && g.credential_id.length > 0 && !g.credential_id.startsWith("recent:");
