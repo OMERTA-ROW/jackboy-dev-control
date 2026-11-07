@@ -11,6 +11,7 @@
 - [ ] Owner presses it on the published app — owner only; needs publish first.
 - [x] Live spending meter (gateway ledger + OpenAI closed-day cross-check) and passkey on-switch built; 11 isolated database tests, app and runtime tests pass; not pressed.
 - [ ] Apply staged 0049 (meter + on-switch database part) — blocked: owner approval.
+- [ ] Re-save CODE_GATEWAY_PRICES: saved value is 19 characters and not valid JSON, so the gateway refuses every call — owner only (secret form).
 - [ ] Release Emergency Stop / enable CODE — owner only.
 
 ## Workflow pin repair and activation readiness (Nov 5, 21:30 UTC)
