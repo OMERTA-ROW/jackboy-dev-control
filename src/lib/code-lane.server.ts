@@ -80,6 +80,6 @@ export async function laneStatus() {
     enabled: storageReady && (storage.data ?? []).some((r: { repo: string; enabled: boolean }) => r.repo === repo && r.enabled),
     environments: await Promise.all(AUTO_ENVS.map((n) => envCheck(repo, n))),
   })));
-  const { data: trials } = await typedDb.from("site_log").select("created_at, summary, repo, detail").eq("action", "code.lane_trial").order("created_at", { ascending: false }).limit(20);
-  return { storageReady, sites, trials: (trials ?? []).map((t) => ({ at: t.created_at, summary: t.summary, repo: t.repo, wouldAuto: (t.detail as { wouldAuto?: boolean } | null)?.wouldAuto === true })), checkedAt: new Date().toISOString() };
+  const { data: trials } = await typedDb.from("site_log").select("at, summary, repo, detail").eq("action", "code.lane_trial").order("at", { ascending: false }).limit(20);
+  return { storageReady, sites, trials: (trials ?? []).map((t) => ({ at: t.at, summary: t.summary, repo: t.repo, wouldAuto: (t.detail as { wouldAuto?: boolean } | null)?.wouldAuto === true })), checkedAt: new Date().toISOString() };
 }
