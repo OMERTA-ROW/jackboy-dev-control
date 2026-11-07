@@ -97,12 +97,12 @@ export function evaluateHandoff(f: HandoffFacts, stage: "issue" | "use", now = D
   else {
     if (p.ownerId !== f.actorId) add("project_owner", "This project belongs to someone else.");
     if (!p.enrolled) add("project_enrolled", "This project is not enrolled yet.");
-    if (!j.repo || p.repoUrl !== `https://github.com/${j.repo}`)
+    if (j.repo && p.repoUrl !== `https://github.com/${j.repo}`)
       add("project_repo", "The job's repository doesn't match the project's linked repository.");
   }
 
   const a = f.authorization;
-  if (!a) add("authorization", "OMNI is not authorized for this project. Authorize it with your passkey.");
+  if (!a) add("authorization", "OMNI has no access to this project yet. Press Give OMNI access with passkey.");
   else if (a.revokedAt) add("authorization_revoked", "You revoked OMNI's access to this project.");
   else if (!(Date.parse(a.expiresAt) > now)) add("authorization_expired", "OMNI's access to this project expired.");
   else if (!authorizationIsCurrent(a, { actorId: f.actorId, projectId: j.projectId, kind: j.kind, repo: j.repo }, now))
