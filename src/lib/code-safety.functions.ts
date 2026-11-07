@@ -307,62 +307,18 @@ export const syncCodeProviderCosts = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     await requireOwner(context);
-    const adminKey = process.env["OPENAI_ADMIN_KEY"];
-    const projectId = process.env["OPENAI_CODE_PROJECT_ID"];
-    const apiKeyId = process.env["OPENAI_CODE_API_KEY_ID"];
-    if (!adminKey || !projectId || !apiKeyId || projectId.length > 200 || apiKeyId.length > 200) {
+    const { costReportSettings, fetchOpenAICostRows } = await import("./openai-costs.server");
+    const settings = costReportSettings();
+    if (!settings) {
       throw new Error(
         "Provider cost sync is unavailable: configure OPENAI_ADMIN_KEY, OPENAI_CODE_PROJECT_ID, and OPENAI_CODE_API_KEY_ID on the server.",
       );
     }
-    const { parseOpenAICostPage } = await import("./openai-costs");
-
     const now = new Date();
     const startOfDay = new Date(
       Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
     );
-    const params = new URLSearchParams({
-      start_time: String(Math.floor(startOfDay.getTime() / 1000)),
-      end_time: String(Math.floor(now.getTime() / 1000)),
-      bucket_width: "1d",
-      limit: "180",
-    });
-    params.append("project_ids", projectId);
-    params.append("api_key_ids", apiKeyId);
-    params.append("group_by", "project_id");
-    params.append("group_by", "api_key_id");
-    params.append("group_by", "line_item");
-    const headers = new Headers({ Accept: "application/json" });
-    headers.set("Authorization", `Bearer ${adminKey}`);
-    const rows: OpenAICostRow[] = [];
-    const pages = new Set<string>();
-    let page: string | null = null;
-    for (let count = 0; count < 10; count++) {
-      if (page) {
-        if (pages.has(page)) throw new Error("OpenAI costs pagination repeated a cursor.");
-        pages.add(page);
-        params.set("page", page);
-      }
-      const response = await fetch(`https://api.openai.com/v1/organization/costs?${params}`, {
-        headers,
-        redirect: "error",
-        signal: AbortSignal.timeout(10_000),
-      });
-      if (response.status === 401) {
-        throw new Error("OpenAI cost sync credential was rejected (HTTP 401).");
-      }
-      if (response.status === 403) {
-        throw new Error(
-          "OpenAI cost sync credential lacks organization usage permission (HTTP 403).",
-        );
-      }
-      if (!response.ok) throw new Error(`OpenAI cost sync failed (HTTP ${response.status}).`);
-      const parsed = parseOpenAICostPage(await response.json(), projectId, apiKeyId);
-      rows.push(...parsed.rows);
-      if (!parsed.hasMore) break;
-      page = parsed.nextPage;
-      if (count === 9) throw new Error("OpenAI costs pagination exceeded the safety limit.");
-    }
+    const rows: OpenAICostRow[] = await fetchOpenAICostRows(settings, startOfDay, now);
     if (!rows.length) {
       throw new Error(
         "OpenAI returned no attributable cost rows for the current UTC day; CODE remains blocked.",
