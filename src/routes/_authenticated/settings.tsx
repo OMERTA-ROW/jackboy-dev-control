@@ -6,6 +6,7 @@ import { GitHubAppPanel } from "@/components/GitHubAppPanel";
 import { RepositorySyncPanel } from "@/components/RepositorySync";
 import { CodeSafetyPanel } from "@/components/CodeSafetyPanel";
 import { CodeSitesList } from "@/components/CodeSiteCard";
+import { CodeLanePanel } from "@/components/CodeLanePanel";
 import { TaskSkipRules } from "@/components/TaskSkipRules";
 import { CapabilitiesPanel } from "@/components/CapabilitiesPanel";
 import { PageHeader } from "@/components/AppShell";
@@ -74,6 +75,7 @@ function Settings() {
       <PageHeader title="Settings & Advanced" subtitle="Every advanced Jackboy tool, grouped. Your everyday flow lives on Home and Projects." />
       <CodeSafetyPanel />
       <CodeSitesList />
+      <CodeLanePanel />
       <TaskSkipRules />
       <section aria-labelledby="guidelines" className="mb-6 rounded-lg border border-border bg-card p-4">
         <h2 id="guidelines" className="text-sm font-semibold uppercase tracking-wider text-silver">Guidelines</h2>
