@@ -2509,6 +2509,175 @@ export type Database = {
         }
         Relationships: []
       }
+      task_events: {
+        Row: {
+          created_at: string
+          detail: Json
+          id: string
+          kind: string
+          message: string
+          step_id: string | null
+          task_id: string
+        }
+        Insert: {
+          created_at?: string
+          detail?: Json
+          id?: string
+          kind: string
+          message: string
+          step_id?: string | null
+          task_id: string
+        }
+        Update: {
+          created_at?: string
+          detail?: Json
+          id?: string
+          kind?: string
+          message?: string
+          step_id?: string | null
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_events_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_skip_rules: {
+        Row: {
+          project_ids: string[]
+          step_type: string
+          updated_at: string
+          updated_by: string
+        }
+        Insert: {
+          project_ids?: string[]
+          step_type: string
+          updated_at?: string
+          updated_by: string
+        }
+        Update: {
+          project_ids?: string[]
+          step_type?: string
+          updated_at?: string
+          updated_by?: string
+        }
+        Relationships: []
+      }
+      task_steps: {
+        Row: {
+          approval_grant: string | null
+          approval_reason: string | null
+          approved_at: string | null
+          args: Json
+          error: string | null
+          fingerprint: string
+          finished_at: string | null
+          id: string
+          position: number
+          project_id: string | null
+          result: Json | null
+          started_at: string | null
+          status: string
+          step_type: string
+          task_id: string
+          tool: string
+          why: string
+        }
+        Insert: {
+          approval_grant?: string | null
+          approval_reason?: string | null
+          approved_at?: string | null
+          args?: Json
+          error?: string | null
+          fingerprint: string
+          finished_at?: string | null
+          id?: string
+          position: number
+          project_id?: string | null
+          result?: Json | null
+          started_at?: string | null
+          status?: string
+          step_type: string
+          task_id: string
+          tool: string
+          why?: string
+        }
+        Update: {
+          approval_grant?: string | null
+          approval_reason?: string | null
+          approved_at?: string | null
+          args?: Json
+          error?: string | null
+          fingerprint?: string
+          finished_at?: string | null
+          id?: string
+          position?: number
+          project_id?: string | null
+          result?: Json | null
+          started_at?: string | null
+          status?: string
+          step_type?: string
+          task_id?: string
+          tool?: string
+          why?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_steps_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tasks: {
+        Row: {
+          created_at: string
+          expires_at: string | null
+          failures: number
+          finished_at: string | null
+          goal: string
+          id: string
+          owner_id: string
+          started_at: string | null
+          status: string
+          stop_reason: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string | null
+          failures?: number
+          finished_at?: string | null
+          goal: string
+          id?: string
+          owner_id: string
+          started_at?: string | null
+          status?: string
+          stop_reason?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string | null
+          failures?: number
+          finished_at?: string | null
+          goal?: string
+          id?: string
+          owner_id?: string
+          started_at?: string | null
+          status?: string
+          stop_reason?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       update_installs: {
         Row: {
           created_at: string
