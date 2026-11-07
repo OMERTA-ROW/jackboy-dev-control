@@ -220,3 +220,39 @@ export async function checks(x: Repo, ref: string) {
     };
   }
 }
+
+/** Read-only GET under one repository with the workspace credential (App installation or GITHUB_TOKEN). */
+export async function repoGet<T>(x: Repo, path: string): Promise<T> {
+  return gh<T>(`${R(x)}${path}`);
+}
+
+/** Blob SHA of one file at a ref, or null when the file or ref doesn't exist. */
+export async function fileSha(x: Repo, path: string, ref: string): Promise<string | null> {
+  try {
+    const f = await gh<{ sha?: string; type?: string }>(`${R(x)}/contents/${enc(path)}?ref=${encodeURIComponent(ref)}`);
+    return f.type === "file" && typeof f.sha === "string" ? f.sha : null;
+  } catch (e) {
+    if (String(e).includes("GitHub 404")) return null;
+    throw e;
+  }
+}
+
+/** CODE onboarding only: opens a DRAFT PR whose diff is exactly the owner-approved files (path + blob SHA), nothing else.
+ * Replaces the "existing checks passed" gate used for code changes, which cannot apply before the CODE workflow exists. */
+export async function openExactDraftPr(x: Repo, branch: string, title: string, body: string, expected: { path: string; sha: string }[]) {
+  const be = checkWorkBranch(branch, x.base); if (be) throw new Error(be);
+  if (!expected.length) throw new Error("Nothing to propose: the approved files are already on the main branch.");
+  const d = await gh<{ files?: { filename: string; sha: string; status: string }[] }>(`${R(x)}/compare/${enc(x.base)}...${enc(branch)}`);
+  const files = d.files ?? [];
+  const want = new Map(expected.map((f) => [f.path, f.sha]));
+  const extra = files.filter((f) => want.get(f.filename) !== f.sha || f.status === "removed");
+  const missing = expected.filter((f) => !files.some((g) => g.filename === f.path && g.sha === f.sha));
+  if (extra.length || missing.length) {
+    throw new Error(`Draft PR refused on ${x.full}: branch ${branch} must change exactly the approved CODE files. ${extra.length ? `Unexpected: ${extra.map((f) => f.filename).join(", ")}. ` : ""}${missing.length ? `Missing or different: ${missing.map((f) => f.path).join(", ")}.` : ""} Branch preserved; no PR opened.`);
+  }
+  const existing = await gh<{ number: number; html_url: string }[]>(`${R(x)}/pulls?head=${encodeURIComponent(`${x.owner}:${branch}`)}&state=open`);
+  if (existing[0]) return { number: existing[0].number, url: existing[0].html_url, existed: true };
+  const payload = JSON.stringify({ title: title.slice(0, 200), head: branch, base: x.base, body: `${body.slice(0, 4000)}\n\n_Opened by Jackboy as a draft. Owner review required; Jackboy does not merge._`, draft: true });
+  const pr = await gh<{ number: number; html_url: string }>(`${R(x)}/pulls`, { method: "POST", body: payload });
+  return { number: pr.number, url: pr.html_url, existed: false };
+}
