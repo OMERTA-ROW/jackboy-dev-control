@@ -165,6 +165,9 @@ test("meter refuses when today's measured spend plus one task would pass the dai
   assert.ok(s.reasons.includes("daily_limit"));
   assert.equal((await controls(db)).provider_usage_at, null);
   assert.equal(await audits(db, "code.spend_meter_blocked"), 1);
+  await refresh(db); // same reasons again: still blocked, not re-audited
+  assert.equal(await audits(db, "code.spend_meter_blocked"), 1);
+  assert.equal((await controls(db)).provider_usage_at, null);
   const exact = await clone(metered);
   await todayUsage(exact, 4); // 4 + 1 = 5.00 fits exactly
   assert.equal((await meter(exact)).ok, true);
