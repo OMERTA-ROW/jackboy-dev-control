@@ -775,6 +775,60 @@ export type Database = {
           },
         ]
       }
+      code_undos: {
+        Row: {
+          actor: string
+          created_at: string
+          detail: string | null
+          finished_at: string | null
+          id: string
+          kind: string
+          merged_sha: string | null
+          pr_number: number
+          repo: string
+          republish_needed: boolean
+          request_id: string
+          revert_head_sha: string | null
+          revert_pr_number: number | null
+          revert_pr_url: string | null
+          status: string
+        }
+        Insert: {
+          actor: string
+          created_at?: string
+          detail?: string | null
+          finished_at?: string | null
+          id?: string
+          kind: string
+          merged_sha?: string | null
+          pr_number: number
+          repo: string
+          republish_needed?: boolean
+          request_id: string
+          revert_head_sha?: string | null
+          revert_pr_number?: number | null
+          revert_pr_url?: string | null
+          status?: string
+        }
+        Update: {
+          actor?: string
+          created_at?: string
+          detail?: string | null
+          finished_at?: string | null
+          id?: string
+          kind?: string
+          merged_sha?: string | null
+          pr_number?: number
+          repo?: string
+          republish_needed?: boolean
+          request_id?: string
+          revert_head_sha?: string | null
+          revert_pr_number?: number | null
+          revert_pr_url?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
       code_usage_events: {
         Row: {
           cost_usd: number
@@ -812,6 +866,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      daily_reports: {
+        Row: {
+          body: Json
+          generated_at: string
+          id: string
+          report_date: string
+          summary: string
+        }
+        Insert: {
+          body?: Json
+          generated_at?: string
+          id?: string
+          report_date: string
+          summary: string
+        }
+        Update: {
+          body?: Json
+          generated_at?: string
+          id?: string
+          report_date?: string
+          summary?: string
+        }
+        Relationships: []
       }
       feature_flags: {
         Row: {
@@ -1863,6 +1941,87 @@ export type Database = {
           },
         ]
       }
+      owner_alert_outbox: {
+        Row: {
+          attempts: number
+          body: string
+          created_at: string
+          dedupe_key: string
+          id: string
+          kind: string
+          last_error: string | null
+          link: string
+          reminder: boolean
+          sent_at: string | null
+          status: string
+          title: string
+          urgent: boolean
+        }
+        Insert: {
+          attempts?: number
+          body: string
+          created_at?: string
+          dedupe_key: string
+          id?: string
+          kind: string
+          last_error?: string | null
+          link?: string
+          reminder?: boolean
+          sent_at?: string | null
+          status?: string
+          title: string
+          urgent?: boolean
+        }
+        Update: {
+          attempts?: number
+          body?: string
+          created_at?: string
+          dedupe_key?: string
+          id?: string
+          kind?: string
+          last_error?: string | null
+          link?: string
+          reminder?: boolean
+          sent_at?: string | null
+          status?: string
+          title?: string
+          urgent?: boolean
+        }
+        Relationships: []
+      }
+      owner_alert_settings: {
+        Row: {
+          alerts_enabled: boolean
+          quiet_end: number | null
+          quiet_start: number | null
+          report_hour: number
+          singleton: boolean
+          timezone: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          alerts_enabled?: boolean
+          quiet_end?: number | null
+          quiet_start?: number | null
+          report_hour?: number
+          singleton?: boolean
+          timezone?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          alerts_enabled?: boolean
+          quiet_end?: number | null
+          quiet_start?: number | null
+          report_hour?: number
+          singleton?: boolean
+          timezone?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       owner_notifications: {
         Row: {
           created_at: string
@@ -2138,6 +2297,39 @@ export type Database = {
           reason?: string | null
           request_id?: string | null
           target?: string
+        }
+        Relationships: []
+      }
+      push_devices: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          label: string
+          last_error: string | null
+          last_sent_at: string | null
+          token: string
+          user_id: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          label?: string
+          last_error?: string | null
+          last_sent_at?: string | null
+          token: string
+          user_id: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          label?: string
+          last_error?: string | null
+          last_sent_at?: string | null
+          token?: string
+          user_id?: string
         }
         Relationships: []
       }
