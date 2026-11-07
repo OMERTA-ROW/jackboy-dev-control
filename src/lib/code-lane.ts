@@ -14,6 +14,9 @@ export const AUTO_MAX_LINES = 50;
 export const AUTO_RUNS_PER_SITE_PER_DAY = 3;
 export const AUTO_HOLD_USD = 1;
 
+/** Passkey target for the per-site switch: one site, one direction. */
+export const autoLaneTarget = (repo: string, on: boolean) => `code_auto_lane:${repo}:${on ? "on" : "off"}`;
+
 /** The stored lane only counts as automatic when it is exactly "auto"; anything else is reviewed. */
 export function laneOf(scope: { lane?: unknown } | null | undefined): Lane {
   return scope?.lane === "auto" ? "auto" : "reviewed";

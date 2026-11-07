@@ -2,7 +2,7 @@
 // unavailable until the staged database update (staging/code-lane/0051) is applied and the owner turns it on per site.
 import { supabaseAdmin as typedDb } from "@/integrations/supabase/client.server";
 import { untyped } from "./untyped-db";
-import { AUTO_ENVS, AUTO_HOLD_USD, autoEnvProblems, classifyPatch, trialLane, type EnvBody, type PatchFile } from "./code-lane";
+import { AUTO_ENVS, AUTO_HOLD_USD, autoEnvProblems, autoLaneTarget, classifyPatch, trialLane, type EnvBody, type PatchFile } from "./code-lane";
 import { logSite } from "./site-log.server";
 import { CODE_ACTION } from "./code";
 
@@ -77,6 +77,35 @@ async function envCheck(repo: string, name: string) {
   };
 }
 
+/** The pinned workflow version must know both lanes before the switch can turn on. */
+export async function workflowSupportsLanes(repo: string, workflowSha: string): Promise<boolean> {
+  const r = await codeGh<{ content?: string; encoding?: string }>(`/repos/${repo}/git/blobs/${workflowSha}`);
+  if (r.status !== 200 || !r.body?.content || r.body.encoding !== "base64") return false;
+  const text = Buffer.from(r.body.content.replace(/\n/g, ""), "base64").toString("utf8");
+  return /CODE-AUTO/.test(text) && /CODE-PUBLISH-AUTO/.test(text) && /inputs\.lane/.test(text);
+}
+
+/** Owner switch. Turning ON re-checks storage, allow list, the pinned workflow and both environments first. */
+export async function setAutoLane(actor: string, repo: string, on: boolean, grantId: string) {
+  const { getCodeSafetyState } = await import("./code-safety.server");
+  if (on) {
+    const storage = await db.from("code_auto_lane").select("repo").limit(1);
+    if (storage.error) throw new Error("The automatic lane needs the staged database update first. Approve it in chat.");
+    const target = (await getCodeSafetyState()).allowedTargets?.[repo];
+    if (!target) throw new Error("This site isn't on CODE.");
+    if (!(await workflowSupportsLanes(repo, target.workflowSha))) throw new Error("The pinned CODE workflow doesn't support the automatic lane yet. Merge the lane workflow and re-pin first.");
+    const envs = await Promise.all(AUTO_ENVS.map((n) => envCheck(repo, n)));
+    const bad = envs.filter((e) => e.problems.length);
+    if (bad.length) throw new Error(bad.map((e) => `${e.name}: ${e.problems.join(" ")}`).join(" "));
+  }
+  const { consumeGrant } = await import("./passkey.server");
+  await consumeGrant(grantId, actor, "code_auto_lane", autoLaneTarget(repo, on), { requireFresh: true });
+  const { error } = await db.rpc("set_code_auto_lane", { p_actor: actor, p_repo: repo, p_enabled: on });
+  if (error) throw new Error(error.message);
+  await logSite({ actor: "code-lane", action: "code.auto_lane", category: "config", status: "ok", repo, summary: `Automatic lane ${on ? "on" : "off"} for ${repo}.` });
+  return { repo, on };
+}
+
 /** Owner view: per CODE site, the two automatic environments (read-only), the switch state and the trial log. */
 export async function laneStatus() {
   const { getCodeSafetyState } = await import("./code-safety.server");
@@ -87,6 +116,7 @@ export async function laneStatus() {
   const sites = await Promise.all(repos.map(async (repo) => ({
     repo,
     enabled: storageReady && (storage.data ?? []).some((r: { repo: string; enabled: boolean }) => r.repo === repo && r.enabled),
+    workflowReady: await workflowSupportsLanes(repo, state.allowedTargets[repo]!.workflowSha).catch(() => false),
     environments: await Promise.all(AUTO_ENVS.map((n) => envCheck(repo, n))),
   })));
   const { data: trials } = await typedDb.from("site_log").select("at, summary, repo, detail").eq("action", "code.lane_trial").order("at", { ascending: false }).limit(20);
