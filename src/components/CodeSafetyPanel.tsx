@@ -4,7 +4,6 @@ import { ActivationPanel } from "./ActivationPanel";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { useStepUp } from "@/lib/step-up-client";
 import { probeOmniConnection } from "@/lib/omni-link.functions";
 import {
   checkCodeCancellation,
@@ -29,7 +28,6 @@ export function CodeSafetyPanel() {
   const reconcileDay = useServerFn(reconcileCodeClosedDay);
   const [gates, setGates] = useState<Awaited<ReturnType<typeof getCodeEnableGates>> | null>(null);
   const [gatesError, setGatesError] = useState<string | null>(null);
-  const stepUp = useStepUp();
   const probeOmni = useServerFn(probeOmniConnection);
   const [omni, setOmni] = useState<Awaited<ReturnType<typeof probeOmniConnection>> | null>(null);
   const checkCancellation = useServerFn(checkCodeCancellation);
