@@ -365,6 +365,13 @@
       "when": 1794071665104,
       "tag": "0051_omni_build_test_handoffs",
       "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1794071724152,
+      "tag": "0052_omni_handoff_authorization",
+      "breakpoints": true
     }
   ]
 }

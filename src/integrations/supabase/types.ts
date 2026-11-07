@@ -1693,6 +1693,7 @@ export type Database = {
       }
       omni_dispatch_grants: {
         Row: {
+          authorization_id: string | null
           created_at: string
           expires_at: string
           id: string
@@ -1705,6 +1706,7 @@ export type Database = {
           revoked_at: string | null
         }
         Insert: {
+          authorization_id?: string | null
           created_at?: string
           expires_at: string
           id?: string
@@ -1717,6 +1719,7 @@ export type Database = {
           revoked_at?: string | null
         }
         Update: {
+          authorization_id?: string | null
           created_at?: string
           expires_at?: string
           id?: string
@@ -1729,6 +1732,13 @@ export type Database = {
           revoked_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "omni_dispatch_grants_authorization_id_fkey"
+            columns: ["authorization_id"]
+            isOneToOne: false
+            referencedRelation: "omni_project_authorizations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "omni_dispatch_grants_job_id_fkey"
             columns: ["job_id"]
@@ -1937,6 +1947,50 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "owner_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      omni_project_authorizations: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          kinds: string[]
+          owner_id: string
+          project_id: string
+          repo: string
+          revoked_at: string | null
+          revoked_reason: string | null
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          id?: string
+          kinds: string[]
+          owner_id: string
+          project_id: string
+          repo: string
+          revoked_at?: string | null
+          revoked_reason?: string | null
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          kinds?: string[]
+          owner_id?: string
+          project_id?: string
+          repo?: string
+          revoked_at?: string | null
+          revoked_reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "omni_project_authorizations_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "agent_projects"
             referencedColumns: ["id"]
           },
         ]
@@ -3344,6 +3398,19 @@ export type Database = {
         Returns: Json
       }
       omni_link_action: { Args: { _a: Json; _op: string }; Returns: Json }
+      omni_link_live: { Args: never; Returns: boolean }
+      omni_project_authorization_action: {
+        Args: {
+          _actor: string
+          _days: number
+          _kinds: string[]
+          _op: string
+          _project: string
+          _reason: string
+          _step: string
+        }
+        Returns: Json
+      }
       reconcile_code_provider_day: {
         Args: { p_actor: string; p_day: string; p_tolerance_usd?: number }
         Returns: Json
