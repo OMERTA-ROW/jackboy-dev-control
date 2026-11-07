@@ -2,6 +2,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Check, Circle, CircleDot, OctagonX, Power } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ReadinessChecks } from "./ReadinessChecks";
 import { useStepUp } from "@/lib/step-up-client";
 import {
   enableCodeRuntime,
@@ -45,7 +46,7 @@ type Props = {
   globalPaused?: boolean | null;
   /** Result of the last action pressed in this panel. */
   message?: string | null;
-  /** Dated background evidence, shown folded at the bottom. */
+  /** Optional extra evidence shown under the readiness checks. */
   evidence?: ReactNode;
 };
 
@@ -110,16 +111,16 @@ export function ActivationPanel({
   };
   const checkAgain = () => void run(async () => undefined);
 
+  const engageStop = () =>
+    void run(() =>
+      stepUp("global_pause", "global_pause:on").then((grantId) => stop({ data: { grantId } })),
+    );
   const emergencyStop = (
     <Button
       variant="destructive"
       size="sm"
       disabled={busy || !state || state.killSwitch}
-      onClick={() =>
-        void run(() =>
-          stepUp("global_pause", "global_pause:on").then((grantId) => stop({ data: { grantId } })),
-        )
-      }
+      onClick={engageStop}
     >
       <OctagonX aria-hidden />
       {state?.killSwitch ? "Emergency stop engaged" : "Engage emergency stop"}
@@ -510,14 +511,25 @@ export function ActivationPanel({
           ) : (
             stepList
           ))}
-      {evidence && (
-        <details className="mt-3">
-          <summary className="cursor-pointer text-xs text-muted-foreground">
-            Dated background evidence
-          </summary>
+      <details className="mt-4 border-t border-border pt-3" open={!progress?.complete}>
+        <summary className="cursor-pointer text-xs text-muted-foreground">
+          Readiness checks and tests
+        </summary>
+        <div className="mt-2">
+          <ReadinessChecks
+            busy={busy}
+            emergencyStopEngaged={state?.killSwitch !== false}
+            onEmergencyStop={engageStop}
+            onStartActivation={() => {
+              startGuide();
+              document
+                .getElementById("activation")
+                ?.scrollIntoView({ behavior: "smooth", block: "start" });
+            }}
+          />
           {evidence}
-        </details>
-      )}
+        </div>
+      </details>
     </section>
   );
 }

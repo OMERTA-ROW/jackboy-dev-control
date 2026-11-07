@@ -5,6 +5,8 @@
 - [ ] Owner publishes, then presses the on-switch — owner only.
 - [x] Guided walkthrough: one "Start activation" button, one step per screen with status, one button, plain blocked reason + fix, auto-advance on success; no automatic presses. Preview opens at step 7 of 7.
 - [x] Kill Switch (both directions) and CODE emergency stop moved into the Autonomous Activation section; Home keeps a live status line and a link. Same passkey actions; 568 tests pass.
+- [x] Readiness checks: 12 items, each with a live read-only Test (results in the site log); Block/Unblock on CODE controls and spending (existing passkey controls); statuses follow real use (passkey, gateway calls, OMNI sessions, CODE state), re-read on focus/every minute. Preview: 7 of 12 pass.
+- [ ] Runner acceptance on current main, GitHub App scope reduction, backup check, OMNI link — owner actions shown in the checks.
 - [x] Single ordered activation panel at the top of Settings (linked from the Home pause bar): 7 steps built from the server's 12 on-switch checks, folds away once CODE is on, emergency stop always visible; same passkey actions. 565 tests pass; preview shows 6 of 7 done.
 
 ## CODE activation prep (Nov 6, 23:55 UTC)
