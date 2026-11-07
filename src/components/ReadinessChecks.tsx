@@ -169,16 +169,12 @@ export function ReadinessChecks({ busy, onEmergencyStop, onStartActivation, emer
                       Block
                     </Button>
                   )}
-                  {def.unblock === "start_activation" && r?.status !== "PASS" && (
-                    <Button size="sm" disabled={busy} aria-label={`Unblock ${def.name}`} onClick={onStartActivation}>
-                      Unblock
-                    </Button>
-                  )}
-                  {def.unblock === "start_activation" && def.id === "code_runtime" && r?.status === "PASS" && emergencyStopEngaged && (
-                    <Button size="sm" disabled={busy} aria-label={`Unblock ${def.name}`} onClick={onStartActivation}>
-                      Unblock
-                    </Button>
-                  )}
+                  {def.unblock === "start_activation" &&
+                    (def.id === "code_runtime" ? emergencyStopEngaged : r?.status !== "PASS") && (
+                      <Button size="sm" disabled={busy} aria-label={`Unblock ${def.name}`} onClick={onStartActivation}>
+                        Unblock
+                      </Button>
+                    )}
                 </div>
               </div>
             </li>

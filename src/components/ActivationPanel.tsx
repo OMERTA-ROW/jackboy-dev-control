@@ -2,6 +2,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Check, Circle, CircleDot, OctagonX, Power } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ReadinessChecks } from "./ReadinessChecks";
 import { useStepUp } from "@/lib/step-up-client";
 import {
   enableCodeRuntime,
