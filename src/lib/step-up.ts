@@ -11,6 +11,7 @@ export const STEP_UP_ACTIONS = {
   credential_change: { label: "Create or change a stored credential", roles: ["owner"] },
   owner_settings: { label: "Change an owner-only setting", roles: ["owner"] },
   global_pause: { label: "Turn the Kill Switch / Global Pause on or off", roles: ["owner"] },
+  code_hard_cap: { label: "Mark or un-mark the CODE provider hard cap as verified", roles: ["owner"] },
   production_deploy: { label: "Production deployment", roles: ["owner"] },
   privilege_escalation: { label: "Grant or raise a permission", roles: ["owner", "admin"] },
   building_control: { label: "Physical building controls", roles: ["owner"], unavailable: "Future integration; not authorized or connected" },
@@ -42,8 +43,15 @@ const RECENT_TARGET_PREFIXES = ["repository_resync:", "github_repo:"] as const;
 /** Sensitive-but-routine owner actions share the short grace window after a real passkey check. */
 export const GRACE_ACTIONS = ["global_pause", "autonomy_toggle", "credential_change", "owner_settings"] as const;
 export function recentEligible(action: string, target: string): boolean {
+  if ((FRESH_ONLY_ACTIONS as readonly string[]).includes(action)) return false;
   if ((GRACE_ACTIONS as readonly string[]).includes(action)) return target.length > 0;
   return action === "approve_integration" && RECENT_TARGET_PREFIXES.some((p) => target.startsWith(p));
+}
+/** Actions that always need a new device ceremony: never grace-eligible, and reused grants are refused. */
+export const FRESH_ONLY_ACTIONS = ["code_hard_cap"] as const;
+/** A grant minted by recent-verification reuse carries a "recent:" credential and is not fresh. */
+export function grantIsFresh(g: { credential_id?: string | null } | null): boolean {
+  return !!g && typeof g.credential_id === "string" && g.credential_id.length > 0 && !g.credential_id.startsWith("recent:");
 }
 /** True when the user's latest ceremony-backed grant is recent and its passkey is still registered. */
 export function recentVerificationValid(last: { created_at: string; recent?: boolean } | null, keyStillRegistered: boolean, now = Date.now()): boolean {
