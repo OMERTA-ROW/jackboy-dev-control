@@ -16,6 +16,7 @@ vi.mock("@/lib/code-safety.functions", () => ({
   setCodeHardCapVerified: mocks.setHardCap,
   enableCodeRuntime: mocks.enable,
 }));
+vi.mock("@/components/ReadinessChecks", () => ({ ReadinessChecks: () => null }));
 vi.mock("@/lib/step-up-client", () => ({ useStepUp: () => mocks.stepUp }));
 import { ActivationPanel, type ActivationState } from "@/components/ActivationPanel";
 import { CODE_ENABLE_TARGET } from "@/lib/code-safety";
