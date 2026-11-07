@@ -33,7 +33,7 @@ export function PasskeyPromptHost() {
   useEffect(() => { settled.current = false; if (job) void prepare(job); }, [job]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Must run straight from the tap: the browser call is the first thing that happens.
-  const usePasskey = async () => {
+  const confirmWithDevice = async () => {
     const j = job, p = prepared.current;
     if (!j || !p) return;
     setPhase("device"); setMessage("");
@@ -80,7 +80,7 @@ export function PasskeyPromptHost() {
         </div>
         <DialogFooter className="gap-2">
           <Button variant="ghost" disabled={busy || phase === "success"} onClick={cancel}>Cancel</Button>
-          {phase === "ready" && <Button autoFocus onClick={() => void usePasskey()}><Fingerprint aria-hidden />Use passkey</Button>}
+          {phase === "ready" && <Button autoFocus onClick={() => void confirmWithDevice()}><Fingerprint aria-hidden />Use passkey</Button>}
           {phase === "error" && job && <Button onClick={() => void prepare(job)}>Try again</Button>}
         </DialogFooter>
       </DialogContent>
