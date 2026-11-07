@@ -6,6 +6,7 @@
 - [x] Phase 2: Settings → "steps that can skip approval" per project, saved with a fresh passkey; the five never-skip types locked.
 - [ ] Try a checkpoint with your passkey on the live site — needs publish and the Kill Switch off (owner only).
 - [ ] Phase 3 (outside websites) — blocked until the owner picks a browser service.
+- [ ] Two CODE approval lanes (automatic for low-risk, reviewed otherwise) — plan written; waiting on owner approval and GitHub environment setup by the owner.
 
 ## Add project to CODE (Nov 7, 05:30 UTC)
 - [x] "Add to CODE" card on each project page (checklist, Prepare = draft PR with the approved workflow files, Approve and activate with passkey, Remove) and a CODE sites list in Settings. Web (bun/npm) and Go workflow versions. 630 app tests + 8 isolated database tests pass; preview shows the Hercules checklist, nothing pressed.
