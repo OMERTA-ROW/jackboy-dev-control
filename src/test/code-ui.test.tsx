@@ -12,7 +12,7 @@ describe("CODE in-chat approvals", () => {
     const t = tasks(); render(<CodeTasks tasks={t} />);
     expect(screen.getByText(/Fix footer/)).toBeInTheDocument();
     expect(screen.getByText(/Permissions: Open a draft PR/)).toBeInTheDocument();
-    expect(screen.getByText(/Configured task spend reservation: up to \$1\.00/)).toBeInTheDocument();
+    expect(screen.getByText(/Configured task spend reservation at request creation: up to \$1\.00/)).toBeInTheDocument();
     expect(screen.getByText(/not a cost forecast or daily-cap guarantee/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Allow once" }));
     expect(t.act).toHaveBeenCalledWith("decide", card, "allow");
