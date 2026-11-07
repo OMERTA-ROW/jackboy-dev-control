@@ -63,7 +63,7 @@ export function PasskeyPromptHost() {
       prepared.current = p; setMethod(m); enter("ready");
       // If the tap that opened this window still counts as a fresh tap, go straight to the device sheet.
       const activation = (navigator as Navigator & { userActivation?: { isActive: boolean } }).userActivation;
-      if (activation?.isActive) void confirmWithDevice(true, m);
+      if (activation?.isActive) void confirmWithDevice(true, m, j);
     } catch (e) {
       if (my !== run.current) return;
       fail(j, (e as Error).message || "Couldn't start the passkey check.");
@@ -73,9 +73,8 @@ export function PasskeyPromptHost() {
   useEffect(() => { settled.current = false; setHidden(false); if (job) void prepare(job); }, [job]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Must run straight from the tap: the browser call is the first thing that happens.
-  const confirmWithDevice = async (auto = false, m: PasskeyMethod | null = method) => {
-    const j = job ?? null, p = prepared.current;
-    const current = j ?? (await new Promise<ActiveJob | null>((r) => subscribePasskeyJob((x) => r(x))()));
+  const confirmWithDevice = async (auto = false, m: PasskeyMethod | null = method, current: ActiveJob | null = job) => {
+    const p = prepared.current;
     if (!current || !p) return;
     const my = ++run.current;
     enter("device");
