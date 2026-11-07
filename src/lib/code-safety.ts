@@ -110,7 +110,7 @@ export type CodeEnableInput = {
   globalPaused: boolean | null;
   /** Database pin, CODE_TARGETS and live GitHub workflow all match; null when unverified. */
   pinsMatch: boolean | null;
-  /** CODE_PROVIDER_API_KEY present, CODE_GATEWAY_PRICES parses, per-call cap valid (names/format only). */
+  /** Provider key present, CODE_GATEWAY_PRICES parses, per-call cap valid (names/format only). */
   gatewayConfigured: boolean;
   /** OPENAI_ADMIN_KEY, OPENAI_CODE_PROJECT_ID, OPENAI_CODE_API_KEY_ID present (names only). */
   costCheckConfigured: boolean;

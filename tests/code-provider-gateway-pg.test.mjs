@@ -36,10 +36,10 @@ const owner = randomUUID();
 let keySeq = 0;
 const key = () => `call${String(++keySeq).padStart(8, "0")}`;
 
-async function setup({ reserved = 2, run = true } = {}) {
+async function setup({ reserved = 2, run = true, through } = {}) {
   const db = await openDb();
   await db.exec(supabaseStubs);
-  await replay(db);
+  await replay(db, through ? { through } : {});
   await db.query("INSERT INTO auth.users(id, email) VALUES ($1, 'o@example.test')", [owner]);
   await db.query("INSERT INTO public.user_roles(user_id, role) VALUES ($1, 'owner')", [owner]);
   const id = randomUUID();
@@ -400,7 +400,7 @@ test(
   "the 0037 hard-cap CHECK is untouched and 0042 cannot mark the cap verified",
   { skip: skipNoPg },
   async () => {
-    const { db } = await setup();
+    const { db } = await setup({ through: "0045" });
     try {
       await assert.rejects(
         db.query("UPDATE public.code_runtime_controls SET provider_hard_cap_verified = true"),

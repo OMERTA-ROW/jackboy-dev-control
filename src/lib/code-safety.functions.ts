@@ -148,7 +148,8 @@ export const setCodeHardCapVerified = createServerFn({ method: "POST" })
 
 /** Names/format only: never returns or logs a secret value. */
 async function gatewaySettingsPresent(): Promise<boolean> {
-  if (!process.env["CODE_PROVIDER_API_KEY"]) return false;
+  const { codeGatewayProviderKeyPresent } = await import("./code-gateway.server");
+  if (!codeGatewayProviderKeyPresent()) return false;
   const cap = Number(process.env["CODE_GATEWAY_PER_CALL_CAP_USD"]);
   if (!Number.isFinite(cap) || cap <= 0 || cap > 5) return false;
   try {

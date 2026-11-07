@@ -9,10 +9,10 @@ after(closeAdmin);
 const owner = randomUUID();
 const stranger = randomUUID();
 
-async function setup() {
+async function setup({ through } = {}) {
   const db = await openDb();
   await db.exec(supabaseStubs);
-  await replay(db);
+  await replay(db, through ? { through } : {});
   await db.query(
     "INSERT INTO auth.users(id, email) VALUES ($1, 'o@example.test'), ($2, 's@example.test')",
     [owner, stranger],
@@ -343,7 +343,7 @@ test(
   "a released hold stops counting; the 0037 hard-cap CHECK stays intact and 0041 rollback/re-apply works",
   { skip: skipNoPg },
   async () => {
-    const db = await setup();
+    const db = await setup({ through: "0045" });
     try {
       const id = await hold(db, { from: [3, 5], to: [3, 6] });
       const open = () =>
