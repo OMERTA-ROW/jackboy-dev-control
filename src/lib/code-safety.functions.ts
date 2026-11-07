@@ -146,6 +146,18 @@ export const setCodeHardCapVerified = createServerFn({ method: "POST" })
     };
   });
 
+/** Readiness Test for the provider gateway: settings check plus a free model-visibility read
+ * (no model is run). Result is appended to the site log; nothing is turned on. */
+export const testCodeProviderGateway = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await requireOwner(context);
+    const { probeProviderAccess } = await import("./code-gateway.server");
+    const probe = await probeProviderAccess();
+    const { recordReadinessTest } = await import("./readiness.server");
+    return recordReadinessTest("provider_gateway", { status: probe.ok ? "PASS" : "BLOCKED", reason: probe.reason }, context.userId);
+  });
+
 /** Names/format only: never returns or logs a secret value. */
 async function gatewaySettingsPresent(): Promise<boolean> {
   const { codeGatewayProviderKeyPresent } = await import("./code-gateway.server");
