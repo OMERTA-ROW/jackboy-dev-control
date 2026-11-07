@@ -214,18 +214,17 @@ export function CodeSafetyPanel() {
           </dl>
           {(() => {
             const marking = !settings.providerBudgetEnforced;
-            const blocked = hardCapChangeBlockReason({
-              verified: marking,
-              evidence: capNote,
-              current: {
-                enabled: settings.enabled,
-                killSwitch: settings.killSwitch,
-                activeRequestId: settings.activeRequestId,
-                activeRunId: settings.activeRunId,
-                providerBudgetEnforced: settings.providerBudgetEnforced,
-                totalSpendGuard: settings.totalSpendGuard,
-              },
-            });
+            const current = {
+              enabled: settings.enabled,
+              killSwitch: settings.killSwitch,
+              activeRequestId: settings.activeRequestId,
+              activeRunId: settings.activeRunId,
+              providerBudgetEnforced: settings.providerBudgetEnforced,
+              totalSpendGuard: settings.totalSpendGuard,
+            };
+            const blocked = hardCapChangeBlockReason({ verified: marking, evidence: capNote, current });
+            // State reasons (CODE on, stop off, guard missing) show even before a note is typed.
+            const stateBlocked = hardCapChangeBlockReason({ verified: marking, evidence: "evidence-ok", current });
             return (
               <div className="mt-3 rounded-md border border-border p-3" aria-labelledby="hard-cap-heading">
                 <p id="hard-cap-heading" className="text-sm font-medium">
@@ -248,11 +247,8 @@ export function CodeSafetyPanel() {
                   onChange={(event) => setCapNote(event.target.value)}
                   className="mt-1 w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
                 />
-                {blocked && capNote.trim().length > 0 && (
-                  <p className="mt-1 text-xs text-warning">{blocked}</p>
-                )}
-                {blocked && capNote.trim().length === 0 && !blocked.startsWith("Write") && (
-                  <p className="mt-1 text-xs text-warning">{blocked}</p>
+                {blocked && (capNote.trim().length > 0 || stateBlocked) && (
+                  <p className="mt-1 text-xs text-warning">{stateBlocked ?? blocked}</p>
                 )}
                 <Button variant="outline" size="sm" className="mt-2"
                   disabled={busy || blocked !== null}
