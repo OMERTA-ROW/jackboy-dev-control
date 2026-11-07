@@ -49,7 +49,7 @@ export function CodeUndoButton({ requestId, initial }: { requestId: string; init
   return (
     <span className="inline-flex flex-col gap-1 text-xs">
       {u && u.status !== "failed" ? (
-        <span role="status" className={u.status === "done" ? "text-emerald" : u.status === "refused" ? "text-destructive" : "text-muted-foreground"}>
+        <span role="status" className={u.status === "done" ? "text-success" : u.status === "refused" ? "text-destructive" : "text-muted-foreground"}>
           {STATUS_TEXT[u.status] ?? u.status}{u.detail ? ` ${u.detail}` : ""}
           {u.revertPrUrl && <> <a href={u.revertPrUrl} target="_blank" rel="noopener noreferrer" className="text-electric underline">Revert PR</a></>}
           {u.status === "done" && u.republishNeeded && <> Republish the site if this change was live.</>}

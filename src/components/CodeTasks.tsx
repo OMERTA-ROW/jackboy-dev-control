@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { codeVoiceDecision, parseCodeCommand, type CodeCard } from "@/lib/code";
+import { CodeUndoButton } from "./CodeUndoButton";
 
 async function call(body?: unknown, id?: string): Promise<CodeCard> {
   const { data } = await supabase.auth.getSession();
@@ -119,6 +120,7 @@ export function CodeTasks({ tasks }: { tasks: ReturnType<typeof useCodeTasks> })
           <a href={`/project/${encodeURIComponent(card.projectId)}`} className="text-electric underline">Project</a>
           {card.run && <a href={card.run.url} target="_blank" rel="noopener noreferrer" className="text-electric underline">Progress and logs</a>}
           {card.run?.pr && <a href={card.run.pr} target="_blank" rel="noopener noreferrer" className="text-electric underline">Review draft PR</a>}
+          {card.run?.pr && <CodeUndoButton requestId={card.id} />}
           {card.run?.downloads.map(d => <a key={d.url} href={d.url} target="_blank" rel="noopener noreferrer" className="text-electric underline">Download {d.name}</a>)}
           <button type="button" onClick={() => void tasks.refresh(card)} className="underline">Refresh</button>
           {card.run && !terminal && <button type="button" disabled={tasks.busy} onClick={() => void tasks.act("cancel", card)} className="text-destructive underline">Cancel job</button>}

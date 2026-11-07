@@ -50,6 +50,7 @@ export const ADVANCED = [
   ] },
   { group: "Account & records", items: [
     { to: "/overview", label: "Advanced overview", note: "Previous dashboard with all counts" },
+    { to: "/reports", label: "Reports, alerts & Undo", note: "Morning report, phone alerts, and one-press Undo for CODE changes" },
     { to: "/site-log", label: "Site Log & Research", note: "Permanent log, export, report delivery, code research" },
     { to: "/activity", label: "Logs & Approvals", note: "Audit trail" },
     { to: "/autoconnect", label: "AutoConnect", note: "Approve & connect missing tools per project; resumes waiting work" },
