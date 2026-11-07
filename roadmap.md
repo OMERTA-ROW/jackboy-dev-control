@@ -1,5 +1,14 @@
 # Jackboy roadmap
 
+## Autonomy master brief (Nov 7, 16:16 UTC)
+- [x] Audit: switches vs real runs vs GitHub CODE gates (docs/AUTONOMY-AUDIT-2026-11-07.md).
+- [x] Kill Switch now stops every background and owner-started work path (was only Task Mode + CODE).
+- [x] Settings → "What's really running" panel (read-only, live, refreshes every minute).
+- [ ] Turn the hourly job, fix writer and site monitor schedules back on — needs owner OK (they are off; switching them on starts unattended work).
+- [ ] Clear the old "Not enough credits" hold (Updates → Resume schedule) — owner choice.
+- [ ] Classic View / Assist overlay — removed earlier at owner request; rebuild only if the owner confirms.
+- [ ] OMNI link, Razul feed, JAX distribution — blocked on live OMNI link / Razul credentials / payments, unchanged.
+
 ## Task Mode (Nov 7, 05:30 UTC)
 - [x] Plan approved.
 - [x] Phase 1: Tasks page (draft steps → review → Start → live feed → passkey checkpoints → Stop/Retry), chat can draft tasks, hourly job keeps running tasks moving. Preview: a 4-step task drafted, started, and stopped correctly because the Kill Switch is on.
