@@ -116,6 +116,12 @@ test("staged 0049 installs without turning anything on, and only the service rol
 
 test("staged 0049 refuses to install while CODE is on", async () => {
   const db = await clone(base);
+  const applied = (await db.query("SELECT to_regprocedure('public.code_spend_meter_status()') IS NOT NULL AS ok")).rows[0].ok;
+  if (applied) {
+    // Already installed: the gate it added now refuses the raw switch-on that the install check guarded against.
+    await assert.rejects(db.query("UPDATE public.code_runtime_controls SET enabled = true, kill_switch = false"), /enable_code_runtime/);
+    return;
+  }
   await db.query("UPDATE public.code_runtime_controls SET enabled = true, kill_switch = false");
   await assert.rejects(db.exec(await staged("0049_code_spend_meter_and_activation.sql")), /must be off/);
 });
