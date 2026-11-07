@@ -11,6 +11,7 @@ vi.mock("@tanstack/react-start", () => ({ useServerFn: (fn: unknown) => fn }));
 vi.mock("@/lib/code-safety.functions", () => ({
   engageCodeKillSwitch: mocks.stop,
   resumeJackboyWork: mocks.resume,
+    stopJackboyWork: mocks.pauseAll,
   setCodeHardCapVerified: mocks.setHardCap,
   enableCodeRuntime: mocks.enable,
 }));
@@ -94,7 +95,7 @@ it("the global pause step asks for the passkey bound to the off action", async (
       run={run}
     />,
   );
-  fireEvent.click(screen.getByRole("button", { name: "Turn global pause off with passkey" }));
+  fireEvent.click(screen.getByRole("button", { name: "Turn Kill Switch off with passkey" }));
   await waitFor(() => expect(mocks.resume).toHaveBeenCalledWith({ data: { grantId: GRANT } }));
   expect(mocks.stepUp).toHaveBeenCalledWith("global_pause", "global_pause:off");
 });
@@ -149,12 +150,12 @@ it("walkthrough starts only on press, shows one step, and advances after a fresh
   fireEvent.click(screen.getByRole("button", { name: "Start activation" }));
   expect(screen.getByText("Step 4 of 7")).toBeInTheDocument();
   expect(screen.getByRole("heading", { name: "Provider hard cap confirmed" })).toBeInTheDocument();
-  expect(screen.queryByRole("heading", { name: "Global pause off" })).toBeNull();
+  expect(screen.queryByRole("heading", { name: "Kill Switch off" })).toBeNull();
   // Server read now says the hard cap is marked: the next step appears, nothing is called.
   rerender(<ActivationPanel state={OFF} gates={gates(["global_pause"])} gatesError={null} busy={false} run={run} />);
   expect(await screen.findByText("Step 4 done: Provider hard cap confirmed.")).toBeInTheDocument();
   expect(screen.getByText("Step 6 of 7")).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Turn global pause off with passkey" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Turn Kill Switch off with passkey" })).toBeInTheDocument();
   expect(mocks.stepUp).not.toHaveBeenCalled();
   expect(mocks.resume).not.toHaveBeenCalled();
   expect(mocks.enable).not.toHaveBeenCalled();
