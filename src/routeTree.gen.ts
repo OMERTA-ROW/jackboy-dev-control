@@ -70,6 +70,7 @@ import { Route as ApiPublicJobsSiteMonitorRouteImport } from './routes/api/publi
 import { Route as ApiPublicJobsUpdateWriterRouteImport } from './routes/api/public/jobs/update-writer'
 import { Route as ApiPublicOmniCallbackRouteImport } from './routes/api/public/omni/callback'
 import { Route as ApiPublicOmniLinkRouteImport } from './routes/api/public/omni/link'
+import { Route as ApiPublicOmniRunnerRouteImport } from './routes/api/public/omni/runner'
 import { Route as ApiPublicUpdatesCheckRouteImport } from './routes/api/public/updates/check'
 import { Route as ApiPublicUpdatesFlagsRouteImport } from './routes/api/public/updates/flags'
 import { Route as ApiPublicUpdatesHealthRouteImport } from './routes/api/public/updates/health'
@@ -390,6 +391,11 @@ const ApiPublicOmniLinkRoute = ApiPublicOmniLinkRouteImport.update({
   path: '/api/public/omni/link',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicOmniRunnerRoute = ApiPublicOmniRunnerRouteImport.update({
+  id: '/api/public/omni/runner',
+  path: '/api/public/omni/runner',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicUpdatesCheckRoute = ApiPublicUpdatesCheckRouteImport.update({
   id: '/api/public/updates/check',
   path: '/api/public/updates/check',
@@ -491,6 +497,7 @@ export interface FileRoutesByFullPath {
   '/api/public/jobs/update-writer': typeof ApiPublicJobsUpdateWriterRoute
   '/api/public/omni/callback': typeof ApiPublicOmniCallbackRoute
   '/api/public/omni/link': typeof ApiPublicOmniLinkRoute
+  '/api/public/omni/runner': typeof ApiPublicOmniRunnerRoute
   '/api/public/updates/check': typeof ApiPublicUpdatesCheckRoute
   '/api/public/updates/flags': typeof ApiPublicUpdatesFlagsRoute
   '/api/public/updates/health': typeof ApiPublicUpdatesHealthRoute
@@ -560,6 +567,7 @@ export interface FileRoutesByTo {
   '/api/public/jobs/update-writer': typeof ApiPublicJobsUpdateWriterRoute
   '/api/public/omni/callback': typeof ApiPublicOmniCallbackRoute
   '/api/public/omni/link': typeof ApiPublicOmniLinkRoute
+  '/api/public/omni/runner': typeof ApiPublicOmniRunnerRoute
   '/api/public/updates/check': typeof ApiPublicUpdatesCheckRoute
   '/api/public/updates/flags': typeof ApiPublicUpdatesFlagsRoute
   '/api/public/updates/health': typeof ApiPublicUpdatesHealthRoute
@@ -631,6 +639,7 @@ export interface FileRoutesById {
   '/api/public/jobs/update-writer': typeof ApiPublicJobsUpdateWriterRoute
   '/api/public/omni/callback': typeof ApiPublicOmniCallbackRoute
   '/api/public/omni/link': typeof ApiPublicOmniLinkRoute
+  '/api/public/omni/runner': typeof ApiPublicOmniRunnerRoute
   '/api/public/updates/check': typeof ApiPublicUpdatesCheckRoute
   '/api/public/updates/flags': typeof ApiPublicUpdatesFlagsRoute
   '/api/public/updates/health': typeof ApiPublicUpdatesHealthRoute
@@ -702,6 +711,7 @@ export interface FileRouteTypes {
     | '/api/public/jobs/update-writer'
     | '/api/public/omni/callback'
     | '/api/public/omni/link'
+    | '/api/public/omni/runner'
     | '/api/public/updates/check'
     | '/api/public/updates/flags'
     | '/api/public/updates/health'
@@ -771,6 +781,7 @@ export interface FileRouteTypes {
     | '/api/public/jobs/update-writer'
     | '/api/public/omni/callback'
     | '/api/public/omni/link'
+    | '/api/public/omni/runner'
     | '/api/public/updates/check'
     | '/api/public/updates/flags'
     | '/api/public/updates/health'
@@ -841,6 +852,7 @@ export interface FileRouteTypes {
     | '/api/public/jobs/update-writer'
     | '/api/public/omni/callback'
     | '/api/public/omni/link'
+    | '/api/public/omni/runner'
     | '/api/public/updates/check'
     | '/api/public/updates/flags'
     | '/api/public/updates/health'
@@ -876,6 +888,7 @@ export interface RootRouteChildren {
   ApiPublicJobsUpdateWriterRoute: typeof ApiPublicJobsUpdateWriterRoute
   ApiPublicOmniCallbackRoute: typeof ApiPublicOmniCallbackRoute
   ApiPublicOmniLinkRoute: typeof ApiPublicOmniLinkRoute
+  ApiPublicOmniRunnerRoute: typeof ApiPublicOmniRunnerRoute
   ApiPublicUpdatesCheckRoute: typeof ApiPublicUpdatesCheckRoute
   ApiPublicUpdatesFlagsRoute: typeof ApiPublicUpdatesFlagsRoute
   ApiPublicUpdatesHealthRoute: typeof ApiPublicUpdatesHealthRoute
@@ -1314,6 +1327,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicOmniLinkRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/omni/runner': {
+      id: '/api/public/omni/runner'
+      path: '/api/public/omni/runner'
+      fullPath: '/api/public/omni/runner'
+      preLoaderRoute: typeof ApiPublicOmniRunnerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/updates/check': {
       id: '/api/public/updates/check'
       path: '/api/public/updates/check'
@@ -1473,6 +1493,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicJobsUpdateWriterRoute: ApiPublicJobsUpdateWriterRoute,
   ApiPublicOmniCallbackRoute: ApiPublicOmniCallbackRoute,
   ApiPublicOmniLinkRoute: ApiPublicOmniLinkRoute,
+  ApiPublicOmniRunnerRoute: ApiPublicOmniRunnerRoute,
   ApiPublicUpdatesCheckRoute: ApiPublicUpdatesCheckRoute,
   ApiPublicUpdatesFlagsRoute: ApiPublicUpdatesFlagsRoute,
   ApiPublicUpdatesHealthRoute: ApiPublicUpdatesHealthRoute,
