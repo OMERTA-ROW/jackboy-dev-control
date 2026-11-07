@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { activationProgress, activationSteps, codeIsOn } from "./activation-steps";
+import { activationProgress, activationSteps, codeIsOn, gateFix } from "./activation-steps";
 import type { CodeEnableGate } from "./code-safety";
 
 const IDS = [
@@ -62,5 +62,12 @@ describe("activation steps", () => {
     );
     expect(on).toEqual({ done: 7, total: 7, complete: true });
     expect(codeIsOn({ enabled: false, killSwitch: false })).toBe(false);
+  });
+});
+
+describe("gate fixes", () => {
+  it("every server gate has its own plain-words fix", () => {
+    const generic = gateFix("unknown-gate");
+    for (const id of IDS) expect(gateFix(id)).not.toBe(generic);
   });
 });

@@ -1,5 +1,5 @@
 import { useServerFn } from "@tanstack/react-start";
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Check, Circle, CircleDot, OctagonX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useStepUp } from "@/lib/step-up-client";
@@ -21,6 +21,7 @@ import {
   activationProgress,
   activationSteps,
   codeIsOn,
+  gateFix,
   type ActivationStep,
 } from "@/lib/activation-steps";
 
@@ -54,11 +55,47 @@ export function ActivationPanel({ state, gates, gatesError, busy, run, message, 
   const setHardCap = useServerFn(setCodeHardCapVerified);
   const enableCode = useServerFn(enableCodeRuntime);
   const [capNote, setCapNote] = useState("");
+  const [guided, setGuided] = useState(false);
+  const [justDone, setJustDone] = useState<string | null>(null);
+  const stepHeading = useRef<HTMLHeadingElement>(null);
+  const lastIndex = useRef<number | null>(null);
 
   const steps = gates && state ? activationSteps(gates, state) : null;
   const progress = steps ? activationProgress(steps) : null;
   const on = state ? codeIsOn(state) : false;
   const allGatesPass = !!gates && gates.every((gate) => gate.ok);
+  const currentIndex = steps ? steps.findIndex((step) => step.status !== "done") : -1;
+
+  // Auto-advance only moves what is shown: when a fresh server read marks the step done, the next one
+  // appears. It never presses a button; every change still needs the owner's own press and passkey.
+  const stepsRef = useRef(steps);
+  stepsRef.current = steps;
+  useEffect(() => {
+    const steps = stepsRef.current;
+    if (!guided || !steps) return;
+    const previous = lastIndex.current;
+    if (previous !== null && currentIndex !== previous) {
+      const finished = previous >= 0 ? steps[previous] : undefined;
+      setJustDone(
+        finished && finished.status === "done" && (currentIndex > previous || currentIndex === -1)
+          ? `Step ${previous + 1} done: ${finished.title}.`
+          : null,
+      );
+    }
+    lastIndex.current = currentIndex;
+    stepHeading.current?.focus();
+  }, [guided, currentIndex]);
+
+  const startGuide = () => {
+    lastIndex.current = null;
+    setJustDone(null);
+    setGuided(true);
+  };
+  const exitGuide = () => {
+    setGuided(false);
+    setJustDone(null);
+  };
+  const checkAgain = () => void run(async () => undefined);
 
   const emergencyStop = (
     <Button
@@ -251,6 +288,101 @@ export function ActivationPanel({ state, gates, gatesError, busy, run, message, 
     </ol>
   );
 
+  const guideStep = steps && currentIndex >= 0 ? steps[currentIndex] : null;
+  const guideAction = guideStep ? control(guideStep) : null;
+  const guide = (
+    <div className="mt-3 rounded-md border border-border p-4" aria-label="Activation walkthrough">
+      {justDone && (
+        <p role="status" className="mb-3 flex items-center gap-2 text-sm text-success">
+          <Check className="size-4" aria-hidden /> {justDone}
+        </p>
+      )}
+      {!justDone && steps && currentIndex > 0 && (
+        <p className="mb-3 flex items-center gap-2 text-sm text-success">
+          <Check className="size-4" aria-hidden />
+          {currentIndex === 1 ? "Step 1 is" : `Steps 1–${currentIndex} are`} already done.
+        </p>
+      )}
+      {!steps ? (
+        <p className="text-sm text-muted-foreground">Checking each step…</p>
+      ) : !guideStep ? (
+        <div>
+          <h3
+            ref={stepHeading}
+            tabIndex={-1}
+            className="text-base font-semibold text-success outline-none"
+          >
+            Activation complete
+          </h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            CODE is on. Each run still needs your approval in GitHub. The emergency stop above turns
+            it off at once.
+          </p>
+          <Button variant="outline" size="sm" className="mt-3" onClick={exitGuide}>
+            Close walkthrough
+          </Button>
+        </div>
+      ) : (
+        <div>
+          <p className="text-xs uppercase tracking-wider text-muted-foreground">
+            Step {currentIndex + 1} of {steps.length}
+          </p>
+          <div className="mt-1 h-1 w-full overflow-hidden rounded bg-muted" aria-hidden="true">
+            <div
+              className="h-full bg-primary"
+              style={{ width: `${(currentIndex / steps.length) * 100}%` }}
+            />
+          </div>
+          <h3 ref={stepHeading} tabIndex={-1} className="mt-3 text-base font-semibold outline-none">
+            {guideStep.title}
+          </h3>
+          <p className="mt-1 text-sm text-muted-foreground">{guideStep.hint}</p>
+          {(() => {
+            const failing = guideStep.gates.filter((gate) => !gate.ok);
+            const waitingOnYou =
+              guideStep.id === "hard_cap" ||
+              (guideStep.id === "global_pause" && guideAction !== null) ||
+              (guideStep.id === "turn_on" && failing.length === 0);
+            if (waitingOnYou)
+              return (
+                <p className="mt-3 text-sm">
+                  <span className="font-medium text-warning">Status: ready for you.</span>{" "}
+                  {guideStep.id === "turn_on"
+                    ? "Every check passes. Turning CODE on is your choice; nothing happens until you press."
+                    : gateFix(guideStep.gates[0]?.id ?? "")}
+                </p>
+              );
+            return (
+              <div className="mt-3 text-sm" role="alert">
+                <p className="font-medium text-warning">Status: blocked</p>
+                <ul className="mt-1 space-y-2">
+                  {failing.map((gate) => (
+                    <li key={gate.id}>
+                      <p>Why: {gate.detail || gate.label}</p>
+                      <p className="text-muted-foreground">How to fix: {gateFix(gate.id)}</p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            );
+          })()}
+          <div className="mt-3">
+            {guideAction ?? (
+              <Button variant="outline" size="sm" disabled={busy} onClick={checkAgain}>
+                Check again
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+      <div className="mt-4 border-t border-border pt-3">
+        <Button variant="ghost" size="sm" onClick={exitGuide}>
+          Exit walkthrough and show all steps
+        </Button>
+      </div>
+    </div>
+  );
+
   return (
     <section
       id="activation"
@@ -289,17 +421,24 @@ export function ActivationPanel({ state, gates, gatesError, busy, run, message, 
           {gatesError}
         </p>
       )}
-      {steps &&
-        (progress?.complete ? (
-          <details className="mt-3">
-            <summary className="cursor-pointer text-sm text-muted-foreground">
-              Show activation steps
-            </summary>
-            {stepList}
-          </details>
-        ) : (
-          stepList
-        ))}
+      {!guided && steps && !progress?.complete && (
+        <Button size="sm" className="mt-3" onClick={startGuide}>
+          Start activation
+        </Button>
+      )}
+      {guided
+        ? guide
+        : steps &&
+          (progress?.complete ? (
+            <details className="mt-3">
+              <summary className="cursor-pointer text-sm text-muted-foreground">
+                Show activation steps
+              </summary>
+              {stepList}
+            </details>
+          ) : (
+            stepList
+          ))}
       {evidence && (
         <details className="mt-3">
           <summary className="cursor-pointer text-xs text-muted-foreground">
