@@ -138,7 +138,7 @@ async function findRun(scope: CodeScope): Promise<Run | undefined> {
 }
 export async function getCode(id: string, userId: string): Promise<CodeCard> {
   const r = await row(id, userId), s = r.resources as unknown as CodeScope;
-  const card: CodeCard = { id: r.id, projectId: r.project_id!, repo: s.repo, instruction: s.instruction, status: r.status, expiresAt: r.expires_at, permissions: r.permissions, outcome: r.outcome, taskBudgetUsd: Number.isFinite(s.taskBudgetUsd) ? s.taskBudgetUsd : null };
+  const card: CodeCard = { id: r.id, projectId: r.project_id!, repo: s.repo, instruction: s.instruction, status: r.status, expiresAt: r.expires_at, permissions: r.permissions, outcome: r.outcome, taskBudgetUsd: typeof s.taskBudgetUsd === "number" && Number.isFinite(s.taskBudgetUsd) ? s.taskBudgetUsd : null };
   if (r.status !== "allowed") return card;
   const run = await findRun(s);
   if (!run) return { ...card, outcome: "Awaiting GitHub run registration. If dispatch was interrupted, reconcile here before requesting another job." };
