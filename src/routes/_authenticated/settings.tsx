@@ -40,7 +40,7 @@ export const ADVANCED = [
   { group: "Agents & partners", items: [
     { to: "/agents", label: "Agent Hub", note: "Registered Lovable projects, reports, keys" },
     { to: "/fleet", label: "Agent Fleet", note: "Capabilities and emergency pause" },
-    { to: "/omni", label: "OMNI", note: "Build task queue (not connected)" },
+    { to: "/omni", label: "OMNI", note: "Build task queue and OMNI link values for Railway (not connected)" },
     { to: "/jax", label: "JAX", note: "Not connected" },
     { to: "/razul", label: "RA'SUL", note: "Intelligence feed (not connected unless configured)" },
   ] },

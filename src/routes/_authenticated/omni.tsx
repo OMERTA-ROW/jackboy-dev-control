@@ -16,6 +16,7 @@ import {
 } from "@/lib/omni-handoff";
 import { getOmniQueue, requestOmniJob } from "@/lib/passport.functions";
 import { OmniLinkPanel } from "@/components/OmniLinkPanel";
+import { OmniLinkValuesPanel } from "@/components/OmniLinkValuesPanel";
 
 export const Route = createFileRoute("/_authenticated/omni")({
   head: () => ({
@@ -59,6 +60,7 @@ function OmniPage() {
         title="OMNI Handoffs"
         subtitle="Jackboy researches and evaluates. OMNI builds, tests and ships — only after you approve."
       />
+      <OmniLinkValuesPanel />
       <OmniLinkPanel />
       <GuidanceTip>
         Approve a handoff, then clear the provenance checklist. Publishing, pricing and selling stay locked until both
