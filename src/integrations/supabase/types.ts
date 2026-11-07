@@ -667,6 +667,7 @@ export type Database = {
           reconcile_grace_seconds: number
           singleton: boolean
           stop_requested_at: string | null
+          total_spend_limit_usd: number
           updated_at: string
           usage_spike: boolean
         }
@@ -688,6 +689,7 @@ export type Database = {
           reconcile_grace_seconds?: number
           singleton?: boolean
           stop_requested_at?: string | null
+          total_spend_limit_usd?: number
           updated_at?: string
           usage_spike?: boolean
         }
@@ -709,6 +711,7 @@ export type Database = {
           reconcile_grace_seconds?: number
           singleton?: boolean
           stop_requested_at?: string | null
+          total_spend_limit_usd?: number
           updated_at?: string
           usage_spike?: boolean
         }
@@ -1591,6 +1594,111 @@ export type Database = {
           verified_at?: string | null
         }
         Relationships: []
+      }
+      omni_dispatch_callback_nonces: {
+        Row: {
+          nonce: string
+          received_at: string
+        }
+        Insert: {
+          nonce: string
+          received_at?: string
+        }
+        Update: {
+          nonce?: string
+          received_at?: string
+        }
+        Relationships: []
+      }
+      omni_dispatch_grants: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          instructions: string
+          job_id: string
+          kind: string
+          owner_id: string
+          project_id: string
+          repo: string
+          revoked_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          id?: string
+          instructions: string
+          job_id: string
+          kind: string
+          owner_id: string
+          project_id: string
+          repo: string
+          revoked_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          instructions?: string
+          job_id?: string
+          kind?: string
+          owner_id?: string
+          project_id?: string
+          repo?: string
+          revoked_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "omni_dispatch_grants_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "omni_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "omni_dispatch_grants_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "agent_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      omni_dispatch_receipts: {
+        Row: {
+          grant_id: string
+          job_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          grant_id: string
+          job_id: string
+          status: string
+          updated_at?: string
+        }
+        Update: {
+          grant_id?: string
+          job_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "omni_dispatch_receipts_grant_id_fkey"
+            columns: ["grant_id"]
+            isOneToOne: false
+            referencedRelation: "omni_dispatch_grants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "omni_dispatch_receipts_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "omni_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       omni_inbound_jobs: {
         Row: {
@@ -2798,6 +2906,9 @@ export type Database = {
         Args: { p_request_id: string }
         Returns: number
       }
+      code_total_spend_committed: { Args: never; Returns: number }
+      code_total_spend_guard_enforced: { Args: never; Returns: boolean }
+      code_total_spend_guard_status: { Args: never; Returns: Json }
       create_invitation: {
         Args: { _email: string; _role: Database["public"]["Enums"]["app_role"] }
         Returns: string
@@ -2839,6 +2950,33 @@ export type Database = {
         Returns: undefined
       }
       my_role: { Args: never; Returns: Database["public"]["Enums"]["app_role"] }
+      omni_dispatch_callback_record: {
+        Args: {
+          _grant: string
+          _job: string
+          _nonce: string
+          _owner: string
+          _project: string
+          _repo: string
+          _status: string
+        }
+        Returns: Json
+      }
+      omni_dispatch_grant_action: {
+        Args: { _actor: string; _grant: string; _job: string; _op: string }
+        Returns: Json
+      }
+      omni_dispatch_issue_reviewed: {
+        Args: {
+          _actor: string
+          _instructions: string
+          _job: string
+          _project: string
+          _repo: string
+          _step: string
+        }
+        Returns: Json
+      }
       omni_link_action: { Args: { _a: Json; _op: string }; Returns: Json }
       reconcile_code_provider_day: {
         Args: { p_actor: string; p_day: string; p_tolerance_usd?: number }
@@ -2893,6 +3031,10 @@ export type Database = {
           _tier: number
         }
         Returns: undefined
+      }
+      set_code_provider_hard_cap_verified: {
+        Args: { p_actor: string; p_evidence: string; p_verified: boolean }
+        Returns: Json
       }
       set_jax_enrollment: {
         Args: { _enroll: boolean; _id: string; _purpose: string }

@@ -25,7 +25,11 @@ vi.mock("./code-runner-auth.server", () => ({
   verifyWorkflowRun: mocks.workflow,
 }));
 
-import { handleCodeProviderRequest, productionGatewayDeps } from "./code-gateway.server";
+import {
+  codeGatewayProviderKeyPresent,
+  handleCodeProviderRequest,
+  productionGatewayDeps,
+} from "./code-gateway.server";
 
 const id = "11111111-1111-4111-8111-111111111111";
 const sha = "a".repeat(40);
@@ -59,6 +63,12 @@ afterEach(() => {
 });
 
 describe("production gateway authorization wiring (no external requests)", () => {
+  it("reports only whether the gateway credential exists", () => {
+    vi.stubEnv("CODE_PROVIDER_API_KEY", "");
+    expect(codeGatewayProviderKeyPresent()).toBe(false);
+    vi.stubEnv("CODE_PROVIDER_API_KEY", "synthetic-server-only");
+    expect(codeGatewayProviderKeyPresent()).toBe(true);
+  });
   it("binds the Codex endpoint query to the approved repository, workflow and run", async () => {
     expect(await productionGatewayDeps().authenticate(request())).toEqual({
       requestId: id,

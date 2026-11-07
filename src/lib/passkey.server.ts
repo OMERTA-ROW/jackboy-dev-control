@@ -1,6 +1,6 @@
 // Server-only WebAuthn ceremonies and single-use step-up grants.
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { CHALLENGE_TTL_MS, GRANT_TTL_MS, grantUsable } from "./step-up";
+import { CHALLENGE_TTL_MS, GRANT_TTL_MS, grantIsFresh, grantUsable } from "./step-up";
 import { passkeyOrigin } from "./passkey-origin";
 
 export function rp(request: Request) {
@@ -29,7 +29,7 @@ export async function issueGrant(userId: string, action: string, target: string,
 }
 
 /** Consume a grant exactly once for this user/action/target. Throws if missing, used, expired or mismatched. */
-export async function consumeGrant(grantId: string | undefined, userId: string, action: string, target: string) {
+export async function consumeGrant(grantId: string | undefined, userId: string, action: string, target: string, opts: { requireFresh?: boolean } = {}) {
   const deny = async (why: string) => {
     await supabaseAdmin.from("audit_logs").insert({ actor: userId, action: "stepup.denied", detail: { action, target, why } as never, outcome: "denied" });
     throw new Error(`Passkey confirmation required: ${why}`);
@@ -37,6 +37,7 @@ export async function consumeGrant(grantId: string | undefined, userId: string, 
   if (!grantId) return deny("no passkey confirmation for this action");
   const { data: g } = await supabaseAdmin.from("step_up_grants").select("*").eq("id", grantId).maybeSingle();
   if (!grantUsable(g, userId, action, target)) return deny("confirmation is missing, expired, used, or for a different action");
+  if (opts.requireFresh && !grantIsFresh(g)) return deny("this action needs a new passkey check, not a recent one");
   const { data: used } = await supabaseAdmin.from("step_up_grants").update({ used_at: new Date().toISOString() }).eq("id", grantId).is("used_at", null).select("id").maybeSingle();
   if (!used) return deny("confirmation was already used");
 }

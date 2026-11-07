@@ -30,7 +30,8 @@ async function project(id: string) {
   const p = r.data;
   const target = (await targets())[p.github_repo!];
   if (!target || !/^[\w./-]{1,100}$/.test(target.ref) || !/^[a-f0-9]{40}$/.test(target.workflowSha)) throw new Error("CODE is blocked: the owner must approve a runner ref and workflow blob SHA for this repository.");
-  const safetyBlock = await codeSafetyBlockReason(p.github_repo!);
+  // Re-measure the live gateway ledger first: only the meter can stamp the 5-minute freshness.
+  const safetyBlock = await codeSafetyBlockReason(p.github_repo!, Date.now(), { refreshMeter: true });
   if (safetyBlock) throw new Error(safetyBlock);
   const revision = await gh<{ sha: string }>(
     p.github_repo!,
@@ -58,7 +59,7 @@ export async function codeCapability(): Promise<{ verified: boolean; detail: str
     const state = await getCodeSafetyState();
     if (!state.enabled || state.killSwitch) return { verified: false, detail: "CODE supervised execution is disabled or the emergency kill switch is engaged." };
     const blocked = Object.keys(state.allowedTargets)[0]
-      ? await codeSafetyBlockReason(Object.keys(state.allowedTargets)[0]!)
+      ? await codeSafetyBlockReason(Object.keys(state.allowedTargets)[0]!, Date.now(), { refreshMeter: true })
       : "CODE has no owner-approved repository allowlist.";
     if (blocked) return { verified: false, detail: blocked };
   } catch {

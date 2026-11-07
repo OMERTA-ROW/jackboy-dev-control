@@ -1,5 +1,6 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { skipNoPg, openDb, supabaseStubs, replay, closeAdmin } from "./helpers/staging-pg.mjs";
 
@@ -19,7 +20,7 @@ const fingerprint = async (db) =>
   ).rows;
 
 test(
-  "local-only staging SQL refuses real PostgreSQL without changing the cap constraint",
+  "local-only staging SQL refuses real PostgreSQL without changing the hard-cap gate",
   { skip: skipNoPg },
   async () => {
     const db = await openDb();
@@ -34,7 +35,12 @@ test(
       }
       await assert.rejects(
         db.query("UPDATE public.code_runtime_controls SET provider_hard_cap_verified = true"),
-        /check constraint/i,
+        /only be set by set_code_provider_hard_cap_verified/,
+      );
+      assert.equal(
+        (await db.query("SELECT provider_hard_cap_verified FROM public.code_runtime_controls")).rows[0]
+          .provider_hard_cap_verified,
+        false,
       );
     } finally {
       await db.close();
@@ -43,7 +49,50 @@ test(
 );
 
 test(
-  "an empty database replays the full chain through scoped dispatch (fresh install)",
+  "the full-chain hard-cap gate requires an owner, an intact guard, and a stopped runtime",
+  { skip: skipNoPg },
+  async () => {
+    const db = await openDb();
+    try {
+      await db.exec(supabaseStubs);
+      await replay(db);
+      const owner = randomUUID();
+      const stranger = randomUUID();
+      await db.query("INSERT INTO auth.users(id) VALUES ($1), ($2)", [owner, stranger]);
+      await db.query("INSERT INTO public.user_roles(user_id, role) VALUES ($1, 'owner')", [owner]);
+      const attest = (actor) =>
+        db.query("SELECT public.set_code_provider_hard_cap_verified($1, true, $2)", [
+          actor,
+          "Reviewed guard evidence for test",
+        ]);
+      await assert.rejects(attest(stranger), /Only the owner/);
+      await db.query("UPDATE public.code_runtime_controls SET kill_switch = false");
+      await assert.rejects(attest(owner), /disabled and stopped/);
+      await db.query("UPDATE public.code_runtime_controls SET kill_switch = true");
+      await db.exec("ALTER TABLE public.code_usage_events DISABLE TRIGGER code_usage_events_total_guard");
+      await assert.rejects(attest(owner), /not enforced/);
+      await db.exec("ALTER TABLE public.code_usage_events ENABLE TRIGGER code_usage_events_total_guard");
+      await attest(owner);
+      const { rows } = await db.query(`
+        SELECT provider_hard_cap_verified, enabled, kill_switch,
+               (SELECT count(*)::int FROM public.audit_logs WHERE action = 'code.hard_cap_verified') AS audits,
+               has_function_privilege('authenticated', 'public.set_code_provider_hard_cap_verified(uuid,boolean,text)', 'EXECUTE') AS auth_can_attest
+        FROM public.code_runtime_controls`);
+      assert.deepEqual(rows[0], {
+        provider_hard_cap_verified: true,
+        enabled: false,
+        kill_switch: true,
+        audits: 1,
+        auth_can_attest: false,
+      });
+    } finally {
+      await db.close();
+    }
+  },
+);
+
+test(
+  "an empty database replays the full chain through the hard-cap gate (fresh install)",
   { skip: skipNoPg },
   async () => {
     const db = await openDb();
@@ -52,7 +101,8 @@ test(
       const applied = await replay(db);
       assert.ok(applied.includes(baseline));
       assert.ok(applied.includes("0042_code_provider_gateway.sql"));
-      assert.equal(applied.at(-1), "0045_omni_dispatch_grants.sql");
+      assert.ok(applied.includes("0045_omni_dispatch_grants.sql"));
+      assert.equal(applied.at(-1), "0047_code_hard_cap_gate.sql");
       assert.ok(applied.indexOf(baseline) > applied.indexOf("0030_omni_sessions.sql"));
       assert.ok(
         applied.indexOf(baseline) < applied.indexOf("0031_repository_resync_drift_removals.sql"),
@@ -77,13 +127,19 @@ test(
         )
       ).rows[0].d;
       assert.doesNotMatch(body, /placeholder/);
-      const cap = await db.query(
-        "SELECT count(*)::int AS n FROM pg_constraint WHERE conname = 'code_runtime_controls_provider_hard_cap_verified_check'",
-      );
-      assert.equal(cap.rows[0].n, 1, "0037 hard-cap CHECK present after full replay");
+      const cap = await db.query(`
+        SELECT provider_hard_cap_verified, enabled, kill_switch,
+               public.code_total_spend_guard_enforced() AS guard_enforced
+        FROM public.code_runtime_controls`);
+      assert.deepEqual(cap.rows[0], {
+        provider_hard_cap_verified: false,
+        enabled: false,
+        kill_switch: true,
+        guard_enforced: true,
+      });
       await assert.rejects(
         db.query("UPDATE public.code_runtime_controls SET provider_hard_cap_verified = true"),
-        /check constraint/i,
+        /only be set by set_code_provider_hard_cap_verified/,
       );
     } finally {
       await db.close();
@@ -213,13 +269,19 @@ test(
 );
 
 test(
-  "rollback of 0042, 0041 then 0040 on the full chain restores 0037 and the chain re-applies",
+  "rolling back the cap gate and guard before 0042, 0041 and 0040 restores 0037",
   { skip: skipNoPg },
   async () => {
     const db = await openDb();
     try {
       await db.exec(supabaseStubs);
       await replay(db);
+      await db.exec(
+        await readFile("staging/code-activation/0048_code_hard_cap_gate.down.sql", "utf8"),
+      );
+      await db.exec(
+        await readFile("staging/code-activation/0047_code_total_spend_guard.down.sql", "utf8"),
+      );
       await db.exec(
         await readFile("drizzle/rollbacks/0042_code_provider_gateway.down.sql", "utf8"),
       );
@@ -240,6 +302,16 @@ test(
       assert.equal(
         (await db.query("SELECT to_regclass('public.omni_dispatch_grants') AS t")).rows[0].t,
         "omni_dispatch_grants",
+      );
+      await replay(db, { from: "0046", through: "0047" });
+      assert.equal(
+        (await db.query("SELECT public.code_total_spend_guard_enforced() AS enforced")).rows[0]
+          .enforced,
+        true,
+      );
+      await assert.rejects(
+        db.query("UPDATE public.code_runtime_controls SET provider_hard_cap_verified = true"),
+        /only be set by set_code_provider_hard_cap_verified/,
       );
     } finally {
       await db.close();

@@ -27,15 +27,19 @@ test("the CODE provider key is referenced only by the gateway server module", as
   assert.deepEqual(hits, [GATEWAY]);
 });
 
-test("the gateway module is never imported by client code and only the route reaches it", async () => {
+test("the gateway module is dynamically imported only for server-side readiness and the route", async () => {
   const importers = [];
   for await (const file of walk("src")) {
     if (!/\.[tj]sx?$/.test(file) || /\.test\./.test(file)) continue;
     if ((await readFile(file, "utf8")).includes("code-gateway.server")) importers.push(file);
   }
   assert.deepEqual(importers.sort(), [
+    join("src", "lib", "code-safety.functions.ts"),
     join("src", "routes", "api", "public", "code", "provider.$.ts"),
   ]);
+  const readiness = await readFile(join("src", "lib", "code-safety.functions.ts"), "utf8");
+  assert.match(readiness, /await import\(["']\.\/code-gateway\.server["']\)/);
+  assert.doesNotMatch(readiness, /import\s+.*from\s+["']\.\/code-gateway\.server["']/);
 });
 
 test("the gateway uses only function-bound server env and never logs the key", async () => {

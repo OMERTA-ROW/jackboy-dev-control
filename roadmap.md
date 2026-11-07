@@ -1,5 +1,19 @@
 # Jackboy roadmap
 
+## CODE activation prep (Nov 6, 23:55 UTC)
+- [x] Staged pin update to 37368194…, cumulative $10 guard and hard-cap gate (staging/code-activation/0046–0048 + rollbacks); 15 isolated database tests pass.
+- [x] App mirrors the $10 guard (fails closed when absent) and Settings shows its status; 527 app tests + CODE runtime tests pass.
+- [x] 0046 applied Nov 7 00:20 UTC on owner approval: CODE_TARGETS parsed to the same SHA first; stored pin 37368194…, 1 audit + 1 Site Log row; CODE off, Stop on.
+- [x] Staged 0047 ($10 guard) applied Nov 7 00:24 UTC on owner approval (journal entry 0046_code_total_spend_guard); status enforced=true, limit $10, committed $0; CODE off, Stop on, hard cap false.
+- [x] Staged 0048 (hard-cap gate) applied Nov 7 00:27 UTC on owner approval (journal 0047_code_hard_cap_gate); forced-false CHECK removed, gate trigger on; flag still false, guard enforced, CODE off, Stop on.
+- [x] Cost-meter secrets OPENAI_ADMIN_KEY, OPENAI_CODE_PROJECT_ID, OPENAI_CODE_API_KEY_ID now exist (values not checked against OpenAI).
+- [x] Owner passkey control to mark/un-mark the hard cap (Settings → CODE): fresh passkey only, CODE off + Stop on; 9 new tests; not pressed.
+- [ ] Owner presses it on the published app — owner only; needs publish first.
+- [x] Live spending meter (gateway ledger + OpenAI closed-day cross-check) and passkey on-switch built; 11 isolated database tests, app and runtime tests pass; not pressed.
+- [ ] Apply staged 0049 (meter + on-switch database part) — blocked: owner approval.
+- [ ] Re-save CODE_GATEWAY_PRICES: saved value is 19 characters and not valid JSON, so the gateway refuses every call — owner only (secret form).
+- [ ] Release Emergency Stop / enable CODE — owner only.
+
 ## Workflow pin repair and activation readiness (Nov 5, 21:30 UTC)
 - [x] Independently hashed GitHub main bytes: ebc71c1923c3d6ab925ec6b9e4fa971e311f3761; both saved pins remain 82c0c44…; scope unchanged.
 - [x] Production read confirms Stop ON, enabled=false, no active run and 0037 false invariant; no dispatch or paid calls.

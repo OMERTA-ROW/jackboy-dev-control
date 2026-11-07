@@ -20,6 +20,10 @@ const SHA = /^[a-f0-9]{40}$/;
 const PROVIDER_KEY_ENV = "CODE_PROVIDER_API_KEY";
 const PROVIDER_ORIGIN = "https://api.openai.com";
 
+export function codeGatewayProviderKeyPresent(): boolean {
+  return !!process.env[PROVIDER_KEY_ENV];
+}
+
 async function rpc<T>(name: string, args: Record<string, unknown>): Promise<T> {
   const { data, error } = await db.rpc(name, args);
   if (error) throw new Error(`${name} failed`);
