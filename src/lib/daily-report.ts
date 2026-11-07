@@ -44,12 +44,11 @@ export function buildDailyReport(i: ReportInput): DailyReport {
     if (i.safety.autoStops) safety.push(`${plural(i.safety.autoStops, "automatic stop")} yesterday.`);
   }
   const waitCount = i.waiting?.length ?? null;
-  const headline = [
-    `Jackboy ${i.date}:`,
+  const headline = `Jackboy ${i.date}: ` + [
     i.activity ? `${i.activity.runsSucceeded + i.activity.inspections} done` : "activity unavailable",
     i.spend ? `${usd(i.spend.yesterdayUsd)} spent` : "spend unavailable",
     waitCount === null ? "approvals unavailable" : waitCount ? `${waitCount} waiting for you` : "nothing waiting",
-  ].join(" · ").replace(":", ": ").replace(": ·", ":");
+  ].join(" · ");
   const sections = [
     { title: "Done", lines: done },
     { title: "Spent", lines: spent },
