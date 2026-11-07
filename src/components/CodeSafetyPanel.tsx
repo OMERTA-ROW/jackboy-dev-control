@@ -84,7 +84,7 @@ export function CodeSafetyPanel() {
                     ? "Could not verify or request cancellation. CODE remains disabled; inspect GitHub Actions."
                     : "No active CODE run needs cancellation.",
         );
-      } else if (result && typeof result === "object" && "hardCapVerified" in result) {
+      } else if (result && typeof result === "object" && "hardCapVerified" in result && "codeEnabled" in result && "emergencyStop" in result) {
         setCapNote("");
         setMessage(
           `Hard cap is now ${result.hardCapVerified ? "marked verified" : "unverified"}. CODE is ${result.codeEnabled ? "ON" : "still OFF"} and Emergency Stop is ${result.emergencyStop ? "still ON" : "OFF"}.`,
