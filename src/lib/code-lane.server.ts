@@ -28,6 +28,14 @@ export async function autoLaneAllowed(repo: string): Promise<boolean> {
   }
 }
 
+/** Automatic runs already started on this site today (UTC). Errors count as the limit, so the lane closes. */
+export async function autoRunsToday(repo: string): Promise<number> {
+  const since = new Date(); since.setUTCHours(0, 0, 0, 0);
+  const { count, error } = await db.from("action_requests").select("id", { count: "exact", head: true })
+    .eq("action", "code").eq("resources->>repo", repo).eq("resources->>lane", "auto").gte("created_at", since.toISOString());
+  return error ? 999 : count ?? 999;
+}
+
 /** Trial mode: label a new request with the lane it WOULD get. Never changes the request. */
 export async function logRequestTrial(requestId: string, projectId: string, repo: string, instruction: string, killSwitch: boolean) {
   try {

@@ -3,7 +3,7 @@ export const CODE_ACTION = "code_workflow";
 export const CODE_WORKFLOW = "code.yml";
 export const CODE_TTL = 15 * 60_000;
 export const CODE_PERMISSIONS = ["Read the selected repository", "Run Codex and tests in an isolated GitHub runner", "Write only a jackboy/code-* branch and open a draft PR", "No merge, deployment, permissions, credentials, or agent handoff"];
-export type CodeScope = { repo: string; ref: string; workflowSha: string; baseSha: string; instruction: string; sessionHash: string; correlation: string; operation: "dispatch" | "retry"; runId?: number };
+export type CodeScope = { repo: string; ref: string; workflowSha: string; baseSha: string; instruction: string; sessionHash: string; correlation: string; operation: "dispatch" | "retry"; runId?: number; lane?: "auto" };
 export type CodeCard = { id: string; projectId: string; repo: string; instruction: string; status: string; expiresAt: string; nonce?: string; permissions: string[]; outcome: string | null; run?: { id: number; status: string; conclusion: string | null; url: string; jobs: { name: string; status: string; conclusion: string | null }[]; downloads: { name: string; url: string }[]; pr: string | null } };
 export function parseCodeCommand(text: string): { project: string; instruction: string } | null {
   const m = /^\s*CODE\s+([^:\n]{1,120}):\s*([\s\S]{1,2000})$/i.exec(text);

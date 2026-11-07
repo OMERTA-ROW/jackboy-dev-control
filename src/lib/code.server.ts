@@ -113,6 +113,20 @@ export async function requestCode(
     correlation: id,
     operation: retry ? "retry" : "dispatch",
   };
+  // Automatic lane: only when the owner switched it on for this site (passkey) and every low-risk rule holds.
+  // Without the staged storage, autoLaneAllowed is false and every request stays in the reviewed lane.
+  try {
+    const lane = await import("./code-lane.server");
+    if (await lane.autoLaneAllowed(p.repo)) {
+      const { chooseLane, AUTO_HOLD_USD } = await import("./code-lane");
+      const { getCodeSafetyState } = await import("./code-safety.server");
+      const choice = chooseLane({
+        instruction: scope.instruction, siteAutoEnabled: true, killSwitch: (await getCodeSafetyState()).killSwitch === true, failureStop: false,
+        autoRunsToday: await lane.autoRunsToday(p.repo), holdUsd: AUTO_HOLD_USD, spendBlocked: await codeSafetyBlockReason(p.repo).catch(() => "Spend check unavailable."),
+      });
+      if (choice.lane === "auto") scope.lane = "auto";
+    }
+  } catch { /* any doubt means the reviewed lane */ }
   await audit(userId, "request", id);
   const r = await db.from("action_requests").insert({ id, project_id: p.id, action: CODE_ACTION, tier: "controlled", resources: scope as never, permissions: CODE_PERMISSIONS, diff_summary: scope.instruction, risk: "controlled", nonce_hash: hash(nonce), requested_by: userId, expires_at: new Date(Date.now() + CODE_TTL).toISOString() }).select("id").single();
   if (r.error) throw new Error("Could not persist the CODE approval request.");
@@ -197,7 +211,7 @@ export async function decideCode(id: string, nonce: string, decision: "allow" | 
         scope.repo,
         `/actions/workflows/${CODE_WORKFLOW}/dispatches`,
         "POST",
-        { ref: scope.ref, inputs: { request_id: id } },
+        { ref: scope.ref, inputs: { request_id: id, ...(scope.lane === "auto" ? { lane: "auto" } : {}) } },
       );
       await db.from("action_requests").update({ outcome: "Accepted by GitHub; waiting for runner evidence" }).eq("id", id);
     } catch {
