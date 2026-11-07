@@ -10,9 +10,12 @@
 - [x] Owner passkey control to mark/un-mark the hard cap (Settings → CODE): fresh passkey only, CODE off + Stop on; 9 new tests; not pressed.
 - [ ] Owner presses it on the published app — owner only; needs publish first.
 - [x] Live spending meter (gateway ledger + OpenAI closed-day cross-check) and passkey on-switch built; 11 isolated database tests, app and runtime tests pass; not pressed.
-- [ ] Apply staged 0049 (meter + on-switch database part) — blocked: owner approval.
+- [x] Staged 0049 applied Nov 7 02:27 UTC on owner activation approval (journal 0048_code_spend_meter_and_activation): meter ok ($0/$5 today, $0/$10 total); raw enable/release/hard-cap writes refused; CODE off, Stop on.
+- [x] PR #46 merged (main dd629f5), 11/11 GitHub checks green; 548 app + 28 database tests pass; security scan clean; publish requested.
 - [ ] Re-save CODE_GATEWAY_PRICES: saved value is 19 characters and not valid JSON, so the gateway refuses every call — owner only (secret form).
-- [ ] Release Emergency Stop / enable CODE — owner only.
+- [ ] Mark hard cap, release global pause, press on-switch — owner passkey only, on the live site.
+- [ ] Controlled $1 test run + autonomous activation — blocked until CODE is on; each run still needs GitHub environment approval.
+- [ ] Railway gateway/OMNI link — blocked: Lovable Cloud gives no service-role key to outside hosts; OMNI link flags off.
 
 ## Workflow pin repair and activation readiness (Nov 5, 21:30 UTC)
 - [x] Independently hashed GitHub main bytes: ebc71c1923c3d6ab925ec6b9e4fa971e311f3761; both saved pins remain 82c0c44…; scope unchanged.
