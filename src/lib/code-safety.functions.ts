@@ -209,7 +209,7 @@ export const getCodeEnableGates = createServerFn({ method: "POST" })
   .handler(async ({ context }) => {
     await requireOwner(context);
     const input = await collectEnableInput();
-    return { checkedAt: new Date().toISOString(), gates: codeEnableGates(input), meter: input.spendMeter };
+    return { checkedAt: new Date().toISOString(), gates: codeEnableGates(input), meter: input.spendMeter, globalPaused: input.globalPaused };
   });
 
 /** Owner switch: releases the CODE stop and turns CODE on. Needs a NEW passkey check every time,
