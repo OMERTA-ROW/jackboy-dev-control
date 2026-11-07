@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ auth: vi.fn(), reg: vi.fn(), supported: vi.fn(() => true) }));
-vi.mock("@simplewebauthn/browser", () => ({ startAuthentication: mocks.auth, startRegistration: mocks.reg, browserSupportsWebAuthn: mocks.supported }));
+vi.mock("@simplewebauthn/browser", () => ({ startAuthentication: mocks.auth, startRegistration: mocks.reg, browserSupportsWebAuthn: mocks.supported, WebAuthnAbortService: { cancelCeremony: vi.fn() } }));
 import { PasskeyPromptHost } from "@/components/PasskeyPromptHost";
 import { requestPasskey, PASSKEY_CANCELLED } from "@/lib/passkey-prompt";
 
@@ -54,7 +54,7 @@ it("a server rejection is shown and never resolves a grant", async () => {
   const { p } = start(vi.fn().mockRejectedValue(new Error("Passkey check failed.")));
   fireEvent.click(await screen.findByRole("button", { name: /Use passkey/ }));
   expect(await screen.findByRole("alert")).toHaveTextContent("Passkey check failed.");
-  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  fireEvent.click(screen.getAllByRole("button", { name: "Close" })[0]!);
   await expect(p).rejects.toThrow("Passkey check failed.");
 });
 
@@ -64,7 +64,7 @@ it("blocks with a clear reason when passkeys aren't supported, without asking th
   const { p, prepare } = start();
   expect(await screen.findByRole("alert")).toHaveTextContent(/doesn't support passkeys/);
   expect(prepare).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  fireEvent.click(screen.getAllByRole("button", { name: "Close" })[0]!);
   await expect(p).rejects.toThrow(/doesn't support passkeys/);
 });
 

@@ -2,14 +2,16 @@ import { useServerFn } from "@tanstack/react-start";
 import { useStepUp } from "@/lib/step-up-client";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { CheckCircle2, Loader2, Search } from "lucide-react";
+import { CheckCircle2, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { btn, field, primaryBtn } from "@/components/ProjectBits";
 import { searchByName } from "@/lib/project-hub";
 import { sanitizeSelection, runBounded, MAX_CONCURRENCY } from "@/lib/batch";
-import { agentState, backgroundState, bulkPlan, connectRows, devPriority, elapsed, loopEligible, loopResult, loopStep, newProjectInput, selectAll, toggle, type ConnectRow, type LoopEvent, type LoopRun } from "@/lib/connect-select";
+import { agentState, backgroundState, bulkPlan, connectRows, devPriority, loopEligible, newProjectInput, selectAll, toggle, type ConnectRow } from "@/lib/connect-select";
 import { saveProject } from "@/lib/update-writer.functions";
-import { foundryInspect, foundryProgress, getFoundry } from "@/lib/foundry.functions";
+import { getFoundry } from "@/lib/foundry.functions";
+import { isActive } from "@/lib/activity-feed";
+import { ActivityFeed, useInspectRuns } from "@/components/InspectActivity";
 import { setDevEnabled, type getProjectHub } from "@/lib/project-hub.functions";
 import { ConnectedProjectsResync } from "@/components/RepositorySync";
 import { resyncProject } from "@/lib/project-resync.functions";
@@ -23,15 +25,13 @@ export function MultiSelect({ hub, onPick, reload }: { hub: Hub | null; onPick: 
   const stepUp = useStepUp();
   const setDev = useServerFn(setDevEnabled);
   const resync = useServerFn(resyncProject);
-  const save = useServerFn(saveProject), inspect = useServerFn(foundryInspect), foundry = useServerFn(getFoundry), progress = useServerFn(foundryProgress);
+  const save = useServerFn(saveProject), foundry = useServerFn(getFoundry);
   const [uid, setUid] = useState<string | null>(null);
   const [sel, setSel] = useState<string[]>([]);
   const [q, setQ] = useState("");
   const [tasks, setTasks] = useState<Task[]>([]);
   const [busy, setBusy] = useState(false);
   const [results, setResults] = useState<Record<string, string>>({});
-  const [loops, setLoops] = useState<Record<string, LoopRun>>({});
-  const [, tick] = useState(0);
   const rows = useMemo(() => (hub ? connectRows(hub.projects, hub.inventory) : []), [hub]);
   const visible = searchByName(rows, q);
   const storeKey = uid ? `jackboy.connect.sel.${uid}` : null;
@@ -48,35 +48,8 @@ export function MultiSelect({ hub, onPick, reload }: { hub: Hub | null; onPick: 
   const chosen = rows.filter((r) => sel.includes(r.key));
   const plan = bulkPlan(chosen);
   const note = (k: string, m: string) => setResults((r) => ({ ...r, [k]: m }));
-  const running = Object.values(loops).some((l) => l.phase === "queued" || l.phase === "running");
-
-  // While a loop runs: tick the clock every second and read the projects' real Foundry events every 2 seconds.
-  useEffect(() => {
-    if (!running) return;
-    const clock = window.setInterval(() => tick((n) => n + 1), 1000);
-    const poll = window.setInterval(() => {
-      const live = Object.entries(loops).filter(([, l]) => l.phase === "running");
-      const ids = live.map(([k]) => rows.find((r) => r.key === k)?.projectId).filter(Boolean) as string[];
-      if (!ids.length) return;
-      const start = Math.min(...live.map(([, l]) => l.startedAt));
-      progress({ data: { projectIds: ids, since: new Date(start - 120_000).toISOString() } }).then((events) => {
-        setLoops((cur) => {
-          const next = { ...cur };
-          for (const [k, l] of Object.entries(cur)) {
-            if (l.phase !== "running") continue;
-            const pid = rows.find((r) => r.key === k)?.projectId;
-            const mine = (events as LoopEvent[]).filter((e) => e.project_id === pid);
-            // This run's trail starts at its own "inspect_started" (15 s clock tolerance).
-            let startIdx = -1;
-            mine.forEach((e, i) => { if (e.action === "inspect_started" && Date.parse(e.created_at) >= l.startedAt - 15_000) startIdx = i; });
-            next[k] = { ...l, step: loopStep(startIdx >= 0 ? mine.slice(startIdx) : []) };
-          }
-          return next;
-        });
-      }).catch(() => {});
-    }, 2000);
-    return () => { window.clearInterval(clock); window.clearInterval(poll); };
-  }, [running, loops, rows, progress]);
+  // Live inspection runs: real server events, timestamps, stall warnings, Stop and Retry (shared with Code Foundry).
+  const { runs: loops, active: running, queue, startIfQueued, stop, retry } = useInspectRuns(() => void refreshTasks());
 
   const connectSelected = async () => {
     setBusy(true);
@@ -117,28 +90,18 @@ export function MultiSelect({ hub, onPick, reload }: { hub: Hub | null; onPick: 
   const runLoop = async () => {
     setBusy(true);
     const run = chosen.filter((r) => { const e = loopEligible(r); if (!e.ok) note(r.key, `Skipped: ${e.reason}`); return e.ok; });
-    const now = Date.now();
-    setLoops((cur) => ({ ...cur, ...Object.fromEntries(run.map((r) => [r.key, { phase: "queued", startedAt: now, step: "Waiting for a free slot…" } satisfies LoopRun])) }));
-    await runBounded(run, MAX_CONCURRENCY, (r) => {
-      setLoops((cur) => ({ ...cur, [r.key]: { phase: "running", startedAt: Date.now(), step: "Opening the repository…" } }));
-      return inspect({ data: { projectId: r.projectId! } });
-    }, (r, o) => {
-      setLoops((cur) => {
-        const l = cur[r.key];
-        const base = { startedAt: l?.startedAt ?? now, endedAt: Date.now(), step: "" };
-        if (!o.ok) return { ...cur, [r.key]: { ...base, phase: "failed", result: `Failed: ${o.error}` } };
-        const res = loopResult(o.value as Parameters<typeof loopResult>[0]);
-        return { ...cur, [r.key]: { ...base, phase: res.phase, result: res.text } };
-      });
-    });
+    for (const r of run) queue(r.key, r.projectId!);
+    // A run stopped while still queued is skipped when its slot comes up.
+    await runBounded(run, MAX_CONCURRENCY, (r) => startIfQueued(r.key), () => {});
     await refreshTasks();
     setBusy(false);
   };
   const loopSummary = (() => {
     const all = Object.values(loops);
     if (!all.length) return null;
-    const finished = all.filter((l) => l.phase === "done" || l.phase === "blocked" || l.phase === "failed").length;
-    return { finished, total: all.length };
+    const finished = all.filter((l) => !isActive(l.phase)).length;
+    const nothing = all.filter((l) => l.phase === "nothing").length;
+    return { finished, total: all.length, nothing };
   })();
 
   return (
@@ -170,10 +133,10 @@ export function MultiSelect({ hub, onPick, reload }: { hub: Hub | null; onPick: 
                       <span className={`block text-xs ${r.status === "repo_linked" ? "text-success" : r.status === "repo_error" ? "text-destructive" : "text-muted-foreground"}`}>{STATUS[r.status]} — {r.detail}</span>
                       {r.projectId && <BackgroundLine r={r} />}
                       {st && !loops[r.key] && <span className={`block text-xs ${TONE[st.label]}`}>{st.label}: {st.reason}</span>}
-                      {loops[r.key] && <LoopLine l={loops[r.key]!} />}
                       {results[r.key] && <span className="block text-xs" role="status">{results[r.key]}</span>}
                     </span>
                   </label>
+                  {loops[r.key] && <ActivityFeed run={loops[r.key]!} name={r.name} onStop={() => void stop(r.key)} onRetry={() => void retry(r.key)} />}
                   <div className="mt-1 flex gap-3 text-xs">
                     {r.projectId ? <Link to="/project/$id" params={{ id: r.projectId }} className="text-electric underline">Open / add repo</Link>
                       : <button type="button" className="text-electric underline" onClick={() => onPick(r.name, r.lovableRef)}>Fill details below</button>}
@@ -192,7 +155,7 @@ export function MultiSelect({ hub, onPick, reload }: { hub: Hub | null; onPick: 
           </div>
           {loopSummary && (
             <div className="mt-3" aria-live="polite">
-              <div className="flex justify-between text-xs text-muted-foreground"><span>{loopSummary.finished === loopSummary.total ? "Coding loop finished" : "Coding loop running"}</span><span>{loopSummary.finished} of {loopSummary.total} done</span></div>
+              <div className="flex justify-between text-xs text-muted-foreground"><span>{loopSummary.finished === loopSummary.total ? (loopSummary.nothing === loopSummary.total ? "Coding loop finished — nothing to do" : "Coding loop finished") : "Coding loop running"}</span><span>{loopSummary.finished} of {loopSummary.total} done</span></div>
               <div className="mt-1 h-1.5 overflow-hidden rounded bg-muted" role="progressbar" aria-valuemin={0} aria-valuemax={loopSummary.total} aria-valuenow={loopSummary.finished}>
                 <div className="h-full bg-electric transition-all" style={{ width: `${(loopSummary.finished / loopSummary.total) * 100}%` }} />
               </div>
@@ -211,12 +174,4 @@ function BackgroundLine({ r }: { r: ConnectRow }) {
   if (b === "ready") return <span className="block text-xs text-muted-foreground">Background work: off — ready to activate</span>;
   if (b === "needs_reconnect") return <span className="block text-xs text-warning">Background work: stopped — reconnect first{r.devEnabled ? " (still switched on; turn it off or reconnect)" : ""}</span>;
   return <span className="block text-xs text-muted-foreground">Background work: needs a linked repo first</span>;
-}
-
-function LoopLine({ l }: { l: LoopRun }) {
-  const took = elapsed((l.endedAt ?? Date.now()) - l.startedAt);
-  if (l.phase === "queued") return <span className="flex items-center gap-1 text-xs text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" aria-hidden />Queued — {l.step}</span>;
-  if (l.phase === "running") return <span className="flex items-center gap-1 text-xs text-electric"><Loader2 className="h-3 w-3 animate-spin" aria-hidden />Inspecting · {took} · {l.step}</span>;
-  const tone = l.phase === "done" ? "text-success" : l.phase === "blocked" ? "text-warning" : "text-destructive";
-  return <span className={`block text-xs ${tone}`} role="status">{l.phase === "done" ? "Finished" : l.phase === "blocked" ? "Stopped" : "Failed"} in {took} — {l.result}</span>;
 }

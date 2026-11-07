@@ -4,7 +4,9 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/AppShell";
 import { QualityMetrics } from "@/components/QualityMetrics";
 import { ApprovalCard } from "@/components/ApprovalCard";
-import { foundryAct, foundryControl, foundryInspect, foundrySchedule, getFoundry } from "@/lib/foundry.functions";
+import { foundryAct, foundryControl, foundrySchedule, getFoundry } from "@/lib/foundry.functions";
+import { ActivityFeed, useInspectRuns } from "@/components/InspectActivity";
+import { isActive } from "@/lib/activity-feed";
 import { ACTIVE_APPROVAL, pickNext, TERMINAL, type State } from "@/lib/foundry";
 
 export const Route = createFileRoute("/_authenticated/foundry")({
@@ -25,13 +27,14 @@ type Data = Awaited<ReturnType<typeof getFoundry>>;
 const tone = (s: string) => s === "completed" || s === "connected" || s === "passed" ? "text-success" : s === "failed" || s === "error" || s === "rolled_back" ? "text-destructive" : s === "blocked" || s === "setup_required" || s === "not_runnable" || s === "pending" ? "text-warning" : "text-primary";
 
 function Foundry() {
-  const get = useServerFn(getFoundry), inspect = useServerFn(foundryInspect), act = useServerFn(foundryAct), ctl = useServerFn(foundryControl), sched = useServerFn(foundrySchedule);
+  const get = useServerFn(getFoundry), act = useServerFn(foundryAct), ctl = useServerFn(foundryControl), sched = useServerFn(foundrySchedule);
   const [d, setD] = useState<Data | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const load = useCallback(() => get().then(setD).catch((e) => setMsg((e as Error).message)), [get]);
   useEffect(() => { void load(); }, [load]);
+  const { runs, start: startRun, stop: stopRun, retry: retryRun } = useInspectRuns(() => void load());
   const run = async (key: string, f: () => Promise<unknown>) => {
     setBusy(key); setMsg(null);
     try { const r = await f(); if (r && typeof r === "object" && "blocked" in r && r.blocked) setMsg(String(r.blocked)); else if (r && typeof r === "object" && "created" in r) setMsg(`Inspection done: ${String(r.created)} new task(s).`); }
@@ -102,7 +105,8 @@ function Foundry() {
       <section className="panel mb-4 p-4">
         <h2 className="text-sm font-semibold uppercase tracking-wider text-silver">Inspect a project</h2>
         {repoProjects.length === 0 ? <p className="mt-2 text-sm text-muted-foreground">No project has a private repo linked yet.</p> :
-          <div className="mt-2 flex flex-wrap gap-2">{repoProjects.map((p) => <button key={p.id} className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50" disabled={!!busy} onClick={() => run(p.id, () => inspect({ data: { projectId: p.id } }))}>{busy === p.id ? "Inspecting…" : `Inspect ${p.name}`}</button>)}</div>}
+          <div className="mt-2 flex flex-wrap gap-2">{repoProjects.map((p) => { const live = runs[p.id] && isActive(runs[p.id]!.phase); return <button key={p.id} className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50" disabled={!!busy || !!live} onClick={() => void startRun(p.id, p.id)}>{live ? `Inspecting ${p.name}…` : `Inspect ${p.name}`}</button>; })}</div>}
+        {repoProjects.filter((p) => runs[p.id]).map((p) => <div key={p.id} className="mt-2"><p className="text-xs font-medium">{p.name}</p><ActivityFeed run={runs[p.id]!} name={p.name} onStop={() => void stopRun(p.id)} onRetry={() => void retryRun(p.id)} /></div>)}
         {d.schedule && <Schedule s={d.schedule} onSave={(v) => run("sched", () => sched({ data: v }))} />}
       </section>
       <h2 className="mb-2 text-lg font-semibold">Awaiting your approval ({pending.length})</h2>

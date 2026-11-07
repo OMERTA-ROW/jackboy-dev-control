@@ -1,5 +1,10 @@
 # Jackboy roadmap
 
+## Smoother buttons and live activity (Nov 7, 04:56 UTC)
+- [x] Passkey window names the device method, every step times out and ends in success or failure; Connect/Activate buttons follow real state.
+- [x] Live activity feed for coding loops and Code Foundry inspections: timestamped steps from real server events ("Inspecting file 12 of 51"), moving progress bar, stall warning with Retry/Stop, clear "nothing to do" end. 615 tests pass.
+- [ ] Owner publishes, then tries one run on the live site — not run here, since a real scan can write a fix branch.
+
 ## One CODE activation panel (Nov 7, 03:55 UTC)
 - [x] Fix live-site GitHub/OpenAI checks (edge runtime refused `redirect: "error"`); preview shows all 12 on-switch checks passing.
 - [ ] Owner publishes, then presses the on-switch — owner only.
