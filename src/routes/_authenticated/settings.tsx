@@ -9,6 +9,7 @@ import { CodeSitesList } from "@/components/CodeSiteCard";
 import { CodeLanePanel } from "@/components/CodeLanePanel";
 import { TaskSkipRules } from "@/components/TaskSkipRules";
 import { CapabilitiesPanel } from "@/components/CapabilitiesPanel";
+import { AutonomyStatusPanel } from "@/components/AutonomyStatusPanel";
 import { PageHeader } from "@/components/AppShell";
 
 export const Route = createFileRoute("/_authenticated/settings")({
@@ -75,6 +76,7 @@ function Settings() {
     <>
       <PageHeader title="Settings & Advanced" subtitle="Every advanced Jackboy tool, grouped. Your everyday flow lives on Home and Projects." />
       <CodeSafetyPanel />
+      <AutonomyStatusPanel />
       <CodeSitesList />
       <CodeLanePanel />
       <TaskSkipRules />

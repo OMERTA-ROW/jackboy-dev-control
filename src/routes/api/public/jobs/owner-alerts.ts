@@ -18,6 +18,14 @@ export const Route = createFileRoute("/api/public/jobs/owner-alerts")({
         await step("report", async () => (await import("@/lib/daily-report.server")).runDailyReport());
         await step("collect", async () => (await import("@/lib/owner-alerts.server")).collectAlerts());
         await step("flush", async () => (await import("@/lib/owner-alerts.server")).flushAlerts());
+        // At most one run record per hour, so Settings → "What's really running" can prove this job fires.
+        await step("heartbeat", async () => {
+          const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+          const { data } = await supabaseAdmin.from("site_log").select("at").eq("action", "owner_alerts.heartbeat").order("at", { ascending: false }).limit(1).maybeSingle();
+          if (data?.at && Date.now() - new Date(data.at).getTime() < 3600_000) return "recent";
+          await (await import("@/lib/site-log.server")).logSite({ actor: "scheduler", action: "owner_alerts.heartbeat", category: "activity", status: "ok", summary: "Phone alerts and morning report job ran." });
+          return "logged";
+        });
         return Response.json(out);
       },
     },
