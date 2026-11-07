@@ -1,5 +1,11 @@
 # Jackboy roadmap
 
+## Add project to CODE (Nov 7, 05:30 UTC)
+- [x] "Add to CODE" card on each project page (checklist, Prepare = draft PR with the approved workflow files, Approve and activate with passkey, Remove) and a CODE sites list in Settings. Web (bun/npm) and Go workflow versions. 630 app tests + 8 isolated database tests pass; preview shows the Hercules checklist, nothing pressed.
+- [ ] Apply staged database update `staging/code-sites/0050` (multi-site pins) — needs owner approval in chat.
+- [ ] GitHub App needs "Workflows: write" to add the workflow file itself; until then the card shows the file to add by hand — owner choice.
+- [ ] Per site: owner presses Prepare, merges the PR, creates CODE + CODE-PUBLISH environments with reviewers, sets CODE_RUNNER_AUTH_URL, saves CODE_TARGETS, presses activate with passkey — owner only, after publishing.
+
 ## Smoother buttons and live activity (Nov 7, 04:56 UTC)
 - [x] Passkey window names the device method, every step times out and ends in success or failure; Connect/Activate buttons follow real state.
 - [x] Live activity feed for coding loops and Code Foundry inspections: timestamped steps from real server events ("Inspecting file 12 of 51"), moving progress bar, stall warning with Retry/Stop, clear "nothing to do" end. 615 tests pass.
