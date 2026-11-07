@@ -260,6 +260,8 @@ for (const [name, invalidate] of [
   ['cumulative $10 guard not installed', () => { totalGuard = null; }],
   ['cumulative $10 guard not enforced', () => { totalGuard = { enforced: false, limit_usd: 10, committed_usd: 0 }; }],
   ['cumulative $10 total would be exceeded', () => { totalGuard = { enforced: true, limit_usd: 10, committed_usd: 9.5 }; }],
+  ['live spending meter not installed', () => { spendMeter = null; }],
+  ['live spending meter unhealthy', () => { spendMeter = { ...healthyMeter(), ok: false, reasons: ['unreported_days'] }; }],
 ]) {
   test(`evidence becoming invalid after approval audit blocks dispatch: ${name}`, async () => {
     const c = await requestCode(projectId, 'Fix footer', 'owner', 'session');
