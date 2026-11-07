@@ -158,8 +158,15 @@
 .jb-orb[data-mode="thinking"]::after { opacity: 1; animation: jb-spin 3.2s linear infinite; }
 .jb-orb[data-mode="error"] { box-shadow: inset 0 0 0 2px var(--destructive); }
 @keyframes jb-spin { to { transform: rotate(360deg); } }
+/* Live activity feed: a moving bar while a run can't yet show a percentage, and a soft shimmer on a filling bar. */
+.jb-indeterminate { animation: jb-slide 1.4s ease-in-out infinite; }
+@keyframes jb-slide { from { left: -35%; } to { left: 100%; } }
+.jb-shimmer { background-image: linear-gradient(90deg, transparent, color-mix(in oklab, var(--silver) 45%, transparent), transparent); background-size: 200% 100%; animation: jb-shimmer 1.6s linear infinite; }
+@keyframes jb-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 @keyframes jb-breathe { 50% { filter: brightness(1.15); } }
 @media (prefers-reduced-motion: reduce) {
   .jb-orb, .jb-orb::after { animation: none !important; transition: none; transform: none; }
   .jb-orb[data-mode="thinking"]::after { opacity: 0.6; }
+  .jb-indeterminate { animation: none; left: 0; width: 100%; opacity: 0.6; }
+  .jb-shimmer { animation: none; background-image: none; }
 }

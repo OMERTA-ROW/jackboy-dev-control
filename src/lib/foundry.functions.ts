@@ -60,9 +60,9 @@ export const foundryProgress = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await owner(context as never);
     const { data: rows, error } = await context.supabase.from("foundry_events").select("project_id, action, to_state, note, created_at, detail")
-      .in("project_id", data.projectIds).gte("created_at", data.since).order("created_at", { ascending: true }).limit(200);
+      .in("project_id", data.projectIds).gte("created_at", data.since).order("created_at", { ascending: false }).limit(300);
     if (error) throw new Error(error.message);
-    return rows ?? [];
+    return (rows ?? []).reverse(); // newest 300, returned oldest → newest
   });
 
 export const foundryInspect = createServerFn({ method: "POST" })
