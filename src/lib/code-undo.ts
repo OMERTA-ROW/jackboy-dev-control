@@ -4,6 +4,16 @@
 
 export type PrState = { state: "open" | "closed"; merged: boolean; draft: boolean };
 export type UndoKind = "close_draft" | "revert_merged";
+export type UndoState = {
+  requestId: string;
+  repo: string;
+  prNumber: number | null;
+  prUrl: string | null;
+  kind: UndoKind | null;
+  needsPasskey: boolean;
+  blocked: string | null;
+  undo: { status: string; detail: string | null; revertPrUrl: string | null; republishNeeded: boolean; finishedAt: string | null } | null;
+};
 export const UNDO_STEP_UP = "code_undo";
 export const undoTarget = (requestId: string) => `code_undo:${requestId}`;
 export const MAX_REVERT_FILES = 40;

@@ -4,9 +4,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useState } from "react";
 import { RotateCcw } from "lucide-react";
 import { getUndoState, undoCodeChange } from "@/lib/owner-notify.functions";
-import { undoTarget, UNDO_STEP_UP } from "@/lib/code-undo";
+import { undoTarget, UNDO_STEP_UP, type UndoState } from "@/lib/code-undo";
 import { useStepUp } from "@/lib/step-up-client";
-import type { UndoState } from "@/lib/code-undo.server";
 
 const STATUS_TEXT: Record<string, string> = {
   started: "Undo in progress…",

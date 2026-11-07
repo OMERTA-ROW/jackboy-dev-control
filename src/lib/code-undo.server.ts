@@ -3,7 +3,7 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { CODE_ACTION, type CodeScope } from "./code";
 import { getCodeSafetyState } from "./code-safety.server";
-import { revertClashes, revertNextStep, revertPlan, undoBlockReason, undoKind, undoNeedsPasskey, undoTarget, UNDO_STEP_UP, type UndoKind } from "./code-undo";
+import { type UndoState, revertClashes, revertNextStep, revertPlan, undoBlockReason, undoKind, undoNeedsPasskey, undoTarget, UNDO_STEP_UP, type UndoKind } from "./code-undo";
 import * as gh from "./github.server";
 import { logSite } from "./site-log.server";
 import { untyped } from "./untyped-db";
@@ -12,16 +12,7 @@ const db = () => untyped(supabaseAdmin);
 const split = (repo: string) => { const [owner, name] = repo.split("/"); if (!owner || !name) throw new Error("Invalid repository."); return { owner, name }; };
 const codeBranch = (correlation: string) => `jackboy/code-${correlation}`;
 
-export type UndoState = {
-  requestId: string;
-  repo: string;
-  prNumber: number | null;
-  prUrl: string | null;
-  kind: UndoKind | null;
-  needsPasskey: boolean;
-  blocked: string | null;
-  undo: { status: string; detail: string | null; revertPrUrl: string | null; republishNeeded: boolean; finishedAt: string | null } | null;
-};
+
 
 async function request(requestId: string) {
   const r = await supabaseAdmin.from("action_requests").select("id, project_id, status, resources").eq("id", requestId).eq("action", CODE_ACTION).maybeSingle();
