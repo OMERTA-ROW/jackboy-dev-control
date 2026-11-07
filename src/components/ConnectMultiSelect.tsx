@@ -2,20 +2,20 @@ import { useServerFn } from "@tanstack/react-start";
 import { useStepUp } from "@/lib/step-up-client";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { Search } from "lucide-react";
+import { CheckCircle2, Loader2, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { btn, field, primaryBtn } from "@/components/ProjectBits";
 import { searchByName } from "@/lib/project-hub";
 import { sanitizeSelection, runBounded, MAX_CONCURRENCY } from "@/lib/batch";
-import { agentState, connectRows, devPriority, loopEligible, newProjectInput, selectAll, toggle, type ConnectRow } from "@/lib/connect-select";
+import { agentState, backgroundState, bulkPlan, connectRows, devPriority, elapsed, loopEligible, loopResult, loopStep, newProjectInput, selectAll, toggle, type ConnectRow, type LoopEvent, type LoopRun } from "@/lib/connect-select";
 import { saveProject } from "@/lib/update-writer.functions";
-import { foundryInspect, getFoundry } from "@/lib/foundry.functions";
+import { foundryInspect, foundryProgress, getFoundry } from "@/lib/foundry.functions";
 import { setDevEnabled, type getProjectHub } from "@/lib/project-hub.functions";
 import { ConnectedProjectsResync } from "@/components/RepositorySync";
 import { resyncProject } from "@/lib/project-resync.functions";
 
 type Hub = Awaited<ReturnType<typeof getProjectHub>>;
-type Task = { project_id: string | null; state: string; blocked_reason: string | null; paused: boolean };
+type Task = { project_id: string | null; state: string; blocked_reason: string | null; paused: boolean; title?: string | null };
 const STATUS: Record<ConnectRow["status"], string> = { saved_only: "Not connected", connected_no_repo: "Connected · no repo", repo_linked: "Repo linked", repo_error: "Repo error" };
 const TONE: Record<string, string> = { Online: "text-success", Working: "text-electric", Blocked: "text-destructive", Offline: "text-muted-foreground" };
 
@@ -23,13 +23,15 @@ export function MultiSelect({ hub, onPick, reload }: { hub: Hub | null; onPick: 
   const stepUp = useStepUp();
   const setDev = useServerFn(setDevEnabled);
   const resync = useServerFn(resyncProject);
-  const save = useServerFn(saveProject), inspect = useServerFn(foundryInspect), foundry = useServerFn(getFoundry);
+  const save = useServerFn(saveProject), inspect = useServerFn(foundryInspect), foundry = useServerFn(getFoundry), progress = useServerFn(foundryProgress);
   const [uid, setUid] = useState<string | null>(null);
   const [sel, setSel] = useState<string[]>([]);
   const [q, setQ] = useState("");
   const [tasks, setTasks] = useState<Task[]>([]);
   const [busy, setBusy] = useState(false);
   const [results, setResults] = useState<Record<string, string>>({});
+  const [loops, setLoops] = useState<Record<string, LoopRun>>({});
+  const [, tick] = useState(0);
   const rows = useMemo(() => (hub ? connectRows(hub.projects, hub.inventory) : []), [hub]);
   const visible = searchByName(rows, q);
   const storeKey = uid ? `jackboy.connect.sel.${uid}` : null;
@@ -44,14 +46,43 @@ export function MultiSelect({ hub, onPick, reload }: { hub: Hub | null; onPick: 
   const update = (next: string[]) => { setSel(next); if (storeKey) localStorage.setItem(storeKey, JSON.stringify(next)); };
 
   const chosen = rows.filter((r) => sel.includes(r.key));
-  const toConnect = chosen.filter((r) => r.status === "saved_only");
+  const plan = bulkPlan(chosen);
   const note = (k: string, m: string) => setResults((r) => ({ ...r, [k]: m }));
+  const running = Object.values(loops).some((l) => l.phase === "queued" || l.phase === "running");
+
+  // While a loop runs: tick the clock every second and read the projects' real Foundry events every 2 seconds.
+  useEffect(() => {
+    if (!running) return;
+    const clock = window.setInterval(() => tick((n) => n + 1), 1000);
+    const poll = window.setInterval(() => {
+      const live = Object.entries(loops).filter(([, l]) => l.phase === "running");
+      const ids = live.map(([k]) => rows.find((r) => r.key === k)?.projectId).filter(Boolean) as string[];
+      if (!ids.length) return;
+      const start = Math.min(...live.map(([, l]) => l.startedAt));
+      progress({ data: { projectIds: ids, since: new Date(start - 120_000).toISOString() } }).then((events) => {
+        setLoops((cur) => {
+          const next = { ...cur };
+          for (const [k, l] of Object.entries(cur)) {
+            if (l.phase !== "running") continue;
+            const pid = rows.find((r) => r.key === k)?.projectId;
+            const mine = (events as LoopEvent[]).filter((e) => e.project_id === pid);
+            // This run's trail starts at its own "inspect_started" (15 s clock tolerance).
+            const startIdx = mine.findLastIndex((e) => e.action === "inspect_started" && Date.parse(e.created_at) >= l.startedAt - 15_000);
+            next[k] = { ...l, step: loopStep(startIdx >= 0 ? mine.slice(startIdx) : []) };
+          }
+          return next;
+        });
+      }).catch(() => {});
+    }, 2000);
+    return () => { window.clearInterval(clock); window.clearInterval(poll); };
+  }, [running, loops, rows, progress]);
 
   const connectSelected = async () => {
     setBusy(true);
     const created: Record<string, string> = {};
-    // New picks are saved; already-connected picks are re-identified (repo, name, site, credential).
-    await runBounded(chosen, MAX_CONCURRENCY, async (r) => {
+    for (const r of plan.needsRepo) note(r.key, "Connected — open it and link a GitHub repo to enable coding");
+    // Only rows that are new or actually disconnected are (re)connected; healthy connections are left alone.
+    await runBounded(plan.connect, MAX_CONCURRENCY, async (r) => {
       if (r.status === "saved_only") { const x = await save({ data: newProjectInput(r) }); created[r.key] = `p:${x.id}`; return "Connected (add a repo to enable coding)"; }
       const x = await resync({ data: { id: r.projectId! } });
       return `Reconnected · ${x.repo ?? "no repo linked"} · credential: ${x.credential}${x.changes.length ? ` · ${x.changes.join("; ")}` : ""}${x.notes[0] ? ` · ${x.notes[0]}` : ""}`;
@@ -62,24 +93,52 @@ export function MultiSelect({ hub, onPick, reload }: { hub: Hub | null; onPick: 
   };
   const activate = async (on: boolean) => {
     setBusy(true);
-    const targets = chosen.filter((r) => { if (!r.projectId) note(r.key, "Skipped: connect it first"); return Boolean(r.projectId); });
-    // One passkey, then the grace window covers the rest; grants are minted one at a time so only one prompt appears.
-    const grants = new Map<string, string>();
-    if (on) for (const r of targets) { try { grants.set(r.projectId!, await stepUp("autonomy_toggle", `dev:${r.projectId}`)); } catch (e) { note(r.key, `Skipped: ${(e as Error).message}`); } }
-    await runBounded(on ? targets.filter((r) => grants.has(r.projectId!)) : targets, MAX_CONCURRENCY, (r) => setDev({ data: { id: r.projectId!, enabled: on, grantId: grants.get(r.projectId!) } }), (r, o) => note(r.key, o.ok ? (on ? "Background work activated" : "Background work off") : `Failed: ${o.error}`));
+    const targets = on ? plan.activate : plan.deactivate;
+    if (on) {
+      // One passkey per project (each grant is scoped to that project). The passkey window shows "n of N" and the real result.
+      for (const [i, r] of targets.entries()) {
+        note(r.key, "Waiting for your passkey…");
+        try {
+          await stepUp("autonomy_toggle", `dev:${r.projectId}`, {
+            step: targets.length > 1 ? `Passkey ${i + 1} of ${targets.length} · ${r.name}` : r.name,
+            applyingText: `Activating background work for ${r.name}…`,
+            apply: (grantId) => setDev({ data: { id: r.projectId!, enabled: true, grantId } }),
+            doneText: () => `Background work is active for ${r.name}.`,
+          });
+          note(r.key, "Background work activated");
+        } catch (e) { note(r.key, `Not activated: ${(e as Error).message}`); }
+      }
+    } else {
+      await runBounded(targets, MAX_CONCURRENCY, (r) => setDev({ data: { id: r.projectId!, enabled: false } }), (r, o) => note(r.key, o.ok ? "Background work turned off" : `Failed: ${o.error}`));
+    }
     await reload(); setBusy(false);
   };
   const runLoop = async () => {
     setBusy(true);
     const run = chosen.filter((r) => { const e = loopEligible(r); if (!e.ok) note(r.key, `Skipped: ${e.reason}`); return e.ok; });
-    await runBounded(run, MAX_CONCURRENCY, (r) => inspect({ data: { projectId: r.projectId! } }), (r, o) => {
-      if (!o.ok) return note(r.key, `Failed: ${o.error}`);
-      const v = o.value as { created: number; blocked?: string; findings?: number; inspectedFiles?: number };
-      note(r.key, v.blocked ? `Blocked: ${v.blocked}` : v.created ? `Inspected ${v.inspectedFiles} files; prepared ${v.created} change on a branch — review it in Code Foundry` : `Inspected ${v.inspectedFiles ?? 0} files; nothing new to fix`);
+    const now = Date.now();
+    setLoops((cur) => ({ ...cur, ...Object.fromEntries(run.map((r) => [r.key, { phase: "queued", startedAt: now, step: "Waiting for a free slot…" } satisfies LoopRun])) }));
+    await runBounded(run, MAX_CONCURRENCY, (r) => {
+      setLoops((cur) => ({ ...cur, [r.key]: { phase: "running", startedAt: Date.now(), step: "Opening the repository…" } }));
+      return inspect({ data: { projectId: r.projectId! } });
+    }, (r, o) => {
+      setLoops((cur) => {
+        const l = cur[r.key];
+        const base = { startedAt: l?.startedAt ?? now, endedAt: Date.now(), step: "" };
+        if (!o.ok) return { ...cur, [r.key]: { ...base, phase: "failed", result: `Failed: ${o.error}` } };
+        const res = loopResult(o.value as Parameters<typeof loopResult>[0]);
+        return { ...cur, [r.key]: { ...base, phase: res.phase, result: res.text } };
+      });
     });
     await refreshTasks();
     setBusy(false);
   };
+  const loopSummary = (() => {
+    const all = Object.values(loops);
+    if (!all.length) return null;
+    const finished = all.filter((l) => l.phase === "done" || l.phase === "blocked" || l.phase === "failed").length;
+    return { finished, total: all.length };
+  })();
 
   return (
     <section aria-labelledby="step1" className="panel mb-4 p-5">
@@ -107,10 +166,11 @@ export function MultiSelect({ hub, onPick, reload }: { hub: Hub | null; onPick: 
                     <input type="checkbox" className="mt-1" checked={sel.includes(r.key)} onChange={() => update(toggle(sel, r.key))} aria-label={`Select ${r.name}`} />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-medium">{r.name}{devPriority(r.name) < 100 && <span className="ml-2 rounded border border-border px-1 text-[10px] text-muted-foreground">priority {devPriority(r.name)}</span>}</span>
-                      {r.projectId && <span className={`block text-xs ${r.devEnabled ? "text-success" : "text-muted-foreground"}`}>Background work: {r.devEnabled ? "activated by you" : "off (not authorized)"}</span>}
-                      <span className="block text-xs text-muted-foreground">{STATUS[r.status]} — {r.detail}</span>
-                      {st && <span className={`block text-xs ${TONE[st.label]}`}>{st.label}: {st.reason}</span>}
-                      {results[r.key] && <span className="block text-xs">{results[r.key]}</span>}
+                      <span className={`block text-xs ${r.status === "repo_linked" ? "text-success" : r.status === "repo_error" ? "text-destructive" : "text-muted-foreground"}`}>{STATUS[r.status]} — {r.detail}</span>
+                      {r.projectId && <BackgroundLine r={r} />}
+                      {st && !loops[r.key] && <span className={`block text-xs ${TONE[st.label]}`}>{st.label}: {st.reason}</span>}
+                      {loops[r.key] && <LoopLine l={loops[r.key]} />}
+                      {results[r.key] && <span className="block text-xs" role="status">{results[r.key]}</span>}
                     </span>
                   </label>
                   <div className="mt-1 flex gap-3 text-xs">
@@ -121,15 +181,41 @@ export function MultiSelect({ hub, onPick, reload }: { hub: Hub | null; onPick: 
               );
             })}
           </ul>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <button type="button" className={btn} disabled={busy || !chosen.length} onClick={connectSelected}>{toConnect.length === chosen.length ? `Connect selected (${chosen.length})` : `Connect / reconnect selected (${chosen.length})`}</button>
-            <button type="button" className={btn} disabled={busy || !chosen.length} onClick={() => activate(true)}>Activate background work</button>
-            <button type="button" className={btn} disabled={busy || !chosen.length} onClick={() => activate(false)}>Turn off background work</button>
-            <button type="button" className={primaryBtn} disabled={busy || !chosen.length} onClick={runLoop}>{busy ? "Working…" : `Run coding loop on selected (${chosen.length})`}</button>
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            {plan.connect.length > 0 && <button type="button" className={btn} disabled={busy} onClick={connectSelected}>{plan.connect.every((r) => r.status === "saved_only") ? `Connect selected (${plan.connect.length})` : `Connect / reconnect (${plan.connect.length})`}</button>}
+            {plan.activate.length > 0 && <button type="button" className={btn} disabled={busy} onClick={() => activate(true)}>Activate background work ({plan.activate.length})</button>}
+            {plan.active.length > 0 && <span className="inline-flex items-center gap-1 rounded-md border border-success/40 px-3 py-1.5 text-xs text-success"><CheckCircle2 className="h-3.5 w-3.5" aria-hidden />Background work active ({plan.active.length})</span>}
+            {plan.deactivate.length > 0 && <button type="button" className={btn} disabled={busy} onClick={() => activate(false)}>Turn off background work ({plan.deactivate.length})</button>}
+            {chosen.length > 0 && <button type="button" className={primaryBtn} disabled={busy || running || !plan.loop.length} onClick={runLoop}>{running ? "Coding loop running…" : `Run coding loop (${plan.loop.length})`}</button>}
+            {!chosen.length && <span className="text-xs text-muted-foreground">Select projects to see what you can do next.</span>}
           </div>
+          {loopSummary && (
+            <div className="mt-3" aria-live="polite">
+              <div className="flex justify-between text-xs text-muted-foreground"><span>{loopSummary.finished === loopSummary.total ? "Coding loop finished" : "Coding loop running"}</span><span>{loopSummary.finished} of {loopSummary.total} done</span></div>
+              <div className="mt-1 h-1.5 overflow-hidden rounded bg-muted" role="progressbar" aria-valuemin={0} aria-valuemax={loopSummary.total} aria-valuenow={loopSummary.finished}>
+                <div className="h-full bg-electric transition-all" style={{ width: `${(loopSummary.finished / loopSummary.total) * 100}%` }} />
+              </div>
+            </div>
+          )}
           <p className="mt-2 text-xs text-muted-foreground">The coding loop reads the repo, prepares one minimal change on a separate branch and reads available checks. It stops for your approval before opening a draft pull request; merging and deploying are never automatic. Background work (recurring scans and fixes) runs only on projects you activate, in order: OMNI, JAX, Nano, Jail Release, then the rest. Being in this list never means a project is authorized.</p>
         </>
       )}
     </section>
   );
+}
+
+function BackgroundLine({ r }: { r: ConnectRow }) {
+  const b = backgroundState(r);
+  if (b === "active") return <span className="flex items-center gap-1 text-xs text-success"><CheckCircle2 className="h-3 w-3" aria-hidden />Background work: active</span>;
+  if (b === "ready") return <span className="block text-xs text-muted-foreground">Background work: off — ready to activate</span>;
+  if (b === "needs_reconnect") return <span className="block text-xs text-warning">Background work: stopped — reconnect first{r.devEnabled ? " (still switched on; turn it off or reconnect)" : ""}</span>;
+  return <span className="block text-xs text-muted-foreground">Background work: needs a linked repo first</span>;
+}
+
+function LoopLine({ l }: { l: LoopRun }) {
+  const took = elapsed((l.endedAt ?? Date.now()) - l.startedAt);
+  if (l.phase === "queued") return <span className="flex items-center gap-1 text-xs text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" aria-hidden />Queued — {l.step}</span>;
+  if (l.phase === "running") return <span className="flex items-center gap-1 text-xs text-electric"><Loader2 className="h-3 w-3 animate-spin" aria-hidden />Inspecting · {took} · {l.step}</span>;
+  const tone = l.phase === "done" ? "text-success" : l.phase === "blocked" ? "text-warning" : "text-destructive";
+  return <span className={`block text-xs ${tone}`} role="status">{l.phase === "done" ? "Finished" : l.phase === "blocked" ? "Stopped" : "Failed"} in {took} — {l.result}</span>;
 }
