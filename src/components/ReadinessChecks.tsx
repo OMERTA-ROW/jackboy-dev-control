@@ -93,7 +93,7 @@ export function ReadinessChecks({
         description: "A real check on your device. It changes nothing.",
         prepare: async () => {
           const o = await pkOptions();
-          return { kind: "auth", challengeId: o.challengeId, options: o.options };
+          return { kind: "auth", challengeId: o.challengeId, options: o.options, keys: o.keys };
         },
         finish: (challengeId, response) => pkVerify({ data: { challengeId, response } }),
         successText: () => "Passkey works.",
