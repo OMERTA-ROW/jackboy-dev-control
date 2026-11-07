@@ -314,7 +314,7 @@ async function probe(id: ReadinessId): Promise<Probe> {
           }
         : {
             status: "BLOCKED",
-            reason: `Missing: ${report.missing.join("; ")}. The link stays off until OMNI_LINK_ENABLED is set and OMNI connects.`,
+            reason: `${report.missing.join("; ")}. The link stays off until OMNI_LINK_ENABLED is set and OMNI connects.`,
           };
     }
     case "deployment_identity": {
