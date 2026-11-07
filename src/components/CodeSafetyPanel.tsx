@@ -11,8 +11,10 @@ import {
   getCodeSafetySettings,
   getCodePrerequisites,
   setCodeDailySpendLimit,
+  setCodeHardCapVerified,
   syncCodeProviderCosts,
 } from "@/lib/code-safety.functions";
+import { HARD_CAP_EVIDENCE_MAX, HARD_CAP_TARGET, hardCapChangeBlockReason } from "@/lib/code-safety";
 
 type Settings = Awaited<ReturnType<typeof getCodeSafetySettings>>;
 
@@ -23,6 +25,8 @@ export function CodeSafetyPanel() {
   const setLimit = useServerFn(setCodeDailySpendLimit);
   const syncCosts = useServerFn(syncCodeProviderCosts);
   const stop = useServerFn(engageCodeKillSwitch);
+  const setHardCap = useServerFn(setCodeHardCapVerified);
+  const [capNote, setCapNote] = useState("");
   const stepUp = useStepUp();
   const probeOmni = useServerFn(probeOmniConnection);
   const [omni, setOmni] = useState<Awaited<ReturnType<typeof probeOmniConnection>> | null>(null);
@@ -79,6 +83,11 @@ export function CodeSafetyPanel() {
                   : status === "unverified"
                     ? "Could not verify or request cancellation. CODE remains disabled; inspect GitHub Actions."
                     : "No active CODE run needs cancellation.",
+        );
+      } else if (result && typeof result === "object" && "hardCapVerified" in result && "codeEnabled" in result && "emergencyStop" in result) {
+        setCapNote("");
+        setMessage(
+          `Hard cap is now ${result.hardCapVerified ? "marked verified" : "unverified"}. CODE is ${result.codeEnabled ? "ON" : "still OFF"} and Emergency Stop is ${result.emergencyStop ? "still ON" : "OFF"}.`,
         );
       } else if (
         result &&
@@ -203,6 +212,57 @@ export function CodeSafetyPanel() {
               <dd>{settings.pausedReason ?? "None"}</dd>
             </div>
           </dl>
+          {(() => {
+            const marking = !settings.providerBudgetEnforced;
+            const current = {
+              enabled: settings.enabled,
+              killSwitch: settings.killSwitch,
+              activeRequestId: settings.activeRequestId,
+              activeRunId: settings.activeRunId,
+              providerBudgetEnforced: settings.providerBudgetEnforced,
+              totalSpendGuard: settings.totalSpendGuard,
+            };
+            const blocked = hardCapChangeBlockReason({ verified: marking, evidence: capNote, current });
+            // State reasons (CODE on, stop off, guard missing) show even before a note is typed.
+            const stateBlocked = hardCapChangeBlockReason({ verified: marking, evidence: "evidence-ok", current });
+            return (
+              <div className="mt-3 rounded-md border border-border p-3" aria-labelledby="hard-cap-heading">
+                <p id="hard-cap-heading" className="text-sm font-medium">
+                  Provider hard cap: {settings.providerBudgetEnforced ? "marked verified by owner" : "unverified"}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {marking
+                    ? "Mark it verified only after you have confirmed the spending cap with the provider. This does not turn CODE on or release the Emergency Stop."
+                    : "Un-marking blocks every new CODE task until you mark it again."}{" "}
+                  Needs a new passkey check every time, and works only while CODE is off and the Emergency Stop is on.
+                </p>
+                <label htmlFor="hard-cap-note" className="mt-2 block text-xs text-muted-foreground">
+                  Evidence note (what you checked, where and when)
+                </label>
+                <textarea
+                  id="hard-cap-note"
+                  value={capNote}
+                  maxLength={HARD_CAP_EVIDENCE_MAX}
+                  rows={2}
+                  onChange={(event) => setCapNote(event.target.value)}
+                  className="mt-1 w-full rounded-md border border-border bg-background px-2 py-1 text-sm"
+                />
+                {blocked && (capNote.trim().length > 0 || stateBlocked) && (
+                  <p className="mt-1 text-xs text-warning">{stateBlocked ?? blocked}</p>
+                )}
+                <Button variant="outline" size="sm" className="mt-2"
+                  disabled={busy || blocked !== null}
+                  onClick={() => void run(() =>
+                    stepUp("code_hard_cap", marking ? HARD_CAP_TARGET.mark : HARD_CAP_TARGET.unmark).then((grantId) =>
+                      setHardCap({ data: { grantId, verified: marking, evidence: capNote.trim() } }),
+                    ),
+                  )}
+                >
+                  {marking ? "Mark hard cap verified with passkey" : "Un-mark hard cap with passkey"}
+                </Button>
+              </div>
+            );
+          })()}
           <div className="mt-3">
             <p className="text-xs text-muted-foreground">
               Provider report last synced:{" "}

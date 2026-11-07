@@ -5,7 +5,12 @@ import { CODE_WORKFLOW } from "./code";
 import {
   classifyGithubCancellationState,
   CODE_DAILY_SPEND_LIMIT_USD,
+  HARD_CAP_EVIDENCE_MAX,
+  HARD_CAP_EVIDENCE_MIN,
+  HARD_CAP_TARGET,
+  hardCapChangeBlockReason,
   parseCodeTargets,
+  parseTotalSpendGuard,
 } from "./code-safety";
 import type { OpenAICostRow } from "./openai-costs";
 
@@ -75,6 +80,63 @@ export const resumeJackboyWork = createServerFn({ method: "POST" })
     if (error) throw new Error("Global pause could not be turned off.");
     await context.supabase.rpc("write_audit", { _action: "worker.kill_switch_off", _detail: { global_paused: false, code_kill_switch: "unchanged" }, _outcome: "ok" });
     return { paused: false };
+  });
+
+/** Owner marks (or un-marks) the provider hard cap as verified. Needs a NEW passkey check bound to the
+ * direction, and only works while CODE is off, the Emergency Stop is on and no task is active.
+ * It never enables CODE or releases the Emergency Stop; the database gate re-checks everything. */
+export const setCodeHardCapVerified = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        grantId: z.string().uuid(),
+        verified: z.boolean(),
+        evidence: z.string().trim().min(HARD_CAP_EVIDENCE_MIN).max(HARD_CAP_EVIDENCE_MAX),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    await requireOwner(context);
+    const target = data.verified ? HARD_CAP_TARGET.mark : HARD_CAP_TARGET.unmark;
+    await (await import("./passkey.server")).consumeGrant(data.grantId, context.userId, "code_hard_cap", target, { requireFresh: true });
+    const db = (await import("./untyped-db")).untyped((await import("@/integrations/supabase/client.server")).supabaseAdmin);
+    const { data: controls, error } = await db
+      .from("code_runtime_controls")
+      .select("enabled, kill_switch, active_request_id, active_run_id, provider_hard_cap_verified")
+      .eq("singleton", true)
+      .single();
+    if (error || !controls) throw new Error("CODE safety controls are unavailable; nothing changed.");
+    const guardResult = await db.rpc("code_total_spend_guard_status");
+    const blocked = hardCapChangeBlockReason({
+      verified: data.verified,
+      evidence: data.evidence,
+      current: {
+        enabled: controls.enabled,
+        killSwitch: controls.kill_switch,
+        activeRequestId: controls.active_request_id,
+        activeRunId: controls.active_run_id,
+        providerBudgetEnforced: controls.provider_hard_cap_verified,
+        totalSpendGuard: parseTotalSpendGuard(guardResult.error ? null : guardResult.data),
+      },
+    });
+    if (blocked) throw new Error(`${blocked} Nothing changed.`);
+    const { error: setError } = await db.rpc("set_code_provider_hard_cap_verified", {
+      p_actor: context.userId,
+      p_verified: data.verified,
+      p_evidence: data.evidence,
+    });
+    if (setError) throw new Error("The database refused the hard-cap change; nothing changed.");
+    const { data: after } = await db
+      .from("code_runtime_controls")
+      .select("enabled, kill_switch, provider_hard_cap_verified")
+      .eq("singleton", true)
+      .single();
+    return {
+      hardCapVerified: after?.provider_hard_cap_verified === true,
+      codeEnabled: after?.enabled === true,
+      emergencyStop: after?.kill_switch === true,
+    };
   });
 
 async function requireOwner(ctx: {
