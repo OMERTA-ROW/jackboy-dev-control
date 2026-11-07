@@ -204,7 +204,7 @@ export async function activateSite(projectId: string, actor: string, grantId: st
   const { data, error } = await untyped(supabaseAdmin).rpc("set_code_site_pin", { p_actor: actor, p_repository: g.project.repo, p_workflow_sha: wf.sha, p_add: true });
   if (error) { await log(actor, g, "code.site_pin", "failed", `Pin refused: ${error.message}`); throw new Error(`Pin refused: ${error.message}`); }
   await log(actor, g, "code.site_pin", "ok", `${g.project.repo} added to the CODE allow list on main with workflow ${wf.sha}.`);
-  return { repo: g.project.repo, workflowSha: wf.sha, allowedTargets: data as unknown };
+  return { repo: g.project.repo, workflowSha: wf.sha, sites: Object.keys((data ?? {}) as Record<string, unknown>).length };
 }
 
 /** After a fresh passkey: take a site off the allow list. History stays in the audit log and Site Log. */
