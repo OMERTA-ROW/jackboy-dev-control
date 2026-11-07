@@ -34,11 +34,15 @@ type Props = {
   gatesError: string | null;
   busy: boolean;
   run: (action: () => Promise<unknown>) => Promise<void>;
+  /** Result of the last action pressed in this panel. */
+  message?: string | null;
+  /** Dated background evidence, shown folded at the bottom. */
+  evidence?: ReactNode;
 };
 
 /** One place for every CODE activation step, in order. All buttons call the same server functions with
  * the same passkey actions as before; the server and database re-check every gate. */
-export function ActivationPanel({ state, gates, gatesError, busy, run }: Props) {
+export function ActivationPanel({ state, gates, gatesError, busy, run, message, evidence }: Props) {
   const stepUp = useStepUp();
   const stop = useServerFn(engageCodeKillSwitch);
   const resume = useServerFn(resumeJackboyWork);
@@ -173,6 +177,7 @@ export function ActivationPanel({ state, gates, gatesError, busy, run }: Props) 
       <p className="mt-2 text-xs text-muted-foreground">
         The emergency stop turns CODE off at once and is never blocked. The Kill Switch on Home pauses all Jackboy work.
       </p>
+      {message && <p role="status" className="mt-3 text-sm text-warning">{message}</p>}
       {gatesError && <p role="alert" className="mt-2 text-xs text-warning">{gatesError}</p>}
       {steps && (progress?.complete ? (
         <details className="mt-3">
@@ -180,6 +185,12 @@ export function ActivationPanel({ state, gates, gatesError, busy, run }: Props) 
           {stepList}
         </details>
       ) : stepList)}
+      {evidence && (
+        <details className="mt-3">
+          <summary className="cursor-pointer text-xs text-muted-foreground">Dated background evidence</summary>
+          {evidence}
+        </details>
+      )}
     </section>
   );
 }
