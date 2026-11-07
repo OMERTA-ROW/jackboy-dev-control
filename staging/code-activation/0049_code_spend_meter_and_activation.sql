@@ -165,9 +165,10 @@ SET search_path = ''
 AS $$
 DECLARE
   status jsonb;
+  previous jsonb;
   ok boolean;
 BEGIN
-  PERFORM 1 FROM public.code_runtime_controls WHERE singleton = true FOR UPDATE;
+  SELECT spend_meter INTO previous FROM public.code_runtime_controls WHERE singleton = true FOR UPDATE;
   status := public.code_spend_meter_status();
   ok := coalesce((status->>'ok')::boolean, false);
   PERFORM pg_catalog.set_config('jackboy.code_meter', 'refresh', true);
@@ -177,7 +178,10 @@ BEGIN
         updated_at = now()
     WHERE singleton = true;
   PERFORM pg_catalog.set_config('jackboy.code_meter', '', true);
-  IF NOT ok THEN
+  -- Audit when the meter becomes blocked or its reasons change, not on every repeated read.
+  IF NOT ok AND (previous IS NULL OR coalesce((previous->>'ok')::boolean, false)
+    OR previous->'reasons' IS DISTINCT FROM status->'reasons')
+  THEN
     INSERT INTO public.audit_logs(actor, action, detail, outcome)
       VALUES (NULL, 'code.spend_meter_blocked', status, 'blocked');
   END IF;

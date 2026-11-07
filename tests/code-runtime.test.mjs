@@ -54,7 +54,7 @@ globalThis.__codeDb = {
   from: table => new Query(table),
   rpc: async name => name === 'code_total_spend_guard_status' && totalGuard
     ? { data: totalGuard, error: null }
-    : name === 'code_spend_meter_status' && spendMeter
+    : (name === 'code_spend_meter_status' || name === 'refresh_code_spend_meter') && spendMeter
       ? { data: spendMeter, error: null }
       : { data: null, error: { message: 'function does not exist' } },
 };
