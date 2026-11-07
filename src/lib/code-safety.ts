@@ -339,6 +339,18 @@ export function restrictCodeTargets(stored: Record<string, CodeTarget>, configur
   return Object.fromEntries(entries.filter(([repo, target]) => stored[repo]?.ref === target.ref && stored[repo]?.workflowSha === target.workflowSha));
 }
 
+/** Owner-facing reason a repository has no usable CODE target. Wording only: the caller still refuses. */
+export function codeTargetRefusal(repo: string, allowed: Record<string, CodeTarget>): string | null {
+  const target = Object.hasOwn(allowed, repo) ? allowed[repo] : undefined;
+  if (target && /^[\w./-]{1,100}$/.test(target.ref) && /^[a-f0-9]{40}$/.test(target.workflowSha)) return null;
+  const names = Object.keys(allowed);
+  if (!names.length)
+    return `CODE refused ${repo}: no repository is currently allowed. The saved CODE_TARGETS setting is missing here or doesn't match the database pin, so nothing can run until the owner fixes that match.`;
+  if (!target)
+    return `CODE refused ${repo}: it isn't on the CODE allow list. Only ${names.join(", ")} is allowed. Adding another repository needs a separate owner approval.`;
+  return `CODE refused ${repo}: its approved branch or workflow version is invalid. The owner must re-approve the pin.`;
+}
+
 export function nextConsecutiveFailures(current: number, outcome: "success" | "failure") {
   if (!Number.isInteger(current) || current < 0) throw new Error("Invalid CODE failure counter.");
   return outcome === "success" ? 0 : current + 1;
