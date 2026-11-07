@@ -67,8 +67,7 @@ export async function waitingItems(): Promise<{ drafts: AlertDraft[]; complete: 
 /** Queues new alerts plus one reminder for items still waiting 15 minutes after their alert. */
 export async function collectAlerts() {
   const { drafts, complete } = await waitingItems();
-  const fresh = drafts.filter((d) => d.kind !== "pr_ready" || true);
-  let queued = await enqueueAlerts(fresh);
+  let queued = await enqueueAlerts(drafts);
   const waitingKeys = new Set(drafts.map((d) => d.dedupeKey));
   const { data: sent } = await db().from("owner_alert_outbox").select("dedupe_key, kind, title, body, link, sent_at, reminder").eq("status", "sent").eq("reminder", false).in("kind", ["passkey_needed", "github_approval"]).gte("sent_at", new Date(Date.now() - 24 * 3600_000).toISOString()).limit(50);
   const reminders = ((sent ?? []) as { dedupe_key: string; kind: AlertKind; title: string; body: string; link: string; sent_at: string | null; reminder: boolean }[])
