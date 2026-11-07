@@ -4,6 +4,7 @@ const db = untyped(typedDb);
 import {
   codeStartBlockReason,
   parseTotalSpendGuard,
+  parseSpendMeter,
   parseCodeTargets,
   restrictCodeTargets,
   shouldPauseForSpend,
@@ -44,6 +45,9 @@ export async function getCodeSafetyState(now = Date.now()): Promise<CodeSafetySt
   // Absent until the reviewed cumulative-guard migration is applied; any error fails closed.
   const guardResult = await db.rpc("code_total_spend_guard_status");
   const totalSpendGuard = parseTotalSpendGuard(guardResult.error ? null : guardResult.data);
+  // Live gateway-ledger meter; absent until its reviewed migration is applied. Errors fail closed.
+  const meterResult = await db.rpc("code_spend_meter_status");
+  const spendMeter = parseSpendMeter(meterResult.error ? null : meterResult.data);
   const sum = (rows: { cost_usd: number }[] | null) =>
     (rows ?? []).reduce((total, row) => total + Number(row.cost_usd), 0);
   const providerSpendTodayUsd = sum(today.data);
@@ -101,10 +105,29 @@ export async function getCodeSafetyState(now = Date.now()): Promise<CodeSafetySt
     perTaskReserveUsd: Number.isFinite(perTaskReserveUsd) ? perTaskReserveUsd : null,
     usageSpike,
     totalSpendGuard,
+    spendMeter,
   };
 }
 
-export async function codeSafetyBlockReason(repo: string, now = Date.now()) {
+/** Re-measures the gateway ledger and stamps provider_usage_at only when every meter check passes
+ * (the database clears it otherwise). Throws when the meter is missing, so callers fail closed. */
+export async function refreshCodeSpendMeter() {
+  const { data, error } = await db.rpc("refresh_code_spend_meter");
+  const meter = parseSpendMeter(error ? null : data);
+  if (!meter) throw new Error("CODE live spending meter is unavailable.");
+  return meter;
+}
+
+/** With refreshMeter, the runner re-measures right before the claim so the 5-minute freshness window
+ * is always the gateway ledger as of this request. */
+export async function codeSafetyBlockReason(repo: string, now = Date.now(), opts: { refreshMeter?: boolean } = {}) {
+  if (opts.refreshMeter) {
+    try {
+      await refreshCodeSpendMeter();
+    } catch {
+      return "CODE is blocked because the live spending meter is unavailable.";
+    }
+  }
   const state = await getCodeSafetyState(now);
   return codeStartBlockReason(state, repo, now);
 }

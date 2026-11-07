@@ -278,7 +278,7 @@ export async function handleCodeRunnerClaim(request: Request): Promise<Response>
       return reply({ error: "CODE publishing approval was already claimed." }, 409);
     }
     if (body.stage === "execute") {
-      const blocked = await codeSafetyBlockReason(scope.repo);
+      const blocked = await codeSafetyBlockReason(scope.repo, Date.now(), { refreshMeter: true });
       if (blocked) return reply({ error: blocked }, 409);
     }
     await verifyWorkflowRun(
