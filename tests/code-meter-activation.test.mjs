@@ -38,7 +38,9 @@ before(async () => {
   ]);
   await base.query("UPDATE public.automation_policy SET paused = true");
   metered = await clone(base);
-  await metered.exec(await staged("0049_code_spend_meter_and_activation.sql"));
+  // 0049 has since been applied (journal 0048_code_spend_meter_and_activation); only replay it when the chain lacks it.
+  const applied = (await metered.query("SELECT to_regprocedure('public.code_spend_meter_status()') IS NOT NULL AS ok")).rows[0].ok;
+  if (!applied) await metered.exec(await staged("0049_code_spend_meter_and_activation.sql"));
 });
 
 const one = async (db, sql, params) => (await db.query(sql, params)).rows[0];
