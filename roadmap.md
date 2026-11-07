@@ -7,6 +7,9 @@
 ## GitHub issue/PR preparation (Nov 7, 17:19 UTC)
 - [ ] Prepare GitHub issues and pull requests with CI evidence and review-status summaries; no merge or deploy permissions.
 
+## Append-only audit list (Nov 7, 17:20 UTC)
+- [ ] Lock the older audit list so entries can't be changed or deleted (keep all history) and show who did each action.
+
 ## Autonomy master brief (Nov 7, 16:16 UTC)
 - [x] Audit: switches vs real runs vs GitHub CODE gates (docs/AUTONOMY-AUDIT-2026-11-07.md).
 - [x] Kill Switch now stops every background and owner-started work path (was only Task Mode + CODE).
