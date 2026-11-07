@@ -1,6 +1,6 @@
 import { useServerFn } from "@tanstack/react-start";
 import { useStepUp } from "@/lib/step-up-client";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { CheckCircle2, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -49,9 +49,7 @@ export function MultiSelect({ hub, onPick, reload }: { hub: Hub | null; onPick: 
   const plan = bulkPlan(chosen);
   const note = (k: string, m: string) => setResults((r) => ({ ...r, [k]: m }));
   // Live inspection runs: real server events, timestamps, stall warnings, Stop and Retry (shared with Code Foundry).
-  const { runs: loops, active: running, queue, start, stop, retry } = useInspectRuns(() => void refreshTasks());
-  const loopsRef = useRef(loops);
-  loopsRef.current = loops;
+  const { runs: loops, active: running, queue, startIfQueued, stop, retry } = useInspectRuns(() => void refreshTasks());
 
   const connectSelected = async () => {
     setBusy(true);
@@ -94,7 +92,7 @@ export function MultiSelect({ hub, onPick, reload }: { hub: Hub | null; onPick: 
     const run = chosen.filter((r) => { const e = loopEligible(r); if (!e.ok) note(r.key, `Skipped: ${e.reason}`); return e.ok; });
     for (const r of run) queue(r.key, r.projectId!);
     // A run stopped while still queued is skipped when its slot comes up.
-    await runBounded(run, MAX_CONCURRENCY, async (r) => { if (loopsRef.current[r.key]?.phase === "queued") await start(r.key, r.projectId!); }, () => {});
+    await runBounded(run, MAX_CONCURRENCY, (r) => startIfQueued(r.key), () => {});
     await refreshTasks();
     setBusy(false);
   };

@@ -55,7 +55,9 @@ export function useInspectRuns(onFinished?: () => void) {
 
   const queue = useCallback((key: string, projectId: string) => {
     const now = Date.now();
-    setRuns((cur) => ({ ...cur, [key]: { runId: newId(), projectId, phase: "queued", startedAt: now, lastSeenAt: now, trail: [], head: [{ id: "queued", at: now, text: "Queued — waiting for a free slot", tone: "info" }], tail: [] } }));
+    const entry: InspectRun = { runId: newId(), projectId, phase: "queued", startedAt: now, lastSeenAt: now, trail: [], head: [{ id: "queued", at: now, text: "Queued — waiting for a free slot", tone: "info" }], tail: [] };
+    ref.current = { ...ref.current, [key]: entry }; // visible to startIfQueued before the next render
+    setRuns((cur) => ({ ...cur, [key]: entry }));
   }, []);
 
   const start = useCallback(async (key: string, projectId: string) => {
@@ -76,13 +78,23 @@ export function useInspectRuns(onFinished?: () => void) {
   const stop = useCallback(async (key: string) => {
     const r = ref.current[key];
     if (!r || !isActive(r.phase)) return;
-    if (r.phase === "queued") { finish(key, r.runId, { phase: "stopped", text: "Removed from the queue before it started." }); return; }
+    if (r.phase === "queued") {
+      ref.current = { ...ref.current, [key]: { ...r, phase: "stopped" } }; // its slot will skip it
+      finish(key, r.runId, { phase: "stopped", text: "Removed from the queue before it started." });
+      return;
+    }
     setRuns((cur) => (cur[key]?.runId === r.runId ? { ...cur, [key]: { ...cur[key]!, phase: "stopping", stopAskedAt: Date.now() } } : cur));
     try { await stopFn({ data: { projectId: r.projectId, runId: r.runId } }); void pull([key]).catch(() => {}); }
     catch (e) {
       setRuns((cur) => (cur[key]?.runId === r.runId ? { ...cur, [key]: { ...cur[key]!, phase: "running", stopAskedAt: undefined, head: [...cur[key]!.head, { id: `stopfail-${Date.now()}`, at: Date.now(), text: `Could not send Stop: ${(e as Error).message}`, tone: "error" }] } } : cur));
     }
   }, [stopFn, pull, finish]);
+
+  /** For bounded batches: start only if this key is still waiting in the queue (Stop while queued skips it). */
+  const startIfQueued = useCallback(async (key: string) => {
+    const r = ref.current[key];
+    if (r?.phase === "queued") await start(key, r.projectId);
+  }, [start]);
 
   const retry = useCallback(async (key: string) => {
     const r = ref.current[key];
@@ -108,7 +120,7 @@ export function useInspectRuns(onFinished?: () => void) {
     return () => { window.clearInterval(clock); window.clearInterval(poll); };
   }, [active, pull, finish]);
 
-  return { runs, active, queue, start, stop, retry };
+  return { runs, active, queue, start, startIfQueued, stop, retry };
 }
 
 const fmtTime = (ms: number) => (ms ? new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "");
