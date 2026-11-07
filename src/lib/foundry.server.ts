@@ -65,10 +65,8 @@ export async function spikeGuard(actor: string): Promise<string | null> {
   return reason;
 }
 
-/** Cooperative stop for a running inspection: true when the owner pressed Stop for this run, or paused all work. Checked only at safe points (never mid-write). */
+/** Cooperative stop for a running inspection: true when the owner pressed Stop for this run. Checked only at safe points (never mid-write). */
 async function stopAsked(projectId: string, runId?: string): Promise<boolean> {
-  const { data: s } = await supabaseAdmin.from("foundry_schedule").select("paused").eq("id", 1).maybeSingle();
-  if (s?.paused) return true;
   if (!runId) return false;
   const { count } = await supabaseAdmin.from("foundry_events").select("id", { count: "exact", head: true }).eq("project_id", projectId).eq("action", "inspect_stop_requested").filter("detail->>runId", "eq", runId);
   return (count ?? 0) > 0;
