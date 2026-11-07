@@ -122,8 +122,8 @@ export const getFirebaseWebConfig = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<{ config: FirebaseWebConfig | null; diagnostics: FirebaseDiagnostics }> => {
     await requireOwner(context);
-    const apiKey = (process.env["GOOGLE_API_KEY"] ?? "").trim();
-    const vapidKey = (process.env["FIREBASE_VAPID_KEY"] ?? "").trim();
+    const apiKey = (process.env["GOOGLE_API_KEY"] || process.env["FIREBASE_MESSAGING_WEB_API_KEY"] || "").trim();
+    const vapidKey = (process.env["FIREBASE_VAPID_KEY"] || process.env["FIREBASE_MESSAGING_VAPID_KEY"] || "").trim();
     const diagnostics = diagnoseFirebase(apiKey, vapidKey, (await import("./owner-alerts.server")).pushConfigured());
     return { config: diagnostics.apiKey === "ok" && diagnostics.vapidKey === "ok" ? { ...FIREBASE_PUBLIC, apiKey, vapidKey } : null, diagnostics };
   });
