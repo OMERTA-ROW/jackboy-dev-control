@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   stop: vi.fn(),
+  pauseAll: vi.fn(),
   resume: vi.fn(),
   setHardCap: vi.fn(),
   enable: vi.fn(),
