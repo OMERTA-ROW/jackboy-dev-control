@@ -38,7 +38,7 @@ export async function fetchOpenAICostRows(settings: CostReportSettings, start: D
     }
     const response = await fetch(`https://api.openai.com/v1/organization/costs?${params}`, {
       headers,
-      redirect: "error",
+      redirect: "manual",
       signal: AbortSignal.timeout(10_000),
     });
     if (response.status === 401) throw new Error("OpenAI cost sync credential was rejected (HTTP 401).");

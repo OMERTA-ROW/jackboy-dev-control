@@ -115,11 +115,12 @@ async function github<T>(repo: string, path: string): Promise<T> {
   if (!token) throw new Error("CODE runner authorization is unavailable.");
   const response = await fetch(`https://api.github.com/repos/${repo}${path}`, {
     signal: AbortSignal.timeout(10_000),
-    redirect: "error",
+    redirect: "manual",
     headers: (() => {
       const headers = new Headers({
         Accept: "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": "Jackboy",
       });
       headers.set("Authorization", ["Bearer", token].join(" "));
       return headers;
