@@ -3032,6 +3032,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      set_code_provider_hard_cap_verified: {
+        Args: { p_actor: string; p_evidence: string; p_verified: boolean }
+        Returns: Json
+      }
       set_jax_enrollment: {
         Args: { _enroll: boolean; _id: string; _purpose: string }
         Returns: undefined

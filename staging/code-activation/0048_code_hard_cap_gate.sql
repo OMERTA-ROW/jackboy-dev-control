@@ -1,4 +1,4 @@
--- PROPOSED, NOT APPLIED. Requires explicit owner approval before it is run against any database.
+-- APPLIED Nov 7, 2026 00:27 UTC on owner approval as drizzle/migrations/0047_code_hard_cap_gate.sql (only the header comment differs). Kept for review history.
 -- Depends on 0047_code_total_spend_guard.sql (refuses to run without it).
 --
 -- Replaces 0037's forced-false CHECK (provider_hard_cap_verified = false) with a reviewed gate:

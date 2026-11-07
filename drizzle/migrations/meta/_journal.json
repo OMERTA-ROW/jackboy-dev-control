@@ -330,6 +330,13 @@
       "when": 1794011079331,
       "tag": "0046_code_total_spend_guard",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1794011266867,
+      "tag": "0047_code_hard_cap_gate",
+      "breakpoints": true
     }
   ]
 }
