@@ -65,23 +65,40 @@ export async function spikeGuard(actor: string): Promise<string | null> {
   return reason;
 }
 
-export async function inspectProject(projectId: string, actor: string, source: "manual" | "scheduled", limit = 1) {
+/** Cooperative stop for a running inspection: true when the owner pressed Stop for this run, or paused all work. Checked only at safe points (never mid-write). */
+async function stopAsked(projectId: string, runId?: string): Promise<boolean> {
+  const { data: s } = await supabaseAdmin.from("foundry_schedule").select("paused").eq("id", 1).maybeSingle();
+  if (s?.paused) return true;
+  if (!runId) return false;
+  const { count } = await supabaseAdmin.from("foundry_events").select("id", { count: "exact", head: true }).eq("project_id", projectId).eq("action", "inspect_stop_requested").filter("detail->>runId", "eq", runId);
+  return (count ?? 0) > 0;
+}
+
+/** Owner asked one running inspection to stop; the run halts at its next safe point and records `inspect_stopped`. */
+export async function requestInspectStop(projectId: string, runId: string, actor: string) {
+  await event({ id: null as never, project_id: projectId }, "inspect_stop_requested", actor, null, null, "Stop requested by the owner; stopping at the next safe point.", { runId });
+}
+
+export async function inspectProject(projectId: string, actor: string, source: "manual" | "scheduled", limit = 1, opts: { runId?: string } = {}) {
+  const runId = opts.runId;
+  const tag = (d: Record<string, unknown> = {}) => (runId ? { ...d, runId } : d);
   const spike = await spikeGuard(actor);
   if (spike) return { created: 0, blocked: spike };
   const { data: p } = await supabaseAdmin.from("owner_projects").select("id, name, github_repo").eq("id", projectId).single();
   if (!p) throw new Error("Project not found.");
-  if (!p.github_repo) { await event({ id: null as never, project_id: p.id }, "inspect_blocked", actor, null, null, "No GitHub repo linked."); return { created: 0, blocked: "No GitHub repo linked to this project." }; }
+  const pe = (action: string, note: string, d: Record<string, unknown> = {}) => event({ id: null as never, project_id: p.id }, action, actor, null, null, note, tag(d));
+  if (!p.github_repo) { await pe("inspect_blocked", "No GitHub repo linked."); return { created: 0, blocked: "No GitHub repo linked to this project." }; }
   const { data: rg } = await supabaseAdmin.from("capability_grants").select("status, paused").eq("capability", "github_repo").eq("project_id", p.id).maybeSingle();
-  if (rg && (rg.status === "revoked" || rg.paused)) { await event({ id: null as never, project_id: p.id }, "inspect_blocked", actor, null, null, "GitHub repo access revoked or paused in AutoConnect."); return { created: 0, blocked: "GitHub repo access is revoked or paused for this project." }; }
+  if (rg && (rg.status === "revoked" || rg.paused)) { await pe("inspect_blocked", "GitHub repo access revoked or paused in AutoConnect."); return { created: 0, blocked: "GitHub repo access is revoked or paused for this project." }; }
   const { count: active } = await supabaseAdmin.from("foundry_tasks").select("id", { count: "exact", head: true }).eq("project_id", p.id).in("state", IN_FLIGHT);
-  if (!projectSlotFree(active ?? 0)) { const m = `Queued: ${p.name} already has an active task. New work starts after it finishes (one active task per project).`; await event({ id: null as never, project_id: p.id }, "inspect_queued", actor, null, null, m); return { created: 0, blocked: m }; }
+  if (!projectSlotFree(active ?? 0)) { const m = `Queued: ${p.name} already has an active task. New work starts after it finishes (one active task per project).`; await pe("inspect_queued", m); return { created: 0, blocked: m }; }
   let repo: ws.Repo;
   try { repo = await ws.openRepo(p.github_repo); }
-  catch (e) { const m = (e as Error).message; await event({ id: null as never, project_id: p.id }, "inspect_blocked", actor, null, null, m); return { created: 0, blocked: m }; }
+  catch (e) { const m = (e as Error).message; await pe("inspect_blocked", m); return { created: 0, blocked: m }; }
   const t = await ws.tree(repo, repo.base);
   const toScan = Math.min(300, t.files.filter((await import("./code-scan")).scannable).length);
   // Real milestone the owner sees live while the loop runs.
-  await event({ id: null as never, project_id: p.id }, "inspect_started", actor, null, null, `Reading ${t.total} files in ${repo.full}; checking ${toScan} source file(s)…`, { inspectedFiles: t.total, toScan });
+  await pe("inspect_started", `Reading ${t.total} files in ${repo.full}; checking ${toScan} source file(s)…`, { inspectedFiles: t.total, toScan });
   const have = new Set(t.files);
   const found = CHECKS.filter((c) => !have.has(c.path)).sort((a, b) => b.priority - a.priority);
   let created = 0; const ids: string[] = [];
@@ -104,28 +121,49 @@ export async function inspectProject(projectId: string, actor: string, source: "
   }
   let scan: Awaited<ReturnType<typeof codeScan>> | null = null;
   if (created < limit) {
-    scan = await codeScan(p.id, repo, t.files, actor, source).catch(async (e) => { const m = (e as Error).message; await event({ id: null as never, project_id: p.id }, "code_scan_failed", actor, null, null, m); return { error: m } as never; });
+    if (await stopAsked(p.id, runId)) {
+      await pe("inspect_stopped", "Stopped before the source scan.");
+      return { created, ids, inspectedFiles: t.total, findings: found.length, scan, stopped: true };
+    }
+    scan = await codeScan(p.id, repo, t.files, actor, source, runId).catch(async (e) => { const m = (e as Error).message; await pe("code_scan_failed", m); return { error: m } as never; });
     if (scan && "taskId" in scan && scan.taskId) { created++; ids.push(scan.taskId); }
+    if (scan && "stopped" in scan && scan.stopped) return { created, ids, inspectedFiles: t.total, findings: found.length, scan, stopped: true };
   }
+  await pe("inspect_finished", created ? `Finished: prepared ${created} change(s) for your review.` : `Finished: inspected ${t.total} files; nothing new to fix.`, { created, inspectedFiles: t.total });
   return { created, ids, inspectedFiles: t.total, findings: found.length, scan };
 }
 
 /** Source-code defect scan → AI fix → deterministic validation → branch commit → update package → (routine only) draft PR. */
-async function codeScan(projectId: string, repo: ws.Repo, files: string[], actor: string, source: "manual" | "scheduled") {
+async function codeScan(projectId: string, repo: ws.Repo, files: string[], actor: string, source: "manual" | "scheduled", runId?: string) {
   const cs = await import("./code-scan");
+  const tag = (d: Record<string, unknown>) => (runId ? { ...d, runId } : d);
+  const pe = (action: string, note: string, d: Record<string, unknown> = {}) => event({ id: null as never, project_id: projectId }, action, actor, null, null, note, tag(d));
   const targets = files.filter(cs.scannable).slice(0, 300); // bounded: at most 300 file reads per run
   const defects: import("./code-scan").Defect[] = [];
   const contents = new Map<string, { content: string; sha: string }>();
-  for (const path of targets) {
+  // About ten live progress marks per run (also the safe points where a Stop is honoured).
+  const every = Math.max(1, Math.ceil(targets.length / 10));
+  for (const [i, path] of targets.entries()) {
+    if (i % every === 0) {
+      if (i > 0 && await stopAsked(projectId, runId)) {
+        await pe("inspect_stopped", `Stopped after checking ${i} of ${targets.length} source files.`, { done: i, total: targets.length });
+        return { scanned: contents.size, findings: defects.length, taskId: null as string | null, stopped: true as const, note: "Stopped by the owner." };
+      }
+      await pe("scan_progress", `Checking file ${i + 1} of ${targets.length} · ${path}`, { done: i, total: targets.length });
+    }
     try { const f = await ws.read(repo, path, repo.base); contents.set(path, f); defects.push(...cs.scanFile(path, f.content)); } catch { /* unreadable/protected files are skipped */ }
   }
-  await event({ id: null as never, project_id: projectId }, "code_scan", actor, null, null, `Scanned ${contents.size} source file(s) in ${repo.full}; ${defects.length} finding(s).`, { scanned: contents.size, findings: defects.length, rules: [...new Set(defects.map((d) => d.rule))] });
+  await pe("code_scan", `Scanned ${contents.size} source file(s) in ${repo.full}; ${defects.length} finding(s).`, { scanned: contents.size, findings: defects.length, total: targets.length, rules: [...new Set(defects.map((d) => d.rule))] });
   let pick: import("./code-scan").Defect | undefined;
   for (const d of cs.prioritize(defects)) {
     const { data: ex } = await supabaseAdmin.from("foundry_tasks").select("id").eq("project_id", projectId).eq("dedupe_key", cs.dedupeKey(d)).maybeSingle();
     if (!ex) { pick = d; break; }
   }
   if (!pick) return { scanned: contents.size, findings: defects.length, taskId: null as string | null, note: "No new findings." };
+  if (await stopAsked(projectId, runId)) {
+    await pe("inspect_stopped", "Stopped before writing a fix.");
+    return { scanned: contents.size, findings: defects.length, taskId: null as string | null, stopped: true as const, note: "Stopped by the owner." };
+  }
   const d = pick;
   const risk = d.risk === "sensitive" || classifyRisk([{ path: d.path }]) === "sensitive" ? "sensitive" : "low";
   const { data: row, error } = await supabaseAdmin.from("foundry_tasks").insert({
