@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { RefreshCw } from "lucide-react";
+import { CheckCircle2, RefreshCw } from "lucide-react";
 import { btn } from "@/components/ProjectBits";
 import { archiveGoneProject, resyncProject } from "@/lib/project-resync.functions";
 import { setSiteAddress } from "@/lib/project-hub.functions";
-import { normalizeSiteInput } from "@/lib/project-hub";
+import { connectButtonLabel, normalizeSiteInput } from "@/lib/project-hub";
 
-type P = { id: string; name: string; github_repo: string | null; repo_sync_status?: string };
+type P = { id: string; name: string; github_repo: string | null; repo_sync_status?: string; connect_state?: string | null; connect_error?: string | null };
 
 /** Small corner icon: re-identifies just this project (repo, name, site address, credential). */
 export function ProjectResyncIcon({ p, onDone }: { p: P; onDone: (msg: string, gone: boolean) => void }) {
@@ -26,12 +26,15 @@ export function ProjectResyncIcon({ p, onDone }: { p: P; onDone: (msg: string, g
     }}><RefreshCw className={`h-4 w-4 ${busy ? "animate-spin" : ""}`} aria-hidden /></button>;
 }
 
-/** Connect/Reconnect opens the project's connection section; Remove appears only when GitHub reported the repo gone. */
-export function ProjectConnectButtons({ p, gone, onRemoved }: { p: P; gone: boolean; onRemoved: (msg: string) => void }) {
+/** Connect / Connected / Reconnect follows the real connection; Remove appears only when GitHub reported the repo gone. */
+export function ProjectConnectButtons({ p, gone, tone, onRemoved }: { p: P; gone: boolean; tone?: "ok" | "warn" | "error" | "muted"; onRemoved: (msg: string) => void }) {
   const archive = useServerFn(archiveGoneProject);
   const [busy, setBusy] = useState(false);
+  const label = gone ? "Reconnect" : connectButtonLabel(p, tone);
   return <>
-    <Link to="/project/$id" params={{ id: p.id }} hash="repo-conn" className={btn} aria-label={`${p.github_repo ? "Reconnect" : "Connect"} a GitHub repo for ${p.name}`}>{p.github_repo ? "Reconnect" : "Connect"}</Link>
+    {label === "Connected"
+      ? <Link to="/project/$id" params={{ id: p.id }} hash="repo-conn" className={`${btn} border-success/40 text-success`} aria-label={`${p.name} is connected to ${p.github_repo}. Open connection details`}><CheckCircle2 className="h-4 w-4" aria-hidden />Connected</Link>
+      : <Link to="/project/$id" params={{ id: p.id }} hash="repo-conn" className={btn} aria-label={`${label} a GitHub repo for ${p.name}`}>{label}</Link>}
     {(gone || p.repo_sync_status === "deleted") && <button type="button" className={btn} disabled={busy} onClick={async () => {
       if (!window.confirm(`Remove ${p.name} from your projects? GitHub reports its repo is gone. History and logs are kept, and you can restore it.`)) return;
       setBusy(true);
