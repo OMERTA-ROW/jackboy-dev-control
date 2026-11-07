@@ -8,6 +8,7 @@ import {
 } from "./task-mode";
 import { logSite } from "./site-log.server";
 import { redact } from "./site-log";
+import type { Json } from "@/integrations/supabase/types";
 
 const now = () => new Date().toISOString();
 
@@ -166,8 +167,8 @@ export async function runTask(taskId: string, budget = { steps: 3, ms: 25_000 })
       if (o && typeof o === "object" && (o.blocked || typeof o.error === "string")) err = o.reason ?? o.error ?? "Blocked.";
     } catch (e) { err = e instanceof Error ? e.message : "Step failed."; }
     const raw = redact(JSON.stringify(out ?? null) ?? "null");
-    let result: unknown = { truncated: raw.slice(0, 5000) };
-    if (raw.length <= 6000) { try { result = JSON.parse(raw); } catch { /* keep truncated text */ } }
+    let result: Json = { truncated: raw.slice(0, 5000) };
+    if (raw.length <= 6000) { try { result = JSON.parse(raw) as Json; } catch { /* keep truncated text */ } }
     if (err) {
       const failures = task.failures + 1;
       await supabaseAdmin.from("task_steps").update({ status: "failed", error: redact(err).slice(0, 1000), result, finished_at: now() }).eq("id", step.id);

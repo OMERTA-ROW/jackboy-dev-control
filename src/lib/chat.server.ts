@@ -33,7 +33,7 @@ export async function handleChat(request: Request) {
   const body = (await request.json()) as { messages?: UIMessage[] };
   if (!Array.isArray(body.messages) || body.messages.length > 200) return Response.json({ error: "Invalid messages." }, { status: 400 });
 
-  const tools = buildJackboyTools(userId) as ReturnType<typeof buildJackboyTools> & Record<string, unknown>;
+  const tools = buildJackboyTools(userId);
   const { TASK_TOOLS } = await import("./task-mode");
   // Task Mode: chat only DRAFTS the steps; the owner reviews and presses Start on the Tasks page.
   (tools as Record<string, unknown>)["draftTask"] = tool({
