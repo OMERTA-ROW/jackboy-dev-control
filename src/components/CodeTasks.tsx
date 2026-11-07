@@ -106,7 +106,6 @@ export function CodeTasks({ tasks }: { tasks: ReturnType<typeof useCodeTasks> })
         <p role="status" className="mt-1">{pending ? expired ? "Approval expired" : "Waiting for your approval" : card.run ? `${card.run.status} · ${card.run.conclusion ?? "in progress"}` : card.status}</p>
         {pending && <>
           <p className="mt-2">Target: {card.repo}. Permissions: {card.permissions.join("; ")}.</p>
-          <p className="mt-1">Configured task spend reservation at request creation: {card.taskBudgetUsd == null ? "unavailable" : `up to $${card.taskBudgetUsd.toFixed(2)}`}. This is a ceiling, not a cost forecast or daily-cap guarantee; runtime admission rechecks current controls.</p>
           <p className="mt-1 text-xs">Expires {new Date(card.expiresAt).toLocaleTimeString()}. Voice response: “Allow CODE {card.id}” or “Deny CODE {card.id}”.</p>
           <div className="mt-3 flex gap-3">
             <button type="button" disabled={tasks.busy || expired || !card.nonce} onClick={() => void tasks.act("decide", card, "allow")} className="rounded-full bg-primary px-4 py-2 text-primary-foreground disabled:opacity-40">Allow once</button>

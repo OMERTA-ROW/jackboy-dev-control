@@ -257,7 +257,7 @@ export function createCodeGateway(deps: GatewayDeps) {
       try {
         upstream = await deps.upstream(`/v1${path}`, {
           method: "POST",
-          redirect: "error",
+          redirect: "manual",
           signal: controller.signal,
           headers: {
             "Content-Type": "application/json",

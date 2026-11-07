@@ -5,15 +5,13 @@ import { LiveCallBar, type LiveCall } from "@/components/LiveVoiceCall";
 import type { CodeCard } from "@/lib/code";
 vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 afterEach(cleanup);
-const card: CodeCard = { id: "12345678-1234-4234-8234-123456789abc", projectId: "project", repo: "owner/repo", instruction: "Fix footer", status: "pending", expiresAt: new Date(Date.now() + 60_000).toISOString(), nonce: "a".repeat(48), permissions: ["Open a draft PR"], outcome: null, taskBudgetUsd: 1 };
+const card: CodeCard = { id: "12345678-1234-4234-8234-123456789abc", projectId: "project", repo: "owner/repo", instruction: "Fix footer", status: "pending", expiresAt: new Date(Date.now() + 60_000).toISOString(), nonce: "a".repeat(48), permissions: ["Open a draft PR"], outcome: null };
 const tasks = (c = card) => ({ cards: [c], error: null, busy: false, submit: vi.fn(), act: vi.fn(), refresh: vi.fn(), receive: vi.fn() }) as unknown as ReturnType<typeof useCodeTasks>;
 describe("CODE in-chat approvals", () => {
   it("shows action, target, permissions, expiry and binds Allow to the visible request", () => {
     const t = tasks(); render(<CodeTasks tasks={t} />);
     expect(screen.getByText(/Fix footer/)).toBeInTheDocument();
     expect(screen.getByText(/Permissions: Open a draft PR/)).toBeInTheDocument();
-    expect(screen.getByText(/Configured task spend reservation at request creation: up to \$1\.00/)).toBeInTheDocument();
-    expect(screen.getByText(/not a cost forecast or daily-cap guarantee/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Allow once" }));
     expect(t.act).toHaveBeenCalledWith("decide", card, "allow");
   });
@@ -21,10 +19,6 @@ describe("CODE in-chat approvals", () => {
     render(<CodeTasks tasks={tasks({ ...card, expiresAt: new Date(0).toISOString() })} />);
     expect(screen.getByRole("button", { name: "Allow once" })).toBeDisabled();
     expect(screen.getByText("Approval expired")).toBeInTheDocument();
-  });
-  it("does not imply a reservation when the saved amount is unavailable", () => {
-    render(<CodeTasks tasks={tasks({ ...card, taskBudgetUsd: null })} />);
-    expect(screen.getByText(/Configured task spend reservation at request creation: unavailable/)).toBeInTheDocument();
   });
   it("uses an accessible discreet hang-up button and keeps the audio mounted", () => {
     const end = vi.fn();

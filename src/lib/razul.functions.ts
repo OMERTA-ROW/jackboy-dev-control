@@ -23,7 +23,7 @@ function config() {
 async function razul(path: string, init: RequestInit = {}) {
   const c = config();
   if (!c) throw new Error("Razul not configured: add RAZUL_API_URL (https) and RAZUL_API_KEY secrets.");
-  const res = await fetch(`${c.url}${path}`, { ...init, headers: { Authorization: `Bearer ${c.key}`, "Content-Type": "application/json", Accept: "application/json" }, signal: AbortSignal.timeout(10_000), redirect: "error" });
+  const res = await fetch(`${c.url}${path}`, { ...init, headers: { Authorization: `Bearer ${c.key}`, "Content-Type": "application/json", Accept: "application/json" }, signal: AbortSignal.timeout(10_000), redirect: "manual" });
   if (!res.ok) throw new Error(`Razul responded ${res.status}: ${(await res.text()).slice(0, 300)}`);
   return res;
 }

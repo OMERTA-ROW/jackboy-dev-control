@@ -100,10 +100,11 @@ export const stepUpOptions = createServerFn({ method: "POST" }).middleware([requ
     const s = await import("./passkey.server");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { rpID } = s.rp(getRequest());
-    const { data: keys } = await supabaseAdmin.from("owner_passkeys").select("credential_id, transports").eq("user_id", context.userId).eq("rp_id", rpID);
+    const { data: keys } = await supabaseAdmin.from("owner_passkeys").select("credential_id, transports, label").eq("user_id", context.userId).eq("rp_id", rpID);
     if (!keys?.length) throw new Error(`No passkey registered for ${rpID}. Add one in Settings → Security on this address first.`);
     const opts = await generateAuthenticationOptions({ rpID, userVerification: "required", allowCredentials: keys.map((k) => ({ id: k.credential_id, transports: k.transports as never })) });
-    return { challengeId: await s.saveChallenge(context.userId, opts.challenge, "stepup", data.action, data.target), options: opts };
+    // Labels + transports let the passkey window name the device's real method (Face ID, Windows Hello, 1Password…).
+    return { challengeId: await s.saveChallenge(context.userId, opts.challenge, "stepup", data.action, data.target), options: opts, keys: keys.map((k) => ({ label: k.label as string | null, transports: (k.transports ?? []) as string[] })) };
   });
 
 export const stepUpVerify = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
@@ -157,10 +158,10 @@ export const passkeyTestOptions = createServerFn({ method: "POST" }).middleware(
   const s = await import("./passkey.server");
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { rpID } = s.rp(getRequest());
-  const { data: keys } = await supabaseAdmin.from("owner_passkeys").select("credential_id, transports").eq("user_id", context.userId).eq("rp_id", rpID);
+  const { data: keys } = await supabaseAdmin.from("owner_passkeys").select("credential_id, transports, label").eq("user_id", context.userId).eq("rp_id", rpID);
   if (!keys?.length) throw new Error(`No passkey registered for ${rpID} yet.`);
   const opts = await generateAuthenticationOptions({ rpID, userVerification: "required", allowCredentials: keys.map((k) => ({ id: k.credential_id, transports: k.transports as never })) });
-  return { challengeId: await s.saveChallenge(context.userId, opts.challenge, "stepup", "passkey.test", "self"), options: opts };
+  return { challengeId: await s.saveChallenge(context.userId, opts.challenge, "stepup", "passkey.test", "self"), options: opts, keys: keys.map((k) => ({ label: k.label as string | null, transports: (k.transports ?? []) as string[] })) };
 });
 
 export const passkeyTestVerify = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])

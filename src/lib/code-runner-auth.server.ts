@@ -4,6 +4,7 @@ import { untyped } from "./untyped-db";
 const db = untyped(typedDb);
 import { CODE_ACTION, CODE_WORKFLOW, type CodeScope } from "./code";
 import { codeSafetyBlockReason, getCodeSafetyState } from "./code-safety.server";
+import { classifyPatch, expectedEnvironment, expectedSubject, laneOf, type Lane, type PatchEvidence } from "./code-lane";
 
 const ISSUER = "https://token.actions.githubusercontent.com";
 const AUDIENCE = "jackboy-code-runner";
@@ -115,11 +116,12 @@ async function github<T>(repo: string, path: string): Promise<T> {
   if (!token) throw new Error("CODE runner authorization is unavailable.");
   const response = await fetch(`https://api.github.com/repos/${repo}${path}`, {
     signal: AbortSignal.timeout(10_000),
-    redirect: "error",
+    redirect: "manual",
     headers: (() => {
       const headers = new Headers({
         Accept: "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": "Jackboy",
       });
       headers.set("Authorization", ["Bearer", token].join(" "));
       return headers;
@@ -136,22 +138,17 @@ export async function verifyWorkflowRun(
   workflowSha: string,
   baseSha: string,
   stage: "execute" | "publish" | "finish",
+  lane: Lane = "reviewed",
 ) {
   const expectedRef = `refs/heads/${ref}`;
+  // The lane comes from the server-stored request, never from the runner; the signed identity must name its environment.
   if (
     claims.repository !== repo ||
-    claims.sub !==
-      (stage === "execute"
-        ? `repo:${repo}:environment:CODE`
-        : stage === "publish"
-          ? `repo:${repo}:environment:CODE-PUBLISH`
-          : `repo:${repo}:ref:${expectedRef}`) ||
+    claims.sub !== expectedSubject(repo, stage, lane, ref) ||
     claims.ref !== expectedRef ||
     claims.workflow_ref !== `${repo}/.github/workflows/${CODE_WORKFLOW}@${expectedRef}` ||
     claims.sha !== baseSha ||
-    (stage === "execute" && claims.environment !== "CODE") ||
-    (stage === "publish" && claims.environment !== "CODE-PUBLISH") ||
-    (stage === "finish" && claims.environment !== undefined)
+    claims.environment !== expectedEnvironment(stage, lane)
   ) {
     throw new Error("CODE runner identity does not match the approved request.");
   }
@@ -212,8 +209,8 @@ export async function handleCodeRunnerClaim(request: Request): Promise<Response>
   if (!bearer) return reply({ error: "GitHub Actions identity required." }, 401);
   try {
     const text = await request.text();
-    if (Buffer.byteLength(text) > 2_000) return reply({ error: "Invalid request." }, 400);
-    const body = JSON.parse(text) as { requestId?: unknown; stage?: unknown };
+    if (Buffer.byteLength(text) > 4_000) return reply({ error: "Invalid request." }, 400);
+    const body = JSON.parse(text) as { requestId?: unknown; stage?: unknown; patch?: unknown };
     if (
       typeof body.requestId !== "string" ||
       !UUID.test(body.requestId) ||
@@ -281,6 +278,15 @@ export async function handleCodeRunnerClaim(request: Request): Promise<Response>
       const blocked = await codeSafetyBlockReason(scope.repo, Date.now(), { refreshMeter: true });
       if (blocked) return reply({ error: blocked }, 409);
     }
+    const lane = laneOf(scope as { lane?: unknown });
+    if (lane === "auto") {
+      const { autoLaneAllowed } = await import("./code-lane.server");
+      if (!(await autoLaneAllowed(scope.repo))) return reply({ error: "The automatic lane isn't on for this site." }, 403);
+      if (body.stage === "publish") {
+        const check = classifyPatch(body.patch as PatchEvidence);
+        if (!check.lowRisk) return reply({ error: `This patch needs the reviewed lane: ${check.reasons.join(" ")}` }, 409);
+      }
+    }
     await verifyWorkflowRun(
       claims,
       scope.repo,
@@ -288,6 +294,7 @@ export async function handleCodeRunnerClaim(request: Request): Promise<Response>
       scope.workflowSha,
       scope.baseSha,
       body.stage,
+      lane,
     );
     const { data, error: claimError } = await db.rpc("claim_code_runner", {
       p_request_id: body.requestId,
@@ -383,6 +390,10 @@ export async function handleCodeRunnerFinish(request: Request): Promise<Response
       p_outcome: body.outcome as "success" | "failure" | "cancelled",
     });
     if (finishError) return reply({ error: "CODE task completion could not be recorded." }, 409);
+    if (body.outcome === "success" && typeof scope.correlation === "string") {
+      const { logPatchTrial } = await import("./code-lane.server");
+      await logPatchTrial(body.requestId, scope.repo, scope.baseSha, scope.correlation);
+    }
     return reply({ recorded: true });
   } catch {
     return reply({ error: "CODE task finalization failed closed." }, 403);
