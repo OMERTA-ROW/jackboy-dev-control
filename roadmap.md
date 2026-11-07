@@ -9,8 +9,8 @@
 - [x] Cost-meter secrets OPENAI_ADMIN_KEY, OPENAI_CODE_PROJECT_ID, OPENAI_CODE_API_KEY_ID now exist (values not checked against OpenAI).
 - [x] Owner passkey control to mark/un-mark the hard cap (Settings → CODE): fresh passkey only, CODE off + Stop on; 9 new tests; not pressed.
 - [ ] Owner presses it on the published app — owner only; needs publish first.
-- [ ] Fresh admission meter: nothing sets provider_usage_at, so every task claim refuses — blocked: owner approval of a design.
-- [ ] Owner control to release the CODE stop and turn CODE on (none exists; supervised switch is locked) — blocked: owner approval to build.
+- [x] Live spending meter (gateway ledger + OpenAI closed-day cross-check) and passkey on-switch built; 11 isolated database tests, app and runtime tests pass; not pressed.
+- [ ] Apply staged 0049 (meter + on-switch database part) — blocked: owner approval.
 - [ ] Release Emergency Stop / enable CODE — owner only.
 
 ## Workflow pin repair and activation readiness (Nov 5, 21:30 UTC)
