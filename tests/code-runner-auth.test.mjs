@@ -95,7 +95,7 @@ registerHooks({
     }
     if (specifier === "./code-safety.server") {
       return next(
-        "data:text/javascript,export const getCodeSafetyState=async()=>globalThis.__codeSafety;export const codeSafetyBlockReason=async()=>null",
+        "data:text/javascript,export const getCodeSafetyState=async()=>globalThis.__codeSafety;export const codeSafetyBlockReason=async(repo,now,opts)=>{globalThis.__meterRefreshes=(globalThis.__meterRefreshes??0)+(opts?.refreshMeter?1:0);return null}",
         context,
       );
     }
@@ -208,7 +208,9 @@ beforeEach(() => {
     perTaskReserveUsd: 1,
     usageSpike: false,
     totalSpendGuard: { enforced: true, limitUsd: 10, committedUsd: 0 },
+    spendMeter: { ok: true, reasons: [], measuredAt: new Date().toISOString(), measuredTodayUsd: 0, gatewayTodayUsd: 0, providerTodayUsd: 0, gatewayHourUsd: 0, unreportedDays: [], bypassDays: [] },
   };
+  globalThis.__meterRefreshes = 0;
   globalThis.__codeSafety = safetyState;
   process.env.CODE_TARGETS = JSON.stringify({ "owner/repo": { ref: "main", workflowSha } });
   process.env.CODE_GITHUB_TOKEN = "test-runner-auth-token";
@@ -236,6 +238,7 @@ test("execute claim is bound to the approved request scope and can only be claim
   assert.equal(claimedArgs.p_revision, revision);
   assert.equal(rpcCalls, 1);
   assert.equal(slotCalls, 1);
+  assert.equal(globalThis.__meterRefreshes, 1, "the live meter is re-measured right before the claim");
   assert.equal((await claim()).status, 409);
   assert.equal(rpcCalls, 1);
 });
