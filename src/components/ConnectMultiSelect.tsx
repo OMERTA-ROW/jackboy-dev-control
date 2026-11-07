@@ -67,7 +67,8 @@ export function MultiSelect({ hub, onPick, reload }: { hub: Hub | null; onPick: 
             const pid = rows.find((r) => r.key === k)?.projectId;
             const mine = (events as LoopEvent[]).filter((e) => e.project_id === pid);
             // This run's trail starts at its own "inspect_started" (15 s clock tolerance).
-            const startIdx = mine.findLastIndex((e) => e.action === "inspect_started" && Date.parse(e.created_at) >= l.startedAt - 15_000);
+            let startIdx = -1;
+            mine.forEach((e, i) => { if (e.action === "inspect_started" && Date.parse(e.created_at) >= l.startedAt - 15_000) startIdx = i; });
             next[k] = { ...l, step: loopStep(startIdx >= 0 ? mine.slice(startIdx) : []) };
           }
           return next;
