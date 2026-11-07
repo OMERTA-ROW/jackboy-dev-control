@@ -136,8 +136,12 @@ export function ActivationPanel({
       onClick={() =>
         void run(() =>
           globalPaused
-            ? stepUp("global_pause", "global_pause:off").then((grantId) => resume({ data: { grantId } }))
-            : stepUp("global_pause", "global_pause:on").then((grantId) => pauseAll({ data: { grantId } })),
+            ? stepUp("global_pause", "global_pause:off").then((grantId) =>
+                resume({ data: { grantId } }),
+              )
+            : stepUp("global_pause", "global_pause:on").then((grantId) =>
+                pauseAll({ data: { grantId } }),
+              ),
         )
       }
     >
@@ -147,25 +151,38 @@ export function ActivationPanel({
   );
 
   const safetyControls = (
-    <div className="mt-3 grid gap-3 rounded-md border border-border p-3 sm:grid-cols-2" aria-label="Pause and stop controls">
+    <div
+      className="mt-3 grid gap-3 rounded-md border border-border p-3 sm:grid-cols-2"
+      aria-label="Pause and stop controls"
+    >
       <div>
         <p className="text-sm font-medium">
           Kill Switch:{" "}
-          <span className={globalPaused === false ? "text-success" : "text-warning"} aria-live="polite">
+          <span
+            className={globalPaused === false ? "text-success" : "text-warning"}
+            aria-live="polite"
+          >
             {globalPaused === null ? "unknown" : globalPaused ? "on — all work paused" : "off"}
           </span>
         </p>
-        <p className="mb-2 text-xs text-muted-foreground">Pauses or resumes all Jackboy work. Needs your passkey.</p>
+        <p className="mb-2 text-xs text-muted-foreground">
+          Pauses or resumes all Jackboy work. Needs your passkey.
+        </p>
         {killSwitch}
       </div>
       <div>
         <p className="text-sm font-medium">
           CODE emergency stop:{" "}
-          <span className={state?.killSwitch === false ? "text-success" : "text-warning"} aria-live="polite">
+          <span
+            className={state?.killSwitch === false ? "text-success" : "text-warning"}
+            aria-live="polite"
+          >
             {!state ? "unknown" : state.killSwitch ? "engaged — CODE off" : "released"}
           </span>
         </p>
-        <p className="mb-2 text-xs text-muted-foreground">Turns CODE off at once and cancels a running job. Never blocked.</p>
+        <p className="mb-2 text-xs text-muted-foreground">
+          Turns CODE off at once and cancels a running job. Never blocked.
+        </p>
         {emergencyStop}
       </div>
     </div>

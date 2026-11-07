@@ -11,7 +11,7 @@ vi.mock("@tanstack/react-start", () => ({ useServerFn: (fn: unknown) => fn }));
 vi.mock("@/lib/code-safety.functions", () => ({
   engageCodeKillSwitch: mocks.stop,
   resumeJackboyWork: mocks.resume,
-    stopJackboyWork: mocks.pauseAll,
+  stopJackboyWork: mocks.pauseAll,
   setCodeHardCapVerified: mocks.setHardCap,
   enableCodeRuntime: mocks.enable,
 }));
@@ -67,6 +67,7 @@ it("turning CODE on uses the same fresh passkey action and stays disabled until 
     <ActivationPanel
       state={OFF}
       gates={gates(["global_pause"])}
+      globalPaused
       gatesError={null}
       busy={false}
       run={run}
@@ -90,6 +91,7 @@ it("the global pause step asks for the passkey bound to the off action", async (
     <ActivationPanel
       state={OFF}
       gates={gates(["global_pause"])}
+      globalPaused
       gatesError={null}
       busy={false}
       run={run}
@@ -145,28 +147,102 @@ it("a cancelled passkey changes nothing", async () => {
 });
 
 it("walkthrough starts only on press, shows one step, and advances after a fresh read without pressing anything", async () => {
-  const { rerender } = render(<ActivationPanel state={{ ...OFF, providerBudgetEnforced: false }} gates={gates(["hard_cap", "global_pause"])} gatesError={null} busy={false} run={run} />);
+  const { rerender } = render(
+    <ActivationPanel
+      state={{ ...OFF, providerBudgetEnforced: false }}
+      gates={gates(["hard_cap", "global_pause"])}
+      globalPaused
+      gatesError={null}
+      busy={false}
+      run={run}
+    />,
+  );
   expect(screen.queryByLabelText("Activation walkthrough")).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Start activation" }));
   expect(screen.getByText("Step 4 of 7")).toBeInTheDocument();
   expect(screen.getByRole("heading", { name: "Provider hard cap confirmed" })).toBeInTheDocument();
   expect(screen.queryByRole("heading", { name: "Kill Switch off" })).toBeNull();
   // Server read now says the hard cap is marked: the next step appears, nothing is called.
-  rerender(<ActivationPanel state={OFF} gates={gates(["global_pause"])} gatesError={null} busy={false} run={run} />);
+  rerender(
+    <ActivationPanel
+      state={OFF}
+      gates={gates(["global_pause"])}
+      globalPaused
+      gatesError={null}
+      busy={false}
+      run={run}
+    />,
+  );
   expect(await screen.findByText("Step 4 done: Provider hard cap confirmed.")).toBeInTheDocument();
   expect(screen.getByText("Step 6 of 7")).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Turn Kill Switch off with passkey" })).toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: "Turn Kill Switch off with passkey" }),
+  ).toBeInTheDocument();
   expect(mocks.stepUp).not.toHaveBeenCalled();
   expect(mocks.resume).not.toHaveBeenCalled();
   expect(mocks.enable).not.toHaveBeenCalled();
 });
 
 it("a blocked walkthrough step explains why and how to fix it, offering only Check again", () => {
-  render(<ActivationPanel state={OFF} gates={gates(["pins"]).map((g) => g.id === "pins" ? { ...g, detail: "Pins differ; resync first." } : g)} gatesError={null} busy={false} run={run} />);
+  render(
+    <ActivationPanel
+      state={OFF}
+      gates={gates(["pins"]).map((g) =>
+        g.id === "pins" ? { ...g, detail: "Pins differ; resync first." } : g,
+      )}
+      gatesError={null}
+      busy={false}
+      run={run}
+    />,
+  );
   fireEvent.click(screen.getByRole("button", { name: "Start activation" }));
   expect(screen.getByText("Status: blocked")).toBeInTheDocument();
   expect(screen.getByText("Why: Pins differ; resync first.")).toBeInTheDocument();
   expect(screen.getByText(/How to fix: .*pin resync/)).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Check again" })).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: /turn CODE on/ })).toBeNull();
+});
+
+it("the Kill Switch lives in this section and uses the same passkey actions in both directions", async () => {
+  mocks.pauseAll.mockResolvedValue({ paused: true, warning: "New work is blocked." });
+  const { rerender } = render(
+    <ActivationPanel
+      state={OFF}
+      gates={gates()}
+      globalPaused={false}
+      gatesError={null}
+      busy={false}
+      run={run}
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Turn Kill Switch on" }));
+  await waitFor(() => expect(mocks.pauseAll).toHaveBeenCalledWith({ data: { grantId: GRANT } }));
+  expect(mocks.stepUp).toHaveBeenCalledWith("global_pause", "global_pause:on");
+  rerender(
+    <ActivationPanel
+      state={OFF}
+      gates={gates(["global_pause"])}
+      globalPaused
+      gatesError={null}
+      busy={false}
+      run={run}
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Turn Kill Switch off" }));
+  await waitFor(() => expect(mocks.resume).toHaveBeenCalledWith({ data: { grantId: GRANT } }));
+  expect(mocks.stepUp).toHaveBeenCalledWith("global_pause", "global_pause:off");
+});
+
+it("an unreadable Kill Switch state cannot be toggled", () => {
+  render(
+    <ActivationPanel
+      state={OFF}
+      gates={gates()}
+      globalPaused={null}
+      gatesError={null}
+      busy={false}
+      run={run}
+    />,
+  );
+  expect(screen.getByRole("button", { name: "Turn Kill Switch on" })).toBeDisabled();
 });
