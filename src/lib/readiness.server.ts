@@ -301,6 +301,7 @@ async function probe(id: ReadinessId): Promise<Probe> {
         .limit(1);
       const rows = (data ?? []) as { expires_at: string }[];
       const report = reverseLinkReport({
+      runner: (await import("./omni-runner-mode.server")).runnerMode(),
         env: Object.fromEntries(REVERSE_LINK_VARS.map((n) => [n, process.env[n]])),
         configValid: linkConfig() !== null,
         storageReady: !error && Array.isArray(data),
