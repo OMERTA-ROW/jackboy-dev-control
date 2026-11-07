@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { CheckCircle2, ShieldAlert } from "lucide-react";
 import { getOmniLink, runOmniHandshake } from "@/lib/omni-link.functions";
-import { OmniDispatchReview } from "./OmniDispatchReview";
+import { OmniHandoffPanel } from "./OmniHandoffPanel";
 
 type Link = Awaited<ReturnType<typeof getOmniLink>>;
 
@@ -52,7 +52,7 @@ export function OmniLinkPanel() {
         </ul>
       )}
     </section>
-    <OmniDispatchReview />
+    <OmniHandoffPanel />
     </>
   );
 }
