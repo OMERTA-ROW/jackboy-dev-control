@@ -25,6 +25,8 @@ export function reverseLinkReport(input: {
   storageReady: boolean;
   lastSessionAt: string | null;
   now?: number;
+  /** "local" Node runner, "remote" stateless runner, or "none"; omitted = not reported. */
+  runner?: "local" | "remote" | "none";
 }): ReverseLinkReport {
   const missingVars = REVERSE_LINK_VARS.filter((n) => !input.env[n]);
   const enabledFlag = input.env["OMNI_LINK_ENABLED"] === "true";
@@ -55,6 +57,17 @@ export function reverseLinkReport(input: {
         : "No OMNI-initiated session recorded yet; OMNI must call /api/public/omni/link",
     },
   ];
+  if (input.runner)
+    steps.push({
+      name: "Self-test runner",
+      ok: input.runner !== "none",
+      detail:
+        input.runner === "local"
+          ? "Local Node runner enabled"
+          : input.runner === "remote"
+            ? "Remote runner configured; reachability is proven only by a real omni-link run"
+            : "No runner: set OMNI_LINK_REMOTE_RUNNER_ENABLED/_URL/_SECRET, or submit/run returns runner_unavailable",
+    });
   const missing = steps.filter((s) => !s.ok).map((s) => s.detail);
   return { direction: "omni-initiated", contract: "omni.link/v2", verified: missing.length === 0, missing, steps };
 }
