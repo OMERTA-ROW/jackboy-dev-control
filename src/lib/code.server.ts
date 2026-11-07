@@ -3,6 +3,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { supabaseAdmin as db } from "@/integrations/supabase/client.server";
 import { CODE_ACTION, CODE_PERMISSIONS, CODE_TTL, CODE_WORKFLOW, codeApprovalError, codeLink, codeRunName, type CodeCard, type CodeScope } from "./code";
 import { codeSafetyBlockReason, getCodeSafetyState } from "./code-safety.server";
+import { codeTargetRefusal } from "./code-safety";
 import { redactTranscript } from "./voice-guard";
 
 type Target = { ref: string; workflowSha: string };
@@ -28,8 +29,10 @@ async function project(id: string) {
   const r = await db.from("owner_projects").select("id, github_repo, dev_enabled").eq("id", id).single();
   if (r.error || !r.data?.github_repo || !r.data.dev_enabled) throw new Error("CODE needs a linked repository with owner-enabled development for this project.");
   const p = r.data;
-  const target = (await targets())[p.github_repo!];
-  if (!target || !/^[\w./-]{1,100}$/.test(target.ref) || !/^[a-f0-9]{40}$/.test(target.workflowSha)) throw new Error("CODE is blocked: the owner must approve a runner ref and workflow blob SHA for this repository.");
+  const allowed = await targets();
+  const refusal = codeTargetRefusal(p.github_repo!, allowed);
+  if (refusal) throw new Error(refusal);
+  const target = allowed[p.github_repo!]!;
   // Re-measure the live gateway ledger first: only the meter can stamp the 5-minute freshness.
   const safetyBlock = await codeSafetyBlockReason(p.github_repo!, Date.now(), { refreshMeter: true });
   if (safetyBlock) throw new Error(safetyBlock);
