@@ -13,7 +13,6 @@ GRANT SELECT ON public.owner_alert_settings TO authenticated;
 GRANT ALL ON public.owner_alert_settings TO service_role;
 ALTER TABLE public.owner_alert_settings ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "owner reads alert settings" ON public.owner_alert_settings FOR SELECT TO authenticated USING (public.has_role(auth.uid(), 'owner'::app_role));
-INSERT INTO public.owner_alert_settings (singleton) VALUES (true) ON CONFLICT DO NOTHING;
 
 CREATE TABLE public.push_devices (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
