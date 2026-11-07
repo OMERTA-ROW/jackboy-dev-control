@@ -5,7 +5,9 @@ const mocks = vi.hoisted(() => ({
   audit: vi.fn(),
   send: vi.fn(),
   readFile: vi.fn(),
+  live: vi.fn(),
 }));
+vi.mock("./omni-link.server", () => ({ isOmniVerified: mocks.live }));
 vi.mock("@/integrations/supabase/client.server", () => ({ supabaseAdmin: {} }));
 vi.mock("./untyped-db", () => ({ untyped: () => ({ rpc: mocks.rpc }) }));
 vi.mock("./site-log.server", () => ({ logSiteStrict: mocks.audit }));
@@ -61,6 +63,7 @@ beforeEach(() => {
   mocks.audit.mockReset().mockResolvedValue(undefined);
   mocks.send.mockReset().mockResolvedValue("quarantined");
   mocks.readFile.mockReset().mockResolvedValue(Buffer.from("ca"));
+  mocks.live.mockReset().mockResolvedValue(true);
 });
 afterEach(() => vi.unstubAllEnvs());
 
@@ -117,6 +120,32 @@ describe("owner dispatch wrapper", () => {
     );
     await expect(executeOmniReceipt(owner, job, grant, "submit")).rejects.toThrow("reconcile");
     expect(mocks.send).toHaveBeenCalledTimes(1);
+  });
+  it("refuses to send when the live link is not verified", async () => {
+    mocks.live.mockResolvedValue(false);
+    await expect(executeOmniReceipt(owner, job, grant, "submit")).rejects.toThrow("live link");
+    expect(mocks.send).not.toHaveBeenCalled();
+  });
+  it("stops right before transport if the link drops after the first check", async () => {
+    mocks.live.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+    await expect(executeOmniReceipt(owner, job, grant, "submit")).rejects.toThrow("live link");
+    expect(mocks.send).not.toHaveBeenCalled();
+  });
+  it("refuses a grant the database reports as revoked and names the reason", async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: { valid: false, reason: "authorization_revoked" }, error: null });
+    await expect(executeOmniReceipt(owner, job, grant, "submit")).rejects.toThrow("authorization_revoked");
+    expect(mocks.send).not.toHaveBeenCalled();
+  });
+  it("sends a build job to OMNI as kind `build`", async () => {
+    mocks.rpc.mockImplementation((_name: string, args: { _op: string }) =>
+      Promise.resolve(
+        args._op === "check"
+          ? { data: { ...record, kind: "code" }, error: null }
+          : { data: { recorded: true }, error: null },
+      ),
+    );
+    await executeOmniReceipt(owner, job, grant, "submit");
+    expect(mocks.send).toHaveBeenCalledWith("submit", expect.objectContaining({ kind: "build" }));
   });
   it("records cancellation as a terminal receipt", async () => {
     mocks.send.mockResolvedValue("cancelled");
