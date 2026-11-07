@@ -44,8 +44,8 @@ it("says plainly when a step stalls and offers Retry or Stop", () => {
 
 it("ends clearly when there was nothing to do", () => {
   render(<ActivityFeed run={base({ phase: "nothing", endedAt: Date.now(), tail: [{ id: "end", at: Date.now(), text: "Finished — nothing to do: Inspected 51 files; nothing new to fix. Run ended.", tone: "ok" }] })} onStop={vi.fn()} onRetry={vi.fn()} />);
-  expect(screen.getByText(/Nothing to do · finished in/)).toBeInTheDocument();
-  expect(screen.getByText(/nothing new to fix. Run ended./)).toBeInTheDocument();
+  expect(screen.getAllByText(/Nothing to do · finished in/)[0]).toBeInTheDocument();
+  expect(screen.getByRole("list", { name: "Steps" })).toHaveTextContent(/nothing new to fix. Run ended./);
   expect(screen.queryByRole("button", { name: "Stop" })).toBeNull();
   expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "100");
 });
