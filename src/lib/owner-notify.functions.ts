@@ -3,6 +3,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { localDate, validTimezone } from "./owner-alerts";
+import { diagnoseFirebase, FIREBASE_PUBLIC, type FirebaseDiagnostics, type FirebaseWebConfig } from "./firebase-config";
 
 type Ctx = { supabase: { rpc: (f: "my_role") => PromiseLike<{ data: unknown }> }; userId: string };
 async function requireOwner(ctx: Ctx) {
@@ -113,4 +114,16 @@ export const undoCodeChange = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await requireOwner(context);
     return (await import("./code-undo.server")).undoCode(data.requestId, context.userId, data.grantId);
+  });
+
+/** Owner-only: the Firebase web config for jackboy-b6bb5 (publishable values) plus shape diagnostics.
+ * The web API key and VAPID public key are browser values by design; server credentials never leave the backend. */
+export const getFirebaseWebConfig = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<{ config: FirebaseWebConfig | null; diagnostics: FirebaseDiagnostics }> => {
+    await requireOwner(context);
+    const apiKey = (process.env["GOOGLE_API_KEY"] ?? "").trim();
+    const vapidKey = (process.env["FIREBASE_VAPID_KEY"] ?? "").trim();
+    const diagnostics = diagnoseFirebase(apiKey, vapidKey, (await import("./owner-alerts.server")).pushConfigured());
+    return { config: diagnostics.apiKey === "ok" && diagnostics.vapidKey === "ok" ? { ...FIREBASE_PUBLIC, apiKey, vapidKey } : null, diagnostics };
   });

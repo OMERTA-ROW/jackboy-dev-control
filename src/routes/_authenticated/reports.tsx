@@ -5,8 +5,9 @@ import { BellRing, Loader2, RefreshCw, Send, Smartphone, Trash2 } from "lucide-r
 import { PageHeader } from "@/components/AppShell";
 import { btn, field, primaryBtn } from "@/components/ProjectBits";
 import { CodeUndoButton } from "@/components/CodeUndoButton";
-import { getReportsPage, listUndoable, registerPushDevice, removePushDevice, retryAlert, saveAlertSettings, sendReportNow, sendTestAlert } from "@/lib/owner-notify.functions";
-import { deviceLabel, enablePush, PUSH_STATUS_TEXT, pushWebConfigured } from "@/lib/push-client";
+import { getFirebaseWebConfig, getReportsPage, listUndoable, registerPushDevice, removePushDevice, retryAlert, saveAlertSettings, sendReportNow, sendTestAlert } from "@/lib/owner-notify.functions";
+import { deviceLabel, enablePush, pushResultText } from "@/lib/push-client";
+import type { FirebaseDiagnostics, FirebaseWebConfig } from "@/lib/firebase-config";
 import type { UndoState } from "@/lib/code-undo";
 
 export const Route = createFileRoute("/_authenticated/reports")({
@@ -97,19 +98,31 @@ function AlertsSection({ page, onChange }: { page: Page; onChange: () => Promise
     try { const m = await fn(); if (m) setMsg(m); await onChange(); }
     catch (e) { setMsg(e instanceof Error ? e.message : "Something went wrong."); } finally { setBusy(null); }
   };
-  const ready = page.pushConfigured && pushWebConfigured();
+  const loadFb = useServerFn(getFirebaseWebConfig);
+  const [fb, setFb] = useState<{ config: FirebaseWebConfig | null; diagnostics: FirebaseDiagnostics } | null>(null), [fbError, setFbError] = useState<string | null>(null);
+  useEffect(() => { loadFb().then(setFb, (e: unknown) => setFbError(e instanceof Error ? e.message : "Firebase settings unavailable.")); }, [loadFb]);
+  const ready = page.pushConfigured && !!fb?.config;
   return (
     <section aria-labelledby="alerts-h" className="panel p-5">
       <h2 id="alerts-h" className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-silver"><BellRing className="h-4 w-4" aria-hidden /> Phone alerts</h2>
       <p className="mt-1 text-xs text-muted-foreground">A push notification when a CODE run or task needs your passkey or GitHub approval, a draft PR is ready, or CODE stops itself. One reminder after 15 minutes, at most 30 a day. A tap only opens the page; approving still happens there with your passkey or in GitHub.</p>
       <p role="status" className={`mt-3 text-sm ${ready ? "text-success" : "text-destructive"}`}>
-        {ready ? "Push is connected." : page.pushConfigured ? "Push is connected on the server, but this site's web push settings are missing. Update the Firebase connection with “Include web push”." : "Push isn't connected yet: the Firebase connection still needs to be set up. Alerts are kept here and marked “not delivered” until then."}
+        {ready ? "Push is set up for Firebase project jackboy-b6bb5." : "Push isn't fully set up yet. See the checklist below."}
       </p>
+      <ul aria-label="Firebase connection checks" className="mt-2 space-y-0.5 text-xs">
+        {fbError ? <li className="text-destructive">{fbError}</li> : !fb ? <li className="text-muted-foreground">Checking Firebase settings…</li> : <>
+          <li>Firebase project: <span className="font-mono">jackboy-b6bb5</span></li>
+          <li className={fb.diagnostics.apiKey === "ok" ? "text-success" : "text-destructive"}>Web API key (GOOGLE_API_KEY): {fb.diagnostics.apiKey === "ok" ? "present, right shape" : fb.diagnostics.apiKey === "missing" ? "missing" : "doesn't look like a Firebase web key (should start with AIza)"}</li>
+          <li className={fb.diagnostics.vapidKey === "ok" ? "text-success" : "text-destructive"}>Push key (FIREBASE_VAPID_KEY): {fb.diagnostics.vapidKey === "ok" ? "present, right shape" : fb.diagnostics.vapidKey === "missing" ? "missing: copy it from Firebase → Project settings → Cloud Messaging → Web Push certificates" : "doesn't look like a VAPID public key"}</li>
+          <li className={fb.diagnostics.serverSender ? "text-success" : "text-destructive"}>Server sending: {fb.diagnostics.serverSender ? "connected" : "not connected yet: Jackboy needs a sending credential for jackboy-b6bb5 before alerts can leave the server"}</li>
+          <li className="text-muted-foreground">Shape checks only. The real proof is a device registering and the test alert arriving.</li>
+        </>}
+      </ul>
 
       <div className="mt-4 flex flex-wrap gap-2">
         <button type="button" className={primaryBtn} disabled={!!busy} onClick={() => act("enable", async () => {
-          const r = await enablePush();
-          if (r.status !== "registered") return PUSH_STATUS_TEXT[r.status];
+          const r = await enablePush(fb?.config ?? null);
+          if (r.status !== "registered") return pushResultText(r);
           await register({ data: { token: r.token, label: deviceLabel() } });
           return "This device will now get Jackboy alerts. Press “Send test alert” to check.";
         })}><Smartphone className="h-4 w-4" aria-hidden />{busy === "enable" ? "Asking this device…" : "Get alerts on this device"}</button>
