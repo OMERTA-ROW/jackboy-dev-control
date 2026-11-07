@@ -93,3 +93,33 @@ export function activationProgress(steps: ActivationStep[]): {
   const last = steps[steps.length - 1];
   return { done, total: steps.length, complete: last?.id === "turn_on" && last.status === "done" };
 }
+
+/** Plain-words fix for each server gate, shown when a guided step is blocked. Guidance only: it never
+ * performs or relaxes anything. Unknown gates get a safe generic answer. */
+const GATE_FIX: Record<string, string> = {
+  gateway:
+    "Add CODE_PROVIDER_API_KEY, CODE_GATEWAY_PRICES and CODE_GATEWAY_PER_CALL_CAP_USD in Project Settings → Secrets, then press Check again.",
+  cost_check:
+    "Add OPENAI_ADMIN_KEY, OPENAI_CODE_PROJECT_ID and OPENAI_CODE_API_KEY_ID in Project Settings → Secrets, then press Check again.",
+  pins: "The saved workflow version is different from GitHub main. Ask Jackboy in Chat for an owner-approved pin resync; nothing changes on its own.",
+  total_guard:
+    "The $10 total guard is missing or has no room left. Ask Jackboy in Chat to check it; changing the limit needs your separate approval.",
+  meter:
+    "The live spending meter reports a problem. Use \"Check a past day against OpenAI\" in CODE safety details below, or wait for OpenAI's daily report, then press Check again.",
+  hard_cap:
+    "Set a spending cap in your OpenAI project, write down what you checked, then press the button and confirm with your passkey.",
+  no_task:
+    "A task is still marked as running. Wait for it to finish, or use \"Check status and retry cancellation\" in CODE safety details below.",
+  failures:
+    "Two runs failed in a row, so CODE stopped itself. Review them in GitHub; clearing this needs an owner-approved fix.",
+  spike: "A usage spike was recorded. Review spending first; clearing it needs your separate approval.",
+  cancellation:
+    "A stopped run is not yet confirmed finished. Use \"Check status and retry cancellation\" in CODE safety details below.",
+  global_pause: "Press the button and confirm with your passkey.",
+  stopped:
+    "CODE is already on or its stop is released. Press Engage emergency stop to go back to a safe start.",
+};
+
+export function gateFix(id: string): string {
+  return GATE_FIX[id] ?? "Ask Jackboy in Chat what this check needs. Nothing changes until you approve it.";
+}
