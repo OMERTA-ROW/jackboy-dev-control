@@ -65,7 +65,7 @@ function ReportSection({ page, onChange }: { page: Page; onChange: () => Promise
       <div className="mt-3 flex flex-wrap items-center gap-3">
         <button type="button" className={btn} disabled={busy} onClick={async () => {
           setBusy(true); setMsg(null);
-          try { const r = await sendNow(); setMsg(r.generated ? `Today's report saved${"flushed" in r && r.flushed && r.flushed.sent ? " and sent to your phone" : ""}. If it was already sent today, it isn't sent twice.` : r.reason); await onChange(); }
+          try { const r = await sendNow(); setMsg(r.generated ? `Today's report saved${"flushed" in r && r.flushed && r.flushed.sent ? " and sent to your phone" : ""}. If it was already sent today, it isn't sent twice.` : (r.reason ?? "Not report time yet.")); await onChange(); }
           catch (e) { setMsg(e instanceof Error ? e.message : "Couldn't send the report."); } finally { setBusy(false); }
         }}><Send className="mr-1 h-3 w-3" aria-hidden />{busy ? "Sending…" : "Send today's report now"}</button>
         {msg && <span role="status" className="text-xs text-muted-foreground">{msg}</span>}
