@@ -166,3 +166,8 @@ The spoken acronym “NLOA” is unconfirmed in Notion. Do not infer a technical
 - [x] 10-minute recent passkey reuse only for routine repo connect/review approvals; each reuse mints a fresh single-use grant; privileged actions always prompt.
 - [x] Project cards: inline Add site (saved + live check), Connect for unlinked repos, refresh icon rechecks repo access + site, evidence-based connection status/last check/next step.
 - [ ] Pending CODE-safety / provider-permission migrations (0036–0038) not applied → existing type errors; needs owner approval to apply to the shared backend.
+
+## Owner requests Nov 7 (plan first, build after current queue)
+- [ ] Daily morning report (what Jackboy/CODE did, spend, waiting approvals) — plan shown; waiting on owner choices (channel, time).
+- [ ] Phone alerts when a run needs passkey or GitHub approval — plan shown; waiting on owner channel choice + connection.
+- [ ] One-press Undo for every CODE change (passkey when it touches main/live) — plan shown; waiting on owner choice for merge step.
