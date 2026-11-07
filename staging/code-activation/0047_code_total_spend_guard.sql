@@ -1,4 +1,4 @@
--- PROPOSED, NOT APPLIED. Requires explicit owner approval before it is run against any database.
+-- APPLIED Nov 7, 2026 00:24 UTC on owner approval as drizzle/migrations/0046_code_total_spend_guard.sql (only the header comment differs). Kept for review history.
 --
 -- CODE cumulative ($10 total) spend guard. Fail closed by construction:
 --   committed = every spend reservation ever made (reserved, finished AND settled; settled holds are
