@@ -47,8 +47,8 @@ const STEPS: { id: ActivationStepId; title: string; hint: string; gates: string[
   },
   {
     id: "global_pause",
-    title: "Global pause off",
-    hint: "The Kill Switch that pauses all Jackboy work. Turning it off needs your passkey.",
+    title: "Kill Switch off",
+    hint: "The Kill Switch pauses all Jackboy work. Turning it off needs your passkey.",
     gates: ["global_pause"],
   },
   {

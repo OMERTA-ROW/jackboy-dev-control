@@ -1,6 +1,6 @@
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Check, Circle, CircleDot, OctagonX } from "lucide-react";
+import { Check, Circle, CircleDot, OctagonX, Power } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useStepUp } from "@/lib/step-up-client";
 import {
@@ -8,6 +8,7 @@ import {
   engageCodeKillSwitch,
   resumeJackboyWork,
   setCodeHardCapVerified,
+  stopJackboyWork,
 } from "@/lib/code-safety.functions";
 import {
   CODE_ENABLE_TARGET,
@@ -40,6 +41,8 @@ type Props = {
   gatesError: string | null;
   busy: boolean;
   run: (action: () => Promise<unknown>) => Promise<void>;
+  /** Live Kill Switch (global pause) state from the server; null when unreadable. */
+  globalPaused?: boolean | null;
   /** Result of the last action pressed in this panel. */
   message?: string | null;
   /** Dated background evidence, shown folded at the bottom. */
@@ -48,10 +51,20 @@ type Props = {
 
 /** One place for every CODE activation step, in order. All buttons call the same server functions with
  * the same passkey actions as before; the server and database re-check every gate. */
-export function ActivationPanel({ state, gates, gatesError, busy, run, message, evidence }: Props) {
+export function ActivationPanel({
+  state,
+  gates,
+  globalPaused = null,
+  gatesError,
+  busy,
+  run,
+  message,
+  evidence,
+}: Props) {
   const stepUp = useStepUp();
   const stop = useServerFn(engageCodeKillSwitch);
   const resume = useServerFn(resumeJackboyWork);
+  const pauseAll = useServerFn(stopJackboyWork);
   const setHardCap = useServerFn(setCodeHardCapVerified);
   const enableCode = useServerFn(enableCodeRuntime);
   const [capNote, setCapNote] = useState("");
@@ -111,6 +124,51 @@ export function ActivationPanel({ state, gates, gatesError, busy, run, message, 
       <OctagonX aria-hidden />
       {state?.killSwitch ? "Emergency stop engaged" : "Engage emergency stop"}
     </Button>
+  );
+
+  // Same passkey actions and server functions the Home bar used; the server re-checks each grant.
+  const killSwitch = (
+    <Button
+      variant="outline"
+      size="sm"
+      disabled={busy || globalPaused === null}
+      aria-pressed={globalPaused === true}
+      onClick={() =>
+        void run(() =>
+          globalPaused
+            ? stepUp("global_pause", "global_pause:off").then((grantId) => resume({ data: { grantId } }))
+            : stepUp("global_pause", "global_pause:on").then((grantId) => pauseAll({ data: { grantId } })),
+        )
+      }
+    >
+      <Power aria-hidden />
+      {globalPaused ? "Turn Kill Switch off" : "Turn Kill Switch on"}
+    </Button>
+  );
+
+  const safetyControls = (
+    <div className="mt-3 grid gap-3 rounded-md border border-border p-3 sm:grid-cols-2" aria-label="Pause and stop controls">
+      <div>
+        <p className="text-sm font-medium">
+          Kill Switch:{" "}
+          <span className={globalPaused === false ? "text-success" : "text-warning"} aria-live="polite">
+            {globalPaused === null ? "unknown" : globalPaused ? "on — all work paused" : "off"}
+          </span>
+        </p>
+        <p className="mb-2 text-xs text-muted-foreground">Pauses or resumes all Jackboy work. Needs your passkey.</p>
+        {killSwitch}
+      </div>
+      <div>
+        <p className="text-sm font-medium">
+          CODE emergency stop:{" "}
+          <span className={state?.killSwitch === false ? "text-success" : "text-warning"} aria-live="polite">
+            {!state ? "unknown" : state.killSwitch ? "engaged — CODE off" : "released"}
+          </span>
+        </p>
+        <p className="mb-2 text-xs text-muted-foreground">Turns CODE off at once and cancels a running job. Never blocked.</p>
+        {emergencyStop}
+      </div>
+    </div>
   );
 
   const control = (step: ActivationStep): ReactNode => {
@@ -180,8 +238,7 @@ export function ActivationPanel({ state, gates, gatesError, busy, run, message, 
       );
     }
     if (step.id === "global_pause" && step.status !== "done") {
-      const paused = step.gates[0]?.detail.startsWith("Turn the global pause off") === true;
-      return paused ? (
+      return globalPaused === true ? (
         <Button
           variant="outline"
           size="sm"
@@ -195,7 +252,7 @@ export function ActivationPanel({ state, gates, gatesError, busy, run, message, 
             )
           }
         >
-          Turn global pause off with passkey
+          Turn Kill Switch off with passkey
         </Button>
       ) : null;
     }
@@ -315,8 +372,9 @@ export function ActivationPanel({ state, gates, gatesError, busy, run, message, 
             Activation complete
           </h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            CODE is on. Each run still needs your approval in GitHub. The emergency stop above turns
-            it off at once.
+            Live check: CODE is on, its stop is released and the Kill Switch is off. Jackboy can now
+            start supervised CODE tasks; each run still waits for your approval in GitHub. The
+            controls above stop it at once.
           </p>
           <Button variant="outline" size="sm" className="mt-3" onClick={exitGuide}>
             Close walkthrough
@@ -395,7 +453,7 @@ export function ActivationPanel({ state, gates, gatesError, busy, run, message, 
             id="activation-heading"
             className="text-sm font-semibold uppercase tracking-wider text-silver"
           >
-            CODE activation
+            Autonomous Activation
           </h2>
           <p className="mt-1 text-xs text-muted-foreground" aria-live="polite">
             {!progress
@@ -405,12 +463,8 @@ export function ActivationPanel({ state, gates, gatesError, busy, run, message, 
                 : `${progress.done} of ${progress.total} steps done · CODE is off.`}
           </p>
         </div>
-        {emergencyStop}
       </div>
-      <p className="mt-2 text-xs text-muted-foreground">
-        The emergency stop turns CODE off at once and is never blocked. The Kill Switch on Home
-        pauses all Jackboy work.
-      </p>
+      {safetyControls}
       {message && (
         <p role="status" className="mt-3 text-sm text-warning">
           {message}
