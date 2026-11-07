@@ -14,6 +14,13 @@ const oldSha = "ebc71c1923c3d6ab925ec6b9e4fa971e311f3761";
 const newSha = "37368194f883bc1cf5175aecf4832945203b602b";
 const rid = (n) => `00000000-0000-4000-8000-${String(100 + n).padStart(12, "0")}`;
 const proposed = (f) => readFile(`staging/code-activation/${f}`, "utf8");
+const APPLIED_GUARD = "0046_code_total_spend_guard.sql";
+const body = (sql) => sql.split("\n").slice(1).join("\n").trimEnd();
+
+test("applied guard migration is the reviewed staged 0047 (header comment aside)", async () => {
+  const applied = await readFile(`drizzle/migrations/${APPLIED_GUARD}`, "utf8");
+  assert.equal(body(applied), body(await proposed("0047_code_total_spend_guard.sql")));
+});
 
 let chain; // applied production chain + seed
 let guarded; // + 0047
@@ -33,7 +40,10 @@ after(async () => {
 before(async () => {
   chain = new PGlite();
   await chain.exec(supabaseStubs);
+  // The guard is now journaled as APPLIED_GUARD; the baseline stops before it so the pre-guard
+  // tests (pin update, "0048 refuses without 0047", rollbacks) keep exercising the real old chain.
   for (const f of await migrationFiles()) {
+    if (f === APPLIED_GUARD) break;
     await chain.exec(await readFile(`drizzle/migrations/${f}`, "utf8"));
   }
   await chain.query("INSERT INTO auth.users(id, email) VALUES ($1, 'o@x.test'), ($2, 's@x.test')", [
