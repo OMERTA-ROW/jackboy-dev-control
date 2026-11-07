@@ -55,20 +55,20 @@ it("a run tags its server request, Stop targets that same run, and the result en
   mocks.inspect.mockImplementation(() => new Promise((r) => { resolve = r; }));
   const { result } = renderHook(() => useInspectRuns());
   act(() => { void result.current.start("k", "11111111-1111-4111-8111-111111111111"); });
-  expect(result.current.runs.k?.phase).toBe("running");
+  expect(result.current.runs["k"]?.phase).toBe("running");
   const runId = mocks.inspect.mock.calls[0]![0].data.runId as string;
-  expect(runId).toBe(result.current.runs.k!.runId);
+  expect(runId).toBe(result.current.runs["k"]!.runId);
   await act(async () => { await result.current.stop("k"); });
   expect(mocks.stop).toHaveBeenCalledWith({ data: { projectId: "11111111-1111-4111-8111-111111111111", runId } });
-  expect(result.current.runs.k?.phase).toBe("stopping");
+  expect(result.current.runs["k"]?.phase).toBe("stopping");
   await act(async () => { resolve({ created: 0, inspectedFiles: 20, stopped: true }); });
-  await waitFor(() => expect(result.current.runs.k?.phase).toBe("stopped"));
+  await waitFor(() => expect(result.current.runs["k"]?.phase).toBe("stopped"));
 });
 
 it("a finished run with no findings reports nothing to do", async () => {
   mocks.inspect.mockResolvedValue({ created: 0, inspectedFiles: 51 });
   const { result } = renderHook(() => useInspectRuns());
   await act(async () => { await result.current.start("k", "p1"); });
-  expect(result.current.runs.k?.phase).toBe("nothing");
-  expect(result.current.runs.k?.result).toBe("Inspected 51 files; nothing new to fix. Run ended.");
+  expect(result.current.runs["k"]?.phase).toBe("nothing");
+  expect(result.current.runs["k"]?.result).toBe("Inspected 51 files; nothing new to fix. Run ended.");
 });
