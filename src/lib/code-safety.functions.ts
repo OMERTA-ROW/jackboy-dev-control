@@ -4,7 +4,14 @@ import { z } from "zod";
 import { CODE_WORKFLOW } from "./code";
 import {
   classifyGithubCancellationState,
+  closedDayToReconcile,
   CODE_DAILY_SPEND_LIMIT_USD,
+  CODE_ENABLE_TARGET,
+  codeEnableBlockReason,
+  codeEnableGates,
+  enableRefusalText,
+  parseSpendMeter,
+  type CodeEnableInput,
   HARD_CAP_EVIDENCE_MAX,
   HARD_CAP_EVIDENCE_MIN,
   HARD_CAP_TARGET,
@@ -136,6 +143,125 @@ export const setCodeHardCapVerified = createServerFn({ method: "POST" })
       hardCapVerified: after?.provider_hard_cap_verified === true,
       codeEnabled: after?.enabled === true,
       emergencyStop: after?.kill_switch === true,
+    };
+  });
+
+/** Names/format only: never returns or logs a secret value. */
+async function gatewaySettingsPresent(): Promise<boolean> {
+  if (!process.env["CODE_PROVIDER_API_KEY"]) return false;
+  const cap = Number(process.env["CODE_GATEWAY_PER_CALL_CAP_USD"]);
+  if (!Number.isFinite(cap) || cap <= 0 || cap > 5) return false;
+  try {
+    const { parsePriceTable } = await import("./code-gateway");
+    return Object.keys(parsePriceTable(process.env["CODE_GATEWAY_PRICES"])).length > 0;
+  } catch {
+    return false;
+  }
+}
+function costCheckSettingsPresent(): boolean {
+  const projectId = process.env["OPENAI_CODE_PROJECT_ID"];
+  const apiKeyId = process.env["OPENAI_CODE_API_KEY_ID"];
+  return !!process.env["OPENAI_ADMIN_KEY"] && !!projectId && !!apiKeyId && projectId.length <= 200 && apiKeyId.length <= 200;
+}
+
+/** Fresh, server-side read of every input the owner switch checks. Unreadable parts fail closed. */
+async function collectEnableInput(): Promise<CodeEnableInput> {
+  const db = (await import("./untyped-db")).untyped((await import("@/integrations/supabase/client.server")).supabaseAdmin);
+  const [controlsResult, guardResult, meterResult, policyResult, workflow, gatewayConfigured] = await Promise.all([
+    db.from("code_runtime_controls")
+      .select("enabled, kill_switch, active_request_id, active_run_id, consecutive_failures, usage_spike, cancellation_status, provider_hard_cap_verified, per_task_reserve_usd, allowed_targets")
+      .eq("singleton", true)
+      .single(),
+    db.rpc("code_total_spend_guard_status"),
+    db.rpc("code_spend_meter_status"),
+    db.from("automation_policy").select("paused").eq("id", 1).single(),
+    fetchGithub<{ sha: string }>(`/contents/.github/workflows/${CODE_WORKFLOW}?ref=main`).then((w) => w.sha, () => null),
+    gatewaySettingsPresent(),
+  ]);
+  const c = controlsResult.data;
+  if (controlsResult.error || !c) throw new Error("CODE safety controls are unavailable; nothing changed.");
+  const { workflowPinReport } = await import("./code-workflow-readiness");
+  const liveSha = typeof workflow === "string" ? workflow : null;
+  const reserve = Number(c.per_task_reserve_usd);
+  return {
+    enabled: c.enabled === true,
+    killSwitch: c.kill_switch === true,
+    activeRequestId: c.active_request_id,
+    activeRunId: c.active_run_id,
+    consecutiveFailures: Number(c.consecutive_failures),
+    usageSpike: c.usage_spike === true,
+    cancellationStatus: String(c.cancellation_status),
+    providerBudgetEnforced: c.provider_hard_cap_verified === true,
+    totalSpendGuard: parseTotalSpendGuard(guardResult.error ? null : guardResult.data),
+    perTaskReserveUsd: Number.isFinite(reserve) ? reserve : null,
+    spendMeter: parseSpendMeter(meterResult.error ? null : meterResult.data),
+    globalPaused: policyResult.error || !policyResult.data ? null : policyResult.data.paused === true,
+    pinsMatch: liveSha ? workflowPinReport(c.allowed_targets, process.env["CODE_TARGETS"], liveSha).matches : null,
+    gatewayConfigured,
+    costCheckConfigured: costCheckSettingsPresent(),
+  };
+}
+
+/** Read-only gate checklist for the owner switch. Never changes anything. */
+export const getCodeEnableGates = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await requireOwner(context);
+    const input = await collectEnableInput();
+    return { checkedAt: new Date().toISOString(), gates: codeEnableGates(input), meter: input.spendMeter };
+  });
+
+/** Owner switch: releases the CODE stop and turns CODE on. Needs a NEW passkey check every time,
+ * re-checks every gate on the server, and the database re-checks its share under a row lock. */
+export const enableCodeRuntime = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(grantInput)
+  .handler(async ({ data, context }) => {
+    await requireOwner(context);
+    await (await import("./passkey.server")).consumeGrant(data.grantId, context.userId, "code_enable", CODE_ENABLE_TARGET, { requireFresh: true });
+    const blocked = codeEnableBlockReason(await collectEnableInput());
+    if (blocked) throw new Error(`CODE was not turned on. ${blocked}`);
+    const db = (await import("./untyped-db")).untyped((await import("@/integrations/supabase/client.server")).supabaseAdmin);
+    const { data: result, error } = await db.rpc("enable_code_runtime", { p_actor: context.userId });
+    if (error || !result) throw new Error("The database refused to turn CODE on; nothing changed.");
+    if (result.ok !== true) throw new Error(`CODE was not turned on: ${enableRefusalText(result.reasons)}.`);
+    const { data: after } = await db.from("code_runtime_controls").select("enabled, kill_switch").eq("singleton", true).single();
+    return { codeEnabled: after?.enabled === true, emergencyStop: after?.kill_switch === true };
+  });
+
+/** OpenAI cross-check: records the closed-day cost report for the oldest past day the meter is waiting
+ * on (or yesterday), then reconciles it against what the gateway admitted. A mismatch engages the stop. */
+export const reconcileCodeClosedDay = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await requireOwner(context);
+    const { costReportSettings, fetchOpenAICostRows } = await import("./openai-costs.server");
+    const settings = costReportSettings();
+    if (!settings) throw new Error("OpenAI cost cross-check is unavailable: configure OPENAI_ADMIN_KEY, OPENAI_CODE_PROJECT_ID and OPENAI_CODE_API_KEY_ID.");
+    const db = (await import("./untyped-db")).untyped((await import("@/integrations/supabase/client.server")).supabaseAdmin);
+    const meterResult = await db.rpc("code_spend_meter_status");
+    const meter = parseSpendMeter(meterResult.error ? null : meterResult.data);
+    if (!meter) throw new Error("The live spending meter is not installed yet; nothing to reconcile.");
+    const day = closedDayToReconcile(meter.unreportedDays, new Date());
+    const start = new Date(`${day}T00:00:00Z`);
+    const end = new Date(start.getTime() + 86_400_000);
+    const rows = await fetchOpenAICostRows(settings, start, end);
+    if (!rows.length) {
+      return { day, recorded: false, ok: null, message: `OpenAI has no cost rows for ${day} yet. Nothing was recorded; try again later.` };
+    }
+    if (rows.some((row) => Date.parse(row.occurred_at) !== start.getTime())) throw new Error("OpenAI returned a cost bucket outside the requested day.");
+    const syncedAt = new Date().toISOString();
+    const { error: recordError } = await db.rpc("record_code_closed_day_costs", { p_actor: context.userId, p_day: day, p_rows: rows, p_synced_at: syncedAt });
+    if (recordError) throw new Error(`The closed-day report for ${day} could not be recorded (the day may not be closed long enough yet).`);
+    const { data: result, error } = await db.rpc("reconcile_code_provider_day", { p_actor: context.userId, p_day: day, p_tolerance_usd: 0.01 });
+    if (error || !result) throw new Error(`The report for ${day} was recorded, but reconciliation failed.`);
+    return {
+      day,
+      recorded: true,
+      ok: result.ok === true,
+      message: result.ok === true
+        ? `OpenAI's report for ${day} matches the gateway ($${Number(result.provider_usd).toFixed(2)} reported, $${Number(result.gateway_usd).toFixed(2)} admitted).`
+        : `OpenAI reported $${Number(result.unaccounted_usd).toFixed(2)} more than the gateway admitted on ${day}. The Emergency Stop is engaged.`,
     };
   });
 
