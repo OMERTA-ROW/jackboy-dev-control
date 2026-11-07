@@ -1,6 +1,6 @@
 // Server-only WebAuthn ceremonies and single-use step-up grants.
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { CHALLENGE_TTL_MS, GRANT_TTL_MS, grantUsable } from "./step-up";
+import { CHALLENGE_TTL_MS, GRANT_TTL_MS, grantIsFresh, grantUsable } from "./step-up";
 import { passkeyOrigin } from "./passkey-origin";
 
 export function rp(request: Request) {

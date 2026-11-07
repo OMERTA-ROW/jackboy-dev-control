@@ -157,6 +157,44 @@ export function totalSpendBlockReason(
   return null;
 }
 
+/** Passkey targets bind each grant to one direction, so a "mark" grant can never un-mark (or vice versa). */
+export const HARD_CAP_TARGET = { mark: "code_hard_cap:verify", unmark: "code_hard_cap:unverify" } as const;
+export const HARD_CAP_EVIDENCE_MIN = 10;
+export const HARD_CAP_EVIDENCE_MAX = 500;
+
+export type HardCapChangeInput = {
+  verified: boolean;
+  evidence: string;
+  current: {
+    enabled: boolean;
+    killSwitch: boolean;
+    activeRequestId: string | null;
+    activeRunId: number | string | null;
+    providerBudgetEnforced: boolean;
+    totalSpendGuard: CodeSafetyState["totalSpendGuard"];
+  };
+};
+
+/** Owner hard-cap attestation: only while CODE is off, Emergency Stop on and no task is active.
+ * Marking also needs the cumulative $10 guard enforced and within its limit. The database re-checks all of it. */
+export function hardCapChangeBlockReason({ verified, evidence, current }: HardCapChangeInput): string | null {
+  const note = evidence.trim();
+  if (note.length < HARD_CAP_EVIDENCE_MIN || note.length > HARD_CAP_EVIDENCE_MAX)
+    return `Write a short evidence note (${HARD_CAP_EVIDENCE_MIN}–${HARD_CAP_EVIDENCE_MAX} characters).`;
+  if (current.enabled) return "Turn CODE off first.";
+  if (!current.killSwitch) return "Turn the Emergency Stop on first.";
+  if (current.activeRequestId || current.activeRunId) return "Wait until no CODE task is active.";
+  if (current.providerBudgetEnforced === verified)
+    return verified ? "The hard cap is already marked verified." : "The hard cap is already unverified.";
+  if (verified) {
+    const guard = current.totalSpendGuard;
+    if (!guard || guard.enforced !== true) return "The $10 total spending guard must be active first.";
+    if (!(guard.limitUsd > 0) || guard.limitUsd > CODE_TOTAL_SPEND_LIMIT_USD) return "The total spending limit is invalid.";
+    if (guard.committedUsd >= guard.limitUsd) return "The $10 total spending limit is already used up.";
+  }
+  return null;
+}
+
 /** Environment policy may narrow stored approval, never add permission or a new workflow. */
 export function restrictCodeTargets(stored: Record<string, CodeTarget>, configured: string | undefined): Record<string, CodeTarget> {
   if (!configured) return {};
