@@ -3,7 +3,7 @@ import { integrationReadiness, liveReadiness } from "@/lib/activation-readiness"
 export function ActivationReadiness({ live }: { live: Parameters<typeof liveReadiness>[0] | null }) {
   const items = [...(live ? liveReadiness(live) : []), ...integrationReadiness];
   return <div className="mt-6 border-t border-border pt-4" aria-labelledby="activation-readiness-heading">
-    <h3 id="activation-readiness-heading" className="text-sm font-semibold text-silver">Autonomous Activation Readiness</h3>
+    <h3 id="activation-readiness-heading" className="text-sm font-semibold text-silver">Dated readiness evidence</h3>
     <p className="mt-1 text-xs text-muted-foreground">Activation locked · dated observations, not authorization. Integration observations retain their original timestamps.</p>
     {!live && <p role="status" className="mt-2 text-xs text-warning">Live safety evidence unavailable; readiness remains blocked.</p>}
     <div className="mt-3 divide-y divide-border">

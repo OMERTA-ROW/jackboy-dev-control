@@ -8,7 +8,6 @@ import { useStepUp } from "@/lib/step-up-client";
 import { probeOmniConnection } from "@/lib/omni-link.functions";
 import {
   checkCodeCancellation,
-  engageCodeKillSwitch,
   getCodeEnableGates,
   getCodeSafetySettings,
   getCodePrerequisites,
@@ -26,7 +25,6 @@ export function CodeSafetyPanel() {
   const [prerequisites, setPrerequisites] = useState<Awaited<ReturnType<typeof getCodePrerequisites>> | null>(null);
   const setLimit = useServerFn(setCodeDailySpendLimit);
   const syncCosts = useServerFn(syncCodeProviderCosts);
-  const stop = useServerFn(engageCodeKillSwitch);
   const loadGates = useServerFn(getCodeEnableGates);
   const reconcileDay = useServerFn(reconcileCodeClosedDay);
   const [gates, setGates] = useState<Awaited<ReturnType<typeof getCodeEnableGates>> | null>(null);
@@ -106,8 +104,10 @@ export function CodeSafetyPanel() {
         setMessage(
           `Hard cap is now ${result.hardCapVerified ? "marked verified" : "unverified"}. CODE is ${result.codeEnabled ? "ON" : "still OFF"} and Emergency Stop is ${result.emergencyStop ? "still ON" : "OFF"}.`,
         );
+      } else if (result && typeof result === "object" && "paused" in result && "warning" in result) {
+        setMessage(`Kill Switch is on. ${String(result.warning)}`);
       } else if (result && typeof result === "object" && "paused" in result && Object.keys(result).length === 1) {
-        setMessage(result.paused ? "Global pause is on." : "Global pause is off. CODE stays off until you turn it on in the last step.");
+        setMessage(result.paused ? "Kill Switch is on." : "Kill Switch is off. CODE stays off until you turn it on in the last step.");
       } else if (
         result &&
         typeof result === "object" &&
@@ -142,6 +142,7 @@ export function CodeSafetyPanel() {
     <ActivationPanel
       state={activationState}
       gates={gates?.gates ?? null}
+      globalPaused={gates ? gates.globalPaused : null}
       gatesError={gatesError}
       busy={busy}
       run={(action) => run(action, "activation")}
@@ -172,12 +173,6 @@ export function CodeSafetyPanel() {
             against it afterwards. This panel never dispatches execution.
           </p>
         </div>
-        <Button variant="outline" size="sm"
-          disabled={busy || settings?.killSwitch === true}
-          onClick={() => void run(() => stepUp("global_pause", "global_pause:on").then((grantId) => stop({ data: { grantId } })))}
-        >
-          {settings?.killSwitch ? "Emergency stop engaged" : "Engage emergency stop"}
-        </Button>
       </div>
       {message && messageSource === "safety" && (
         <p role="status" className="mt-3 text-sm text-warning">
@@ -188,7 +183,7 @@ export function CodeSafetyPanel() {
         <Switch id="worker-supervised" checked={settings?.enabled === true} disabled aria-describedby="worker-activation-blocker" />
         <label htmlFor="worker-supervised" className="text-sm">Worker 1 · supervised mode (owner only)</label>
       </div>
-      <p id="worker-activation-blocker" className="mt-2 text-xs text-warning">This switch only shows the current state. Turn CODE on in the last step of CODE activation above. Each run still requires owner approval in GitHub. No autonomous distribution.</p>
+      <p id="worker-activation-blocker" className="mt-2 text-xs text-warning">This switch only shows the current state. Turn CODE on in the last step of Autonomous Activation above. Each run still requires owner approval in GitHub. No autonomous distribution.</p>
       {prerequisites && <div className="mt-3 text-sm">
         <p>Target policy: {prerequisites.repository} · {prerequisites.ref} only</p>
         <p className="mt-1 break-all text-xs text-muted-foreground">Live main workflow: {prerequisites.workflowPins.liveSha ?? "unverified"}</p>
