@@ -6,7 +6,10 @@
 - [x] Phase 2: Settings → "steps that can skip approval" per project, saved with a fresh passkey; the five never-skip types locked.
 - [ ] Try a checkpoint with your passkey on the live site — needs publish and the Kill Switch off (owner only).
 - [ ] Phase 3 (outside websites) — blocked until the owner picks a browser service.
-- [ ] Two CODE approval lanes (automatic for low-risk, reviewed otherwise) — plan written; waiting on owner approval and GitHub environment setup by the owner.
+- [x] Two CODE approval lanes: lane rules, server-side patch re-check, lane-aware runner checks (reviewed lane unchanged), trial labels on every CODE request and finished patch, Settings → "CODE approval lanes" panel with read-only GitHub environment checks and a per-site passkey switch.
+- [ ] Apply staged database update `staging/code-lane/0051` (switch storage) — needs owner OK in chat.
+- [ ] Owner GitHub steps: create CODE-AUTO and CODE-PUBLISH-AUTO (main only, no reviewers/secrets), add a main ruleset, merge the staged lane workflow, re-save CODE_TARGETS, re-pin — owner only.
+- [ ] One week of trial labels, then the owner turns the lane on per site.
 
 ## Add project to CODE (Nov 7, 05:30 UTC)
 - [x] "Add to CODE" card on each project page (checklist, Prepare = draft PR with the approved workflow files, Approve and activate with passkey, Remove) and a CODE sites list in Settings. Web (bun/npm) and Go workflow versions. 630 app tests + 8 isolated database tests pass; preview shows the Hercules checklist, nothing pressed.
