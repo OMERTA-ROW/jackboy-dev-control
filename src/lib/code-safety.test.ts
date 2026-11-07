@@ -29,7 +29,29 @@ const state = (overrides: Partial<CodeSafetyState> = {}): CodeSafetyState => ({
   perTaskReserveUsd: 1,
   usageSpike: false,
   totalSpendGuard: { enforced: true, limitUsd: 10, committedUsd: 0 },
+  spendMeter: {
+    ok: true,
+    reasons: [],
+    measuredAt: new Date(now - 1000).toISOString(),
+    measuredTodayUsd: 1.25,
+    gatewayTodayUsd: 1.25,
+    providerTodayUsd: 1.25,
+    gatewayHourUsd: 0,
+    unreportedDays: [],
+    bypassDays: [],
+  },
   ...overrides,
+});
+
+describe("live spending meter on task start", () => {
+  it("blocks a task start when the meter is missing or unhealthy, even with a fresh stamp", () => {
+    expect(codeStartBlockReason(state(), repo, now)).toBeNull();
+    expect(codeStartBlockReason(state({ spendMeter: null }), repo, now)).toMatch(/live spending meter/);
+    const meter = state().spendMeter!;
+    expect(codeStartBlockReason(state({ spendMeter: { ...meter, ok: false, reasons: ["unreported_days"] } }), repo, now)).toMatch(
+      /live spending meter/,
+    );
+  });
 });
 
 describe("CODE runtime safety policy", () => {

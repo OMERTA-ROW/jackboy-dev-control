@@ -49,12 +49,16 @@ class Query {
   then(resolve, reject) { return Promise.resolve(this.execute()).then(resolve, reject); }
 }
 let totalGuard; // stand-in for code_total_spend_guard_status(); null = guard not installed
+let spendMeter; // stand-in for code_spend_meter_status(); null = meter not installed
 globalThis.__codeDb = {
   from: table => new Query(table),
   rpc: async name => name === 'code_total_spend_guard_status' && totalGuard
     ? { data: totalGuard, error: null }
-    : { data: null, error: { message: 'function does not exist' } },
+    : name === 'code_spend_meter_status' && spendMeter
+      ? { data: spendMeter, error: null }
+      : { data: null, error: { message: 'function does not exist' } },
 };
+const healthyMeter = () => ({ ok: true, reasons: [], measured_at: new Date().toISOString(), measured_today_usd: 0, gateway_today_usd: 0, provider_today_usd: 0, gateway_hour_usd: 0, unreported_days: [], bypass_days: [] });
 registerHooks({ resolve(specifier, context, next) {
   if (specifier === '@/integrations/supabase/client.server') return next('data:text/javascript,export const supabaseAdmin = globalThis.__codeDb', context);
   if (specifier.startsWith('./') && !/\.[a-z]+$/.test(specifier)) return next(`${specifier}.ts`, context);
@@ -112,7 +116,7 @@ beforeEach(() => {
   process.env.OMNI_API_URL = 'https://omni.example';
   process.env.OMNI_API_KEY = 'isolated-test-api-key';
   process.env.OMNI_CALLBACK_SECRET = 'isolated-test-callback-secret';
-  run = undefined; dispatches = omniDispatches = cancellations = retries = 0; auditFails = uncertain = false; afterAllowAudit = undefined; failingTable = undefined; totalGuard = { enforced: true, limit_usd: 10, committed_usd: 0 };
+  run = undefined; dispatches = omniDispatches = cancellations = retries = 0; auditFails = uncertain = false; afterAllowAudit = undefined; failingTable = undefined; totalGuard = { enforced: true, limit_usd: 10, committed_usd: 0 }; spendMeter = healthyMeter();
 });
 test('voice/text intent → pending approval → real server dispatch path → evidence and draft PR (mock transport)', async () => {
   assert.equal(await codeProjectId('Jackboy'), projectId);
