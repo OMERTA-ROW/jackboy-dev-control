@@ -1,5 +1,4 @@
 import { useServerFn } from "@tanstack/react-start";
-import { ActivationReadiness } from "./ActivationReadiness";
 import { ActivationPanel } from "./ActivationPanel";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -145,16 +144,7 @@ export function CodeSafetyPanel() {
       busy={busy}
       run={(action) => run(action, "activation")}
       message={messageSource === "activation" ? message : null}
-      evidence={
-  <ActivationReadiness live={settings && prerequisites ? {
-        checkedAt: settings.checkedAt < prerequisites.checkedAt ? settings.checkedAt : prerequisites.checkedAt,
-        pinsMatch: prerequisites.workflowPins.matches,
-        disabled: settings.enabled === false,
-        stopped: settings.killSwitch === true,
-        noActiveRun: settings.activeRequestId === null && settings.activeRunId === null,
-        gatesProtected: prerequisites.environments.CODE.protected && prerequisites.environments["CODE-PUBLISH"].protected,
-      } : null} />
-      }
+
     />
     <section className="panel mb-4 p-4" aria-labelledby="code-safety-heading">
       <div className="flex flex-wrap items-start justify-between gap-3">
