@@ -375,6 +375,8 @@ export const setCodeSafetyTarget = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     await requireOwner(context);
+    // Allow-list changes go only through the passkey "Add to CODE" flow (code-onboarding.functions.ts).
+    if (Date.now() > 0) throw new Error("Pin changes need your passkey: use Add to CODE on the project page.");
     const [repository, workflow, workflowFile] = await Promise.all([
       fetchGithub<{ default_branch: string }>(""),
       fetchGithub<{ state: string }>(`/actions/workflows/${CODE_WORKFLOW}`),
