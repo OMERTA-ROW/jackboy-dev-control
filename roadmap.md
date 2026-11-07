@@ -7,7 +7,10 @@
 - [x] Staged 0047 ($10 guard) applied Nov 7 00:24 UTC on owner approval (journal entry 0046_code_total_spend_guard); status enforced=true, limit $10, committed $0; CODE off, Stop on, hard cap false.
 - [x] Staged 0048 (hard-cap gate) applied Nov 7 00:27 UTC on owner approval (journal 0047_code_hard_cap_gate); forced-false CHECK removed, gate trigger on; flag still false, guard enforced, CODE off, Stop on.
 - [x] Cost-meter secrets OPENAI_ADMIN_KEY, OPENAI_CODE_PROJECT_ID, OPENAI_CODE_API_KEY_ID now exist (values not checked against OpenAI).
-- [ ] Owner passkey control to set the hard-cap attestation — blocked: needs 0048 applied and separate approval.
+- [x] Owner passkey control to mark/un-mark the hard cap (Settings → CODE): fresh passkey only, CODE off + Stop on; 9 new tests; not pressed.
+- [ ] Owner presses it on the published app — owner only; needs publish first.
+- [ ] Fresh admission meter: nothing sets provider_usage_at, so every task claim refuses — blocked: owner approval of a design.
+- [ ] Owner control to release the CODE stop and turn CODE on (none exists; supervised switch is locked) — blocked: owner approval to build.
 - [ ] Release Emergency Stop / enable CODE — owner only.
 
 ## Workflow pin repair and activation readiness (Nov 5, 21:30 UTC)
