@@ -15,7 +15,7 @@ import {
   HARD_CAP_TARGET,
   hardCapChangeBlockReason,
   type CodeEnableGate,
-  type TotalSpendGuard,
+  type CodeSafetyState,
 } from "@/lib/code-safety";
 import { activationProgress, activationSteps, codeIsOn, type ActivationStep } from "@/lib/activation-steps";
 
@@ -25,7 +25,7 @@ export type ActivationState = {
   activeRequestId: string | null;
   activeRunId: string | null;
   providerBudgetEnforced: boolean;
-  totalSpendGuard: TotalSpendGuard | null;
+  totalSpendGuard: CodeSafetyState["totalSpendGuard"];
 };
 
 type Props = {
