@@ -94,7 +94,12 @@ export function ProjectConnection({ projectId, onChanged }: { projectId: string;
       {!connected && <p className="mt-2 text-xs text-muted-foreground">Connecting runs a real check: read, create and delete a test branch, and read pull requests. Only if that passes is the first scan run. Background work stays off until you activate it.</p>}
       <div className="mt-4 rounded-md border border-border p-3" aria-live="polite">
         <h3 className="text-sm font-semibold">Background work</h3>
-        {!connected ? <p className="mt-1 text-xs text-muted-foreground">Connect the repository first. Activation comes right after.</p>
+        {!connected ? (
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <p className="text-xs text-muted-foreground">{d.project.dev_enabled ? "Stopped: the connection needs fixing. Reconnect, then activate again." : "Connect the repository first. Activation comes right after."}</p>
+              {d.project.dev_enabled && <button type="button" className={btn} disabled={busy} onClick={() => void background(false)}>Turn off background work</button>}
+            </div>
+          )
           : d.project.dev_enabled ? (
             <div className="mt-1 flex flex-wrap items-center gap-2">
               <span className="inline-flex items-center gap-1 text-sm text-success"><CheckCircle2 className="h-4 w-4" aria-hidden />Active</span>
