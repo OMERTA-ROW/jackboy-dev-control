@@ -328,13 +328,14 @@ export function hardCapChangeBlockReason({ verified, evidence, current }: HardCa
   return null;
 }
 
-/** Environment policy may narrow stored approval, never add permission or a new workflow. */
+/** Environment policy may narrow stored approval, never add permission or a new workflow.
+ * A site is usable only when the passkey-approved database pin and CODE_TARGETS agree on repo, `main` and workflow SHA. */
 export function restrictCodeTargets(stored: Record<string, CodeTarget>, configured: string | undefined): Record<string, CodeTarget> {
   if (!configured) return {};
   const policy = parseCodeTargets(JSON.parse(configured));
   const entries = Object.entries(policy);
-  if (entries.length !== 1 || entries[0]?.[0] !== "OMERTA-ROW/jackboy-dev-control" || entries[0]?.[1].ref !== "main") {
-    throw new Error("CODE_TARGETS must allow only OMERTA-ROW/jackboy-dev-control on main.");
+  if (!entries.length || entries.some(([, target]) => target.ref !== "main")) {
+    throw new Error("CODE_TARGETS must list at least one repository, each on main only.");
   }
   return Object.fromEntries(entries.filter(([repo, target]) => stored[repo]?.ref === target.ref && stored[repo]?.workflowSha === target.workflowSha));
 }
