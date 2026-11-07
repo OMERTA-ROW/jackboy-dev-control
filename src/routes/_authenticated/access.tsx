@@ -1,5 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
+import { actionArea, actorLabel, detailLine, type AttributedRow } from "@/lib/audit-attribution";
 import { useState } from "react";
 import { Lock, UserPlus, ShieldCheck, Eye, LogOut } from "lucide-react";
 import { PageHeader } from "@/components/AppShell";
@@ -38,7 +39,17 @@ function Access() {
 
   const members = useQuery({ queryKey: ["members"], enabled: manager, queryFn: async () => (await supabase.from("user_roles").select("user_id, role, created_at").order("created_at")).data ?? [] });
   const invites = useQuery({ queryKey: ["invites"], enabled: manager, queryFn: async () => (await supabase.from("invitations").select("*").order("created_at", { ascending: false }).limit(50)).data ?? [] });
-  const audit = useQuery({ queryKey: ["audit"], queryFn: async () => (await supabase.from("audit_logs").select("*").order("at", { ascending: false }).limit(30)).data ?? [] });
+  const audit = useInfiniteQuery({
+    queryKey: ["audit"],
+    initialPageParam: null as string | null,
+    queryFn: async ({ pageParam }) => {
+      const { data, error } = await supabase.rpc("audit_log_attributed", { _limit: 30, ...(pageParam ? { _before: pageParam } : {}) });
+      if (error) throw new Error(error.message);
+      return (data ?? []) as AttributedRow[];
+    },
+    getNextPageParam: (last) => (last.length === 30 ? last[last.length - 1]!.at : null),
+  });
+  const auditRows = audit.data?.pages.flat() ?? [];
 
   async function rpc(fn: () => PromiseLike<{ error: { message: string } | null }>, ok: string) {
     setMsg(null);
@@ -103,13 +114,28 @@ function Access() {
         </div>
       ) : <p className="text-sm text-muted-foreground">Members can't manage invitations. Ask the owner for changes.</p>}
 
-      <h2 className="mb-3 mt-8 text-sm font-semibold uppercase tracking-wider text-silver">Audit log (server)</h2>
+      <h2 className="mb-1 mt-8 text-sm font-semibold uppercase tracking-wider text-silver">Audit log (server)</h2>
+      <p className="mb-3 text-xs text-muted-foreground">Permanent record: entries can be added but never edited or deleted. Each line shows who did it.{manager ? "" : " You see only your own actions."}</p>
       <ul className="panel divide-y divide-border text-xs">
-        {(audit.data ?? []).length === 0 && <li className="p-3 text-muted-foreground">No entries yet.</li>}
-        {(audit.data ?? []).map((a) => (
-          <li key={a.id} className="flex flex-wrap gap-2 p-3"><span className="text-muted-foreground">{new Date(a.at).toLocaleString()}</span><span className="font-mono">{a.action}</span><span className={a.outcome === "ok" ? "text-success" : "text-warning"}>{a.outcome}</span><span className="truncate text-muted-foreground">{JSON.stringify(a.detail)}</span></li>
+        {audit.isError && <li role="alert" className="p-3 text-destructive">Couldn't load the audit log: {(audit.error as Error).message}</li>}
+        {audit.isSuccess && auditRows.length === 0 && <li className="p-3 text-muted-foreground">No entries yet.</li>}
+        {auditRows.map((a) => (
+          <li key={a.id} className="grid gap-1 p-3 sm:grid-cols-[160px_1fr]">
+            <time className="text-muted-foreground" dateTime={a.at}>{new Date(a.at).toLocaleString()}</time>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-x-2">
+                <span className="font-medium">{actorLabel(a, user.id)}</span>
+                <span className="text-muted-foreground">·</span>
+                <span>{actionArea(a.action)}</span>
+                <span className="font-mono text-muted-foreground">{a.action}</span>
+                <span className={a.outcome === "ok" ? "text-success" : a.outcome === "denied" || a.outcome === "failed" ? "text-destructive" : "text-warning"}>{a.outcome}</span>
+              </div>
+              {detailLine(a.detail) && <p className="truncate text-muted-foreground" title={JSON.stringify(a.detail)}>{detailLine(a.detail)}</p>}
+            </div>
+          </li>
         ))}
       </ul>
+      {audit.hasNextPage && <button className="mt-2 text-xs text-electric underline" disabled={audit.isFetchingNextPage} onClick={() => void audit.fetchNextPage()}>{audit.isFetchingNextPage ? "Loading…" : "Show older entries"}</button>}
 
       <h2 className="mb-3 mt-8 text-sm font-semibold uppercase tracking-wider text-silver">Security boundaries</h2>
       <ul className="grid gap-3 md:grid-cols-3">
