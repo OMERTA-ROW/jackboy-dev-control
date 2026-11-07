@@ -1,5 +1,5 @@
 --- .github/workflows/code.yml	2026-11-07 10:51:48.661736685 +0000
-+++ staging/code-lane/code.yml	2026-11-07 10:59:00.975497262 +0000
++++ staging/code-lane/code.yml	2026-11-07 10:59:13.307708448 +0000
 @@ -7,6 +7,12 @@
          description: Existing owner-approved CODE request ID
          required: true
@@ -49,17 +49,17 @@
 +          const patch = readFileSync(`${process.env.RUNNER_TEMP}/code-report/code.patch`);
 +          if (createHash('sha256').update(patch).digest('hex') !== process.env.EXPECTED_PATCH_SHA256) throw new Error('Patch digest mismatch.');
 +          const files = [];
-+          let cur = null;
++          let cur = null, inHunk = false;
 +          for (const line of patch.toString('utf8').split('\n')) {
 +            const m = line.match(/^diff --git a\/(.+) b\/(.+)$/);
-+            if (m) { cur = { path: m[2], status: 'modified', additions: 0, deletions: 0 }; files.push(cur); continue; }
++            if (m) { cur = { path: m[2], status: 'modified', additions: 0, deletions: 0 }; files.push(cur); inHunk = false; continue; }
 +            if (!cur) continue;
++            if (line.startsWith('@@')) { inHunk = true; continue; }
++            if (inHunk) { if (line.startsWith('+')) cur.additions++; else if (line.startsWith('-')) cur.deletions++; continue; }
 +            if (line.startsWith('new file mode')) cur.status = 'added';
 +            else if (line.startsWith('deleted file mode')) cur.status = 'removed';
 +            else if (line.startsWith('rename from') || line.startsWith('similarity index')) cur.status = 'renamed';
-+            else if (line.startsWith('Binary files')) cur.status = 'binary';
-+            else if (line.startsWith('+') && !line.startsWith('+++')) cur.additions++;
-+            else if (line.startsWith('-') && !line.startsWith('---')) cur.deletions++;
++            else if (line.startsWith('Binary files') || line.startsWith('GIT binary patch')) cur.status = 'binary';
 +          }
 +          const report = { fileCount: files.length, files: files.slice(0, 4).map((f) => ({ ...f, path: f.path.slice(0, 200) })) };
 +          appendFileSync(process.env.GITHUB_ENV, `CODE_PATCH_REPORT=${JSON.stringify(report)}\n`);
