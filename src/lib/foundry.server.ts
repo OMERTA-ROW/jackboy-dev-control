@@ -79,6 +79,9 @@ export async function inspectProject(projectId: string, actor: string, source: "
   try { repo = await ws.openRepo(p.github_repo); }
   catch (e) { const m = (e as Error).message; await event({ id: null as never, project_id: p.id }, "inspect_blocked", actor, null, null, m); return { created: 0, blocked: m }; }
   const t = await ws.tree(repo, repo.base);
+  const toScan = Math.min(300, t.files.filter((await import("./code-scan")).scannable).length);
+  // Real milestone the owner sees live while the loop runs.
+  await event({ id: null as never, project_id: p.id }, "inspect_started", actor, null, null, `Reading ${t.total} files in ${repo.full}; checking ${toScan} source file(s)…`, { inspectedFiles: t.total, toScan });
   const have = new Set(t.files);
   const found = CHECKS.filter((c) => !have.has(c.path)).sort((a, b) => b.priority - a.priority);
   let created = 0; const ids: string[] = [];

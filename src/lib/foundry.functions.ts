@@ -53,6 +53,18 @@ export const getFoundry = createServerFn({ method: "GET" })
     return { tasks: tasks.data ?? [], events: events.data ?? [], patterns: patterns.data ?? [], schedule: schedule.data, projects: projects.data ?? [], packages: packages.data ?? [], connectors };
   });
 
+/** Live progress for running coding loops: the projects' own Foundry events since the run started. Read-only. */
+export const foundryProgress = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ projectIds: z.array(z.string().uuid()).min(1).max(50), since: z.string().datetime() }).parse(d))
+  .handler(async ({ data, context }) => {
+    await owner(context as never);
+    const { data: rows, error } = await context.supabase.from("foundry_events").select("project_id, action, to_state, note, created_at")
+      .in("project_id", data.projectIds).gte("created_at", data.since).order("created_at", { ascending: true }).limit(200);
+    if (error) throw new Error(error.message);
+    return rows ?? [];
+  });
+
 export const foundryInspect = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { projectId: string }) => ({ projectId: String(d.projectId) }))
