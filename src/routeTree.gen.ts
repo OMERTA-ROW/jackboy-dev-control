@@ -63,6 +63,7 @@ import { Route as ApiPublicFoundryWebhookRouteImport } from './routes/api/public
 import { Route as ApiPublicGithubManifestRouteImport } from './routes/api/public/github/manifest'
 import { Route as ApiPublicGithubSetupRouteImport } from './routes/api/public/github/setup'
 import { Route as ApiPublicGithubWebhookRouteImport } from './routes/api/public/github/webhook'
+import { Route as ApiPublicJobsOwnerAlertsRouteImport } from './routes/api/public/jobs/owner-alerts'
 import { Route as ApiPublicJobsReleasesRouteImport } from './routes/api/public/jobs/releases'
 import { Route as ApiPublicJobsSiteMonitorRouteImport } from './routes/api/public/jobs/site-monitor'
 import { Route as ApiPublicJobsUpdateWriterRouteImport } from './routes/api/public/jobs/update-writer'
@@ -350,6 +351,12 @@ const ApiPublicGithubWebhookRoute = ApiPublicGithubWebhookRouteImport.update({
   path: '/api/public/github/webhook',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicJobsOwnerAlertsRoute =
+  ApiPublicJobsOwnerAlertsRouteImport.update({
+    id: '/api/public/jobs/owner-alerts',
+    path: '/api/public/jobs/owner-alerts',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicJobsReleasesRoute = ApiPublicJobsReleasesRouteImport.update({
   id: '/api/public/jobs/releases',
   path: '/api/public/jobs/releases',
@@ -471,6 +478,7 @@ export interface FileRoutesByFullPath {
   '/api/public/github/manifest': typeof ApiPublicGithubManifestRoute
   '/api/public/github/setup': typeof ApiPublicGithubSetupRoute
   '/api/public/github/webhook': typeof ApiPublicGithubWebhookRoute
+  '/api/public/jobs/owner-alerts': typeof ApiPublicJobsOwnerAlertsRoute
   '/api/public/jobs/releases': typeof ApiPublicJobsReleasesRoute
   '/api/public/jobs/site-monitor': typeof ApiPublicJobsSiteMonitorRoute
   '/api/public/jobs/update-writer': typeof ApiPublicJobsUpdateWriterRoute
@@ -538,6 +546,7 @@ export interface FileRoutesByTo {
   '/api/public/github/manifest': typeof ApiPublicGithubManifestRoute
   '/api/public/github/setup': typeof ApiPublicGithubSetupRoute
   '/api/public/github/webhook': typeof ApiPublicGithubWebhookRoute
+  '/api/public/jobs/owner-alerts': typeof ApiPublicJobsOwnerAlertsRoute
   '/api/public/jobs/releases': typeof ApiPublicJobsReleasesRoute
   '/api/public/jobs/site-monitor': typeof ApiPublicJobsSiteMonitorRoute
   '/api/public/jobs/update-writer': typeof ApiPublicJobsUpdateWriterRoute
@@ -607,6 +616,7 @@ export interface FileRoutesById {
   '/api/public/github/manifest': typeof ApiPublicGithubManifestRoute
   '/api/public/github/setup': typeof ApiPublicGithubSetupRoute
   '/api/public/github/webhook': typeof ApiPublicGithubWebhookRoute
+  '/api/public/jobs/owner-alerts': typeof ApiPublicJobsOwnerAlertsRoute
   '/api/public/jobs/releases': typeof ApiPublicJobsReleasesRoute
   '/api/public/jobs/site-monitor': typeof ApiPublicJobsSiteMonitorRoute
   '/api/public/jobs/update-writer': typeof ApiPublicJobsUpdateWriterRoute
@@ -676,6 +686,7 @@ export interface FileRouteTypes {
     | '/api/public/github/manifest'
     | '/api/public/github/setup'
     | '/api/public/github/webhook'
+    | '/api/public/jobs/owner-alerts'
     | '/api/public/jobs/releases'
     | '/api/public/jobs/site-monitor'
     | '/api/public/jobs/update-writer'
@@ -743,6 +754,7 @@ export interface FileRouteTypes {
     | '/api/public/github/manifest'
     | '/api/public/github/setup'
     | '/api/public/github/webhook'
+    | '/api/public/jobs/owner-alerts'
     | '/api/public/jobs/releases'
     | '/api/public/jobs/site-monitor'
     | '/api/public/jobs/update-writer'
@@ -811,6 +823,7 @@ export interface FileRouteTypes {
     | '/api/public/github/manifest'
     | '/api/public/github/setup'
     | '/api/public/github/webhook'
+    | '/api/public/jobs/owner-alerts'
     | '/api/public/jobs/releases'
     | '/api/public/jobs/site-monitor'
     | '/api/public/jobs/update-writer'
@@ -845,6 +858,7 @@ export interface RootRouteChildren {
   ApiPublicGithubManifestRoute: typeof ApiPublicGithubManifestRoute
   ApiPublicGithubSetupRoute: typeof ApiPublicGithubSetupRoute
   ApiPublicGithubWebhookRoute: typeof ApiPublicGithubWebhookRoute
+  ApiPublicJobsOwnerAlertsRoute: typeof ApiPublicJobsOwnerAlertsRoute
   ApiPublicJobsReleasesRoute: typeof ApiPublicJobsReleasesRoute
   ApiPublicJobsSiteMonitorRoute: typeof ApiPublicJobsSiteMonitorRoute
   ApiPublicJobsUpdateWriterRoute: typeof ApiPublicJobsUpdateWriterRoute
@@ -1239,6 +1253,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicGithubWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/jobs/owner-alerts': {
+      id: '/api/public/jobs/owner-alerts'
+      path: '/api/public/jobs/owner-alerts'
+      fullPath: '/api/public/jobs/owner-alerts'
+      preLoaderRoute: typeof ApiPublicJobsOwnerAlertsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/jobs/releases': {
       id: '/api/public/jobs/releases'
       path: '/api/public/jobs/releases'
@@ -1425,6 +1446,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicGithubManifestRoute: ApiPublicGithubManifestRoute,
   ApiPublicGithubSetupRoute: ApiPublicGithubSetupRoute,
   ApiPublicGithubWebhookRoute: ApiPublicGithubWebhookRoute,
+  ApiPublicJobsOwnerAlertsRoute: ApiPublicJobsOwnerAlertsRoute,
   ApiPublicJobsReleasesRoute: ApiPublicJobsReleasesRoute,
   ApiPublicJobsSiteMonitorRoute: ApiPublicJobsSiteMonitorRoute,
   ApiPublicJobsUpdateWriterRoute: ApiPublicJobsUpdateWriterRoute,
