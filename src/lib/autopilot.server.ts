@@ -71,6 +71,7 @@ export async function scanSite(projectId: string, trigger: string, actor: string
 
 /** Writes a fix from findings or error reports. Autopilot on → opens a PR; off → waits in the Update Queue. */
 export async function writeFix(projectId: string, problem: string, source: "scan" | "health" | "chat" | "demo", actor: string | null, scanId?: string, opts: { forceApproval?: boolean } = {}) {
+  await (await import("./global-pause.server")).assertWorkAllowed();
   const s = await settings();
   const cap = await capCheck("ai", s.monthly_ai_cap);
   if (cap) throw new Error(cap);
@@ -174,6 +175,8 @@ export async function autopilotTick() {
   const s = await settings();
   const result = { shipped: 0, held: 0, healthFixes: 0 };
   if (!s.autopilot_enabled || s.paused_reason) return result;
+  const killed = await (await import("./global-pause.server")).readGlobalPause();
+  if (killed) return { ...result, skipped: killed };
   const { data: open } = await supabaseAdmin.from("update_proposals").select("id, title, files, project_id, owner_projects(autopilot, created_by, name)").eq("status", "pr_open").limit(20);
   for (const o of open ?? []) {
     const proj = o.owner_projects as unknown as { autopilot: boolean; created_by: string; name: string } | null;

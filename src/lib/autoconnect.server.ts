@@ -125,6 +125,8 @@ export async function setGrant(cap: string, projectId: string, actor: string, op
 
 /** Hourly: re-verify approved/connected grants (bounded) so health stays current and waiting work resumes. */
 export async function autoconnectTick() {
+  const killed = await (await import("./global-pause.server")).readGlobalPause();
+  if (killed) return { checked: 0, skipped: killed };
   await scanCapabilities();
   const { data } = await supabaseAdmin.from("capability_grants").select("capability, project_id, status, paused, verify_attempts").in("status", ["awaiting_setup", "connected", "error"]).eq("paused", false).order("last_verified_at", { ascending: true, nullsFirst: true }).limit(5);
   let checked = 0;

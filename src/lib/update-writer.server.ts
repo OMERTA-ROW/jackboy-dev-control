@@ -109,6 +109,7 @@ export async function repoContext(p: Project) {
 
 /** Opens a branch + PR for a proposal's files on the project's private repo. Never writes to the base branch. */
 export async function deliver(proposalId: string, actor: string | null) {
+  await (await import("./global-pause.server")).assertWorkAllowed();
   const { data: p } = await supabaseAdmin.from("update_proposals").select("*, owner_projects(*)").eq("id", proposalId).single();
   if (!p || !p.owner_projects) throw new Error("Proposal not found.");
   const proj = p.owner_projects as unknown as Project;
@@ -227,6 +228,8 @@ export async function runUpdateWriter(opts: { trigger: "manual" | "scheduled"; a
   const now = new Date();
   const { data: s } = await supabaseAdmin.from("update_writer_settings").select("*").eq("id", 1).single();
   if (!s) throw new Error("Settings missing.");
+  const killed = await (await import("./global-pause.server")).readGlobalPause();
+  if (killed) return { skipped: killed, created: 0, errors: [] as string[] };
   if (opts.trigger === "scheduled" && s.paused_reason) return { skipped: `paused: ${s.paused_reason}`, created: 0, errors: [] as string[] };
   const runCap = await capCheck("run", s.monthly_run_cap);
   if (runCap) return { skipped: runCap, created: 0, errors: [] as string[] };
