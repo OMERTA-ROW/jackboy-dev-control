@@ -3285,6 +3285,19 @@ export type Database = {
         Args: { _approve: boolean; _id: string }
         Returns: undefined
       }
+      audit_log_attributed: {
+        Args: { _before?: string; _limit?: number }
+        Returns: {
+          action: string
+          actor: string
+          actor_email: string
+          actor_role: Database["public"]["Enums"]["app_role"]
+          at: string
+          detail: Json
+          id: string
+          outcome: string
+        }[]
+      }
       claim_code_runner: {
         Args: {
           p_operation: string
