@@ -98,7 +98,7 @@ export function activationProgress(steps: ActivationStep[]): {
  * performs or relaxes anything. Unknown gates get a safe generic answer. */
 const GATE_FIX: Record<string, string> = {
   gateway:
-    "Add CODE_PROVIDER_API_KEY, CODE_GATEWAY_PRICES and CODE_GATEWAY_PER_CALL_CAP_USD in Project Settings → Secrets, then press Check again.",
+    "Add the CODE provider key, CODE_GATEWAY_PRICES and CODE_GATEWAY_PER_CALL_CAP_USD in Project Settings → Secrets, then press Check again.",
   cost_check:
     "Add OPENAI_ADMIN_KEY, OPENAI_CODE_PROJECT_ID and OPENAI_CODE_API_KEY_ID in Project Settings → Secrets, then press Check again.",
   pins: "The saved workflow version is different from GitHub main. Ask Jackboy in Chat for an owner-approved pin resync; nothing changes on its own.",
