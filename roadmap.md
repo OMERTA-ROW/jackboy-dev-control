@@ -1,5 +1,9 @@
 # Jackboy roadmap
 
+## Task Mode (Nov 7, 05:30 UTC) — plan only
+- [x] Plan written: what exists, what's missing, safety review, 3 phases.
+- [ ] Build — waiting on owner approval of the plan, browser service choice (Phase 3) and first test task.
+
 ## Add project to CODE (Nov 7, 05:30 UTC)
 - [x] "Add to CODE" card on each project page (checklist, Prepare = draft PR with the approved workflow files, Approve and activate with passkey, Remove) and a CODE sites list in Settings. Web (bun/npm) and Go workflow versions. 630 app tests + 8 isolated database tests pass; preview shows the Hercules checklist, nothing pressed.
 - [ ] Apply staged database update `staging/code-sites/0050` (multi-site pins) — needs owner approval in chat.
