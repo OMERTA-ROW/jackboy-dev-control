@@ -1,8 +1,11 @@
 # Jackboy roadmap
 
-## Task Mode (Nov 7, 05:30 UTC) — plan only
-- [x] Plan written: what exists, what's missing, safety review, 3 phases.
-- [ ] Build — waiting on owner approval of the plan, browser service choice (Phase 3) and first test task.
+## Task Mode (Nov 7, 05:30 UTC)
+- [x] Plan approved.
+- [x] Phase 1: Tasks page (draft steps → review → Start → live feed → passkey checkpoints → Stop/Retry), chat can draft tasks, hourly job keeps running tasks moving. Preview: a 4-step task drafted, started, and stopped correctly because the Kill Switch is on.
+- [x] Phase 2: Settings → "steps that can skip approval" per project, saved with a fresh passkey; the five never-skip types locked.
+- [ ] Try a checkpoint with your passkey on the live site — needs publish and the Kill Switch off (owner only).
+- [ ] Phase 3 (outside websites) — blocked until the owner picks a browser service.
 
 ## Add project to CODE (Nov 7, 05:30 UTC)
 - [x] "Add to CODE" card on each project page (checklist, Prepare = draft PR with the approved workflow files, Approve and activate with passkey, Remove) and a CODE sites list in Settings. Web (bun/npm) and Go workflow versions. 630 app tests + 8 isolated database tests pass; preview shows the Hercules checklist, nothing pressed.

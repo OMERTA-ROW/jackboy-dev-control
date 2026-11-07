@@ -34,6 +34,19 @@ export async function handleChat(request: Request) {
   if (!Array.isArray(body.messages) || body.messages.length > 200) return Response.json({ error: "Invalid messages." }, { status: 400 });
 
   const tools = buildJackboyTools(userId);
+  const { TASK_TOOLS } = await import("./task-mode");
+  // Task Mode: chat only DRAFTS the steps; the owner reviews and presses Start on the Tasks page.
+  (tools as Record<string, unknown>)["draftTask"] = tool({
+    description: `Draft a multi-step Task Mode task for owner review (never runs anything). Use when the owner says "Task:" or asks you to carry out several steps on their own. Steps may use only: ${Object.keys(TASK_TOOLS).join(", ")}. Each step's input is fixed now (argsJson = that action's input as JSON). Never include paying, publishing, deploying, merging, deleting, sending or credential changes.`,
+    inputSchema: z.object({ goal: z.string().min(3).max(2000), steps: z.array(z.object({ tool: z.string(), argsJson: z.string(), why: z.string() })).min(1).max(12) }),
+    execute: async ({ goal, steps }) => {
+      try {
+        const parsed = steps.map((s) => { let args: Record<string, unknown> = {}; try { args = JSON.parse(s.argsJson); } catch { /* validated server-side */ } return { tool: s.tool, args, why: s.why }; });
+        const r = await (await import("./task-mode.server")).draftTask(userId, goal, parsed);
+        return { drafted: r.steps, status: "Draft saved — nothing has run. The owner reviews and presses Start.", evidence: [{ label: "Review and start the task", url: `/tasks?id=${r.taskId}` }] };
+      } catch (e) { return { blocked: true, reason: e instanceof Error ? e.message : "Couldn't draft the task." }; }
+    },
+  });
 
 
   // GuardianPolicy: voice is intent, not identity. Each privileged tool is re-decided per call.
