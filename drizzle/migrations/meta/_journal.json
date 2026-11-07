@@ -337,6 +337,13 @@
       "when": 1794011266867,
       "tag": "0047_code_hard_cap_gate",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1794018447934,
+      "tag": "0048_code_spend_meter_and_activation",
+      "breakpoints": true
     }
   ]
 }

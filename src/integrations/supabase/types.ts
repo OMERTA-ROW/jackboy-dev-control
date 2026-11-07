@@ -666,6 +666,7 @@ export type Database = {
           provider_usage_at: string | null
           reconcile_grace_seconds: number
           singleton: boolean
+          spend_meter: Json | null
           stop_requested_at: string | null
           total_spend_limit_usd: number
           updated_at: string
@@ -688,6 +689,7 @@ export type Database = {
           provider_usage_at?: string | null
           reconcile_grace_seconds?: number
           singleton?: boolean
+          spend_meter?: Json | null
           stop_requested_at?: string | null
           total_spend_limit_usd?: number
           updated_at?: string
@@ -710,6 +712,7 @@ export type Database = {
           provider_usage_at?: string | null
           reconcile_grace_seconds?: number
           singleton?: boolean
+          spend_meter?: Json | null
           stop_requested_at?: string | null
           total_spend_limit_usd?: number
           updated_at?: string
@@ -2906,6 +2909,7 @@ export type Database = {
         Args: { p_request_id: string }
         Returns: number
       }
+      code_spend_meter_status: { Args: never; Returns: Json }
       code_total_spend_committed: { Args: never; Returns: number }
       code_total_spend_guard_enforced: { Args: never; Returns: boolean }
       code_total_spend_guard_status: { Args: never; Returns: Json }
@@ -2921,6 +2925,7 @@ export type Database = {
         Args: { p_call_id: string }
         Returns: undefined
       }
+      enable_code_runtime: { Args: { p_actor: string }; Returns: Json }
       engage_code_kill_switch: {
         Args: { p_actor: string }
         Returns: {
@@ -3003,6 +3008,7 @@ export type Database = {
         Args: { p_actor: string; p_rows: Json; p_synced_at: string }
         Returns: undefined
       }
+      refresh_code_spend_meter: { Args: never; Returns: Json }
       release_code_spend_holds: {
         Args: { p_actor: string; p_reason: string; p_request_ids: string[] }
         Returns: number
