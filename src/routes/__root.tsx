@@ -15,6 +15,7 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AppShell } from "@/components/AppShell";
 import { RepositorySyncProvider } from "@/components/RepositorySync";
 import { Toaster } from "@/components/ui/sonner";
+import { PasskeyPromptHost } from "@/components/PasskeyPromptHost";
 import { supabase } from "@/integrations/supabase/client";
 
 function NotFoundComponent() {
@@ -138,6 +139,7 @@ function RootComponent() {
         <Outlet />
       </AppShell>
       </RepositorySyncProvider>
+      <PasskeyPromptHost />
       <Toaster theme="dark" />
     </QueryClientProvider>
   );
