@@ -69,6 +69,7 @@ function Settings() {
   return (
     <>
       <PageHeader title="Settings & Advanced" subtitle="Every advanced Jackboy tool, grouped. Your everyday flow lives on Home and Projects." />
+      <CodeSafetyPanel />
       <section aria-labelledby="guidelines" className="mb-6 rounded-lg border border-border bg-card p-4">
         <h2 id="guidelines" className="text-sm font-semibold uppercase tracking-wider text-silver">Guidelines</h2>
         <p className="mt-1 text-xs text-muted-foreground">Jackboy's autonomous operating rules. If a task conflicts with them, the rules win.</p>
@@ -81,7 +82,6 @@ function Settings() {
       <GitHubAppPanel />
       <GitHubTokenPanel />
       <RepositorySyncPanel />
-      <CodeSafetyPanel />
       <div className="grid gap-4 md:grid-cols-2">
         {ADVANCED.map((g) => (
           <section key={g.group} className="panel p-5" aria-labelledby={`g-${g.group}`}>

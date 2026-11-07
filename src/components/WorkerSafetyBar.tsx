@@ -33,7 +33,7 @@ export function WorkerSafetyBar() {
   };
   return <section aria-label="Worker safety" className="mb-4 border-b border-border pb-3">
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <Link to="/settings" className="text-sm text-silver">Worker 1 · supervised readiness</Link>
+      <Link to="/settings" hash="activation" className="text-sm text-silver underline-offset-4 hover:underline">CODE activation steps</Link>
       <div className="flex items-center gap-2">
         <span className="text-xs text-muted-foreground" aria-live="polite">Kill Switch: {paused === null ? "unknown" : on ? "on — work paused" : "off"}</span>
         <Button variant="outline" size="sm" disabled={busy || paused === null} aria-busy={busy} aria-pressed={on} onClick={() => void toggle()}>

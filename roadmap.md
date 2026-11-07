@@ -1,5 +1,10 @@
 # Jackboy roadmap
 
+## One CODE activation panel (Nov 7, 03:55 UTC)
+- [x] Fix live-site GitHub/OpenAI checks (edge runtime refused `redirect: "error"`); preview shows all 12 on-switch checks passing.
+- [ ] Owner publishes, then presses the on-switch — owner only.
+- [x] Single ordered activation panel at the top of Settings (linked from the Home pause bar): 7 steps built from the server's 12 on-switch checks, folds away once CODE is on, emergency stop always visible; same passkey actions. 565 tests pass; preview shows 6 of 7 done.
+
 ## CODE activation prep (Nov 6, 23:55 UTC)
 - [x] Staged pin update to 37368194…, cumulative $10 guard and hard-cap gate (staging/code-activation/0046–0048 + rollbacks); 15 isolated database tests pass.
 - [x] App mirrors the $10 guard (fails closed when absent) and Settings shows its status; 527 app tests + CODE runtime tests pass.
