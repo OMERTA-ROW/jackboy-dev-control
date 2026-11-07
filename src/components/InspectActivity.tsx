@@ -7,7 +7,7 @@ import { elapsed } from "@/lib/connect-select";
 
 export type InspectRun = {
   runId: string; projectId: string; phase: RunPhase; startedAt: number; endedAt?: number;
-  lastSeenAt: number; stopAskedAt?: number; trail: RunEvent[]; head: FeedLine[]; tail: FeedLine[]; result?: string;
+  lastSeenAt: number; stopAskedAt?: number | undefined; trail: RunEvent[]; head: FeedLine[]; tail: FeedLine[]; result?: string;
 };
 
 const STOP_WAIT_MS = 30_000; // after this, stop waiting in the browser even if the server hasn't confirmed yet

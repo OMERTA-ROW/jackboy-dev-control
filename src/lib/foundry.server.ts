@@ -79,7 +79,7 @@ export async function requestInspectStop(projectId: string, runId: string, actor
   await event({ id: null as never, project_id: projectId }, "inspect_stop_requested", actor, null, null, "Stop requested by the owner; stopping at the next safe point.", { runId });
 }
 
-export async function inspectProject(projectId: string, actor: string, source: "manual" | "scheduled", limit = 1, opts: { runId?: string } = {}) {
+export async function inspectProject(projectId: string, actor: string, source: "manual" | "scheduled", limit = 1, opts: { runId?: string | undefined } = {}) {
   const runId = opts.runId;
   const tag = (d: Record<string, unknown> = {}) => (runId ? { ...d, runId } : d);
   const spike = await spikeGuard(actor);
