@@ -5,10 +5,10 @@
 - [ ] First real handoff — blocked: OMNI's live link isn't verified and no registered project is enrolled with a GitHub repo; OMNI's side must also accept `build`.
 
 ## GitHub issue/PR preparation (Nov 7, 17:19 UTC)
-- [ ] Prepare GitHub issues and pull requests with CI evidence and review-status summaries; no merge or deploy permissions.
+- [x] Project page → "GitHub issues & pull requests": live CI checks + review status for open PRs; owner-pressed issue or draft PR (jackboy/* only) with CI evidence. No merge/approve/ready/deploy. 737 tests pass; previewed on Jackboy repo, nothing opened.
 
 ## Append-only audit list (Nov 7, 17:20 UTC)
-- [ ] Lock the older audit list so entries can't be changed or deleted (keep all history) and show who did each action.
+- [x] Audit list locked (database refuses change/delete/clear; all 251 entries kept); Access page shows who did each action, with older pages.
 
 ## Autonomy master brief (Nov 7, 16:16 UTC)
 - [x] Audit: switches vs real runs vs GitHub CODE gates (docs/AUTONOMY-AUDIT-2026-11-07.md).
