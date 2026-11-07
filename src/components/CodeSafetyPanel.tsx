@@ -7,14 +7,17 @@ import { useStepUp } from "@/lib/step-up-client";
 import { probeOmniConnection } from "@/lib/omni-link.functions";
 import {
   checkCodeCancellation,
+  enableCodeRuntime,
   engageCodeKillSwitch,
+  getCodeEnableGates,
   getCodeSafetySettings,
   getCodePrerequisites,
+  reconcileCodeClosedDay,
   setCodeDailySpendLimit,
   setCodeHardCapVerified,
   syncCodeProviderCosts,
 } from "@/lib/code-safety.functions";
-import { HARD_CAP_EVIDENCE_MAX, HARD_CAP_TARGET, hardCapChangeBlockReason } from "@/lib/code-safety";
+import { CODE_ENABLE_TARGET, HARD_CAP_EVIDENCE_MAX, HARD_CAP_TARGET, hardCapChangeBlockReason, meterReasonText } from "@/lib/code-safety";
 
 type Settings = Awaited<ReturnType<typeof getCodeSafetySettings>>;
 
@@ -26,6 +29,11 @@ export function CodeSafetyPanel() {
   const syncCosts = useServerFn(syncCodeProviderCosts);
   const stop = useServerFn(engageCodeKillSwitch);
   const setHardCap = useServerFn(setCodeHardCapVerified);
+  const loadGates = useServerFn(getCodeEnableGates);
+  const enableCode = useServerFn(enableCodeRuntime);
+  const reconcileDay = useServerFn(reconcileCodeClosedDay);
+  const [gates, setGates] = useState<Awaited<ReturnType<typeof getCodeEnableGates>> | null>(null);
+  const [gatesError, setGatesError] = useState<string | null>(null);
   const [capNote, setCapNote] = useState("");
   const stepUp = useStepUp();
   const probeOmni = useServerFn(probeOmniConnection);
@@ -36,15 +44,19 @@ export function CodeSafetyPanel() {
   const [busy, setBusy] = useState(false);
   const [limit, setLimitValue] = useState("5");
   const load = useCallback(
-    () =>
-      get()
+    () => {
+      void loadGates()
+        .then((result) => { setGates(result); setGatesError(null); })
+        .catch((error: unknown) => setGatesError(error instanceof Error ? error.message : "Gate checks could not be read."));
+      return get()
         .then(setSettings)
         .catch((error: unknown) => {
           setMessage(
             error instanceof Error ? error.message : "CODE safety settings could not be loaded.",
           );
-        }),
-    [get],
+        });
+    },
+    [get, loadGates],
   );
   useEffect(() => {
     void load();
@@ -84,6 +96,14 @@ export function CodeSafetyPanel() {
                     ? "Could not verify or request cancellation. CODE remains disabled; inspect GitHub Actions."
                     : "No active CODE run needs cancellation.",
         );
+      } else if (result && typeof result === "object" && "day" in result && "message" in result) {
+        setMessage(String(result.message));
+      } else if (result && typeof result === "object" && "codeEnabled" in result && "emergencyStop" in result && !("hardCapVerified" in result)) {
+        setMessage(
+          result.codeEnabled && !result.emergencyStop
+            ? "CODE is ON and its Emergency Stop is released. Each run still needs your approval in GitHub; use Engage emergency stop to turn it off."
+            : "CODE did not turn on. Nothing changed.",
+        );
       } else if (result && typeof result === "object" && "hardCapVerified" in result && "codeEnabled" in result && "emergencyStop" in result) {
         setCapNote("");
         setMessage(
@@ -120,9 +140,9 @@ export function CodeSafetyPanel() {
             CODE safety controls
           </h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            Supervised execution is disabled. Provider-reported costs are daily and delayed, not a
-            guaranteed hard cap; CODE cannot dispatch until a bounded daily enforcement mechanism is
-            verified. This panel never dispatches execution.
+            Supervised execution is {settings?.enabled ? "ON" : "off"}. The live meter counts the
+            gateway's own record of every provider call; OpenAI's delayed reports are checked
+            against it afterwards. This panel never dispatches execution.
           </p>
         </div>
         <Button variant="outline" size="sm"
@@ -141,7 +161,7 @@ export function CodeSafetyPanel() {
         <Switch id="worker-supervised" checked={settings?.enabled === true} disabled aria-describedby="worker-activation-blocker" />
         <label htmlFor="worker-supervised" className="text-sm">Worker 1 · supervised mode (owner only)</label>
       </div>
-      <p id="worker-activation-blocker" className="mt-2 text-xs text-warning">Activation locked until CODE safety storage, bounded spending and isolated-runner acceptance are verified. Each run still requires owner approval in GitHub. No autonomous distribution.</p>
+      <p id="worker-activation-blocker" className="mt-2 text-xs text-warning">This switch only shows the current state. Turn CODE on with the passkey button below once every check passes. Each run still requires owner approval in GitHub. No autonomous distribution.</p>
       {prerequisites && <div className="mt-3 text-sm">
         <p>Target policy: {prerequisites.repository} · {prerequisites.ref} only</p>
         <p className="mt-1 break-all text-xs text-muted-foreground">Live main workflow: {prerequisites.workflowPins.liveSha ?? "unverified"}</p>
@@ -201,10 +221,17 @@ export function CodeSafetyPanel() {
               </dd>
             </div>
             <div>
-              <dt className="text-xs text-muted-foreground">Admission meter</dt>
+              <dt className="text-xs text-muted-foreground">Live spending meter</dt>
               <dd>
-                {settings.meterFresh ? "fresh" : "unavailable or stale"} · usage spike{" "}
-                {settings.usageSpike ? "detected" : "not reported"}
+                {!settings.spendMeter
+                  ? "Not installed · CODE stays blocked"
+                  : `$${settings.spendMeter.measuredTodayUsd.toFixed(2)} today (gateway $${settings.spendMeter.gatewayTodayUsd.toFixed(2)}, OpenAI $${settings.spendMeter.providerTodayUsd.toFixed(2)}) · ${settings.spendMeter.ok ? "healthy" : "blocked"}`}
+                {settings.spendMeter && !settings.spendMeter.ok && (
+                  <span className="block text-xs text-warning">{settings.spendMeter.reasons.map(meterReasonText).join("; ")}</span>
+                )}
+                <span className="block text-xs text-muted-foreground">
+                  Last task-start stamp {settings.meterFresh ? "fresh" : "none or older than 5 minutes"} · usage spike {settings.usageSpike ? "detected" : "not reported"}
+                </span>
               </dd>
             </div>
             <div>
@@ -270,11 +297,53 @@ export function CodeSafetyPanel() {
                 ? new Date(settings.providerCostsSyncedAt).toLocaleString()
                 : "Never"}
             </p>
-            <Button variant="outline" size="sm"
-              disabled={busy}
-              onClick={() => void run(() => syncCosts())}
+            <div className="mt-1 flex flex-wrap gap-2">
+              <Button variant="outline" size="sm"
+                disabled={busy}
+                onClick={() => void run(() => syncCosts())}
+              >
+                Sync provider-reported costs
+              </Button>
+              <Button variant="outline" size="sm"
+                disabled={busy || !settings.spendMeter}
+                onClick={() => void run(() => reconcileDay())}
+              >
+                Check a past day against OpenAI
+              </Button>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {settings.spendMeter?.unreportedDays.length
+                ? `Waiting on OpenAI's report for: ${settings.spendMeter.unreportedDays.join(", ")}.`
+                : "Days CODE ran must be checked against OpenAI by the end of the next day, or new tasks are blocked."}
+            </p>
+          </div>
+          <div className="mt-3 rounded-md border border-border p-3" aria-labelledby="code-enable-heading">
+            <p id="code-enable-heading" className="text-sm font-medium">
+              Turn CODE on: {settings.enabled && !settings.killSwitch ? "CODE is ON" : "CODE is off"}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Releases the CODE Emergency Stop and turns CODE on. Needs a new passkey check every time and
+              works only when every check below passes. To turn CODE off, use Engage emergency stop.
+            </p>
+            {gatesError && <p className="mt-2 text-xs text-warning">{gatesError}</p>}
+            {gates && (
+              <ul className="mt-2 space-y-1 text-xs" aria-label="CODE on-switch checks">
+                {gates.gates.map((gate) => (
+                  <li key={gate.id} className={gate.ok ? "text-muted-foreground" : "text-warning"}>
+                    <span aria-hidden="true">{gate.ok ? "✓" : "✗"}</span>{" "}
+                    <span className="sr-only">{gate.ok ? "Passed:" : "Not passed:"}</span>
+                    {gate.label} — {gate.detail}
+                  </li>
+                ))}
+              </ul>
+            )}
+            <Button variant="outline" size="sm" className="mt-2"
+              disabled={busy || !gates || gates.gates.some((gate) => !gate.ok)}
+              onClick={() => void run(() =>
+                stepUp("code_enable", CODE_ENABLE_TARGET).then((grantId) => enableCode({ data: { grantId } })),
+              )}
             >
-              Sync provider-reported costs
+              Release CODE stop and turn CODE on with passkey
             </Button>
           </div>
           {settings.killSwitch &&
