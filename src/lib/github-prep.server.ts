@@ -100,7 +100,7 @@ export async function previewDraftPr(t: RepoRef, branch: string, title: string, 
   } catch {
     ci = null;
   }
-  return { title: title.trim(), body: buildPrBody({ summary, ci, branch, issueNumber }), ci, branch, base: t.base };
+  return { title: title.trim(), body: buildPrBody({ summary, ci, branch, issueNumber: issueNumber ?? null }), ci, branch, base: t.base };
 }
 
 /** Always a draft. Never merges, marks ready or requests deployment. */
