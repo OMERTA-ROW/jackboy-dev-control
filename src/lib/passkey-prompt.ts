@@ -11,14 +11,14 @@ export type PasskeyJob<V, T = V> = {
   title: string;
   description?: string;
   /** e.g. "Passkey 2 of 3 · OMNI" when several confirmations run in a row. */
-  step?: string;
+  step?: string | undefined;
   /** Server call that creates a fresh single-use challenge. Runs before the tap. */
   prepare: () => Promise<Prepared>;
   /** Server call that verifies the device response. Runs after the device sheet closes. */
   finish: (challengeId: string, response: unknown) => Promise<V>;
   /** Optional follow-up that uses the verified result (e.g. the grant) to make the change, shown in the same window. */
   apply?: (verified: V) => Promise<T>;
-  applyingText?: string;
+  applyingText?: string | undefined;
   successText?: (result: T) => string;
 };
 export type ActiveJob = PasskeyJob<unknown, unknown> & { id: number; resolve: (v: unknown) => void; reject: (e: Error) => void };

@@ -38,10 +38,10 @@ export function useStepUp(): StepUp {
       finish: (challengeId: string, response: unknown) => verify({ data: { challengeId, response } }),
     };
     if (!o) {
-      const g = await requestPasskey({ ...base, successText: () => "Passkey confirmed." });
+      const g = await requestPasskey<{ grantId: string; expiresAt: string }>({ ...base, successText: () => "Passkey confirmed." });
       return g.grantId;
     }
-    return requestPasskey({
+    return requestPasskey<{ grantId: string; expiresAt: string }, unknown>({
       ...base,
       apply: (g) => o.apply(g.grantId),
       applyingText: o.applyingText ?? "Passkey confirmed. Making the change…",

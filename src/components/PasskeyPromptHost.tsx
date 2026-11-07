@@ -83,7 +83,7 @@ export function PasskeyPromptHost() {
     let response: { authenticatorAttachment?: string | null };
     try {
       response = await withTimeout(
-        p.kind === "register" ? startRegistration({ optionsJSON }) : startAuthentication({ optionsJSON }),
+        (p.kind === "register" ? startRegistration({ optionsJSON }) : startAuthentication({ optionsJSON })) as Promise<unknown>,
         PASSKEY_LIMITS.device,
         "Your device didn't answer in time. Nothing was changed. Try again.",
       ) as typeof response;

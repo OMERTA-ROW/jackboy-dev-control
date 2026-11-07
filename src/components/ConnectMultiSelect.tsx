@@ -170,7 +170,7 @@ export function MultiSelect({ hub, onPick, reload }: { hub: Hub | null; onPick: 
                       <span className={`block text-xs ${r.status === "repo_linked" ? "text-success" : r.status === "repo_error" ? "text-destructive" : "text-muted-foreground"}`}>{STATUS[r.status]} — {r.detail}</span>
                       {r.projectId && <BackgroundLine r={r} />}
                       {st && !loops[r.key] && <span className={`block text-xs ${TONE[st.label]}`}>{st.label}: {st.reason}</span>}
-                      {loops[r.key] && <LoopLine l={loops[r.key]} />}
+                      {loops[r.key] && <LoopLine l={loops[r.key]!} />}
                       {results[r.key] && <span className="block text-xs" role="status">{results[r.key]}</span>}
                     </span>
                   </label>
