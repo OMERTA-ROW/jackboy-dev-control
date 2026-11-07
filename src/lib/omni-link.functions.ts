@@ -97,6 +97,9 @@ export const approveOmniReceipt = createServerFn({ method: "POST" })
       !identity.data.user.email_confirmed_at
     )
       throw new Error("A confirmed owner session is required.");
+    const { isOmniVerified } = await import("./omni-link.server");
+    if (!(await isOmniVerified()))
+      throw new Error("OMNI's live link is not verified right now. Check the connection, then approve.");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { untyped } = await import("./untyped-db");
     const result = await untyped(supabaseAdmin).rpc("omni_dispatch_issue_reviewed", {
@@ -108,7 +111,10 @@ export const approveOmniReceipt = createServerFn({ method: "POST" })
       _instructions: data.instructions,
     });
 
-    if (result.error || !result.data) throw new Error("Receipt grant could not be issued.");
+    if (result.error || !result.data)
+      throw new Error(
+        `Handoff approval could not be issued: ${result.error?.message?.slice(0, 160) ?? "no result"}.`,
+      );
     const issued = z
       .object({
         id: z.string().uuid(),
@@ -117,12 +123,17 @@ export const approveOmniReceipt = createServerFn({ method: "POST" })
         projectId: z.string().uuid(),
         jobId: z.string().uuid(),
         repo: z.string(),
-        kind: z.literal("test"),
+        kind: z.enum(["code", "test"]),
         instructions: z.string(),
       })
       .parse(result.data);
     const { dispatchPayloadDigest } = await import("./omni-dispatch-digest");
-    const payloadDigest = await dispatchPayloadDigest({ ...issued, grantId: issued.id });
+    const { wireKind } = await import("./omni-handoff-auth");
+    const payloadDigest = await dispatchPayloadDigest({
+      ...issued,
+      kind: wireKind(issued.kind),
+      grantId: issued.id,
+    });
     return { ...issued, payloadDigest };
   });
 
@@ -145,8 +156,14 @@ export const previewOmniReceipt = createServerFn({ method: "POST" })
       .maybeSingle();
     if (result.error || !result.data) throw new Error("Job could not be loaded.");
     const j = result.data;
-    if (j.kind !== "test" || j.status !== "queued" || j.code_request_id || j.sent_at || !j.repo)
-      throw new Error("Only unsent, non-CODE test jobs can be reviewed.");
+    if (
+      (j.kind !== "test" && j.kind !== "code") ||
+      j.status !== "queued" ||
+      j.code_request_id ||
+      j.sent_at ||
+      !j.repo
+    )
+      throw new Error("Only unsent build or test jobs with a repository can be reviewed.");
     return {
       jobId: j.id,
       projectId: j.project_id,
@@ -205,6 +222,9 @@ export const loadOmniReceiptGrant = createServerFn({ method: "POST" })
       _grant: data.grantId,
     });
     if (result.error) throw new Error("Grant could not be checked.");
+    const reason = (result.data as { valid?: boolean; reason?: unknown } | null)?.reason;
+    if ((result.data as { valid?: boolean } | null)?.valid === false)
+      throw new Error(`This approval can't be used now (${typeof reason === "string" ? reason : "unavailable"}).`);
     const grant = z
       .object({
         valid: z.literal(true),
@@ -214,7 +234,7 @@ export const loadOmniReceiptGrant = createServerFn({ method: "POST" })
         projectId: z.string().uuid(),
         jobId: z.string().uuid(),
         repo: z.string(),
-        kind: z.literal("test"),
+        kind: z.enum(["code", "test"]),
         instructions: z.string(),
       })
       .parse(result.data);
@@ -223,7 +243,11 @@ export const loadOmniReceiptGrant = createServerFn({ method: "POST" })
     const { dispatchPayloadDigest } = await import("./omni-dispatch-digest");
     return {
       ...grant,
-      payloadDigest: await dispatchPayloadDigest({ ...grant, grantId: grant.id }),
+      payloadDigest: await dispatchPayloadDigest({
+        ...grant,
+        kind: (await import("./omni-handoff-auth")).wireKind(grant.kind),
+        grantId: grant.id,
+      }),
     };
   });
 

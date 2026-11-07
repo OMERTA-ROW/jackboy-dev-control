@@ -3,6 +3,8 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { untyped } from "./untyped-db";
 import { dispatchPayloadDigest } from "./omni-dispatch-digest";
 import { logSiteStrict } from "./site-log.server";
+import { isOmniVerified } from "./omni-link.server";
+import { wireKind } from "./omni-handoff-auth";
 
 const grantSchema = z.object({
   valid: z.literal(true),
@@ -11,10 +13,13 @@ const grantSchema = z.object({
   projectId: z.string().uuid(),
   jobId: z.string().uuid(),
   repo: z.string(),
-  kind: z.literal("test"),
+  kind: z.enum(["code", "test"]),
   instructions: z.string(),
 });
 
+/** Sends one owner-approved build/test handoff action. Before the request and again right before
+ * transport it re-checks: live link (fresh + current settings), owner/project scope, the project
+ * authorization and the job grant (neither revoked nor expired). Any failure stops the send. */
 export async function executeOmniReceipt(
   actor: string,
   jobId: string,
@@ -31,6 +36,8 @@ export async function executeOmniReceipt(
     throw new Error("Scoped OMNI dispatch configuration is incomplete.");
   const db = untyped(supabaseAdmin);
   const load = async () => {
+    if (!(await isOmniVerified()))
+      throw new Error("OMNI's live link is not verified right now. Check the connection, then try again.");
     const result = await db.rpc("omni_dispatch_grant_action", {
       _op: "check",
       _actor: actor,
@@ -39,18 +46,22 @@ export async function executeOmniReceipt(
     });
     if (result.error) throw new Error("Dispatch authorization could not be verified.");
     const parsed = grantSchema.safeParse(result.data);
-    if (!parsed.success) throw new Error("Dispatch grant unavailable.");
+    if (!parsed.success) {
+      const reason = (result.data as { reason?: unknown } | null)?.reason;
+      throw new Error(`Dispatch grant unavailable${typeof reason === "string" ? ` (${reason})` : ""}.`);
+    }
     const grant = parsed.data;
     if (grant.ownerId !== actor || grant.jobId !== jobId || grant.id !== grantId)
       throw new Error("Dispatch grant scope mismatch.");
-    const payloadDigest = await dispatchPayloadDigest({ ...grant, grantId: grant.id });
+    const kind = wireKind(grant.kind);
+    const payloadDigest = await dispatchPayloadDigest({ ...grant, kind, grantId: grant.id });
     return {
       ownerId: grant.ownerId,
       projectId: grant.projectId,
       jobId: grant.jobId,
       grantId: grant.id,
       repo: grant.repo,
-      kind: grant.kind,
+      kind,
       payloadDigest,
     };
   };
@@ -72,9 +83,9 @@ export async function executeOmniReceipt(
           action: "omni.dispatch.request",
           category: "delivery",
           status: "pending",
-          summary: `Owner requested receive-only ${action}`,
+          summary: `Owner requested receive-only ${current.kind} ${action}`,
           project_id: current.projectId,
-          detail: { jobId, grantId, action },
+          detail: { jobId, grantId, action, kind: current.kind },
         });
         return;
       }

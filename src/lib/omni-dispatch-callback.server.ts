@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { hmacHex, safeEqual } from "./omni-link";
 import { dispatchPayloadDigest } from "./omni-dispatch-digest";
+import { wireKind } from "./omni-handoff-auth";
 
 const CONTRACT = "jackboy.dispatch-callback/v2";
 const PATH = "/api/public/omni/callback";
@@ -50,11 +51,11 @@ async function databaseStore(nonce: string, input: Callback) {
       projectId: z.string().uuid(),
       jobId: z.string().uuid(),
       repo: z.string(),
-      kind: z.literal("test"),
+      kind: z.enum(["code", "test"]),
       instructions: z.string(),
     })
     .parse(grant.data);
-  const digest = await dispatchPayloadDigest({ ...row, grantId: row.id });
+  const digest = await dispatchPayloadDigest({ ...row, kind: wireKind(row.kind), grantId: row.id });
   if (
     row.projectId !== input.projectId ||
     row.repo !== input.repo ||

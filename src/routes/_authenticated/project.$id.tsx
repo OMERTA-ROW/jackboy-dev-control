@@ -11,6 +11,7 @@ import { deleteProject, runNow, saveProject } from "@/lib/update-writer.function
 import { SiteConnection } from "@/components/SiteConnection";
 import { ProjectConnection } from "@/components/ProjectConnection";
 import { CodeSiteCard } from "@/components/CodeSiteCard";
+import { GitHubPrepPanel } from "@/components/GitHubPrepPanel";
 import { FindingsReview, Steps } from "@/components/FindingsReview";
 import { FREQUENCIES, STATUS_LABEL, type ProposalStatus } from "@/lib/update-writer";
 
@@ -125,6 +126,8 @@ function Detail() {
           </ul>
         )}
       </section>
+
+      {p.github_repo && <GitHubPrepPanel projectId={p.id} />}
 
       {d.scans.length > 1 && (
         <section className="panel mt-4 p-5"><h2 className="font-semibold">Scan history</h2>
