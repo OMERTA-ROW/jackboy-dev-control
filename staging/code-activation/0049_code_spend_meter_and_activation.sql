@@ -23,7 +23,9 @@
 --   re-checks every gate under a row lock and, only if all pass, sets enabled = true, kill_switch =
 --   false and clears the stale stop marker (stop_requested_at) that otherwise blocks every provider
 --   call forever after an Emergency Stop. Turning CODE off or engaging the stop is never blocked.
---   Nothing in this migration turns CODE on.
+--   The same trigger lets only refresh_code_spend_meter() stamp provider_usage_at (clearing it is
+--   always allowed), so freshness can never be written by hand.
+--   Nothing in this migration turns CODE on; any existing freshness stamp is cleared.
 -- Trust boundary: the service role and database owner can still alter triggers; this protects
 -- application paths and accidental writes, not a compromised service role.
 
@@ -41,6 +43,7 @@ END;
 $$;
 
 ALTER TABLE public.code_runtime_controls ADD COLUMN spend_meter jsonb;
+UPDATE public.code_runtime_controls SET provider_usage_at = NULL WHERE singleton = true;
 COMMENT ON COLUMN public.code_runtime_controls.spend_meter IS
   'Last refresh_code_spend_meter() result. provider_usage_at is stamped only when it was ok.';
 
