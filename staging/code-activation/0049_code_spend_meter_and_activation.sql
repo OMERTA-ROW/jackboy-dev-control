@@ -167,11 +167,13 @@ BEGIN
   PERFORM 1 FROM public.code_runtime_controls WHERE singleton = true FOR UPDATE;
   status := public.code_spend_meter_status();
   ok := coalesce((status->>'ok')::boolean, false);
+  PERFORM pg_catalog.set_config('jackboy.code_meter', 'refresh', true);
   UPDATE public.code_runtime_controls
     SET provider_usage_at = CASE WHEN ok THEN now() ELSE NULL END,
         spend_meter = status,
         updated_at = now()
     WHERE singleton = true;
+  PERFORM pg_catalog.set_config('jackboy.code_meter', '', true);
   IF NOT ok THEN
     INSERT INTO public.audit_logs(actor, action, detail, outcome)
       VALUES (NULL, 'code.spend_meter_blocked', status, 'blocked');
@@ -186,15 +188,28 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = ''
 AS $$
+DECLARE
+  turning_on boolean;
+  stamping boolean;
 BEGIN
-  IF (TG_OP = 'INSERT' AND (NEW.enabled IS TRUE OR NEW.kill_switch IS NOT TRUE))
-    OR (TG_OP = 'UPDATE' AND (
-      (NEW.enabled IS TRUE AND OLD.enabled IS NOT TRUE)
-      OR (NEW.kill_switch IS NOT TRUE AND OLD.kill_switch IS TRUE)))
+  -- Nested on TG_OP: PL/pgSQL does not short-circuit, so OLD is only read for UPDATE.
+  IF TG_OP = 'INSERT' THEN
+    turning_on := NEW.enabled IS TRUE OR NEW.kill_switch IS NOT TRUE;
+    stamping := NEW.provider_usage_at IS NOT NULL;
+  ELSE
+    turning_on := (NEW.enabled IS TRUE AND OLD.enabled IS NOT TRUE)
+      OR (NEW.kill_switch IS NOT TRUE AND OLD.kill_switch IS TRUE);
+    stamping := NEW.provider_usage_at IS NOT NULL
+      AND NEW.provider_usage_at IS DISTINCT FROM OLD.provider_usage_at;
+  END IF;
+  IF turning_on
+    AND coalesce(current_setting('jackboy.code_activation', true), '') <> 'owner-enabled'
   THEN
-    IF coalesce(current_setting('jackboy.code_activation', true), '') <> 'owner-enabled' THEN
-      RAISE EXCEPTION 'CODE can only be turned on through enable_code_runtime';
-    END IF;
+    RAISE EXCEPTION 'CODE can only be turned on through enable_code_runtime';
+  END IF;
+  -- Freshness can only come from the meter; clearing it (NULL) is always allowed.
+  IF stamping AND coalesce(current_setting('jackboy.code_meter', true), '') <> 'refresh' THEN
+    RAISE EXCEPTION 'provider_usage_at can only be stamped by refresh_code_spend_meter';
   END IF;
   RETURN NEW;
 END;
