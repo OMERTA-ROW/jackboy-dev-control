@@ -84,7 +84,7 @@ export type Next =
 /** The runner's next move. Pause or time limit stops the task at the next step; a checkpoint never runs without approval. */
 export function nextMove(task: TaskRow, steps: StepRow[], ctx: { paused: boolean; rules: SkipRules; now?: number }): Next {
   if (task.status !== "running") return { kind: "wait" };
-  if (ctx.paused) return { kind: "stop", reason: "Kill Switch / global pause is on." };
+  if (ctx.paused) return { kind: "stop", reason: "Kill Switch / global pause is on. Turn it off in Settings → Autonomous Activation, then press Retry." };
   if (task.expires_at && Date.parse(task.expires_at) <= (ctx.now ?? Date.now())) return { kind: "stop", reason: "Time limit reached (2 hours)." };
   if (task.failures >= MAX_FAILURES) return { kind: "fail", reason: `Stopped after ${MAX_FAILURES} failures.` };
   const ordered = [...steps].sort((a, b) => a.position - b.position);
