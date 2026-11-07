@@ -84,6 +84,13 @@ export function parseSpendMeter(value: unknown): SpendMeter | null {
   return { ok, reasons: ok ? [] : reasons.length ? reasons : ["unrecognised"], measuredAt, measuredTodayUsd, gatewayTodayUsd, providerTodayUsd, gatewayHourUsd, unreportedDays, bypassDays };
 }
 
+/** The OpenAI cross-check works through the oldest past day the meter is waiting on; otherwise yesterday (UTC). */
+export function closedDayToReconcile(unreportedDays: string[], now: Date): string {
+  const valid = unreportedDays.filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort();
+  if (valid[0]) return valid[0];
+  return new Date(now.getTime() - 86_400_000).toISOString().slice(0, 10);
+}
+
 /** Passkey target for the owner switch that releases the CODE stop and turns CODE on. */
 export const CODE_ENABLE_TARGET = "code_runtime:enable";
 

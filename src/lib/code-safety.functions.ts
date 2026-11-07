@@ -352,6 +352,8 @@ export const getCodeSafetySettings = createServerFn({ method: "POST" })
       maxDailySpendUsd: CODE_DAILY_SPEND_LIMIT_USD,
       // Read-only report of the cumulative guard; null until its reviewed migration is applied.
       totalSpendGuard: safetyState.totalSpendGuard,
+      // Live gateway-ledger meter; null until its reviewed migration is applied.
+      spendMeter: safetyState.spendMeter,
     };
   });
 
