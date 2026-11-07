@@ -4,6 +4,7 @@ import { supabaseAdmin as typedDb } from "@/integrations/supabase/client.server"
 import { untyped } from "./untyped-db";
 import { AUTO_ENVS, AUTO_HOLD_USD, autoEnvProblems, classifyPatch, trialLane, type EnvBody, type PatchFile } from "./code-lane";
 import { logSite } from "./site-log.server";
+import { CODE_ACTION } from "./code";
 
 const db = untyped(typedDb);
 const API = "https://api.github.com";
@@ -32,7 +33,7 @@ export async function autoLaneAllowed(repo: string): Promise<boolean> {
 export async function autoRunsToday(repo: string): Promise<number> {
   const since = new Date(); since.setUTCHours(0, 0, 0, 0);
   const { count, error } = await db.from("action_requests").select("id", { count: "exact", head: true })
-    .eq("action", "code").eq("resources->>repo", repo).eq("resources->>lane", "auto").gte("created_at", since.toISOString());
+    .eq("action", CODE_ACTION).eq("resources->>repo", repo).eq("resources->>lane", "auto").gte("created_at", since.toISOString());
   return error ? 999 : count ?? 999;
 }
 
