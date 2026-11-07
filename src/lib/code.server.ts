@@ -116,6 +116,11 @@ export async function requestCode(
   await audit(userId, "request", id);
   const r = await db.from("action_requests").insert({ id, project_id: p.id, action: CODE_ACTION, tier: "controlled", resources: scope as never, permissions: CODE_PERMISSIONS, diff_summary: scope.instruction, risk: "controlled", nonce_hash: hash(nonce), requested_by: userId, expires_at: new Date(Date.now() + CODE_TTL).toISOString() }).select("id").single();
   if (r.error) throw new Error("Could not persist the CODE approval request.");
+  try {
+    const { getCodeSafetyState } = await import("./code-safety.server");
+    const { logRequestTrial } = await import("./code-lane.server");
+    await logRequestTrial(id, p.id, p.repo, scope.instruction, (await getCodeSafetyState()).killSwitch === true);
+  } catch { /* trial labels never block CODE */ }
   return { ...(await getCode(id, userId)), nonce };
 }
 type Run = { id: number; display_title: string; status: string; conclusion: string | null; html_url: string };
