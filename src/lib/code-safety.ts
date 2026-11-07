@@ -33,7 +33,130 @@ export type CodeSafetyState = {
   usageSpike: boolean;
   /** Database-reported cumulative guard; null when the guard is not installed or unreadable. */
   totalSpendGuard: { enforced: boolean; limitUsd: number; committedUsd: number } | null;
+  /** Live gateway-ledger meter (code_spend_meter_status); null when not installed or unreadable. */
+  spendMeter: SpendMeter | null;
 };
+
+/** Fresh admission meter: the gateway's own ledger is the real-time measurement; OpenAI's delayed
+ * reports are the later cross-check. Mirrors code_spend_meter_status(). */
+export type SpendMeter = {
+  ok: boolean;
+  reasons: string[];
+  measuredAt: string;
+  measuredTodayUsd: number;
+  gatewayTodayUsd: number;
+  providerTodayUsd: number;
+  gatewayHourUsd: number;
+  unreportedDays: string[];
+  bypassDays: string[];
+};
+
+const METER_REASONS: Record<string, string> = {
+  controls_missing: "CODE safety controls are missing.",
+  total_guard: "the $10 total spending guard is not enforced",
+  daily_limit: "today's measured spending plus one task would pass the daily limit",
+  hourly_spike: "gateway spending in the last hour reached half the daily limit",
+  usage_spike: "a usage spike is recorded",
+  recent_overrun: "a provider call cost more than its admitted ceiling in the last 24 hours",
+  unreported_days: "a past day with CODE calls has no OpenAI closed-day report yet",
+  bypass_suspected: "OpenAI reported more spending than the gateway admitted on a past day",
+};
+export function meterReasonText(reason: string): string {
+  return METER_REASONS[reason] ?? `unrecognised meter check (${reason})`;
+}
+
+/** Parses code_spend_meter_status(); anything unexpected becomes null (fail closed). */
+export function parseSpendMeter(value: unknown): SpendMeter | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const row = value as Record<string, unknown>;
+  const num = (key: string) => (row[key] == null ? NaN : Number(row[key]));
+  const strings = (key: string) =>
+    Array.isArray(row[key]) && (row[key] as unknown[]).every((v) => typeof v === "string") ? (row[key] as string[]) : null;
+  const reasons = strings("reasons");
+  const unreportedDays = strings("unreported_days") ?? [];
+  const bypassDays = strings("bypass_days") ?? [];
+  const measuredAt = typeof row["measured_at"] === "string" ? row["measured_at"] : null;
+  const values = ["measured_today_usd", "gateway_today_usd", "provider_today_usd", "gateway_hour_usd"].map(num);
+  if (typeof row["ok"] !== "boolean" || !reasons || !measuredAt || values.some((v) => !Number.isFinite(v) || v < 0)) return null;
+  const [measuredTodayUsd, gatewayTodayUsd, providerTodayUsd, gatewayHourUsd] = values as [number, number, number, number];
+  // "ok" must agree with an empty reason list, and the measurement must be the larger source.
+  const ok = row["ok"] === true && reasons.length === 0 && measuredTodayUsd + 1e-9 >= Math.max(gatewayTodayUsd, providerTodayUsd);
+  return { ok, reasons: ok ? [] : reasons.length ? reasons : ["unrecognised"], measuredAt, measuredTodayUsd, gatewayTodayUsd, providerTodayUsd, gatewayHourUsd, unreportedDays, bypassDays };
+}
+
+/** Passkey target for the owner switch that releases the CODE stop and turns CODE on. */
+export const CODE_ENABLE_TARGET = "code_runtime:enable";
+
+export type CodeEnableInput = {
+  enabled: boolean;
+  killSwitch: boolean;
+  activeRequestId: string | null;
+  activeRunId: number | string | null;
+  consecutiveFailures: number;
+  usageSpike: boolean;
+  cancellationStatus: string;
+  providerBudgetEnforced: boolean;
+  totalSpendGuard: CodeSafetyState["totalSpendGuard"];
+  perTaskReserveUsd: number | null;
+  spendMeter: SpendMeter | null;
+  /** automation_policy.paused; null when unreadable. */
+  globalPaused: boolean | null;
+  /** Database pin, CODE_TARGETS and live GitHub workflow all match; null when unverified. */
+  pinsMatch: boolean | null;
+  /** CODE_PROVIDER_API_KEY present, CODE_GATEWAY_PRICES parses, per-call cap valid (names/format only). */
+  gatewayConfigured: boolean;
+  /** OPENAI_ADMIN_KEY, OPENAI_CODE_PROJECT_ID, OPENAI_CODE_API_KEY_ID present (names only). */
+  costCheckConfigured: boolean;
+};
+export type CodeEnableGate = { id: string; label: string; ok: boolean; detail: string };
+
+/** Every gate the owner switch checks, in order. All must pass; the database re-checks its share. */
+export function codeEnableGates(i: CodeEnableInput): CodeEnableGate[] {
+  const guard = i.totalSpendGuard;
+  const reserve = i.perTaskReserveUsd;
+  const guardOk =
+    !!guard && guard.enforced === true && guard.limitUsd > 0 && guard.limitUsd <= CODE_TOTAL_SPEND_LIMIT_USD &&
+    guard.committedUsd >= 0 && reserve !== null && Number.isFinite(reserve) && reserve > 0 &&
+    Math.round((guard.committedUsd + reserve) * 100) <= Math.round(guard.limitUsd * 100);
+  const meter = i.spendMeter;
+  return [
+    { id: "stopped", label: "CODE is off and the Emergency Stop is on", ok: !i.enabled && i.killSwitch, detail: i.enabled || !i.killSwitch ? "CODE is already on or the stop is released." : "Ready to switch." },
+    { id: "no_task", label: "No CODE task is running", ok: !i.activeRequestId && !i.activeRunId, detail: i.activeRequestId ? "A task is still recorded as active." : "None active." },
+    { id: "failures", label: "Two-failure stop is clear", ok: Number.isInteger(i.consecutiveFailures) && i.consecutiveFailures >= 0 && i.consecutiveFailures < CODE_MAX_CONSECUTIVE_FAILURES, detail: `${i.consecutiveFailures}/${CODE_MAX_CONSECUTIVE_FAILURES} consecutive failures.` },
+    { id: "spike", label: "No usage spike recorded", ok: !i.usageSpike, detail: i.usageSpike ? "A spike pause is recorded." : "None recorded." },
+    { id: "cancellation", label: "Any stopped run is confirmed finished", ok: ["not_needed", "confirmed", "completed"].includes(i.cancellationStatus), detail: `Status: ${i.cancellationStatus}.` },
+    { id: "hard_cap", label: "Provider hard cap marked verified by you", ok: i.providerBudgetEnforced === true, detail: i.providerBudgetEnforced ? "Marked verified." : "Mark it first (needs a passkey)." },
+    { id: "total_guard", label: "$10 total spending guard active with room for one task", ok: guardOk, detail: !guard ? "Guard not installed or unreadable." : `$${guard.committedUsd.toFixed(2)} of $${guard.limitUsd.toFixed(2)} used.` },
+    { id: "meter", label: "Live spending meter healthy", ok: meter?.ok === true, detail: !meter ? "Meter not installed or unreadable." : meter.ok ? `$${meter.measuredTodayUsd.toFixed(2)} measured today.` : meter.reasons.map(meterReasonText).join("; ") + "." },
+    { id: "global_pause", label: "Global pause is off", ok: i.globalPaused === false, detail: i.globalPaused === null ? "Global pause state unreadable." : i.globalPaused ? "Turn the global pause off first (needs a passkey)." : "Off." },
+    { id: "pins", label: "Workflow pins match (database, CODE_TARGETS, GitHub main)", ok: i.pinsMatch === true, detail: i.pinsMatch === null ? "Could not verify against GitHub." : i.pinsMatch ? "All three match." : "Pins differ; resync first." },
+    { id: "gateway", label: "Gateway settings present", ok: i.gatewayConfigured, detail: i.gatewayConfigured ? "Provider key, prices and per-call cap are set." : "Provider key, price table or per-call cap missing or invalid." },
+    { id: "cost_check", label: "OpenAI cost cross-check settings present", ok: i.costCheckConfigured, detail: i.costCheckConfigured ? "Admin key, project and key IDs are set." : "OpenAI cost-report settings missing." },
+  ];
+}
+
+export function codeEnableBlockReason(i: CodeEnableInput): string | null {
+  const failed = codeEnableGates(i).find((gate) => !gate.ok);
+  return failed ? `${failed.label}: ${failed.detail}` : null;
+}
+
+const ENABLE_DB_REASONS: Record<string, string> = {
+  not_stopped: "CODE is already on or the Emergency Stop is released",
+  active_task: "a CODE task is still active",
+  failure_stop: "the two-failure stop is engaged",
+  usage_spike: "a usage spike is recorded",
+  cancellation_unconfirmed: "a stopped run is not confirmed finished",
+  hard_cap_unverified: "the provider hard cap is not marked verified",
+  total_guard: "the $10 total spending guard is not enforced",
+  total_limit: "the $10 total has no room for another task",
+  spend_meter: "the live spending meter is not healthy",
+  global_pause: "the global pause is on",
+  target_allowlist: "the repository allowlist is not exactly Jackboy on main",
+};
+export function enableRefusalText(reasons: unknown): string {
+  const list = Array.isArray(reasons) ? reasons.filter((r): r is string => typeof r === "string") : [];
+  return list.length ? list.map((r) => ENABLE_DB_REASONS[r] ?? r).join("; ") : "the database refused without a reason";
+}
 
 export function parseCodeTargets(value: unknown): Record<string, CodeTarget> {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -94,6 +217,9 @@ export function codeStartBlockReason(
     now - measuredAt > CODE_USAGE_MAX_AGE_MS
   ) {
     return "CODE is blocked because provider spending data is stale.";
+  }
+  if (!state.spendMeter || state.spendMeter.ok !== true) {
+    return "CODE is blocked because the live spending meter is not installed or not healthy.";
   }
   if (
     !Number.isFinite(state.dailySpendLimitUsd) ||
