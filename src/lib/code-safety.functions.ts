@@ -146,6 +146,18 @@ export const setCodeHardCapVerified = createServerFn({ method: "POST" })
     };
   });
 
+/** Readiness Test for the provider gateway: settings check plus a free model-visibility read
+ * (no model is run). Result is appended to the site log; nothing is turned on. */
+export const testCodeProviderGateway = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await requireOwner(context);
+    const { probeProviderAccess } = await import("./code-gateway.server");
+    const probe = await probeProviderAccess();
+    const { recordReadinessTest } = await import("./readiness.server");
+    return recordReadinessTest("provider_gateway", { status: probe.ok ? "PASS" : "BLOCKED", reason: probe.reason }, context.userId);
+  });
+
 /** Names/format only: never returns or logs a secret value. */
 async function gatewaySettingsPresent(): Promise<boolean> {
   const { codeGatewayProviderKeyPresent } = await import("./code-gateway.server");
@@ -209,7 +221,7 @@ export const getCodeEnableGates = createServerFn({ method: "POST" })
   .handler(async ({ context }) => {
     await requireOwner(context);
     const input = await collectEnableInput();
-    return { checkedAt: new Date().toISOString(), gates: codeEnableGates(input), meter: input.spendMeter };
+    return { checkedAt: new Date().toISOString(), gates: codeEnableGates(input), meter: input.spendMeter, globalPaused: input.globalPaused };
   });
 
 /** Owner switch: releases the CODE stop and turns CODE on. Needs a NEW passkey check every time,
@@ -282,11 +294,12 @@ async function fetchGithub<T>(path: string): Promise<T> {
   const headers = new Headers({
     Accept: "application/vnd.github+json",
     "X-GitHub-Api-Version": "2022-11-28",
+    "User-Agent": "Jackboy",
   });
   headers.set("Authorization", ["Bearer", token].join(" "));
   const response = await fetch(`https://api.github.com/repos/${REPOSITORY}${path}`, {
     headers,
-    redirect: "error",
+    redirect: "manual",
     signal: AbortSignal.timeout(10_000),
   });
   if (!response.ok)
@@ -358,45 +371,12 @@ export const getCodeSafetySettings = createServerFn({ method: "POST" })
     };
   });
 
+/** Retired: allow-list changes go only through the fresh-passkey "Add to CODE" flow (code-onboarding.functions.ts). */
 export const setCodeSafetyTarget = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     await requireOwner(context);
-    const [repository, workflow, workflowFile] = await Promise.all([
-      fetchGithub<{ default_branch: string }>(""),
-      fetchGithub<{ state: string }>(`/actions/workflows/${CODE_WORKFLOW}`),
-      fetchGithub<{ sha: string }>(`/contents/.github/workflows/${CODE_WORKFLOW}?ref=main`),
-    ]);
-    if (
-      repository.default_branch !== "main" ||
-      workflow.state !== "active" ||
-      !/^[a-f0-9]{40}$/.test(workflowFile.sha)
-    ) {
-      throw new Error(
-        "The requested CODE repository, main branch, or active workflow could not be verified.",
-      );
-    }
-    const targets = parseCodeTargets({
-      [REPOSITORY]: { ref: "main", workflowSha: workflowFile.sha },
-    });
-    const db = (await import("./untyped-db")).untyped((await import("@/integrations/supabase/client.server")).supabaseAdmin);
-    const { error } = await db
-      .from("code_runtime_controls")
-      .update({
-        allowed_targets: targets,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("singleton", true);
-    if (error) throw new Error("CODE repository allowlist could not be saved.");
-    const { error: auditError } = await db.from("audit_logs").insert({
-      actor: context.userId,
-      action: "code.target_allowlist_updated",
-      detail: { allowed_targets: targets },
-      outcome: "ok",
-    });
-    if (auditError)
-      throw new Error("CODE allowlist changed but its audit record could not be written.");
-    return { targets };
+    throw new Error("Pin changes need your passkey: use Add to CODE on the project page.");
   });
 
 export const setCodeDailySpendLimit = createServerFn({ method: "POST" })
@@ -514,6 +494,7 @@ export const engageCodeKillSwitch = createServerFn({ method: "POST" })
           const headers = new Headers({
             Accept: "application/vnd.github+json",
             "X-GitHub-Api-Version": "2022-11-28",
+            "User-Agent": "Jackboy",
           });
           headers.set("Authorization", ["Bearer", token].join(" "));
           const response = await fetch(
@@ -521,7 +502,7 @@ export const engageCodeKillSwitch = createServerFn({ method: "POST" })
             {
               method: "POST",
               headers,
-              redirect: "error",
+              redirect: "manual",
               signal: AbortSignal.timeout(10_000),
             },
           );
@@ -590,13 +571,14 @@ export const checkCodeCancellation = createServerFn({ method: "POST" })
     const headers = new Headers({
       Accept: "application/vnd.github+json",
       "X-GitHub-Api-Version": "2022-11-28",
+      "User-Agent": "Jackboy",
     });
     headers.set("Authorization", ["Bearer", token].join(" "));
     let status: "pending" | "requested" | "confirmed" | "completed" | "unverified";
     try {
       const runResponse = await fetch(
         `https://api.github.com/repos/${repo}/actions/runs/${controls.active_run_id}`,
-        { headers, redirect: "error", signal: AbortSignal.timeout(10_000) },
+        { headers, redirect: "manual", signal: AbortSignal.timeout(10_000) },
       );
       if (!runResponse.ok) throw new Error("GitHub run status could not be retrieved.");
       const run = (await runResponse.json()) as { status?: unknown; conclusion?: unknown };
@@ -606,7 +588,7 @@ export const checkCodeCancellation = createServerFn({ method: "POST" })
       } else if (reconciliation === "active") {
         const cancelResponse = await fetch(
           `https://api.github.com/repos/${repo}/actions/runs/${controls.active_run_id}/cancel`,
-          { method: "POST", headers, redirect: "error", signal: AbortSignal.timeout(10_000) },
+          { method: "POST", headers, redirect: "manual", signal: AbortSignal.timeout(10_000) },
         );
         if (!cancelResponse.ok) status = "unverified";
         else status = "requested";

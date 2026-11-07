@@ -99,6 +99,12 @@ registerHooks({
         context,
       );
     }
+    if (specifier === "./code-lane.server") {
+      return next(
+        "data:text/javascript,export const autoLaneAllowed=async()=>globalThis.__autoLane===true;export const logPatchTrial=async()=>{}",
+        context,
+      );
+    }
     if (specifier.startsWith("./") && !/\.[a-z]+$/.test(specifier))
       return next(`${specifier}.ts`, context);
     return next(specifier, context);
@@ -211,6 +217,7 @@ beforeEach(() => {
     spendMeter: { ok: true, reasons: [], measuredAt: new Date().toISOString(), measuredTodayUsd: 0, gatewayTodayUsd: 0, providerTodayUsd: 0, gatewayHourUsd: 0, unreportedDays: [], bypassDays: [] },
   };
   globalThis.__meterRefreshes = 0;
+  globalThis.__autoLane = false;
   globalThis.__codeSafety = safetyState;
   process.env.CODE_TARGETS = JSON.stringify({ "owner/repo": { ref: "main", workflowSha } });
   process.env.CODE_GITHUB_TOKEN = "test-runner-auth-token";
@@ -323,4 +330,61 @@ test("changed owner runner allowlist fails closed", async () => {
   assert.equal((await claim()).status, 403);
   assert.equal(row.runner_claimed_at, null);
   assert.equal(rpcCalls, 0);
+});
+
+async function laneClaim(stage, environment, patch) {
+  return handleCodeRunnerClaim(
+    new Request("https://app.example/api/public/code/claim", {
+      method: "POST",
+      headers: { authorization: `Bearer ${makeToken({ environment })}`, "content-type": "application/json" },
+      body: JSON.stringify({ requestId, stage, ...(patch ? { patch } : {}) }),
+    }),
+  );
+}
+const smallPatch = { fileCount: 1, files: [{ path: "src/components/Footer.tsx", status: "modified", additions: 3, deletions: 1 }] };
+const donePrepare = () => {
+  jobs = [
+    { name: "prepare", status: "completed", conclusion: "success", run_attempt: 1 },
+    { name: "validate", status: "completed", conclusion: "success", run_attempt: 1 },
+    { name: "draft_pr", status: "in_progress", conclusion: null, run_attempt: 1 },
+  ];
+};
+
+test("reviewed lane: a runner claiming the automatic environments is refused", async () => {
+  assert.equal((await laneClaim("execute", "CODE-AUTO")).status, 403);
+  assert.equal(rpcCalls, 0);
+});
+
+test("automatic lane needs the site's switch on, even with an automatic identity", async () => {
+  row.resources = { ...scope(), lane: "auto" };
+  assert.equal((await laneClaim("execute", "CODE-AUTO")).status, 403);
+  assert.equal(rpcCalls, 0);
+});
+
+test("automatic lane: execute must come from CODE-AUTO, never the reviewed environment", async () => {
+  row.resources = { ...scope(), lane: "auto" };
+  globalThis.__autoLane = true;
+  assert.equal((await laneClaim("execute", "CODE")).status, 403);
+  assert.equal(rpcCalls, 0);
+  assert.equal((await laneClaim("execute", "CODE-AUTO")).status, 200);
+});
+
+test("automatic lane: publishing re-checks the actual patch; risky or missing reports go to review", async () => {
+  row.resources = { ...scope(), lane: "auto" };
+  globalThis.__autoLane = true;
+  assert.equal((await laneClaim("execute", "CODE-AUTO")).status, 200);
+  donePrepare();
+  assert.equal((await laneClaim("publish", "CODE-PUBLISH-AUTO")).status, 409, "no patch report");
+  assert.equal((await laneClaim("publish", "CODE-PUBLISH-AUTO", { fileCount: 1, files: [{ path: ".github/workflows/code.yml", status: "modified", additions: 1, deletions: 0 }] })).status, 409);
+  assert.equal((await laneClaim("publish", "CODE-PUBLISH-AUTO", { fileCount: 1, files: [{ path: "src/a.ts", status: "modified", additions: 60, deletions: 0 }] })).status, 409);
+  assert.equal(row.runner_publish_claimed_at, null);
+  assert.equal((await laneClaim("publish", "CODE-PUBLISH", smallPatch)).status, 403, "reviewed publish identity can't serve an automatic run");
+  assert.equal((await laneClaim("publish", "CODE-PUBLISH-AUTO", smallPatch)).status, 200);
+});
+
+test("a request stored with any other lane value stays reviewed", async () => {
+  row.resources = { ...scope(), lane: "AUTO" };
+  globalThis.__autoLane = true;
+  assert.equal((await laneClaim("execute", "CODE-AUTO")).status, 403);
+  assert.equal((await laneClaim("execute", "CODE")).status, 200);
 });

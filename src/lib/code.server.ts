@@ -3,6 +3,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { supabaseAdmin as db } from "@/integrations/supabase/client.server";
 import { CODE_ACTION, CODE_PERMISSIONS, CODE_TTL, CODE_WORKFLOW, codeApprovalError, codeLink, codeRunName, type CodeCard, type CodeScope } from "./code";
 import { codeSafetyBlockReason, getCodeSafetyState } from "./code-safety.server";
+import { codeTargetRefusal } from "./code-safety";
 import { redactTranscript } from "./voice-guard";
 
 type Target = { ref: string; workflowSha: string };
@@ -16,8 +17,8 @@ async function gh<T>(repo: string, path: string, method = "GET", body?: unknown)
   if (!token) throw new Error("CODE is blocked: configure a repository-scoped GitHub Actions credential through backend secrets.");
   if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) throw new Error("Invalid repository.");
   const response = await fetch(`https://api.github.com/repos/${repo}${path}`, {
-    method, redirect: "error", signal: AbortSignal.timeout(15_000),
-    headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", "Content-Type": "application/json" },
+    method, redirect: "manual", signal: AbortSignal.timeout(15_000),
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "Jackboy", "Content-Type": "application/json" },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
   if (!response.ok) throw new Error(`CODE GitHub request failed (${response.status}). Check the workflow, Actions scope and provider authorization.`);
@@ -28,8 +29,10 @@ async function project(id: string) {
   const r = await db.from("owner_projects").select("id, github_repo, dev_enabled").eq("id", id).single();
   if (r.error || !r.data?.github_repo || !r.data.dev_enabled) throw new Error("CODE needs a linked repository with owner-enabled development for this project.");
   const p = r.data;
-  const target = (await targets())[p.github_repo!];
-  if (!target || !/^[\w./-]{1,100}$/.test(target.ref) || !/^[a-f0-9]{40}$/.test(target.workflowSha)) throw new Error("CODE is blocked: the owner must approve a runner ref and workflow blob SHA for this repository.");
+  const allowed = await targets();
+  const refusal = codeTargetRefusal(p.github_repo!, allowed);
+  if (refusal) throw new Error(refusal);
+  const target = allowed[p.github_repo!]!;
   // Re-measure the live gateway ledger first: only the meter can stamp the 5-minute freshness.
   const safetyBlock = await codeSafetyBlockReason(p.github_repo!, Date.now(), { refreshMeter: true });
   if (safetyBlock) throw new Error(safetyBlock);
@@ -115,9 +118,28 @@ export async function requestCode(
     operation: retry ? "retry" : "dispatch",
     taskBudgetUsd: p.taskBudgetUsd,
   };
+  // Automatic lane: only when the owner switched it on for this site (passkey) and every low-risk rule holds.
+  // Without the staged storage, autoLaneAllowed is false and every request stays in the reviewed lane.
+  try {
+    const lane = await import("./code-lane.server");
+    if (await lane.autoLaneAllowed(p.repo)) {
+      const { chooseLane, AUTO_HOLD_USD } = await import("./code-lane");
+      const { getCodeSafetyState } = await import("./code-safety.server");
+      const choice = chooseLane({
+        instruction: scope.instruction, siteAutoEnabled: true, killSwitch: (await getCodeSafetyState()).killSwitch === true, failureStop: false,
+        autoRunsToday: await lane.autoRunsToday(p.repo), holdUsd: AUTO_HOLD_USD, spendBlocked: await codeSafetyBlockReason(p.repo).catch(() => "Spend check unavailable."),
+      });
+      if (choice.lane === "auto") scope.lane = "auto";
+    }
+  } catch { /* any doubt means the reviewed lane */ }
   await audit(userId, "request", id);
   const r = await db.from("action_requests").insert({ id, project_id: p.id, action: CODE_ACTION, tier: "controlled", resources: scope as never, permissions: CODE_PERMISSIONS, diff_summary: scope.instruction, risk: "controlled", nonce_hash: hash(nonce), requested_by: userId, expires_at: new Date(Date.now() + CODE_TTL).toISOString() }).select("id").single();
   if (r.error) throw new Error("Could not persist the CODE approval request.");
+  try {
+    const { getCodeSafetyState } = await import("./code-safety.server");
+    const { logRequestTrial } = await import("./code-lane.server");
+    await logRequestTrial(id, p.id, p.repo, scope.instruction, (await getCodeSafetyState()).killSwitch === true);
+  } catch { /* trial labels never block CODE */ }
   return { ...(await getCode(id, userId)), nonce };
 }
 type Run = { id: number; display_title: string; status: string; conclusion: string | null; html_url: string };
@@ -194,7 +216,7 @@ export async function decideCode(id: string, nonce: string, decision: "allow" | 
         scope.repo,
         `/actions/workflows/${CODE_WORKFLOW}/dispatches`,
         "POST",
-        { ref: scope.ref, inputs: { request_id: id } },
+        { ref: scope.ref, inputs: { request_id: id, ...(scope.lane === "auto" ? { lane: "auto" } : {}) } },
       );
       await db.from("action_requests").update({ outcome: "Accepted by GitHub; waiting for runner evidence" }).eq("id", id);
     } catch {

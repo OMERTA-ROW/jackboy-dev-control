@@ -5,6 +5,9 @@ import { GitHubTokenPanel } from "@/components/GitHubTokenPanel";
 import { GitHubAppPanel } from "@/components/GitHubAppPanel";
 import { RepositorySyncPanel } from "@/components/RepositorySync";
 import { CodeSafetyPanel } from "@/components/CodeSafetyPanel";
+import { CodeSitesList } from "@/components/CodeSiteCard";
+import { CodeLanePanel } from "@/components/CodeLanePanel";
+import { TaskSkipRules } from "@/components/TaskSkipRules";
 import { CapabilitiesPanel } from "@/components/CapabilitiesPanel";
 import { PageHeader } from "@/components/AppShell";
 
@@ -24,6 +27,7 @@ export const Route = createFileRoute("/_authenticated/settings")({
 
 export const ADVANCED = [
   { group: "Automation", items: [
+    { to: "/tasks", label: "Task Mode", note: "Plain-words tasks with live progress and passkey checkpoints" },
     { to: "/foundry", label: "Code Foundry", note: "Inspect → patch → test → approve → draft PR, with full history" },
     { to: "/blockers", label: "Blocker Queue", note: "What's stopping each connected project, and the fix" },
     { to: "/autopilot", label: "Autopilot", note: "Main switch, per-project switches, scan reports" },
@@ -69,6 +73,10 @@ function Settings() {
   return (
     <>
       <PageHeader title="Settings & Advanced" subtitle="Every advanced Jackboy tool, grouped. Your everyday flow lives on Home and Projects." />
+      <CodeSafetyPanel />
+      <CodeSitesList />
+      <CodeLanePanel />
+      <TaskSkipRules />
       <section aria-labelledby="guidelines" className="mb-6 rounded-lg border border-border bg-card p-4">
         <h2 id="guidelines" className="text-sm font-semibold uppercase tracking-wider text-silver">Guidelines</h2>
         <p className="mt-1 text-xs text-muted-foreground">Jackboy's autonomous operating rules. If a task conflicts with them, the rules win.</p>
@@ -81,7 +89,6 @@ function Settings() {
       <GitHubAppPanel />
       <GitHubTokenPanel />
       <RepositorySyncPanel />
-      <CodeSafetyPanel />
       <div className="grid gap-4 md:grid-cols-2">
         {ADVANCED.map((g) => (
           <section key={g.group} className="panel p-5" aria-labelledby={`g-${g.group}`}>

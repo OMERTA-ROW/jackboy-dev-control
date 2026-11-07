@@ -175,7 +175,7 @@ function Projects() {
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="w-full sm:w-auto"><StatusPill status={projectStatus(p, last.get(p.id))} /></span>
                       <AddSiteButton p={p} onSaved={(m) => { setNote(m); void refresh(); }} />
-                      <ProjectConnectButtons p={p} gone={gone.has(p.id)} onRemoved={(m) => { setNote(m); void refresh(); }} />
+                      <ProjectConnectButtons p={p} gone={gone.has(p.id)} tone={conn.tone} onRemoved={(m) => { setNote(m); void refresh(); }} />
                       <Link to="/project/$id" params={{ id: p.id }} className={btn}>Manage</Link>
                       <ProjectResyncIcon p={p} onDone={(m, g) => { setNote(m); if (g) setGone((s) => new Set(s).add(p.id)); void refresh(); }} />
                     </div>

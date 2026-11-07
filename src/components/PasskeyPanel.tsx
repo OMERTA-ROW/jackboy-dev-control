@@ -1,6 +1,7 @@
 import { useServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useState } from "react";
-import { browserSupportsWebAuthn, startAuthentication, startRegistration } from "@simplewebauthn/browser";
+import { browserSupportsWebAuthn } from "@simplewebauthn/browser";
+import { requestPasskey } from "@/lib/passkey-prompt";
 import { listPasskeys, removePasskey, passkeyRegisterOptions, passkeyRegisterVerify, passkeyTestOptions, passkeyTestVerify } from "@/lib/passkey.functions";
 import { passkeyErrorText } from "@/lib/passkey-origin";
 import { btn } from "@/components/ProjectBits";
@@ -29,17 +30,27 @@ export function PasskeyPanel() {
     try { setMsg(await fn()); await load(); }
     catch (e) { setMsg(passkeyErrorText(e, inFrame)); } finally { setBusy(false); }
   };
+  // Both go through the shared passkey window so the device sheet opens straight from a tap.
   const add = () => run(async () => {
-    const o = await opts();
-    const response = await startRegistration({ optionsJSON: o.options });
-    await verify({ data: { challengeId: o.challengeId, response, label: name.trim() || (navigator.platform ? `Passkey (${navigator.platform})` : "Passkey") } });
+    const label = name.trim() || (navigator.platform ? `Passkey (${navigator.platform})` : "Passkey");
+    await requestPasskey({
+      title: "Add a passkey",
+      description: `Save a passkey for ${here ?? "this address"}.`,
+      prepare: async () => { const o = await opts(); return { kind: "register", challengeId: o.challengeId, options: o.options }; },
+      finish: (challengeId, response) => verify({ data: { challengeId, response, label } }),
+      successText: () => "Passkey saved.",
+    });
     setName("");
     return "Passkey saved for this address. Use \"Test my passkey\" to confirm it works.";
   });
   const test = () => run(async () => {
-    const o = await tOpts();
-    const response = await startAuthentication({ optionsJSON: o.options });
-    const r = await tVerify({ data: { challengeId: o.challengeId, response } });
+    const r = await requestPasskey({
+      title: "Test my passkey",
+      description: "Checks your passkey without changing anything.",
+      prepare: async () => { const o = await tOpts(); return { kind: "auth", challengeId: o.challengeId, options: o.options, keys: o.keys }; },
+      finish: (challengeId, response) => tVerify({ data: { challengeId, response } }),
+      successText: (x) => `Passkey verified: ${x.label}.`,
+    });
     return `Passkey verified: ${r.label}.`;
   });
   const here = d?.host ?? null;

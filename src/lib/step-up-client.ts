@@ -1,23 +1,51 @@
-// Browser side of passkey step-up: asks the device for a passkey (Face ID / Touch ID / security key)
-// for one exact action + target and returns a single-use, 5-minute grant id.
+// Browser side of passkey step-up: asks the device for a passkey (Face ID / Touch ID / Windows Hello /
+// password manager / phone) for one exact action + target and returns a single-use, 5-minute grant id.
+// Every call opens the shared passkey window and a real device check; nothing is skipped silently.
+// With `apply`, the same window also runs the change that uses the grant and shows its real outcome.
 import { useServerFn } from "@tanstack/react-start";
 import { useCallback } from "react";
-import { browserSupportsWebAuthn, startAuthentication } from "@simplewebauthn/browser";
-import { stepUpOptions, stepUpRecent, stepUpVerify } from "./passkey.functions";
-import { passkeyErrorText } from "./passkey-origin";
+import { stepUpOptions, stepUpVerify } from "./passkey.functions";
+import { requestPasskey } from "./passkey-prompt";
+import { STEP_UP_ACTIONS } from "./step-up";
 
-export function useStepUp() {
-  const opts = useServerFn(stepUpOptions), verify = useServerFn(stepUpVerify), recent = useServerFn(stepUpRecent);
-  return useCallback(async (action: string, target: string) => {
-    // Routine connection reviews skip the prompt if you confirmed with a passkey in the last 10 minutes.
-    const reused = await recent({ data: { action, target } }).catch(() => null);
-    if (reused) return reused.grantId;
-    if (!browserSupportsWebAuthn()) throw new Error("This browser doesn't support passkeys, so this action is blocked here.");
-    const o = await opts({ data: { action, target } });
-    let response;
-    try { response = await startAuthentication({ optionsJSON: o.options }); }
-    catch (e) { throw new Error(passkeyErrorText(e, window.self !== window.top)); }
-    const g = await verify({ data: { challengeId: o.challengeId, response } });
-    return g.grantId;
-  }, [opts, verify, recent]);
+export type StepUpOptions<R> = {
+  apply: (grantId: string) => Promise<R>;
+  /** Shown while the change runs, e.g. "Turning the Kill Switch off…". */
+  applyingText?: string;
+  /** Shown when the change succeeded. */
+  doneText?: (result: R) => string;
+  /** e.g. "Passkey 2 of 3 · OMNI". */
+  step?: string;
+};
+
+export type StepUp = {
+  (action: string, target: string): Promise<string>;
+  <R>(action: string, target: string, opts: StepUpOptions<R>): Promise<R>;
+};
+
+export function useStepUp(): StepUp {
+  const opts = useServerFn(stepUpOptions), verify = useServerFn(stepUpVerify);
+  return useCallback(async (action: string, target: string, o?: StepUpOptions<unknown>) => {
+    const label = (STEP_UP_ACTIONS as Record<string, { label: string }>)[action]?.label ?? "Confirm this action";
+    const base = {
+      title: "Confirm with your passkey",
+      description: label,
+      step: o?.step,
+      prepare: async () => {
+        const x = await opts({ data: { action, target } });
+        return { kind: "auth" as const, challengeId: x.challengeId, options: x.options, keys: x.keys };
+      },
+      finish: (challengeId: string, response: unknown) => verify({ data: { challengeId, response } }),
+    };
+    if (!o) {
+      const g = await requestPasskey<{ grantId: string; expiresAt: string }>({ ...base, successText: () => "Passkey confirmed." });
+      return g.grantId;
+    }
+    return requestPasskey<{ grantId: string; expiresAt: string }, unknown>({
+      ...base,
+      apply: (g) => o.apply(g.grantId),
+      applyingText: o.applyingText ?? "Passkey confirmed. Making the change…",
+      successText: (r) => o.doneText?.(r) ?? "Done.",
+    });
+  }, [opts, verify]) as StepUp;
 }
