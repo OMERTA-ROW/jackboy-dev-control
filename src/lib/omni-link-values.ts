@@ -22,9 +22,9 @@ export type LinkValueSummary = {
 };
 
 export function summarizeLinkValues(env: Record<string, string | undefined>, ownerUserId: string, now = Date.now()): LinkValueSummary {
-  const owner = (env.OMNI_LINK_OWNER_ID ?? "").trim();
-  const approval = (env.OMNI_LINK_APPROVAL_ID ?? "").trim();
-  const expiresRaw = (env.OMNI_LINK_APPROVAL_EXPIRES_AT ?? "").trim();
+  const owner = (env["OMNI_LINK_OWNER_ID"] ?? "").trim();
+  const approval = (env["OMNI_LINK_APPROVAL_ID"] ?? "").trim();
+  const expiresRaw = (env["OMNI_LINK_APPROVAL_EXPIRES_AT"] ?? "").trim();
   const t = Date.parse(expiresRaw);
   const expiry: LinkValueSummary["expiry"] = !expiresRaw
     ? "missing"

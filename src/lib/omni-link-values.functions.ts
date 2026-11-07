@@ -23,9 +23,9 @@ async function requireConfirmedOwner(ctx: Ctx) {
 }
 
 const linkEnv = () => ({
-  OMNI_LINK_OWNER_ID: process.env.OMNI_LINK_OWNER_ID,
-  OMNI_LINK_APPROVAL_ID: process.env.OMNI_LINK_APPROVAL_ID,
-  OMNI_LINK_APPROVAL_EXPIRES_AT: process.env.OMNI_LINK_APPROVAL_EXPIRES_AT,
+  OMNI_LINK_OWNER_ID: process.env["OMNI_LINK_OWNER_ID"],
+  OMNI_LINK_APPROVAL_ID: process.env["OMNI_LINK_APPROVAL_ID"],
+  OMNI_LINK_APPROVAL_EXPIRES_AT: process.env["OMNI_LINK_APPROVAL_EXPIRES_AT"],
 });
 
 /** Read-only, no values: which of the three are set, valid and matching. */
@@ -35,7 +35,7 @@ export const getOmniLinkValueStatus = createServerFn({ method: "POST" })
     await requireConfirmedOwner(context as unknown as Ctx);
     return {
       summary: summarizeLinkValues(linkEnv(), context.userId),
-      linkEnabled: process.env.OMNI_LINK_ENABLED === "true",
+      linkEnabled: process.env["OMNI_LINK_ENABLED"] === "true",
     };
   });
 
@@ -60,9 +60,9 @@ export const revealOmniLinkValues = createServerFn({ method: "POST" })
     });
     return {
       values: {
-        OMNI_LINK_OWNER_ID: env.OMNI_LINK_OWNER_ID?.trim() || null,
-        OMNI_LINK_APPROVAL_ID: env.OMNI_LINK_APPROVAL_ID?.trim() || null,
-        OMNI_LINK_APPROVAL_EXPIRES_AT: env.OMNI_LINK_APPROVAL_EXPIRES_AT?.trim() || null,
+        OMNI_LINK_OWNER_ID: env["OMNI_LINK_OWNER_ID"]?.trim() || null,
+        OMNI_LINK_APPROVAL_ID: env["OMNI_LINK_APPROVAL_ID"]?.trim() || null,
+        OMNI_LINK_APPROVAL_EXPIRES_AT: env["OMNI_LINK_APPROVAL_EXPIRES_AT"]?.trim() || null,
       },
       yourOwnerId: context.userId,
       summary,
