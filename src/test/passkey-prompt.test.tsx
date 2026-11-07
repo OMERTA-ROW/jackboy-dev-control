@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ auth: vi.fn(), reg: vi.fn(), supported: vi.fn(() => true) }));
-vi.mock("@simplewebauthn/browser", () => ({ startAuthentication: mocks.auth, startRegistration: mocks.reg, browserSupportsWebAuthn: mocks.supported }));
+vi.mock("@simplewebauthn/browser", () => ({ startAuthentication: mocks.auth, startRegistration: mocks.reg, browserSupportsWebAuthn: mocks.supported, WebAuthnAbortService: { cancelCeremony: vi.fn() } }));
 import { PasskeyPromptHost } from "@/components/PasskeyPromptHost";
 import { requestPasskey, PASSKEY_CANCELLED } from "@/lib/passkey-prompt";
 
