@@ -40,6 +40,7 @@ import { Route as AuthenticatedProjectsRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedProviderAccessRouteImport } from './routes/_authenticated/provider-access'
 import { Route as AuthenticatedRazulRouteImport } from './routes/_authenticated/razul'
 import { Route as AuthenticatedReleasesRouteImport } from './routes/_authenticated/releases'
+import { Route as AuthenticatedReportsRouteImport } from './routes/_authenticated/reports'
 import { Route as AuthenticatedResearchRouteImport } from './routes/_authenticated/research'
 import { Route as AuthenticatedSecurityRouteImport } from './routes/_authenticated/security'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
@@ -233,6 +234,11 @@ const AuthenticatedRazulRoute = AuthenticatedRazulRouteImport.update({
 const AuthenticatedReleasesRoute = AuthenticatedReleasesRouteImport.update({
   id: '/releases',
   path: '/releases',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedReportsRoute = AuthenticatedReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedResearchRoute = AuthenticatedResearchRouteImport.update({
@@ -455,6 +461,7 @@ export interface FileRoutesByFullPath {
   '/provider-access': typeof AuthenticatedProviderAccessRoute
   '/razul': typeof AuthenticatedRazulRoute
   '/releases': typeof AuthenticatedReleasesRoute
+  '/reports': typeof AuthenticatedReportsRoute
   '/research': typeof AuthenticatedResearchRoute
   '/security': typeof AuthenticatedSecurityRoute
   '/settings': typeof AuthenticatedSettingsRoute
@@ -522,6 +529,7 @@ export interface FileRoutesByTo {
   '/provider-access': typeof AuthenticatedProviderAccessRoute
   '/razul': typeof AuthenticatedRazulRoute
   '/releases': typeof AuthenticatedReleasesRoute
+  '/reports': typeof AuthenticatedReportsRoute
   '/research': typeof AuthenticatedResearchRoute
   '/security': typeof AuthenticatedSecurityRoute
   '/settings': typeof AuthenticatedSettingsRoute
@@ -592,6 +600,7 @@ export interface FileRoutesById {
   '/_authenticated/provider-access': typeof AuthenticatedProviderAccessRoute
   '/_authenticated/razul': typeof AuthenticatedRazulRoute
   '/_authenticated/releases': typeof AuthenticatedReleasesRoute
+  '/_authenticated/reports': typeof AuthenticatedReportsRoute
   '/_authenticated/research': typeof AuthenticatedResearchRoute
   '/_authenticated/security': typeof AuthenticatedSecurityRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
@@ -663,6 +672,7 @@ export interface FileRouteTypes {
     | '/provider-access'
     | '/razul'
     | '/releases'
+    | '/reports'
     | '/research'
     | '/security'
     | '/settings'
@@ -730,6 +740,7 @@ export interface FileRouteTypes {
     | '/provider-access'
     | '/razul'
     | '/releases'
+    | '/reports'
     | '/research'
     | '/security'
     | '/settings'
@@ -799,6 +810,7 @@ export interface FileRouteTypes {
     | '/_authenticated/provider-access'
     | '/_authenticated/razul'
     | '/_authenticated/releases'
+    | '/_authenticated/reports'
     | '/_authenticated/research'
     | '/_authenticated/security'
     | '/_authenticated/settings'
@@ -1092,6 +1104,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedReleasesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/reports': {
+      id: '/_authenticated/reports'
+      path: '/reports'
+      fullPath: '/reports'
+      preLoaderRoute: typeof AuthenticatedReportsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/research': {
       id: '/_authenticated/research'
       path: '/research'
@@ -1372,6 +1391,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedProviderAccessRoute: typeof AuthenticatedProviderAccessRoute
   AuthenticatedRazulRoute: typeof AuthenticatedRazulRoute
   AuthenticatedReleasesRoute: typeof AuthenticatedReleasesRoute
+  AuthenticatedReportsRoute: typeof AuthenticatedReportsRoute
   AuthenticatedResearchRoute: typeof AuthenticatedResearchRoute
   AuthenticatedSecurityRoute: typeof AuthenticatedSecurityRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
@@ -1410,6 +1430,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedProviderAccessRoute: AuthenticatedProviderAccessRoute,
   AuthenticatedRazulRoute: AuthenticatedRazulRoute,
   AuthenticatedReleasesRoute: AuthenticatedReleasesRoute,
+  AuthenticatedReportsRoute: AuthenticatedReportsRoute,
   AuthenticatedResearchRoute: AuthenticatedResearchRoute,
   AuthenticatedSecurityRoute: AuthenticatedSecurityRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
