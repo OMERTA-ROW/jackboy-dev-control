@@ -8,6 +8,9 @@ import {
   HANDOFF_KINDS,
   MAX_PROJECT_AUTH_DAYS,
   validateAuthorizationRequest,
+  registryRepoSuggestion,
+  repoFromUrl,
+  jobCopyRefusal,
   type HandoffFacts,
 } from "./omni-handoff-auth";
 
@@ -52,7 +55,7 @@ export const getOmniHandoffs = createServerFn({ method: "POST" })
     const db = await admin();
     const { isOmniVerified } = await import("./omni-link.server");
     const live = await isOmniVerified();
-    const [conn, policy, projects, auths, jobs, grants] = await Promise.all([
+    const [conn, policy, projects, auths, jobs, grants, ownerProjects] = await Promise.all([
       db.from("omni_connection").select("verified, verified_at, last_error").eq("id", true).maybeSingle(),
       db.from("automation_policy").select("paused").eq("id", 1).maybeSingle(),
       db.from("agent_projects").select("id,name,enrolled,repo_url,created_by").order("name"),
@@ -71,7 +74,9 @@ export const getOmniHandoffs = createServerFn({ method: "POST" })
         .select("id,job_id,expires_at,revoked_at,created_at")
         .order("created_at", { ascending: false })
         .limit(200),
+      db.from("owner_projects").select("name, github_repo"),
     ]);
+    const ownerList = ((ownerProjects.data ?? []) as { name: string; github_repo: string | null }[]);
     if (projects.error || auths.error || jobs.error || grants.error)
       throw new Error("OMNI handoff records could not be loaded.");
     const now = Date.now();
@@ -105,7 +110,21 @@ export const getOmniHandoffs = createServerFn({ method: "POST" })
         grant: liveGrant ? { expiresAt: liveGrant.expires_at, revokedAt: null } : null,
       };
       const verdict = evaluateHandoff(facts, liveGrant ? "use" : "issue", now);
+      const projectRepo = repoFromUrl(p?.repo_url ?? null);
+      const copyRefusal = jobCopyRefusal(
+        { status: j.status, sentAt: j.sent_at, codeRequestId: j.code_request_id, repo: j.repo, kind: j.kind },
+        projectRepo,
+      );
       return {
+        copyRepo: copyRefusal ? null : projectRepo,
+        // Plain next step when the job lacks a repository: link the project, then queue a copy.
+        repoFix: j.repo
+          ? null
+          : projectRepo
+            ? `Press "Queue a copy for ${projectRepo}". The original job stays exactly as it is.`
+            : p && registryRepoSuggestion(p.name, ownerList)
+              ? `First link ${registryRepoSuggestion(p.name, ownerList)} to ${p.name} under Project access above, then queue a copy here.`
+              : `${p?.name ?? "This project"} has no GitHub repository on the Projects page either. Link one there first.`,
         jobId: j.id,
         projectId: j.project_id,
         projectName: p?.name ?? "Unknown project",
@@ -125,12 +144,14 @@ export const getOmniHandoffs = createServerFn({ method: "POST" })
       projects: projectRows.map((p) => {
         const a = currentAuth(p.id);
         const current = a && Date.parse(a.expires_at) > now ? a : null;
-        const repo = p.repo_url?.match(/^https:\/\/github\.com\/([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)$/)?.[1] ?? null;
+        const repo = repoFromUrl(p.repo_url);
         const eligible = p.created_by === context.userId && p.enrolled && Boolean(repo);
+        const suggestedRepo = !repo && p.created_by === context.userId ? registryRepoSuggestion(p.name, ownerList) : null;
         return {
           id: p.id,
           name: p.name,
           repo,
+          suggestedRepo,
           eligible,
           ineligibleReason: eligible
             ? null
@@ -138,7 +159,9 @@ export const getOmniHandoffs = createServerFn({ method: "POST" })
               ? "Belongs to someone else"
               : !p.enrolled
                 ? "Not enrolled yet"
-                : "No GitHub repository linked",
+                : suggestedRepo
+                  ? `No repository in OMNI's project list. The Projects page links ${suggestedRepo}.`
+                  : "No GitHub repository linked here or on the Projects page",
           authorization: current
             ? { id: current.id, kinds: current.kinds, repo: current.repo, expiresAt: current.expires_at }
             : null,
