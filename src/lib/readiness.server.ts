@@ -292,8 +292,10 @@ async function probe(id: ReadinessId): Promise<Probe> {
         : { status: "PASS", reason: "OMNI pull requests #1–#4 are merged." };
     }
     case "omni_bridge": {
-      const { linkConfig } = await import("./omni-session.server");
+      const { linkConfig, loadEffectiveApproval } = await import("./omni-session.server");
       const { reverseLinkReport, REVERSE_LINK_VARS } = await import("./omni-link-readiness");
+      const { withApproval } = await import("./omni-link-approval");
+      const approval = await loadEffectiveApproval();
       const { data, error } = await db
         .from("omni_link_sessions")
         .select("expires_at")
@@ -302,8 +304,8 @@ async function probe(id: ReadinessId): Promise<Probe> {
       const rows = (data ?? []) as { expires_at: string }[];
       const report = reverseLinkReport({
       runner: (await import("./omni-runner-mode.server")).runnerMode(),
-        env: Object.fromEntries(REVERSE_LINK_VARS.map((n) => [n, process.env[n]])),
-        configValid: linkConfig() !== null,
+        env: withApproval(Object.fromEntries(REVERSE_LINK_VARS.map((n) => [n, process.env[n]])), approval),
+        configValid: linkConfig({ approvalId: approval.approvalId, approvalExpiresAt: approval.expiresAt }) !== null,
         storageReady: !error && Array.isArray(data),
         lastSessionAt: rows[0]?.expires_at ?? null,
       });
