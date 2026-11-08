@@ -337,6 +337,55 @@
       "when": 1794011266867,
       "tag": "0047_code_hard_cap_gate",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1794018447934,
+      "tag": "0048_code_spend_meter_and_activation",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1794030019533,
+      "tag": "0049_task_mode",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1794059984729,
+      "tag": "0050_reports_alerts_undo",
+      "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1794071665104,
+      "tag": "0051_omni_build_test_handoffs",
+      "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1794071724152,
+      "tag": "0052_omni_handoff_authorization",
+      "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1794072319747,
+      "tag": "0053_audit_logs_append_only_attributed",
+      "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1794098970048,
+      "tag": "0054_chat_threads_contexts_attachments",
+      "breakpoints": true
     }
   ]
 }

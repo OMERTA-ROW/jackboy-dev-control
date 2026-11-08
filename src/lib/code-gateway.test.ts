@@ -178,7 +178,7 @@ describe("gateway flow", () => {
     expect(h.upstreamFn).toHaveBeenCalledTimes(1);
     const [path, init] = h.upstreamFn.mock.calls[0]!;
     expect(path).toBe("/v1/responses");
-    expect((init as RequestInit).redirect).toBe("error");
+    expect((init as RequestInit).redirect).toBe("manual");
     expect(((init as RequestInit).headers as Record<string, string>)["Authorization"]).toBe(
       "Bearer sk-test-key",
     );

@@ -10,6 +10,8 @@ import { fixScan, scanNow, setProjectAutopilot } from "@/lib/autopilot.functions
 import { deleteProject, runNow, saveProject } from "@/lib/update-writer.functions";
 import { SiteConnection } from "@/components/SiteConnection";
 import { ProjectConnection } from "@/components/ProjectConnection";
+import { CodeSiteCard } from "@/components/CodeSiteCard";
+import { GitHubPrepPanel } from "@/components/GitHubPrepPanel";
 import { FindingsReview, Steps } from "@/components/FindingsReview";
 import { FREQUENCIES, STATUS_LABEL, type ProposalStatus } from "@/lib/update-writer";
 
@@ -87,6 +89,7 @@ function Detail() {
 
         <ProjectConnection projectId={p.id} onChanged={() => void refresh()} />
         <SiteConnection p={p} onChanged={() => void refresh()} onEdit={() => setEdit(true)} />
+        {p.github_repo && <CodeSiteCard projectId={p.id} />}
 
         <section className="panel p-5 lg:col-span-2" aria-labelledby="scan">
           <h2 id="scan" className="font-semibold">Review last scan</h2>
@@ -123,6 +126,8 @@ function Detail() {
           </ul>
         )}
       </section>
+
+      {p.github_repo && <GitHubPrepPanel projectId={p.id} />}
 
       {d.scans.length > 1 && (
         <section className="panel mt-4 p-5"><h2 className="font-semibold">Scan history</h2>

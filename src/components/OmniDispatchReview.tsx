@@ -12,15 +12,15 @@ import { useStepUp } from "@/lib/step-up-client";
 type Preview = Awaited<ReturnType<typeof previewOmniReceipt>>;
 type Grant = Awaited<ReturnType<typeof approveOmniReceipt>>;
 
-export function OmniDispatchReview() {
+export function OmniDispatchReview({ initialJobId = "", initialGrantId = "" }: { initialJobId?: string; initialGrantId?: string } = {}) {
   const preview = useServerFn(previewOmniReceipt);
   const approve = useServerFn(approveOmniReceipt);
   const loadGrant = useServerFn(loadOmniReceiptGrant);
   const revoke = useServerFn(revokeOmniReceipt);
   const send = useServerFn(sendOmniReceipt);
   const stepUp = useStepUp();
-  const [jobId, setJobId] = useState("");
-  const [existingGrantId, setExistingGrantId] = useState("");
+  const [jobId, setJobId] = useState(initialJobId);
+  const [existingGrantId, setExistingGrantId] = useState(initialGrantId);
   const [review, setReview] = useState<Preview | null>(null);
   const [grant, setGrant] = useState<Grant | null>(null);
   const [busy, setBusy] = useState(false);
@@ -41,10 +41,11 @@ export function OmniDispatchReview() {
 
   return (
     <section className="panel mb-4 space-y-3 p-4 text-sm">
-      <h2 className="font-semibold">Receive-only dispatch review</h2>
+      <h2 className="font-semibold">Receive-only handoff review</h2>
       <p>
-        Only one reviewed test job can be quarantined. No job execution is enabled. Both services
-        need separate grants; revoking one does not revoke the other.
+        One reviewed build or test job can be handed to OMNI for receipt only. Each step re-checks
+        OMNI's live link, your project access and whether anything was revoked. No job execution is
+        enabled. OMNI needs its own approval too; revoking one does not revoke the other.
       </p>
       <label className="block">
         Job UUID
@@ -114,7 +115,7 @@ export function OmniDispatchReview() {
             <br />
             Repository: {review.repo}
             <br />
-            Kind: {review.kind}
+            Kind: {review.kind === "code" ? "Build" : "Test"}
           </p>
           <p>Exact instructions:</p>
           <pre className="whitespace-pre-wrap break-words rounded border p-2">

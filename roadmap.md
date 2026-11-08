@@ -1,5 +1,64 @@
 # Jackboy roadmap
 
+## Jackboy Chat upgrade (Nov 8, 00:44 UTC)
+- [x] Conversations saved to the owner's account (own page per conversation), searchable, with one-press import of conversations saved only on this device.
+- [x] "Talk to" switcher: Jackboy, OMNI, JAX, Razul, Iggy, other owner-added agents and projects — replies use only stored notes; empty notes are said plainly.
+- [x] Private attachments: images, short videos (described from sampled frames), text files; visual descriptions are observational, never medical; unclear motion marked "uncertain".
+- [x] Who-said-what labels, compact status line (Kill Switch, CODE, waiting approvals, failures, CI for project), ON/OFF chat settings, links to research, GitHub, OMNI handoffs, audit, log.
+- [x] Tests for the rules (25 new, 781 total pass); voice, CODE mode, approvals and safety gates unchanged. Preview checked signed in as owner.
+- [ ] Notes for OMNI, JAX, Razul and Iggy are empty — waiting on the owner to write them (and say what Iggy is).
+- [ ] Two-way live voice with a real microphone — not testable in the sandbox; owner to try on a phone.
+
+## OMNI build/test handoffs (Nov 7, 17:09 UTC)
+- [x] Handoffs for build and test jobs that need a live OMNI link (< 5 min), owner + own enrolled project, a current unrevoked project access, and the Kill Switch off — checked at approval and at every send. 717 tests pass.
+- [ ] First real handoff — blocked: OMNI's live link isn't verified and no registered project is enrolled with a GitHub repo; OMNI's side must also accept `build`.
+
+## GitHub issue/PR preparation (Nov 7, 17:19 UTC)
+- [x] Project page → "GitHub issues & pull requests": live CI checks + review status for open PRs; owner-pressed issue or draft PR (jackboy/* only) with CI evidence. No merge/approve/ready/deploy. 737 tests pass; previewed on Jackboy repo, nothing opened.
+
+## Append-only audit list (Nov 7, 17:20 UTC)
+- [x] Audit list locked (database refuses change/delete/clear; all 251 entries kept); Access page shows who did each action, with older pages.
+
+## Autonomy master brief (Nov 7, 16:16 UTC)
+- [x] Audit: switches vs real runs vs GitHub CODE gates (docs/AUTONOMY-AUDIT-2026-11-07.md).
+- [x] Kill Switch now stops every background and owner-started work path (was only Task Mode + CODE).
+- [x] Settings → "What's really running" panel (read-only, live, refreshes every minute).
+- [ ] Turn the hourly job, fix writer and site monitor schedules back on — needs owner OK (they are off; switching them on starts unattended work).
+- [ ] Clear the old "Not enough credits" hold (Updates → Resume schedule) — owner choice.
+- [ ] Classic View / Assist overlay — removed earlier at owner request; rebuild only if the owner confirms.
+- [ ] OMNI link, Razul feed, JAX distribution — blocked on live OMNI link / Razul credentials / payments, unchanged.
+
+## Task Mode (Nov 7, 05:30 UTC)
+- [x] Plan approved.
+- [x] Phase 1: Tasks page (draft steps → review → Start → live feed → passkey checkpoints → Stop/Retry), chat can draft tasks, hourly job keeps running tasks moving. Preview: a 4-step task drafted, started, and stopped correctly because the Kill Switch is on.
+- [x] Phase 2: Settings → "steps that can skip approval" per project, saved with a fresh passkey; the five never-skip types locked.
+- [ ] Try a checkpoint with your passkey on the live site — needs publish and the Kill Switch off (owner only).
+- [ ] Phase 3 (outside websites) — blocked until the owner picks a browser service.
+- [x] Two CODE approval lanes: lane rules, server-side patch re-check, lane-aware runner checks (reviewed lane unchanged), trial labels on every CODE request and finished patch, Settings → "CODE approval lanes" panel with read-only GitHub environment checks and a per-site passkey switch.
+- [ ] Apply staged database update `staging/code-lane/0051` (switch storage) — needs owner OK in chat.
+- [ ] Owner GitHub steps: create CODE-AUTO and CODE-PUBLISH-AUTO (main only, no reviewers/secrets), add a main ruleset, merge the staged lane workflow, re-save CODE_TARGETS, re-pin — owner only.
+- [ ] One week of trial labels, then the owner turns the lane on per site.
+
+## Add project to CODE (Nov 7, 05:30 UTC)
+- [x] "Add to CODE" card on each project page (checklist, Prepare = draft PR with the approved workflow files, Approve and activate with passkey, Remove) and a CODE sites list in Settings. Web (bun/npm) and Go workflow versions. 630 app tests + 8 isolated database tests pass; preview shows the Hercules checklist, nothing pressed.
+- [ ] Apply staged database update `staging/code-sites/0050` (multi-site pins) — needs owner approval in chat.
+- [ ] GitHub App needs "Workflows: write" to add the workflow file itself; until then the card shows the file to add by hand — owner choice.
+- [ ] Per site: owner presses Prepare, merges the PR, creates CODE + CODE-PUBLISH environments with reviewers, sets CODE_RUNNER_AUTH_URL, saves CODE_TARGETS, presses activate with passkey — owner only, after publishing.
+
+## Smoother buttons and live activity (Nov 7, 04:56 UTC)
+- [x] Passkey window names the device method, every step times out and ends in success or failure; Connect/Activate buttons follow real state.
+- [x] Live activity feed for coding loops and Code Foundry inspections: timestamped steps from real server events ("Inspecting file 12 of 51"), moving progress bar, stall warning with Retry/Stop, clear "nothing to do" end. 615 tests pass.
+- [ ] Owner publishes, then tries one run on the live site — not run here, since a real scan can write a fix branch.
+
+## One CODE activation panel (Nov 7, 03:55 UTC)
+- [x] Fix live-site GitHub/OpenAI checks (edge runtime refused `redirect: "error"`); preview shows all 12 on-switch checks passing.
+- [ ] Owner publishes, then presses the on-switch — owner only.
+- [x] Guided walkthrough: one "Start activation" button, one step per screen with status, one button, plain blocked reason + fix, auto-advance on success; no automatic presses. Preview opens at step 7 of 7.
+- [x] Kill Switch (both directions) and CODE emergency stop moved into the Autonomous Activation section; Home keeps a live status line and a link. Same passkey actions; 568 tests pass.
+- [x] Readiness checks: 12 items, each with a live read-only Test (results in the site log); Block/Unblock on CODE controls and spending (existing passkey controls); statuses follow real use (passkey, gateway calls, OMNI sessions, CODE state), re-read on focus/every minute. Preview: 7 of 12 pass.
+- [ ] Runner acceptance on current main, GitHub App scope reduction, backup check, OMNI link — owner actions shown in the checks.
+- [x] Single ordered activation panel at the top of Settings (linked from the Home pause bar): 7 steps built from the server's 12 on-switch checks, folds away once CODE is on, emergency stop always visible; same passkey actions. 565 tests pass; preview shows 6 of 7 done.
+
 ## CODE activation prep (Nov 6, 23:55 UTC)
 - [x] Staged pin update to 37368194…, cumulative $10 guard and hard-cap gate (staging/code-activation/0046–0048 + rollbacks); 15 isolated database tests pass.
 - [x] App mirrors the $10 guard (fails closed when absent) and Settings shows its status; 527 app tests + CODE runtime tests pass.
@@ -10,9 +69,12 @@
 - [x] Owner passkey control to mark/un-mark the hard cap (Settings → CODE): fresh passkey only, CODE off + Stop on; 9 new tests; not pressed.
 - [ ] Owner presses it on the published app — owner only; needs publish first.
 - [x] Live spending meter (gateway ledger + OpenAI closed-day cross-check) and passkey on-switch built; 11 isolated database tests, app and runtime tests pass; not pressed.
-- [ ] Apply staged 0049 (meter + on-switch database part) — blocked: owner approval.
+- [x] Staged 0049 applied Nov 7 02:27 UTC on owner activation approval (journal 0048_code_spend_meter_and_activation): meter ok ($0/$5 today, $0/$10 total); raw enable/release/hard-cap writes refused; CODE off, Stop on.
+- [x] PR #46 merged (main dd629f5), 11/11 GitHub checks green; 548 app + 28 database tests pass; security scan clean; publish requested.
 - [ ] Re-save CODE_GATEWAY_PRICES: saved value is 19 characters and not valid JSON, so the gateway refuses every call — owner only (secret form).
-- [ ] Release Emergency Stop / enable CODE — owner only.
+- [ ] Mark hard cap, release global pause, press on-switch — owner passkey only, on the live site.
+- [ ] Controlled $1 test run + autonomous activation — blocked until CODE is on; each run still needs GitHub environment approval.
+- [ ] Railway gateway/OMNI link — blocked: Lovable Cloud gives no service-role key to outside hosts; OMNI link flags off.
 
 ## Workflow pin repair and activation readiness (Nov 5, 21:30 UTC)
 - [x] Independently hashed GitHub main bytes: ebc71c1923c3d6ab925ec6b9e4fa971e311f3761; both saved pins remain 82c0c44…; scope unchanged.
@@ -166,3 +228,9 @@ The spoken acronym “NLOA” is unconfirmed in Notion. Do not infer a technical
 - [x] 10-minute recent passkey reuse only for routine repo connect/review approvals; each reuse mints a fresh single-use grant; privileged actions always prompt.
 - [x] Project cards: inline Add site (saved + live check), Connect for unlinked repos, refresh icon rechecks repo access + site, evidence-based connection status/last check/next step.
 - [ ] Pending CODE-safety / provider-permission migrations (0036–0038) not applied → existing type errors; needs owner approval to apply to the shared backend.
+## Owner requests Nov 7 (plan first, build after current queue)
+- [x] Restored today's lost work (activation panel, passkey prompt, readiness, activity feed, Add-to-CODE, lanes) from the backup with GitHub PR #47 re-applied on top.
+- [x] Daily morning report (7 AM Eastern, Reports page, saved once per day) and phone alerts (push, dedupe, one reminder, 30/day cap, quiet hours, retry) built; schedule every 2 minutes created.
+- [x] One-press Undo: draft PRs close; merged changes need a fresh passkey, refuse on clashes, Jackboy merges its own revert after checks pass.
+- [ ] Live proof: publish, register a phone on the published site, send a test alert, and receive the first 7 AM report — owner only.
+- [x] Connect phone alerts to the owner's Firebase project jackboy-b6bb5 (web config from GOOGLE_API_KEY secret, VAPID key requested separately, opt-in permission, diagnostics); sending needs a server credential for that project.

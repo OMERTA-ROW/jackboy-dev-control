@@ -14,7 +14,7 @@ const requestSchema = z
       .string()
       .regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/)
       .max(200),
-    kind: z.literal("test"),
+    kind: z.enum(["build", "test"]),
     payloadDigest: z.string().regex(/^[a-f0-9]{64}$/),
   })
   .strict();

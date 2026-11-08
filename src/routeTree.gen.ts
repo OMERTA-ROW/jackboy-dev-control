@@ -40,10 +40,12 @@ import { Route as AuthenticatedProjectsRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedProviderAccessRouteImport } from './routes/_authenticated/provider-access'
 import { Route as AuthenticatedRazulRouteImport } from './routes/_authenticated/razul'
 import { Route as AuthenticatedReleasesRouteImport } from './routes/_authenticated/releases'
+import { Route as AuthenticatedReportsRouteImport } from './routes/_authenticated/reports'
 import { Route as AuthenticatedResearchRouteImport } from './routes/_authenticated/research'
 import { Route as AuthenticatedSecurityRouteImport } from './routes/_authenticated/security'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedSiteLogRouteImport } from './routes/_authenticated/site-log'
+import { Route as AuthenticatedTasksRouteImport } from './routes/_authenticated/tasks'
 import { Route as AuthenticatedUpdateDocsRouteImport } from './routes/_authenticated/update-docs'
 import { Route as AuthenticatedUpdatesRouteImport } from './routes/_authenticated/updates'
 import { Route as AuthenticatedWorkspaceRouteImport } from './routes/_authenticated/workspace'
@@ -51,6 +53,8 @@ import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as ApiCodeRouteImport } from './routes/api/code'
 import { Route as ApiSafetyStatusRouteImport } from './routes/api/safety-status'
 import { Route as ApiTranscribeRouteImport } from './routes/api/transcribe'
+import { Route as AuthenticatedChatIndexRouteImport } from './routes/_authenticated/chat.index'
+import { Route as AuthenticatedChatThreadIdRouteImport } from './routes/_authenticated/chat.$threadId'
 import { Route as AuthenticatedPassportAgentIdRouteImport } from './routes/_authenticated/passport.$agentId'
 import { Route as AuthenticatedProjectIdRouteImport } from './routes/_authenticated/project.$id'
 import { Route as ApiAgentManifestRouteImport } from './routes/api/agent/manifest'
@@ -62,11 +66,13 @@ import { Route as ApiPublicFoundryWebhookRouteImport } from './routes/api/public
 import { Route as ApiPublicGithubManifestRouteImport } from './routes/api/public/github/manifest'
 import { Route as ApiPublicGithubSetupRouteImport } from './routes/api/public/github/setup'
 import { Route as ApiPublicGithubWebhookRouteImport } from './routes/api/public/github/webhook'
+import { Route as ApiPublicJobsOwnerAlertsRouteImport } from './routes/api/public/jobs/owner-alerts'
 import { Route as ApiPublicJobsReleasesRouteImport } from './routes/api/public/jobs/releases'
 import { Route as ApiPublicJobsSiteMonitorRouteImport } from './routes/api/public/jobs/site-monitor'
 import { Route as ApiPublicJobsUpdateWriterRouteImport } from './routes/api/public/jobs/update-writer'
 import { Route as ApiPublicOmniCallbackRouteImport } from './routes/api/public/omni/callback'
 import { Route as ApiPublicOmniLinkRouteImport } from './routes/api/public/omni/link'
+import { Route as ApiPublicOmniRunnerRouteImport } from './routes/api/public/omni/runner'
 import { Route as ApiPublicUpdatesCheckRouteImport } from './routes/api/public/updates/check'
 import { Route as ApiPublicUpdatesFlagsRouteImport } from './routes/api/public/updates/flags'
 import { Route as ApiPublicUpdatesHealthRouteImport } from './routes/api/public/updates/health'
@@ -233,6 +239,11 @@ const AuthenticatedReleasesRoute = AuthenticatedReleasesRouteImport.update({
   path: '/releases',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedReportsRoute = AuthenticatedReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedResearchRoute = AuthenticatedResearchRouteImport.update({
   id: '/research',
   path: '/research',
@@ -251,6 +262,11 @@ const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
 const AuthenticatedSiteLogRoute = AuthenticatedSiteLogRouteImport.update({
   id: '/site-log',
   path: '/site-log',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedTasksRoute = AuthenticatedTasksRouteImport.update({
+  id: '/tasks',
+  path: '/tasks',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedUpdateDocsRoute = AuthenticatedUpdateDocsRouteImport.update({
@@ -288,6 +304,17 @@ const ApiTranscribeRoute = ApiTranscribeRouteImport.update({
   path: '/api/transcribe',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedChatIndexRoute = AuthenticatedChatIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthenticatedChatRoute,
+} as any)
+const AuthenticatedChatThreadIdRoute =
+  AuthenticatedChatThreadIdRouteImport.update({
+    id: '/$threadId',
+    path: '/$threadId',
+    getParentRoute: () => AuthenticatedChatRoute,
+  } as any)
 const AuthenticatedPassportAgentIdRoute =
   AuthenticatedPassportAgentIdRouteImport.update({
     id: '/passport/$agentId',
@@ -344,6 +371,12 @@ const ApiPublicGithubWebhookRoute = ApiPublicGithubWebhookRouteImport.update({
   path: '/api/public/github/webhook',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicJobsOwnerAlertsRoute =
+  ApiPublicJobsOwnerAlertsRouteImport.update({
+    id: '/api/public/jobs/owner-alerts',
+    path: '/api/public/jobs/owner-alerts',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicJobsReleasesRoute = ApiPublicJobsReleasesRouteImport.update({
   id: '/api/public/jobs/releases',
   path: '/api/public/jobs/releases',
@@ -369,6 +402,11 @@ const ApiPublicOmniCallbackRoute = ApiPublicOmniCallbackRouteImport.update({
 const ApiPublicOmniLinkRoute = ApiPublicOmniLinkRouteImport.update({
   id: '/api/public/omni/link',
   path: '/api/public/omni/link',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicOmniRunnerRoute = ApiPublicOmniRunnerRouteImport.update({
+  id: '/api/public/omni/runner',
+  path: '/api/public/omni/runner',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicUpdatesCheckRoute = ApiPublicUpdatesCheckRouteImport.update({
@@ -427,7 +465,7 @@ export interface FileRoutesByFullPath {
   '/automation': typeof AuthenticatedAutomationRoute
   '/autopilot': typeof AuthenticatedAutopilotRoute
   '/blockers': typeof AuthenticatedBlockersRoute
-  '/chat': typeof AuthenticatedChatRoute
+  '/chat': typeof AuthenticatedChatRouteWithChildren
   '/connect': typeof AuthenticatedConnectRoute
   '/deployments': typeof AuthenticatedDeploymentsRoute
   '/discovery': typeof AuthenticatedDiscoveryRoute
@@ -442,10 +480,12 @@ export interface FileRoutesByFullPath {
   '/provider-access': typeof AuthenticatedProviderAccessRoute
   '/razul': typeof AuthenticatedRazulRoute
   '/releases': typeof AuthenticatedReleasesRoute
+  '/reports': typeof AuthenticatedReportsRoute
   '/research': typeof AuthenticatedResearchRoute
   '/security': typeof AuthenticatedSecurityRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/site-log': typeof AuthenticatedSiteLogRoute
+  '/tasks': typeof AuthenticatedTasksRoute
   '/update-docs': typeof AuthenticatedUpdateDocsRoute
   '/updates': typeof AuthenticatedUpdatesRoute
   '/workspace': typeof AuthenticatedWorkspaceRoute
@@ -453,10 +493,12 @@ export interface FileRoutesByFullPath {
   '/api/code': typeof ApiCodeRoute
   '/api/safety-status': typeof ApiSafetyStatusRoute
   '/api/transcribe': typeof ApiTranscribeRoute
+  '/chat/$threadId': typeof AuthenticatedChatThreadIdRoute
   '/passport/$agentId': typeof AuthenticatedPassportAgentIdRoute
   '/project/$id': typeof AuthenticatedProjectIdRoute
   '/api/agent/manifest': typeof ApiAgentManifestRoute
   '/api/public/agent-ingest': typeof ApiPublicAgentIngestRoute
+  '/chat/': typeof AuthenticatedChatIndexRoute
   '/api/public/code/claim': typeof ApiPublicCodeClaimRoute
   '/api/public/code/finish': typeof ApiPublicCodeFinishRoute
   '/api/public/feeds/$sourceId': typeof ApiPublicFeedsSourceIdRoute
@@ -464,11 +506,13 @@ export interface FileRoutesByFullPath {
   '/api/public/github/manifest': typeof ApiPublicGithubManifestRoute
   '/api/public/github/setup': typeof ApiPublicGithubSetupRoute
   '/api/public/github/webhook': typeof ApiPublicGithubWebhookRoute
+  '/api/public/jobs/owner-alerts': typeof ApiPublicJobsOwnerAlertsRoute
   '/api/public/jobs/releases': typeof ApiPublicJobsReleasesRoute
   '/api/public/jobs/site-monitor': typeof ApiPublicJobsSiteMonitorRoute
   '/api/public/jobs/update-writer': typeof ApiPublicJobsUpdateWriterRoute
   '/api/public/omni/callback': typeof ApiPublicOmniCallbackRoute
   '/api/public/omni/link': typeof ApiPublicOmniLinkRoute
+  '/api/public/omni/runner': typeof ApiPublicOmniRunnerRoute
   '/api/public/updates/check': typeof ApiPublicUpdatesCheckRoute
   '/api/public/updates/flags': typeof ApiPublicUpdatesFlagsRoute
   '/api/public/updates/health': typeof ApiPublicUpdatesHealthRoute
@@ -492,7 +536,6 @@ export interface FileRoutesByTo {
   '/automation': typeof AuthenticatedAutomationRoute
   '/autopilot': typeof AuthenticatedAutopilotRoute
   '/blockers': typeof AuthenticatedBlockersRoute
-  '/chat': typeof AuthenticatedChatRoute
   '/connect': typeof AuthenticatedConnectRoute
   '/deployments': typeof AuthenticatedDeploymentsRoute
   '/discovery': typeof AuthenticatedDiscoveryRoute
@@ -507,10 +550,12 @@ export interface FileRoutesByTo {
   '/provider-access': typeof AuthenticatedProviderAccessRoute
   '/razul': typeof AuthenticatedRazulRoute
   '/releases': typeof AuthenticatedReleasesRoute
+  '/reports': typeof AuthenticatedReportsRoute
   '/research': typeof AuthenticatedResearchRoute
   '/security': typeof AuthenticatedSecurityRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/site-log': typeof AuthenticatedSiteLogRoute
+  '/tasks': typeof AuthenticatedTasksRoute
   '/update-docs': typeof AuthenticatedUpdateDocsRoute
   '/updates': typeof AuthenticatedUpdatesRoute
   '/workspace': typeof AuthenticatedWorkspaceRoute
@@ -519,10 +564,12 @@ export interface FileRoutesByTo {
   '/api/safety-status': typeof ApiSafetyStatusRoute
   '/api/transcribe': typeof ApiTranscribeRoute
   '/': typeof AuthenticatedIndexRoute
+  '/chat/$threadId': typeof AuthenticatedChatThreadIdRoute
   '/passport/$agentId': typeof AuthenticatedPassportAgentIdRoute
   '/project/$id': typeof AuthenticatedProjectIdRoute
   '/api/agent/manifest': typeof ApiAgentManifestRoute
   '/api/public/agent-ingest': typeof ApiPublicAgentIngestRoute
+  '/chat': typeof AuthenticatedChatIndexRoute
   '/api/public/code/claim': typeof ApiPublicCodeClaimRoute
   '/api/public/code/finish': typeof ApiPublicCodeFinishRoute
   '/api/public/feeds/$sourceId': typeof ApiPublicFeedsSourceIdRoute
@@ -530,11 +577,13 @@ export interface FileRoutesByTo {
   '/api/public/github/manifest': typeof ApiPublicGithubManifestRoute
   '/api/public/github/setup': typeof ApiPublicGithubSetupRoute
   '/api/public/github/webhook': typeof ApiPublicGithubWebhookRoute
+  '/api/public/jobs/owner-alerts': typeof ApiPublicJobsOwnerAlertsRoute
   '/api/public/jobs/releases': typeof ApiPublicJobsReleasesRoute
   '/api/public/jobs/site-monitor': typeof ApiPublicJobsSiteMonitorRoute
   '/api/public/jobs/update-writer': typeof ApiPublicJobsUpdateWriterRoute
   '/api/public/omni/callback': typeof ApiPublicOmniCallbackRoute
   '/api/public/omni/link': typeof ApiPublicOmniLinkRoute
+  '/api/public/omni/runner': typeof ApiPublicOmniRunnerRoute
   '/api/public/updates/check': typeof ApiPublicUpdatesCheckRoute
   '/api/public/updates/flags': typeof ApiPublicUpdatesFlagsRoute
   '/api/public/updates/health': typeof ApiPublicUpdatesHealthRoute
@@ -560,7 +609,7 @@ export interface FileRoutesById {
   '/_authenticated/automation': typeof AuthenticatedAutomationRoute
   '/_authenticated/autopilot': typeof AuthenticatedAutopilotRoute
   '/_authenticated/blockers': typeof AuthenticatedBlockersRoute
-  '/_authenticated/chat': typeof AuthenticatedChatRoute
+  '/_authenticated/chat': typeof AuthenticatedChatRouteWithChildren
   '/_authenticated/connect': typeof AuthenticatedConnectRoute
   '/_authenticated/deployments': typeof AuthenticatedDeploymentsRoute
   '/_authenticated/discovery': typeof AuthenticatedDiscoveryRoute
@@ -575,10 +624,12 @@ export interface FileRoutesById {
   '/_authenticated/provider-access': typeof AuthenticatedProviderAccessRoute
   '/_authenticated/razul': typeof AuthenticatedRazulRoute
   '/_authenticated/releases': typeof AuthenticatedReleasesRoute
+  '/_authenticated/reports': typeof AuthenticatedReportsRoute
   '/_authenticated/research': typeof AuthenticatedResearchRoute
   '/_authenticated/security': typeof AuthenticatedSecurityRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/site-log': typeof AuthenticatedSiteLogRoute
+  '/_authenticated/tasks': typeof AuthenticatedTasksRoute
   '/_authenticated/update-docs': typeof AuthenticatedUpdateDocsRoute
   '/_authenticated/updates': typeof AuthenticatedUpdatesRoute
   '/_authenticated/workspace': typeof AuthenticatedWorkspaceRoute
@@ -587,10 +638,12 @@ export interface FileRoutesById {
   '/api/safety-status': typeof ApiSafetyStatusRoute
   '/api/transcribe': typeof ApiTranscribeRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
+  '/_authenticated/chat/$threadId': typeof AuthenticatedChatThreadIdRoute
   '/_authenticated/passport/$agentId': typeof AuthenticatedPassportAgentIdRoute
   '/_authenticated/project/$id': typeof AuthenticatedProjectIdRoute
   '/api/agent/manifest': typeof ApiAgentManifestRoute
   '/api/public/agent-ingest': typeof ApiPublicAgentIngestRoute
+  '/_authenticated/chat/': typeof AuthenticatedChatIndexRoute
   '/api/public/code/claim': typeof ApiPublicCodeClaimRoute
   '/api/public/code/finish': typeof ApiPublicCodeFinishRoute
   '/api/public/feeds/$sourceId': typeof ApiPublicFeedsSourceIdRoute
@@ -598,11 +651,13 @@ export interface FileRoutesById {
   '/api/public/github/manifest': typeof ApiPublicGithubManifestRoute
   '/api/public/github/setup': typeof ApiPublicGithubSetupRoute
   '/api/public/github/webhook': typeof ApiPublicGithubWebhookRoute
+  '/api/public/jobs/owner-alerts': typeof ApiPublicJobsOwnerAlertsRoute
   '/api/public/jobs/releases': typeof ApiPublicJobsReleasesRoute
   '/api/public/jobs/site-monitor': typeof ApiPublicJobsSiteMonitorRoute
   '/api/public/jobs/update-writer': typeof ApiPublicJobsUpdateWriterRoute
   '/api/public/omni/callback': typeof ApiPublicOmniCallbackRoute
   '/api/public/omni/link': typeof ApiPublicOmniLinkRoute
+  '/api/public/omni/runner': typeof ApiPublicOmniRunnerRoute
   '/api/public/updates/check': typeof ApiPublicUpdatesCheckRoute
   '/api/public/updates/flags': typeof ApiPublicUpdatesFlagsRoute
   '/api/public/updates/health': typeof ApiPublicUpdatesHealthRoute
@@ -644,10 +699,12 @@ export interface FileRouteTypes {
     | '/provider-access'
     | '/razul'
     | '/releases'
+    | '/reports'
     | '/research'
     | '/security'
     | '/settings'
     | '/site-log'
+    | '/tasks'
     | '/update-docs'
     | '/updates'
     | '/workspace'
@@ -655,10 +712,12 @@ export interface FileRouteTypes {
     | '/api/code'
     | '/api/safety-status'
     | '/api/transcribe'
+    | '/chat/$threadId'
     | '/passport/$agentId'
     | '/project/$id'
     | '/api/agent/manifest'
     | '/api/public/agent-ingest'
+    | '/chat/'
     | '/api/public/code/claim'
     | '/api/public/code/finish'
     | '/api/public/feeds/$sourceId'
@@ -666,11 +725,13 @@ export interface FileRouteTypes {
     | '/api/public/github/manifest'
     | '/api/public/github/setup'
     | '/api/public/github/webhook'
+    | '/api/public/jobs/owner-alerts'
     | '/api/public/jobs/releases'
     | '/api/public/jobs/site-monitor'
     | '/api/public/jobs/update-writer'
     | '/api/public/omni/callback'
     | '/api/public/omni/link'
+    | '/api/public/omni/runner'
     | '/api/public/updates/check'
     | '/api/public/updates/flags'
     | '/api/public/updates/health'
@@ -694,7 +755,6 @@ export interface FileRouteTypes {
     | '/automation'
     | '/autopilot'
     | '/blockers'
-    | '/chat'
     | '/connect'
     | '/deployments'
     | '/discovery'
@@ -709,10 +769,12 @@ export interface FileRouteTypes {
     | '/provider-access'
     | '/razul'
     | '/releases'
+    | '/reports'
     | '/research'
     | '/security'
     | '/settings'
     | '/site-log'
+    | '/tasks'
     | '/update-docs'
     | '/updates'
     | '/workspace'
@@ -721,10 +783,12 @@ export interface FileRouteTypes {
     | '/api/safety-status'
     | '/api/transcribe'
     | '/'
+    | '/chat/$threadId'
     | '/passport/$agentId'
     | '/project/$id'
     | '/api/agent/manifest'
     | '/api/public/agent-ingest'
+    | '/chat'
     | '/api/public/code/claim'
     | '/api/public/code/finish'
     | '/api/public/feeds/$sourceId'
@@ -732,11 +796,13 @@ export interface FileRouteTypes {
     | '/api/public/github/manifest'
     | '/api/public/github/setup'
     | '/api/public/github/webhook'
+    | '/api/public/jobs/owner-alerts'
     | '/api/public/jobs/releases'
     | '/api/public/jobs/site-monitor'
     | '/api/public/jobs/update-writer'
     | '/api/public/omni/callback'
     | '/api/public/omni/link'
+    | '/api/public/omni/runner'
     | '/api/public/updates/check'
     | '/api/public/updates/flags'
     | '/api/public/updates/health'
@@ -776,10 +842,12 @@ export interface FileRouteTypes {
     | '/_authenticated/provider-access'
     | '/_authenticated/razul'
     | '/_authenticated/releases'
+    | '/_authenticated/reports'
     | '/_authenticated/research'
     | '/_authenticated/security'
     | '/_authenticated/settings'
     | '/_authenticated/site-log'
+    | '/_authenticated/tasks'
     | '/_authenticated/update-docs'
     | '/_authenticated/updates'
     | '/_authenticated/workspace'
@@ -788,10 +856,12 @@ export interface FileRouteTypes {
     | '/api/safety-status'
     | '/api/transcribe'
     | '/_authenticated/'
+    | '/_authenticated/chat/$threadId'
     | '/_authenticated/passport/$agentId'
     | '/_authenticated/project/$id'
     | '/api/agent/manifest'
     | '/api/public/agent-ingest'
+    | '/_authenticated/chat/'
     | '/api/public/code/claim'
     | '/api/public/code/finish'
     | '/api/public/feeds/$sourceId'
@@ -799,11 +869,13 @@ export interface FileRouteTypes {
     | '/api/public/github/manifest'
     | '/api/public/github/setup'
     | '/api/public/github/webhook'
+    | '/api/public/jobs/owner-alerts'
     | '/api/public/jobs/releases'
     | '/api/public/jobs/site-monitor'
     | '/api/public/jobs/update-writer'
     | '/api/public/omni/callback'
     | '/api/public/omni/link'
+    | '/api/public/omni/runner'
     | '/api/public/updates/check'
     | '/api/public/updates/flags'
     | '/api/public/updates/health'
@@ -833,11 +905,13 @@ export interface RootRouteChildren {
   ApiPublicGithubManifestRoute: typeof ApiPublicGithubManifestRoute
   ApiPublicGithubSetupRoute: typeof ApiPublicGithubSetupRoute
   ApiPublicGithubWebhookRoute: typeof ApiPublicGithubWebhookRoute
+  ApiPublicJobsOwnerAlertsRoute: typeof ApiPublicJobsOwnerAlertsRoute
   ApiPublicJobsReleasesRoute: typeof ApiPublicJobsReleasesRoute
   ApiPublicJobsSiteMonitorRoute: typeof ApiPublicJobsSiteMonitorRoute
   ApiPublicJobsUpdateWriterRoute: typeof ApiPublicJobsUpdateWriterRoute
   ApiPublicOmniCallbackRoute: typeof ApiPublicOmniCallbackRoute
   ApiPublicOmniLinkRoute: typeof ApiPublicOmniLinkRoute
+  ApiPublicOmniRunnerRoute: typeof ApiPublicOmniRunnerRoute
   ApiPublicUpdatesCheckRoute: typeof ApiPublicUpdatesCheckRoute
   ApiPublicUpdatesFlagsRoute: typeof ApiPublicUpdatesFlagsRoute
   ApiPublicUpdatesHealthRoute: typeof ApiPublicUpdatesHealthRoute
@@ -1066,6 +1140,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedReleasesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/reports': {
+      id: '/_authenticated/reports'
+      path: '/reports'
+      fullPath: '/reports'
+      preLoaderRoute: typeof AuthenticatedReportsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/research': {
       id: '/_authenticated/research'
       path: '/research'
@@ -1092,6 +1173,13 @@ declare module '@tanstack/react-router' {
       path: '/site-log'
       fullPath: '/site-log'
       preLoaderRoute: typeof AuthenticatedSiteLogRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/tasks': {
+      id: '/_authenticated/tasks'
+      path: '/tasks'
+      fullPath: '/tasks'
+      preLoaderRoute: typeof AuthenticatedTasksRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/update-docs': {
@@ -1142,6 +1230,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/transcribe'
       preLoaderRoute: typeof ApiTranscribeRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/chat/': {
+      id: '/_authenticated/chat/'
+      path: '/'
+      fullPath: '/chat/'
+      preLoaderRoute: typeof AuthenticatedChatIndexRouteImport
+      parentRoute: typeof AuthenticatedChatRoute
+    }
+    '/_authenticated/chat/$threadId': {
+      id: '/_authenticated/chat/$threadId'
+      path: '/$threadId'
+      fullPath: '/chat/$threadId'
+      preLoaderRoute: typeof AuthenticatedChatThreadIdRouteImport
+      parentRoute: typeof AuthenticatedChatRoute
     }
     '/_authenticated/passport/$agentId': {
       id: '/_authenticated/passport/$agentId'
@@ -1220,6 +1322,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicGithubWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/jobs/owner-alerts': {
+      id: '/api/public/jobs/owner-alerts'
+      path: '/api/public/jobs/owner-alerts'
+      fullPath: '/api/public/jobs/owner-alerts'
+      preLoaderRoute: typeof ApiPublicJobsOwnerAlertsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/jobs/releases': {
       id: '/api/public/jobs/releases'
       path: '/api/public/jobs/releases'
@@ -1253,6 +1362,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/omni/link'
       fullPath: '/api/public/omni/link'
       preLoaderRoute: typeof ApiPublicOmniLinkRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/omni/runner': {
+      id: '/api/public/omni/runner'
+      path: '/api/public/omni/runner'
+      fullPath: '/api/public/omni/runner'
+      preLoaderRoute: typeof ApiPublicOmniRunnerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/updates/check': {
@@ -1307,6 +1423,19 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AuthenticatedChatRouteChildren {
+  AuthenticatedChatThreadIdRoute: typeof AuthenticatedChatThreadIdRoute
+  AuthenticatedChatIndexRoute: typeof AuthenticatedChatIndexRoute
+}
+
+const AuthenticatedChatRouteChildren: AuthenticatedChatRouteChildren = {
+  AuthenticatedChatThreadIdRoute: AuthenticatedChatThreadIdRoute,
+  AuthenticatedChatIndexRoute: AuthenticatedChatIndexRoute,
+}
+
+const AuthenticatedChatRouteWithChildren =
+  AuthenticatedChatRoute._addFileChildren(AuthenticatedChatRouteChildren)
+
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAccessRoute: typeof AuthenticatedAccessRoute
   AuthenticatedAccountRoute: typeof AuthenticatedAccountRoute
@@ -1317,7 +1446,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAutomationRoute: typeof AuthenticatedAutomationRoute
   AuthenticatedAutopilotRoute: typeof AuthenticatedAutopilotRoute
   AuthenticatedBlockersRoute: typeof AuthenticatedBlockersRoute
-  AuthenticatedChatRoute: typeof AuthenticatedChatRoute
+  AuthenticatedChatRoute: typeof AuthenticatedChatRouteWithChildren
   AuthenticatedConnectRoute: typeof AuthenticatedConnectRoute
   AuthenticatedDeploymentsRoute: typeof AuthenticatedDeploymentsRoute
   AuthenticatedDiscoveryRoute: typeof AuthenticatedDiscoveryRoute
@@ -1332,10 +1461,12 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedProviderAccessRoute: typeof AuthenticatedProviderAccessRoute
   AuthenticatedRazulRoute: typeof AuthenticatedRazulRoute
   AuthenticatedReleasesRoute: typeof AuthenticatedReleasesRoute
+  AuthenticatedReportsRoute: typeof AuthenticatedReportsRoute
   AuthenticatedResearchRoute: typeof AuthenticatedResearchRoute
   AuthenticatedSecurityRoute: typeof AuthenticatedSecurityRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedSiteLogRoute: typeof AuthenticatedSiteLogRoute
+  AuthenticatedTasksRoute: typeof AuthenticatedTasksRoute
   AuthenticatedUpdateDocsRoute: typeof AuthenticatedUpdateDocsRoute
   AuthenticatedUpdatesRoute: typeof AuthenticatedUpdatesRoute
   AuthenticatedWorkspaceRoute: typeof AuthenticatedWorkspaceRoute
@@ -1354,7 +1485,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAutomationRoute: AuthenticatedAutomationRoute,
   AuthenticatedAutopilotRoute: AuthenticatedAutopilotRoute,
   AuthenticatedBlockersRoute: AuthenticatedBlockersRoute,
-  AuthenticatedChatRoute: AuthenticatedChatRoute,
+  AuthenticatedChatRoute: AuthenticatedChatRouteWithChildren,
   AuthenticatedConnectRoute: AuthenticatedConnectRoute,
   AuthenticatedDeploymentsRoute: AuthenticatedDeploymentsRoute,
   AuthenticatedDiscoveryRoute: AuthenticatedDiscoveryRoute,
@@ -1369,10 +1500,12 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedProviderAccessRoute: AuthenticatedProviderAccessRoute,
   AuthenticatedRazulRoute: AuthenticatedRazulRoute,
   AuthenticatedReleasesRoute: AuthenticatedReleasesRoute,
+  AuthenticatedReportsRoute: AuthenticatedReportsRoute,
   AuthenticatedResearchRoute: AuthenticatedResearchRoute,
   AuthenticatedSecurityRoute: AuthenticatedSecurityRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedSiteLogRoute: AuthenticatedSiteLogRoute,
+  AuthenticatedTasksRoute: AuthenticatedTasksRoute,
   AuthenticatedUpdateDocsRoute: AuthenticatedUpdateDocsRoute,
   AuthenticatedUpdatesRoute: AuthenticatedUpdatesRoute,
   AuthenticatedWorkspaceRoute: AuthenticatedWorkspaceRoute,
@@ -1404,11 +1537,13 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicGithubManifestRoute: ApiPublicGithubManifestRoute,
   ApiPublicGithubSetupRoute: ApiPublicGithubSetupRoute,
   ApiPublicGithubWebhookRoute: ApiPublicGithubWebhookRoute,
+  ApiPublicJobsOwnerAlertsRoute: ApiPublicJobsOwnerAlertsRoute,
   ApiPublicJobsReleasesRoute: ApiPublicJobsReleasesRoute,
   ApiPublicJobsSiteMonitorRoute: ApiPublicJobsSiteMonitorRoute,
   ApiPublicJobsUpdateWriterRoute: ApiPublicJobsUpdateWriterRoute,
   ApiPublicOmniCallbackRoute: ApiPublicOmniCallbackRoute,
   ApiPublicOmniLinkRoute: ApiPublicOmniLinkRoute,
+  ApiPublicOmniRunnerRoute: ApiPublicOmniRunnerRoute,
   ApiPublicUpdatesCheckRoute: ApiPublicUpdatesCheckRoute,
   ApiPublicUpdatesFlagsRoute: ApiPublicUpdatesFlagsRoute,
   ApiPublicUpdatesHealthRoute: ApiPublicUpdatesHealthRoute,

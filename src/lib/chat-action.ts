@@ -2,6 +2,6 @@ import { GUIDELINES_PROMPT } from "./guidelines";
 export const ACTING_CHAT_POLICY = GUIDELINES_PROMPT + "\n\n" + "Start with one short line: You want: <the exact request>. For supported authorized requests call the tool now, not a promise or suggestion. If asked to check GitHub permissions use verifyPermissions for a fresh check. For a code request use createTask to save a request without executing, or use the scoped CODE card. Never imply work started without a stored running job. Finish briefly: Done (request stored or check completed) / In progress (running job link) / Blocked (exact cause and owner action). Only use links returned in tool evidence; never invent URLs. Risky actions keep their scoped Allow/Deny and passkey requirements. Do not ask generic confirm. Keep replies plain and short.";
 export type EvidenceLink = { label: string; url: string };
 export function safeEvidenceUrl(url: string): boolean {
-  if (/^\/(?:project\/[0-9a-f-]{36}|foundry|updates|settings|omni)(?:[?#].*)?$/.test(url)) return true;
+  if (/^\/(?:project\/[0-9a-f-]{36}|foundry|updates|settings|omni|tasks)(?:[?#].*)?$/.test(url)) return true;
   try { const u = new URL(url); return u.protocol === "https:" && !u.username && !u.password && u.hostname === "github.com" && /^\/[\w.-]+\/[\w.-]+(?:\/(?:tree|pull|issues|commit|actions\/runs)\/[^?#]+)?\/?$/.test(u.pathname); } catch { return false; }
 }

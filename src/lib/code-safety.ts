@@ -328,15 +328,28 @@ export function hardCapChangeBlockReason({ verified, evidence, current }: HardCa
   return null;
 }
 
-/** Environment policy may narrow stored approval, never add permission or a new workflow. */
+/** Environment policy may narrow stored approval, never add permission or a new workflow.
+ * A site is usable only when the passkey-approved database pin and CODE_TARGETS agree on repo, `main` and workflow SHA. */
 export function restrictCodeTargets(stored: Record<string, CodeTarget>, configured: string | undefined): Record<string, CodeTarget> {
   if (!configured) return {};
   const policy = parseCodeTargets(JSON.parse(configured));
   const entries = Object.entries(policy);
-  if (entries.length !== 1 || entries[0]?.[0] !== "OMERTA-ROW/jackboy-dev-control" || entries[0]?.[1].ref !== "main") {
-    throw new Error("CODE_TARGETS must allow only OMERTA-ROW/jackboy-dev-control on main.");
+  if (!entries.length || entries.some(([, target]) => target.ref !== "main")) {
+    throw new Error("CODE_TARGETS must list at least one repository, each on main only.");
   }
   return Object.fromEntries(entries.filter(([repo, target]) => stored[repo]?.ref === target.ref && stored[repo]?.workflowSha === target.workflowSha));
+}
+
+/** Owner-facing reason a repository has no usable CODE target. Wording only: the caller still refuses. */
+export function codeTargetRefusal(repo: string, allowed: Record<string, CodeTarget>): string | null {
+  const target = Object.hasOwn(allowed, repo) ? allowed[repo] : undefined;
+  if (target && /^[\w./-]{1,100}$/.test(target.ref) && /^[a-f0-9]{40}$/.test(target.workflowSha)) return null;
+  const names = Object.keys(allowed);
+  if (!names.length)
+    return `CODE refused ${repo}: no repository is currently allowed. The saved CODE_TARGETS setting is missing here or doesn't match the database pin, so nothing can run until the owner fixes that match.`;
+  if (!target)
+    return `CODE refused ${repo}: it isn't on the CODE allow list. Only ${names.join(", ")} is allowed. Adding another repository needs a separate owner approval.`;
+  return `CODE refused ${repo}: its approved branch or workflow version is invalid. The owner must re-approve the pin.`;
 }
 
 export function nextConsecutiveFailures(current: number, outcome: "success" | "failure") {

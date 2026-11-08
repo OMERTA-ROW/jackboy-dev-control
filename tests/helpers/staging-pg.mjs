@@ -62,6 +62,9 @@ export const supabaseStubs = `
   CREATE FUNCTION auth.role() RETURNS text LANGUAGE sql STABLE AS $$ SELECT 'anon' $$;
   CREATE SCHEMA extensions;
   CREATE SCHEMA storage;
+  CREATE FUNCTION storage.foldername(name text) RETURNS text[] LANGUAGE sql IMMUTABLE AS $$
+    SELECT (string_to_array(name, '/'))[1:array_length(string_to_array(name, '/'), 1) - 1]
+  $$;
   CREATE TABLE storage.buckets(id text PRIMARY KEY, name text, public boolean);
   CREATE TABLE storage.objects(id uuid DEFAULT gen_random_uuid(), bucket_id text, name text, owner uuid);
   ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;`;
@@ -103,6 +106,22 @@ export async function replay(db, { through = "9999", from = "0000", skip = [] } 
     }
   }
   return applied;
+}
+
+// Simulate an already-activated runtime in disposable databases without disabling the guard.
+export async function setActivatedControls(db, sql, params = []) {
+  const client = await db.pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT set_config('jackboy.code_activation', 'owner-enabled', true)");
+    await client.query(sql, params);
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 export async function closeAdmin() {

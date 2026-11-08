@@ -19,6 +19,8 @@ export const Route = createFileRoute("/api/public/jobs/releases")({
         const { autoconnectTick } = await import("@/lib/autoconnect.server");
         let autoconnect: unknown;
         try { autoconnect = await autoconnectTick(); } catch (e) { autoconnect = { error: (e as Error).message }; }
+        let tasks: unknown;
+        try { tasks = await (await import("@/lib/task-mode.server")).tickTasks(); } catch (e) { tasks = { error: (e as Error).message }; }
         const { deliverOutbox } = await import("@/lib/site-log.server");
         let outbox: unknown;
         try { outbox = await deliverOutbox(); } catch (e) { outbox = { error: (e as Error).message }; }
@@ -29,7 +31,7 @@ export const Route = createFileRoute("/api/public/jobs/releases")({
           const hs = o.omniConfigState().configured ? await o.omniHandshake("jackboy-cron") : { verified: false, error: "not configured" };
           omni = { handshake: hs, dispatch: "disabled_pending_scoped_authorization" };
         } catch (e) { omni = { error: (e as Error).message }; }
-        return Response.json({ releases, autopilot, foundry, autoconnect, outbox, omni });
+        return Response.json({ releases, autopilot, foundry, autoconnect, tasks, outbox, omni });
       },
     },
   },

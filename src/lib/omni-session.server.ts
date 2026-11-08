@@ -9,6 +9,7 @@ import {
   verifyRequest,
 } from "./omni-session";
 import { runProtocolSelfTest, protocolRunnerAvailable } from "./omni-session-runner.server";
+import { callRemoteRunner, remoteRunnerConfig, RUNNER_TIMEOUT_MS } from "./omni-remote-runner";
 
 export type LinkConfig = {
   clientId: string;
@@ -103,9 +104,13 @@ export async function handleOmniLink(
   request: Request,
   c: LinkConfig | null = linkConfig(),
   store: LinkStore = databaseStore,
-  runner = runProtocolSelfTest,
+  runner?: (signal: AbortSignal) => Promise<boolean>,
   env: Record<string, string | undefined> = process.env,
+  fetcher: typeof fetch = fetch,
 ): Promise<Response> {
+  // Local Node runner first; otherwise the stateless remote runner (live site keeps all checks/storage).
+  const remote = protocolRunnerAvailable() ? null : remoteRunnerConfig(env);
+  const runnerReady = protocolRunnerAvailable() || Boolean(remote) || Boolean(runner);
   const plain = (status: number, error: string) =>
     Response.json({ error }, { status, headers: { "Cache-Control": "no-store" } });
   if (!c) return plain(503, "link_disabled");
@@ -168,7 +173,7 @@ export async function handleOmniLink(
       return await deny(401, "authentication_failed");
     if (action !== "submit" && input["kind"] !== undefined)
       return await deny(400, "invalid_request");
-    if (["submit", "run"].includes(String(action)) && !protocolRunnerAvailable())
+    if (["submit", "run"].includes(String(action)) && !runnerReady)
       return await deny(503, "runner_unavailable");
     const nonce = request.headers.get("x-omni-nonce")!;
     const sessionToken =
@@ -183,9 +188,10 @@ export async function handleOmniLink(
     };
     let out = await store(String(action), args);
     if (out.http >= 400) return await deny(out.http, out.error || "request_denied");
+    let runnerError: string | undefined;
     if (action === "run" && out.claimed) {
       const abort = new AbortController();
-      const timer = setTimeout(() => abort.abort(), 3500);
+      const timer = setTimeout(() => abort.abort(), remote && !runner ? RUNNER_TIMEOUT_MS + 1000 : 3500);
       let polling = false;
       const monitor = setInterval(() => {
         if (polling) return;
@@ -201,7 +207,14 @@ export async function handleOmniLink(
       }, 100);
       let passed = false;
       try {
-        passed = await runner(abort.signal);
+        if (runner) passed = await runner(abort.signal);
+        else if (remote) {
+          const r = await callRemoteRunner(remote, String(input["jobId"]), abort.signal, fetcher);
+          passed = r.passed;
+          runnerError = r.error;
+        } else passed = await runProtocolSelfTest(abort.signal);
+      } catch {
+        passed = false;
       } finally {
         clearTimeout(timer);
         clearInterval(monitor);
@@ -212,11 +225,12 @@ export async function handleOmniLink(
       contract: LINK_CONTRACT,
       requestNonce: nonce,
       ...out,
+      ...(runnerError ? { runnerError } : {}),
       ...(action === "handshake"
         ? {
             sessionToken,
             capabilities: SCOPES,
-            ready: protocolRunnerAvailable(),
+            ready: runnerReady,
             execution: "fixed-protocol-self-test-only",
           }
         : {}),

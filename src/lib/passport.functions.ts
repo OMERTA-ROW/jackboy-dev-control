@@ -120,10 +120,15 @@ export const requestOmniJob = createServerFn({ method: "POST" })
     if ((await role(context)) === "member") throw new Error("Owner or admin only.");
     const { data: project, error: projectError } = await context.supabase
       .from("agent_projects")
-      .select("id")
+      .select("id, repo_url")
       .eq("id", data.projectId)
       .maybeSingle();
     if (projectError || !project) throw new Error("Project not found.");
+    // The repository comes from the project's own linked repo, never from the request.
+    const repo =
+      (project as { repo_url?: string | null }).repo_url?.match(
+        /^https:\/\/github\.com\/([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)$/,
+      )?.[1] ?? null;
     if (data.agentId) {
       const { data: agent } = await context.supabase
         .from("agents")
@@ -149,6 +154,7 @@ export const requestOmniJob = createServerFn({ method: "POST" })
         report_id: data.reportId ?? null,
         kind: data.kind,
         instructions: data.instructions,
+        repo,
         created_by: context.userId,
       });
     if (error) throw new Error(error.message);

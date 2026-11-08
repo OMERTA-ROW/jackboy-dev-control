@@ -55,12 +55,16 @@ export function newProjectInput(r: ConnectRow) {
 
 export type AgentState = { label: "Online" | "Working" | "Blocked" | "Offline"; reason: string };
 const WORKING = new Set(["discovered", "analyzing", "patch_prepared", "testing", "approved", "executing", "verifying"]);
+const STEP_TEXT: Record<string, string> = {
+  discovered: "Found something to fix", analyzing: "Writing a minimal fix", patch_prepared: "Fix saved on a branch",
+  testing: "Checking the fix", approved: "Approved, about to run", executing: "Running the approved step", verifying: "Verifying the result",
+};
 /** Truthful status for one project's coding loop, from real Foundry task states only. */
-export function agentState(repoOk: boolean, tasks: { state: string; blocked_reason?: string | null; paused?: boolean }[]): AgentState {
+export function agentState(repoOk: boolean, tasks: { state: string; blocked_reason?: string | null; paused?: boolean; title?: string | null }[]): AgentState {
   if (!repoOk) return { label: "Offline", reason: "No writable repo linked" };
   const blocked = tasks.find((t) => t.state === "blocked" || t.paused);
   const working = tasks.find((t) => WORKING.has(t.state));
-  if (working) return { label: "Working", reason: `Task ${working.state.replace("_", " ")}` };
+  if (working) return { label: "Working", reason: `${STEP_TEXT[working.state] ?? working.state.replace("_", " ")}${working.title ? ` — ${working.title}` : ""}` };
   if (blocked) return { label: "Blocked", reason: blocked.blocked_reason ?? (blocked.paused ? "Paused" : "Blocked") };
   return { label: "Online", reason: tasks.some((t) => t.state === "awaiting_approval") ? "Waiting for your approval" : "Idle, ready" };
 }
@@ -78,4 +82,53 @@ export function devPriority(name: string): number {
 }
 export function byPriority<T extends { name: string }>(rows: T[]): T[] {
   return [...rows].sort((a, b) => devPriority(a.name) - devPriority(b.name) || a.name.localeCompare(b.name));
+}
+
+/** Background work state for one row. "Activate" is offered only when ready; a broken connection needs Reconnect first,
+ * and a successful reconnect leaves background work off until the owner activates it again. */
+export type BackgroundState = "not_connected" | "needs_reconnect" | "ready" | "active";
+export function backgroundState(r: Pick<ConnectRow, "status" | "devEnabled">): BackgroundState {
+  if (r.status === "saved_only" || r.status === "connected_no_repo") return "not_connected";
+  if (r.status === "repo_error") return "needs_reconnect";
+  return r.devEnabled ? "active" : "ready";
+}
+
+/** Which bulk buttons apply to the selection. A button with nothing to do is hidden, so it can't show a stale action. */
+export function bulkPlan(rows: ConnectRow[]) {
+  return {
+    connect: rows.filter((r) => r.status === "saved_only" || r.status === "repo_error"),
+    needsRepo: rows.filter((r) => r.status === "connected_no_repo"),
+    activate: rows.filter((r) => backgroundState(r) === "ready"),
+    deactivate: rows.filter((r) => r.devEnabled),
+    active: rows.filter((r) => backgroundState(r) === "active"),
+    loop: rows.filter((r) => loopEligible(r).ok),
+  };
+}
+
+/** One coding-loop run on one project, as seen live in the browser. */
+export type LoopRun = { phase: "queued" | "running" | "done" | "blocked" | "failed"; startedAt: number; endedAt?: number; step: string; result?: string };
+export type LoopEvent = { project_id: string | null; action: string; to_state: string | null; note: string | null; created_at: string };
+
+/** Latest real milestone of a running inspection, from the server's own event trail (oldest → newest). */
+export function loopStep(events: LoopEvent[]): string {
+  const e = events.at(-1);
+  if (!e) return "Opening the repository…";
+  if (e.action === "inspect_started") return e.note || "Reading the repository…";
+  if (e.action === "code_scan") return e.note || "Scan finished.";
+  if (e.action === "transition" && e.to_state) return STEP_TEXT[e.to_state] ? `${STEP_TEXT[e.to_state]}…` : e.to_state === "awaiting_approval" ? "Ready for your review" : e.note || e.to_state;
+  return e.note || e.action.replace(/_/g, " ");
+}
+
+type InspectResult = { created?: number; blocked?: string; findings?: number; inspectedFiles?: number };
+/** Final, plain result line for a finished run. */
+export function loopResult(v: InspectResult): { phase: "done" | "blocked"; text: string } {
+  if (v.blocked) return { phase: v.blocked.startsWith("Queued") ? "done" : "blocked", text: v.blocked };
+  const files = v.inspectedFiles ?? 0;
+  if (v.created) return { phase: "done", text: `Inspected ${files} files; prepared ${v.created} change on a branch — review it in Code Foundry` };
+  return { phase: "done", text: `Inspected ${files} files; nothing new to fix` };
+}
+
+export function elapsed(ms: number): string {
+  const s = Math.max(0, Math.round(ms / 1000));
+  return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`;
 }

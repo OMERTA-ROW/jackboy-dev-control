@@ -77,3 +77,14 @@ export function cardConnection(p: { github_repo: string | null; repo_sync_status
   if (check.prWrite !== "verified") return { label: "Connected (read only)", tone: "warn", detail: "Read verified; pull request write not verified", next: "Grant Pull requests: write to the GitHub App for this repo.", checkedAt: check.checkedAt };
   return { label: "Connected", tone: "ok", detail: "Read and pull request write verified", next: null, checkedAt: check.checkedAt };
 }
+
+/** Label for a project card's connect button. "Reconnect" appears only when the connection is actually broken;
+ * a healthy linked repo shows "Connected" so the button never asks for an action that's already done. */
+export function connectButtonLabel(
+  p: { github_repo: string | null; repo_sync_status?: string; connect_state?: string | null; connect_error?: string | null },
+  tone?: "ok" | "warn" | "error" | "muted",
+): "Connect" | "Reconnect" | "Connected" {
+  if (!p.github_repo) return "Connect";
+  const broken = p.repo_sync_status === "deleted" || p.repo_sync_status === "moved" || p.connect_state === "error" || Boolean(p.connect_error) || tone === "error";
+  return broken ? "Reconnect" : "Connected";
+}

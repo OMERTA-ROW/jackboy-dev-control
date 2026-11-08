@@ -14,6 +14,7 @@ import {
   safeEqual,
   type JobResult,
 } from "./omni-link";
+import { LINK_AGED_MESSAGE, LINK_CONFIG_CHANGED_MESSAGE } from "./omni-handoff-auth";
 
 function config() {
   const url = process.env["OMNI_API_URL"], key = process.env["OMNI_API_KEY"], secret = process.env["OMNI_CALLBACK_SECRET"];
@@ -108,7 +109,8 @@ export async function applyOmniResult(nonce: string, r: JobResult) {
 export async function isOmniVerified() {
   const c = config(), expectedHash = await configHash(c);
   if (!expectedHash) {
-    await setConnection({ verified: false, verified_at: null, config_hash: null });
+    // Missing settings count as a lost link: the DB trigger revokes live OMNI job approvals.
+    await setConnection({ verified: false, verified_at: null, config_hash: null, last_error: `Missing secrets: ${c.missing.join(", ")}` });
     return false;
   }
   const { data, error } = await supabaseAdmin
@@ -118,11 +120,14 @@ export async function isOmniVerified() {
     .maybeSingle();
   if (error || isOmniVerificationFresh(data, expectedHash)) return !error;
   if (data?.verified) {
+    // Only a merely aged check keeps live approvals (still unusable until re-checked);
+    // a settings change is a lost link and revokes them (see omni_link_lost_revoke).
+    const changed = data.config_hash !== expectedHash;
     await setConnection({
       verified: false,
       verified_at: null,
       config_hash: null,
-      last_error: "OMNI verification is stale or no longer matches configuration.",
+      last_error: changed ? LINK_CONFIG_CHANGED_MESSAGE : LINK_AGED_MESSAGE,
     });
   }
   return false;
