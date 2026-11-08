@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { codeVoiceDecision, parseCodeCommand, type CodeCard } from "@/lib/code";
+import { codeRunProgress, codeVoiceDecision, parseCodeCommand, type CodeCard } from "@/lib/code";
 import { CodeUndoButton } from "./CodeUndoButton";
 import { VerifiedActivity } from "./chat/ChatActivity";
 
@@ -101,11 +101,20 @@ export function CodeTasks({ tasks }: { tasks: ReturnType<typeof useCodeTasks> })
     {tasks.cards.map(card => {
       const pending = card.status === "pending", expired = Date.parse(card.expiresAt) <= now;
       const terminal = card.run?.status === "completed";
+      const progress = card.run ? codeRunProgress(card.run.jobs) : null;
       return <article key={card.id} aria-label={`CODE job ${card.id}`} className="rounded-2xl border border-border p-4 text-sm">
         <p className="font-semibold">CODE · {card.repo}</p>
         <p className="mt-1 whitespace-pre-wrap">{card.instruction}</p>
         <p className="mt-2 break-all text-xs text-muted-foreground">Job / approval ID: {card.id}</p>
         <p role="status" className="mt-1">{pending ? expired ? "Approval expired" : "Waiting for your approval" : card.run ? `${card.run.status} · ${card.run.conclusion ?? "in progress"}` : card.status}</p>
+        {progress ? <div className="mt-2">
+          <div className="flex justify-between text-xs text-muted-foreground">
+            <span>GitHub Actions jobs completed</span>
+            <span>{progress.completed} of {progress.total}</span>
+          </div>
+          <progress className="mt-1 h-2 w-full accent-[var(--electric)]" value={progress.completed} max={progress.total} aria-label={`GitHub Actions jobs completed: ${progress.completed} of ${progress.total}`} />
+        </div> : card.run && <p className="mt-2 text-xs text-muted-foreground">Waiting for GitHub Actions job records; no progress estimate is available.</p>}
+        {card.run?.updatedAt && Number.isFinite(Date.parse(card.run.updatedAt)) && <p className="mt-1 text-xs text-muted-foreground">GitHub last updated {new Date(card.run.updatedAt).toLocaleString()}.</p>}
         {pending && <>
           <p className="mt-2">Target: {card.repo}. Permissions: {card.permissions.join("; ")}.</p>
           <p className="mt-1">Configured task spend reservation at request creation: {card.taskBudgetUsd == null ? "unavailable" : `up to $${card.taskBudgetUsd.toFixed(2)}`}. This is a ceiling, not a cost forecast or daily-cap guarantee; runtime admission rechecks current controls.</p>

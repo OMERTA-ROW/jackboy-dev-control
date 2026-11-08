@@ -386,6 +386,13 @@
       "when": 1794098970048,
       "tag": "0054_chat_threads_contexts_attachments",
       "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1794114805000,
+      "tag": "0055_omni_authorization_expiry",
+      "breakpoints": true
     }
   ]
 }

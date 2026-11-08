@@ -142,7 +142,7 @@ export async function requestCode(
   } catch { /* trial labels never block CODE */ }
   return { ...(await getCode(id, userId)), nonce };
 }
-type Run = { id: number; display_title: string; status: string; conclusion: string | null; html_url: string };
+type Run = { id: number; display_title: string; status: string; conclusion: string | null; html_url: string; updated_at?: string };
 async function findRun(scope: CodeScope): Promise<Run | undefined> {
   if (scope.runId) {
     const run = await gh<Run>(scope.repo, `/actions/runs/${scope.runId}`);
@@ -175,7 +175,7 @@ export async function getCode(id: string, userId: string): Promise<CodeCard> {
   ]);
   const url = codeLink(run.html_url, s.repo);
   if (!url) throw new Error("GitHub returned an invalid CODE run link.");
-  return { ...card, run: { id: run.id, status: run.status, conclusion: run.conclusion, url, jobs: jobs.jobs.map(j => ({ name: j.name, status: j.status, conclusion: j.conclusion })), downloads: artifacts.artifacts.filter(a => !a.expired).flatMap(a => { const u = codeLink(`${url}/artifacts/${a.id}`, s.repo); return u ? [{ name: a.name, url: u }] : []; }), pr: codeLink(prs.find(p => p.draft)?.html_url, s.repo) } };
+  return { ...card, run: { id: run.id, status: run.status, conclusion: run.conclusion, updatedAt: run.updated_at ?? null, url, jobs: jobs.jobs.map(j => ({ name: j.name, status: j.status, conclusion: j.conclusion })), downloads: artifacts.artifacts.filter(a => !a.expired).flatMap(a => { const u = codeLink(`${url}/artifacts/${a.id}`, s.repo); return u ? [{ name: a.name, url: u }] : []; }), pr: codeLink(prs.find(p => p.draft)?.html_url, s.repo) } };
 }
 export async function decideCode(id: string, nonce: string, decision: "allow" | "deny", userId: string, sessionHash: string) {
   const r = await row(id, userId), scope = r.resources as unknown as CodeScope;

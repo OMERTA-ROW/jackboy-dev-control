@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { REVERSE_LINK_VARS, reverseLinkReport } from "./omni-link-readiness";
+import { remoteRunnerDiagnostic } from "./omni-remote-runner";
 
 const full = Object.fromEntries(REVERSE_LINK_VARS.map((n) => [n, n === "OMNI_LINK_ENABLED" ? "true" : "x"]));
 const now = Date.parse("2026-11-03T23:00:00Z");
@@ -27,5 +28,24 @@ describe("OMNI-initiated link readiness", () => {
   it("legacy OMNI keys alone never pass", () => {
     const r = reverseLinkReport({ env: { OMNI_API_KEY: "x", OMNI_CALLBACK_SECRET: "y" }, configValid: false, storageReady: false, lastSessionAt: null });
     expect(r.verified).toBe(false);
+  });
+  it("explains disabled, malformed and duplicated runner endpoints without exposing values", () => {
+    const enabled = {
+      OMNI_LINK_REMOTE_RUNNER_ENABLED: "true",
+      OMNI_LINK_REMOTE_RUNNER_SECRET: "private-runner-secret",
+    };
+    expect(remoteRunnerDiagnostic({})).toContain("disabled");
+    expect(remoteRunnerDiagnostic({ ...enabled, OMNI_LINK_REMOTE_RUNNER_URL: "not-a-url" })).toContain("not a valid URL");
+    const duplicated = remoteRunnerDiagnostic({
+      ...enabled,
+      OMNI_LINK_REMOTE_RUNNER_URL: "https://runner.example/api/public/omni/runner",
+    });
+    expect(duplicated).toContain("avoid a duplicated endpoint");
+    expect(duplicated).not.toContain("private-runner-secret");
+    expect(remoteRunnerDiagnostic({
+      ...enabled,
+      OMNI_LINK_REMOTE_RUNNER_URL: "https://runner.example",
+      OMNI_LINK_REMOTE_RUNNER_SECRET: "x".repeat(32),
+    })).toContain("does not test live reachability");
   });
 });

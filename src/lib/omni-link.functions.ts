@@ -13,9 +13,8 @@ export const getOmniLink = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     await requireOwner(context);
-    const { omniConfigState } = await import("./omni-link.server");
-    const [conn, jobs] = await Promise.all([
-      context.supabase.from("omni_connection").select("*").eq("id", true).maybeSingle(),
+    const { isOmniVerified, omniConfigState } = await import("./omni-link.server");
+    const [jobs, live] = await Promise.all([
       context.supabase
         .from("omni_jobs")
         .select(
@@ -23,11 +22,29 @@ export const getOmniLink = createServerFn({ method: "POST" })
         )
         .order("created_at", { ascending: false })
         .limit(25),
+      isOmniVerified(),
     ]);
+    const { data: conn, error: connError } = await context.supabase
+      .from("omni_connection")
+      .select("verified_at, last_checked_at, last_error")
+      .eq("id", true)
+      .maybeSingle();
+    if (jobs.error || connError) throw new Error("OMNI connection diagnostics could not be loaded.");
+    const { safeOmniDiagnostic, safeOmniPullRequestUrl } = await import("./omni-link");
     return {
       config: omniConfigState(),
-      connection: conn.data,
-      jobs: (jobs.data ?? []).map((j) => ({ ...j, instructions: j.instructions.slice(0, 160) })),
+      connection: {
+        verified: live,
+        verified_at: live ? conn?.verified_at ?? null : null,
+        last_checked_at: conn?.last_checked_at ?? null,
+        last_error: live ? null : safeOmniDiagnostic(conn?.last_error),
+      },
+      jobs: (jobs.data ?? []).map((j) => ({
+        ...j,
+        instructions: j.instructions.slice(0, 160),
+        last_error: safeOmniDiagnostic(j.last_error),
+        pr_url: safeOmniPullRequestUrl(j.pr_url),
+      })),
     };
   });
 
@@ -47,7 +64,12 @@ export const probeOmniConnection = createServerFn({ method: "POST" })
     await requireOwner(context);
     const { linkConfig } = await import("./omni-session.server");
     const { reverseLinkReport, REVERSE_LINK_VARS } = await import("./omni-link-readiness");
+    const { remoteRunnerDiagnostic } = await import("./omni-remote-runner");
     const env = Object.fromEntries(REVERSE_LINK_VARS.map((n) => [n, process.env[n]]));
+    const runnerEnv = Object.fromEntries(
+      ["OMNI_LINK_REMOTE_RUNNER_ENABLED", "OMNI_LINK_REMOTE_RUNNER_URL", "OMNI_LINK_REMOTE_RUNNER_SECRET"]
+        .map((n) => [n, process.env[n]]),
+    );
     const db = (await import("./untyped-db")).untyped(
       (await import("@/integrations/supabase/client.server")).supabaseAdmin,
     );
@@ -63,6 +85,7 @@ export const probeOmniConnection = createServerFn({ method: "POST" })
       configValid: linkConfig() !== null,
       storageReady: !error && Array.isArray(data),
       lastSessionAt: rows[0]?.expires_at ?? null,
+      runnerDiagnostic: remoteRunnerDiagnostic(runnerEnv),
     });
     return { ...report, error: report.verified ? null : report.missing.join(" · ") };
   });

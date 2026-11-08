@@ -132,12 +132,16 @@ function InternalTaskQueue() {
   const [instructions, setInstructions] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const refresh = async () => {
+    setRefreshing(true);
     try {
       setData(await load());
       setError("");
     } catch (e) {
       setError((e as Error).message);
+    } finally {
+      setRefreshing(false);
     }
   };
   useEffect(() => {
@@ -148,8 +152,12 @@ function InternalTaskQueue() {
       <h2 className="text-lg font-semibold text-silver">Internal build tasks</h2>
       <p className="mt-1 text-xs text-muted-foreground">
         Record development work in Jackboy. OMNI has no verified dispatcher; queued tasks stay here until an
-        authenticated connection is built and tested.
+        authenticated connection is built and tested. A queue record does not start a build in OMNI or Orbiting Minds
+        Mothership; Guardian remains pending until a real authorized check is available.
       </p>
+      <button type="button" className="mt-2 rounded-md border border-border px-3 py-1.5 text-xs disabled:opacity-50" disabled={refreshing} onClick={() => void refresh()}>
+        {refreshing ? "Refreshing…" : "Refresh task status"}
+      </button>
       {error && (
         <p role="alert" className="mt-2 text-sm text-destructive">
           {error}
@@ -227,8 +235,12 @@ function InternalTaskQueue() {
             </span>
             <p className="mt-1 whitespace-pre-wrap text-xs">{j.instructions}</p>
             <p className="mt-1 text-xs text-warning">
-              {j.sent_at ? j.status : "Queued here — not sent to OMNI"} · Guardian {j.guardian_verdict}
+              {j.sent_at ? `OMNI reported: ${j.status}` : "Queued here — not sent to OMNI"} · Guardian {j.guardian_verdict}
             </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {j.sent_at ? `Sent ${new Date(j.sent_at).toLocaleString()}` : `Recorded ${new Date(j.created_at).toLocaleString()}`}
+            </p>
+            {j.pr_url && <a className="mt-1 inline-block text-xs text-primary underline" href={j.pr_url} target="_blank" rel="noreferrer">Review reported draft PR</a>}
           </li>
         ))}
       </ul>

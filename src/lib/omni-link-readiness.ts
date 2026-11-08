@@ -27,6 +27,8 @@ export function reverseLinkReport(input: {
   now?: number;
   /** "local" Node runner, "remote" stateless runner, or "none"; omitted = not reported. */
   runner?: "local" | "remote" | "none";
+  /** Safe diagnostic derived from configuration; must never include environment values. */
+  runnerDiagnostic?: string;
 }): ReverseLinkReport {
   const missingVars = REVERSE_LINK_VARS.filter((n) => !input.env[n]);
   const enabledFlag = input.env["OMNI_LINK_ENABLED"] === "true";
@@ -53,7 +55,7 @@ export function reverseLinkReport(input: {
       name: "Unexpired OMNI session",
       ok: activeSession,
       detail: input.lastSessionAt
-        ? activeSession ? `Session expires ${input.lastSessionAt}; live bridge reachability not tested` : "Last recorded OMNI session expired or has an invalid expiry; a fresh handshake is required"
+        ? activeSession ? `Session expires ${input.lastSessionAt}; live bridge reachability not tested` : "Last recorded OMNI session expired or has an invalid expiry; OMNI must establish a fresh session. This check does not initiate one."
         : "No OMNI-initiated session recorded yet; OMNI must call /api/public/omni/link",
     },
   ];
@@ -65,8 +67,8 @@ export function reverseLinkReport(input: {
         input.runner === "local"
           ? "Local Node runner enabled"
           : input.runner === "remote"
-            ? "Remote runner configured; reachability is proven only by a real omni-link run"
-            : "No runner: set OMNI_LINK_REMOTE_RUNNER_ENABLED/_URL/_SECRET, or submit/run returns runner_unavailable",
+            ? input.runnerDiagnostic ?? "Remote runner configuration passes; live reachability is not tested."
+            : input.runnerDiagnostic ?? "No runner: set OMNI_LINK_REMOTE_RUNNER_ENABLED/_URL/_SECRET, or submit/run returns runner_unavailable",
     });
   const missing = steps.filter((s) => !s.ok).map((s) => s.detail);
   return { direction: "omni-initiated", contract: "omni.link/v2", verified: missing.length === 0, missing, steps };
