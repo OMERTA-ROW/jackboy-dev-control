@@ -386,6 +386,20 @@
       "when": 1794098970048,
       "tag": "0054_chat_threads_contexts_attachments",
       "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1794106108764,
+      "tag": "0055_owner_omni_handoffs_jax_manifests",
+      "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1794106131037,
+      "tag": "0056_owner_omni_jax_tighten_grants",
+      "breakpoints": true
     }
   ]
 }

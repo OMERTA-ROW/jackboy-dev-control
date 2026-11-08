@@ -1,6 +1,3 @@
-import { useSyncExternalStore } from "react";
-import { log } from "./jackboy-store";
-
 export type HandoffStatus = "draft" | "pending" | "approved" | "rejected";
 export type Revenue = {
   saas: { price: number; subscribers: number };
@@ -85,33 +82,5 @@ ${Object.entries(h.approvals).map(([k, v]) => `- ${k}: ${v ? "approved" : "not a
 `;
 }
 
-type S = { handoffs: Handoff[] };
-const KEY = "jackboy:omni:v1";
-const initial: S = { handoffs: [] };
-let state = initial; let loaded = false;
-const ls = new Set<() => void>();
-function load() {
-  if (loaded || typeof window === "undefined") return;
-  loaded = true;
-  try { const r = localStorage.getItem(KEY); if (r) state = { ...initial, ...JSON.parse(r) }; } catch { /* ignore */ }
-}
-function set(fn: (s: S) => S, msg?: string, level: "info" | "approval" = "info") {
-  load(); state = fn(state);
-  if (typeof window !== "undefined") localStorage.setItem(KEY, JSON.stringify(state));
-  ls.forEach((l) => l());
-  if (msg) log(level, `OMNI handoff: ${msg}`);
-}
-export function addHandoff(h: Omit<Handoff, "id" | "createdAt" | "status" | "revenue" | "provenance" | "approvals">) {
-  set((s) => ({ handoffs: [{ ...h, id: crypto.randomUUID(), createdAt: new Date().toISOString(), status: "pending", revenue: DEFAULT_REVENUE,
-    provenance: { ownershipConfirmed: false, ossReviewed: false, noScrapedOrUnlicensed: false, notes: "" },
-    approvals: { publish: false, pricing: false, deploy: false, sell: false } }, ...s.handoffs] }), `queued "${h.title}" for owner review`);
-}
-export function updateHandoff(id: string, fn: (h: Handoff) => Handoff, msg?: string, level: "info" | "approval" = "info") {
-  set((s) => ({ handoffs: s.handoffs.map((h) => (h.id === id ? fn(h) : h)) }), msg, level);
-}
-export function removeHandoff(id: string) {
-  set((s) => ({ handoffs: s.handoffs.filter((h) => h.id !== id) }), "removed a handoff");
-}
-export function useHandoffs() {
-  return useSyncExternalStore((l) => { ls.add(l); if (!loaded) { load(); queueMicrotask(l); } return () => ls.delete(l); }, () => state, () => initial).handoffs;
-}
+// Handoffs are stored per owner in the database (owner-records.functions.ts). Older browser-only
+// copies under "jackboy:omni:v1" are read only for the one-press import and never modified.

@@ -1,5 +1,12 @@
 # Jackboy roadmap
 
+## OMNI handoffs + JAX drafts saved to the owner's account (Nov 8, 02:46 UTC)
+- [x] Owner-approved storage (journal 0055 + 0056): each owner sees only their own records, signed-out visitors nothing, no deletes (archive), original browser record kept unchanged, approval rules enforced by the database. 5 isolated database tests + 9 rule tests.
+- [x] OMNI page and JAX page read/save from the account; one-press "Import to my account" for records saved only in a browser (repeat-safe, browser copy kept); clear Saved/Not saved messages. Preview import tried signed in with a labelled test record (removed afterwards).
+- [x] Both queued OMNI builds unchanged (still queued, unsent).
+- [ ] Approval expiry: preview still reads it as ended ~29 h ago — owner re-saves the new expiry in Jackboy's secrets, then publishes.
+- [ ] Publish — owner choice.
+
 ## Jackboy Chat upgrade (Nov 8, 00:44 UTC)
 - [x] Conversations saved to the owner's account (own page per conversation), searchable, with one-press import of conversations saved only on this device.
 - [x] "Talk to" switcher: Jackboy, OMNI, JAX, Razul, Iggy, other owner-added agents and projects — replies use only stored notes; empty notes are said plainly.
