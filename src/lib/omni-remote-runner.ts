@@ -24,8 +24,19 @@ export function remoteRunnerDiagnostic(env: Env): string {
     return "Remote self-test runner is disabled; this readiness check does not enable it.";
   if (!env["OMNI_LINK_REMOTE_RUNNER_URL"])
     return "OMNI_LINK_REMOTE_RUNNER_URL is missing.";
-  if (!runnerOrigin(env["OMNI_LINK_REMOTE_RUNNER_URL"]))
-    return "OMNI_LINK_REMOTE_RUNNER_URL must be the runner's https address with no path, query or credentials (for example https://name.up.railway.app); Jackboy appends /api/public/omni/runner itself.";
+  if (!runnerOrigin(env["OMNI_LINK_REMOTE_RUNNER_URL"])) {
+    const v = env["OMNI_LINK_REMOTE_RUNNER_URL"].trim();
+    let u: URL;
+    try {
+      u = new URL(BARE_HOST.test(v) ? `https://${v}` : v);
+    } catch {
+      return "OMNI_LINK_REMOTE_RUNNER_URL is not a valid URL; use the runner's https address (for example https://name.up.railway.app).";
+    }
+    if (u.protocol !== "https:") return "OMNI_LINK_REMOTE_RUNNER_URL must use HTTPS.";
+    if (u.username || u.password || u.search || u.hash)
+      return "OMNI_LINK_REMOTE_RUNNER_URL must not contain credentials, a query, or a fragment.";
+    return "OMNI_LINK_REMOTE_RUNNER_URL must be a bare origin; Jackboy appends /api/public/omni/runner, so remove any configured path to avoid a duplicated endpoint.";
+  }
   if (!validRunnerSecret(env["OMNI_LINK_REMOTE_RUNNER_SECRET"]))
     return "OMNI_LINK_REMOTE_RUNNER_SECRET must be configured as a managed secret.";
   return "Remote runner origin is configured; this read-only check does not test live reachability.";
