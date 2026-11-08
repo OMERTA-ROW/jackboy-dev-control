@@ -99,6 +99,18 @@ export const deleteChatThread = createServerFn({ method: "POST" }).middleware([r
     return { deleted: true, attachmentsLeft: removed.error ? names.length : 0 };
   });
 
+export const renameChatThread = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: uuid, title: z.string().trim().min(1).max(120) }).strict().parse(d))
+  .handler(async ({ context, data }) => {
+    const { db, userId } = await owner(context);
+    const { data: thread, error } = await db.from("chat_threads")
+      .update({ title: data.title, updated_at: new Date().toISOString() })
+      .eq("id", data.id).eq("owner_id", userId).select("id").maybeSingle();
+    if (error) throw new Error(`Couldn't rename conversation: ${error.message}`);
+    if (!thread) throw new Error("Conversation not found.");
+    return { title: data.title };
+  });
+
 export const searchChatHistory = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ q: z.string().max(200) }).strict().parse(d))
   .handler(async ({ context, data }) => {
@@ -111,6 +123,7 @@ export const searchChatHistory = createServerFn({ method: "POST" }).middleware([
       db.from("chat_threads").select("id, title, mode, updated_at").ilike("title", pattern).order("updated_at", { ascending: false }).limit(10),
     ]);
     if (msgs.error) throw new Error(`Search failed: ${msgs.error.message}`);
+    if (titles.error) throw new Error(`Search failed: ${titles.error.message}`);
     type Row = { thread_id: string; ui_id: string; role: string; content: string; created_at: string; chat_threads: { title: string; mode: string } | null };
     const hits = ((msgs.data ?? []) as unknown as Row[]).map((r) => ({ threadId: r.thread_id, messageId: r.ui_id, title: r.chat_threads?.title ?? "Conversation", mode: r.chat_threads?.mode ?? "chat", role: r.role, snippet: searchSnippet(r.content, q), at: r.created_at }));
     for (const t of (titles.data ?? []) as { id: string; title: string; mode: string; updated_at: string }[]) {

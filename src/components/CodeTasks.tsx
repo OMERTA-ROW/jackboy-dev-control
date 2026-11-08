@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { codeVoiceDecision, parseCodeCommand, type CodeCard } from "@/lib/code";
 import { CodeUndoButton } from "./CodeUndoButton";
+import { VerifiedActivity } from "./chat/ChatActivity";
 
 async function call(body?: unknown, id?: string): Promise<CodeCard> {
   const { data } = await supabase.auth.getSession();
@@ -57,10 +58,10 @@ export function useCodeTasks() {
   const submit = useCallback(async (text: string): Promise<boolean> => {
     const command = parseCodeCommand(text);
     if (command) {
-      if (inflight.current) return true;
+      if (inflight.current) throw new Error("CODE is checking another request. Wait before sending again.");
       inflight.current = true; setBusy(true); setError(null);
       try { save(await call({ op: "request", ...command })); }
-      catch (e) { setError(e instanceof Error ? e.message : "CODE is blocked."); }
+      catch (e) { const message = e instanceof Error ? e.message : "CODE is blocked."; setError(message); throw new Error(message); }
       finally { inflight.current = false; setBusy(false); }
       return true;
     }
@@ -115,7 +116,10 @@ export function CodeTasks({ tasks }: { tasks: ReturnType<typeof useCodeTasks> })
           </div>
         </>}
         {card.outcome && <p className="mt-2 text-xs text-muted-foreground">{card.outcome}</p>}
-        {card.run?.jobs.map(job => <p key={job.name} className="mt-1 text-xs">{job.name}: {job.status} {job.conclusion ?? ""}</p>)}
+        {card.run?.jobs.map(job => <VerifiedActivity key={job.name}
+          label={job.name} running={job.status === "in_progress" || job.status === "queued"}
+          failed={["failure", "cancelled", "timed_out", "action_required"].includes(job.conclusion ?? "")}
+          details={[`GitHub job: ${job.name}`, `Status: ${job.status}`, ...(job.conclusion ? [`Conclusion: ${job.conclusion}`] : [])]} />)}
         <div className="mt-3 flex flex-wrap gap-3 text-xs">
           <a href={`/project/${encodeURIComponent(card.projectId)}`} className="text-electric underline">Project</a>
           {card.run && <a href={card.run.url} target="_blank" rel="noopener noreferrer" className="text-electric underline">Progress and logs</a>}
