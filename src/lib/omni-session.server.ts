@@ -54,6 +54,22 @@ export function linkConfig(): LinkConfig | null {
     return null;
   return c;
 }
+/** Names which config check refused OMNI (never values); one line per reason per 10 minutes. Best effort. */
+async function logLinkRefusal(env: Record<string, string | undefined>) {
+  try {
+    const { linkRefusal, REFUSAL_TEXT, REFUSAL_LOG_WINDOW_MS } = await import("./omni-link-refusal");
+    const reason = linkRefusal(env);
+    if (!reason) return;
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const since = new Date(Date.now() - REFUSAL_LOG_WINDOW_MS).toISOString();
+    const { data } = await supabaseAdmin.from("site_log").select("id").eq("action", "omni.link.refused").eq("issue", reason).gte("at", since).limit(1);
+    if (data && data.length > 0) return;
+    const { logSite } = await import("./site-log.server");
+    await logSite({ actor: "system", action: "omni.link.refused", category: "config", status: "blocked", issue: reason, summary: `OMNI link request refused: ${REFUSAL_TEXT[reason]} (values not logged).` });
+  } catch {
+    /* logging must never change the refusal */
+  }
+}
 export const databaseStore: LinkStore = async (op, args) => {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   // New RPC is explicitly typed here until generated Cloud database types are refreshed.
@@ -113,7 +129,10 @@ export async function handleOmniLink(
   const runnerReady = protocolRunnerAvailable() || Boolean(remote) || Boolean(runner);
   const plain = (status: number, error: string) =>
     Response.json({ error }, { status, headers: { "Cache-Control": "no-store" } });
-  if (!c) return plain(503, "link_disabled");
+  if (!c) {
+    await logLinkRefusal(env);
+    return plain(503, "link_disabled");
+  }
   const url = linkRequestUrl(request, env);
   if (!url || url.pathname !== LINK_PATH || url.search || request.method !== "POST")
     return plain(400, "https_post_required");
