@@ -67,14 +67,28 @@ test("production-applied migrations keep their exact bytes and timestamps", asyn
   }
 });
 
-test("the unapplied access-expiry update stays pending, unchanged and last", async () => {
+test("the access-expiry update stays unchanged and newer than the recorded applied baseline", async () => {
   const entry = journal.entries.find((e) => e.tag === expiry.tag);
   assert.ok(entry, "expiry update missing from journal");
   assert.ok(entry.when > latestApplied, "expiry update would be skipped by the migrator");
   assert.equal(entry.when, expiry.when);
   assert.equal(await sha(expiry.tag), expiry.hash);
-  assert.equal(journal.entries.at(-1).tag, expiry.tag);
+  assert.equal(entry.idx, 57);
   assert.equal(journal.entries.filter((e) => e.tag.includes("omni_authorization_expiry")).length, 1);
+});
+
+test("the approval-save migration is appended after 0057 and links to the preceding snapshot", async () => {
+  const entry = journal.entries.find((e) => e.tag === "0058_omni_link_approval_save");
+  assert.ok(entry, "approval-save migration missing from journal");
+  assert.equal(entry.idx, 58);
+  assert.ok(entry.when > expiry.when);
+  assert.equal(journal.entries.at(-1).tag, entry.tag);
+  const [previous, current] = await Promise.all(
+    ["0056", "0058"].map(async (n) =>
+      JSON.parse(await readFile(new URL(`meta/${n}_snapshot.json`, dir), "utf8")),
+    ),
+  );
+  assert.equal(current.prevId, previous.id);
 });
 
 test("snapshot chain for the restored entries links back to 0054", async () => {
