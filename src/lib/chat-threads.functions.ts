@@ -10,6 +10,7 @@ import { ATTACH_BUCKET, ownedPath, pathFromStoreUrl } from "./chat-attachments";
 import { JACKBOY_KEY, parseContextKey, slugFor } from "./chat-context";
 
 type Ctx = { userId: string; supabase: SupabaseClient };
+type Json = string | number | boolean | null | Json[] | { [k: string]: Json };
 async function owner(ctx: unknown) {
   const c = ctx as Ctx;
   const { data: role } = await c.supabase.rpc("my_role" as never);
@@ -60,7 +61,7 @@ export const getChatThread = createServerFn({ method: "POST" }).middleware([requ
     return {
       thread: t.data as { id: string; title: string; mode: "chat" | "code"; context_key: string; updated_at: string },
       messages: ((m.data ?? []) as { ui_id: string; role: "user" | "assistant" | "system"; parts: unknown[]; metadata: Record<string, unknown>; author: string; context_key: string | null }[])
-        .map((r) => ({ id: r.ui_id, role: r.role, parts: r.parts, metadata: { ...r.metadata, author: r.author || undefined, contextKey: r.context_key ?? undefined } })),
+        .map((r) => ({ id: r.ui_id, role: r.role, parts: r.parts as Json[], metadata: { ...(r.metadata as Record<string, Json>), ...(r.author ? { author: r.author } : {}), ...(r.context_key ? { contextKey: r.context_key } : {}) } })),
     };
   });
 
@@ -111,7 +112,7 @@ export const searchChatHistory = createServerFn({ method: "POST" }).middleware([
     ]);
     if (msgs.error) throw new Error(`Search failed: ${msgs.error.message}`);
     type Row = { thread_id: string; ui_id: string; role: string; content: string; created_at: string; chat_threads: { title: string; mode: string } | null };
-    const hits = ((msgs.data ?? []) as Row[]).map((r) => ({ threadId: r.thread_id, messageId: r.ui_id, title: r.chat_threads?.title ?? "Conversation", mode: r.chat_threads?.mode ?? "chat", role: r.role, snippet: searchSnippet(r.content, q), at: r.created_at }));
+    const hits = ((msgs.data ?? []) as unknown as Row[]).map((r) => ({ threadId: r.thread_id, messageId: r.ui_id, title: r.chat_threads?.title ?? "Conversation", mode: r.chat_threads?.mode ?? "chat", role: r.role, snippet: searchSnippet(r.content, q), at: r.created_at }));
     for (const t of (titles.data ?? []) as { id: string; title: string; mode: string; updated_at: string }[]) {
       if (!hits.some((h) => h.threadId === t.id)) hits.push({ threadId: t.id, messageId: "", title: t.title, mode: t.mode, role: "title", snippet: t.title, at: t.updated_at });
     }
