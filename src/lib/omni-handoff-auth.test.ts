@@ -141,3 +141,37 @@ describe("link-loss revocation stays in sync with the database trigger", () => {
     expect(sql).toContain(`'${LINK_AGED_MESSAGE}'`);
   });
 });
+
+import { jobCopyRefusal, registryRepoSuggestion, repoFromUrl } from "./omni-handoff-auth";
+
+describe("registry repo repair", () => {
+  const owner = [
+    { name: "OMNI internal build", github_repo: "OMERTA-ROW/Omni" },
+    { name: "Orbiting Minds Mothership", github_repo: "OMERTA-ROW/orbiting-minds-mothership" },
+    { name: "Twin", github_repo: "a/one" },
+    { name: "twin ", github_repo: "a/two" },
+    { name: "Bad", github_repo: "not a repo" },
+  ];
+  it("suggests the Projects-page repo only for one exact same-named project", () => {
+    expect(registryRepoSuggestion("OMNI internal build", owner)).toBe("OMERTA-ROW/Omni");
+    expect(registryRepoSuggestion(" orbiting minds mothership", owner)).toBe("OMERTA-ROW/orbiting-minds-mothership");
+    expect(registryRepoSuggestion("Twin", owner)).toBeNull();
+    expect(registryRepoSuggestion("Bad", owner)).toBeNull();
+    expect(registryRepoSuggestion("Unknown", owner)).toBeNull();
+  });
+  it("reads owner/name only from a plain GitHub URL", () => {
+    expect(repoFromUrl("https://github.com/OMERTA-ROW/Omni")).toBe("OMERTA-ROW/Omni");
+    expect(repoFromUrl("https://evil.example/OMERTA-ROW/Omni")).toBeNull();
+    expect(repoFromUrl(null)).toBeNull();
+  });
+  it("allows a copy only for a waiting, unsent, repo-less build/test job of a linked project", () => {
+    const job = { status: "queued", sentAt: null, codeRequestId: null, repo: null, kind: "code" };
+    expect(jobCopyRefusal(job, "OMERTA-ROW/Omni")).toBeNull();
+    expect(jobCopyRefusal(job, null)).toMatch(/Link a repository/);
+    expect(jobCopyRefusal({ ...job, sentAt: "2026-11-08T00:00:00Z" }, "a/b")).toMatch(/unsent/);
+    expect(jobCopyRefusal({ ...job, status: "sent" }, "a/b")).toMatch(/unsent/);
+    expect(jobCopyRefusal({ ...job, codeRequestId: "x" }, "a/b")).toMatch(/CODE approval/);
+    expect(jobCopyRefusal({ ...job, repo: "a/b" }, "a/b")).toMatch(/already/);
+    expect(jobCopyRefusal({ ...job, kind: "deploy" }, "a/b")).toMatch(/build or test/);
+  });
+});
