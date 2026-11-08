@@ -19,7 +19,7 @@ const MANIFEST_COLS = "id, source_local_id, handoff_id, name, version, simulated
 
 async function log(userId: string, action: string, summary: string, status: "ok" | "info" | "failed" = "ok", detail?: Record<string, unknown>) {
   const { logSite } = await import("./site-log.server");
-  await logSite({ actor: `owner:${userId}`, action, category: "approval", status, summary, detail });
+  await logSite({ actor: `owner:${userId}`, action, category: "approval", status, summary, ...(detail ? { detail } : {}) });
 }
 
 export type SavedManifest = {
