@@ -3,7 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { CheckCircle2, ShieldAlert, ShieldOff } from "lucide-react";
 import { blockerNextStep } from "@/lib/omni-handoff-auth";
 import { authorizeOmniProject, getOmniHandoffs, revokeOmniProject } from "@/lib/omni-handoff.functions";
-import { runOmniHandshake } from "@/lib/omni-link.functions";
+import { probeOmniConnection } from "@/lib/omni-link.functions";
 import { useStepUp } from "@/lib/step-up-client";
 import { HANDOFF_KIND_LABEL, isHandoffKind, type HandoffKind } from "@/lib/omni-handoff-auth";
 import { OmniDispatchReview } from "./OmniDispatchReview";
@@ -17,7 +17,7 @@ export function OmniHandoffPanel() {
   const load = useServerFn(getOmniHandoffs);
   const authorize = useServerFn(authorizeOmniProject);
   const revoke = useServerFn(revokeOmniProject);
-  const check = useServerFn(runOmniHandshake);
+  const check = useServerFn(probeOmniConnection);
   const stepUp = useStepUp();
   const [d, setD] = useState<Data | null>(null);
   const [msg, setMsg] = useState<{ tone: "ok" | "err"; text: string } | null>(null);
@@ -27,8 +27,10 @@ export function OmniHandoffPanel() {
   const [days, setDays] = useState(7);
   const checkConnection = () =>
     void act(async () => {
-      const r = await check();
-      return r.verified ? "OMNI proved the configured link. Verification lasts 5 minutes; no job was sent." : `Link check failed: ${r.error}`;
+      const report = await check();
+      return report.verified
+        ? "Readiness checks pass and a session is recorded; live reachability is not tested. No job was sent."
+        : `OMNI link readiness is blocked: ${report.missing.join(" · ")}. No job was sent.`;
     });
 
   const refresh = useCallback(
@@ -76,21 +78,21 @@ export function OmniHandoffPanel() {
           Build &amp; test handoffs to OMNI
         </h2>
         <span className={`rounded border px-1.5 text-xs ${d?.link.live ? "border-success/50 text-success" : "border-warning/50 text-warning"}`}>
-          {d ? (d.link.live ? "Live link verified" : "Live link not verified") : "Loading…"}
+          {d ? (d.link.live ? "Legacy outbound link verified" : "Legacy outbound link not verified") : "Loading…"}
         </span>
         <button
           className="ml-auto rounded-md border border-border px-3 py-1.5 hover:bg-muted disabled:opacity-50"
           disabled={busy}
           onClick={checkConnection}
         >
-          Check connection
+          Verify latest link (read-only)
         </button>
       </div>
       <p className="text-muted-foreground">
         A job reaches OMNI only when all of these are true at that moment: OMNI's link was proven in the
         last 5 minutes, it's your own enrolled project, you've given OMNI access to that project for
         that kind of job, nothing has been revoked, and the Kill Switch is off. OMNI only receives
-        the job; nothing runs, merges or deploys from here.
+        the job; nothing runs, merges or deploys from here. The separate OMNI-initiated readiness check is read-only and does not enable this legacy outbound route.
       </p>
       {d?.link.config && !d.link.config.configured && <p className="text-xs text-warning">Connection configuration is incomplete. Missing secret names: {d.link.config.missing.join(", ") || "not reported"}; values are never displayed here.</p>}
       {d?.link.live && d.link.verifiedAt && d.link.expiresAt && <p className="text-xs text-muted-foreground">Last successful handshake: {when(d.link.verifiedAt)} · expires {when(d.link.expiresAt)}.</p>}
@@ -202,7 +204,7 @@ export function OmniHandoffPanel() {
                     const nextStep = blockerNextStep(b.code);
                     return <li key={b.code}>
                       {b.message}
-                      {nextStep === "check_connection" && <button type="button" className="ml-2 underline" disabled={busy} onClick={checkConnection}>Check connection (handshake only)</button>}
+                      {nextStep === "check_connection" && <button type="button" className="ml-2 underline" disabled={busy} onClick={checkConnection}>Verify latest link (read-only)</button>}
                       {nextStep === "project_access" && <a className="ml-2 underline" href={`#omni-project-${h.projectId ?? "access"}`}>Review project access</a>}
                       {nextStep === "review_project" && h.projectId && <a className="ml-2 underline" href={`/project/${encodeURIComponent(h.projectId)}`}>Review project</a>}
                       {nextStep === "review_settings" && <a className="ml-2 underline" href="/settings">Review Kill Switch in Settings</a>}

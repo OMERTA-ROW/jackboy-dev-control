@@ -1,19 +1,25 @@
 import { useCallback, useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { CheckCircle2, ShieldAlert } from "lucide-react";
-import { getOmniLink, runOmniHandshake } from "@/lib/omni-link.functions";
-import { OMNI_VERIFICATION_MAX_AGE_MS } from "@/lib/omni-link";
+import { getOmniLink, probeOmniConnection } from "@/lib/omni-link.functions";
 import { OmniHandoffPanel } from "./OmniHandoffPanel";
 
 type Link = Awaited<ReturnType<typeof getOmniLink>>;
+type Readiness = Awaited<ReturnType<typeof probeOmniConnection>>;
 
-/** Live OMNI connection state from the server handshake, plus the job delivery queue. */
+/** Read-only OMNI-initiated link readiness, plus queued legacy job records. */
 export function OmniLinkPanel() {
-  const load = useServerFn(getOmniLink), hs = useServerFn(runOmniHandshake);
+  const load = useServerFn(getOmniLink), probe = useServerFn(probeOmniConnection);
   const [d, setD] = useState<Link | null>(null);
+  const [readiness, setReadiness] = useState<Readiness | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const refresh = useCallback(() => load().then(setD).catch((e: Error) => setMsg(e.message)), [load]);
+  const refresh = useCallback(() => Promise.all([load(), probe()])
+    .then(([link, report]) => {
+      setD(link);
+      setReadiness(report);
+    })
+    .catch((e: Error) => setMsg(e.message)), [load, probe]);
   useEffect(() => {
     void refresh();
     const timer = window.setInterval(() => {
@@ -22,43 +28,47 @@ export function OmniLinkPanel() {
     return () => window.clearInterval(timer);
   }, [refresh]);
 
-  const act = async (fn: () => Promise<{ verified: boolean; error?: string }>) => {
+  const verifyLatest = async () => {
     setBusy(true); setMsg(null);
     try {
-      const r = await fn();
-      setMsg(r.verified
-        ? "Handshake verified for 5 minutes. No queued task was sent."
-        : `OMNI link not verified: ${r.error ?? "details withheld"}`);
+      const report = await probe();
+      setReadiness(report);
+      setMsg(report.verified
+        ? "Readiness checks pass; an unexpired session is recorded, but live OMNI reachability was not tested."
+        : `OMNI link readiness is blocked: ${report.missing.join(" · ")}`);
     } catch (e) {
-      setMsg(e instanceof Error ? e.message : "Connection check failed; no queued task was sent.");
+      setMsg(e instanceof Error ? e.message : "Read-only OMNI diagnostics could not be loaded.");
+    } finally {
+      setBusy(false);
     }
-    finally { setBusy(false); void refresh(); }
   };
 
-  const verified = Boolean(d?.connection?.verified);
-  const verifiedAt = d?.connection?.verified_at ? Date.parse(d.connection.verified_at) : NaN;
-  const expiresAt = Number.isFinite(verifiedAt) ? new Date(verifiedAt + OMNI_VERIFICATION_MAX_AGE_MS).toLocaleString() : null;
+  const ready = Boolean(readiness?.verified);
   return (
     <>
     <section className="panel mb-4 p-4 text-sm" aria-labelledby="omni-link">
       <div className="flex flex-wrap items-center gap-2">
-        {verified ? <CheckCircle2 className="h-4 w-4 text-success" /> : <ShieldAlert className="h-4 w-4 text-warning" />}
-        <h2 id="omni-link" className="font-semibold">{verified ? "OMNI link verified" : "OMNI link not verified"}</h2>
+        {ready ? <CheckCircle2 className="h-4 w-4 text-success" /> : <ShieldAlert className="h-4 w-4 text-warning" />}
+        <h2 id="omni-link" className="font-semibold">OMNI-initiated link readiness</h2>
+        <span className={`rounded border px-1.5 text-xs ${ready ? "border-success/50 text-success" : "border-warning/50 text-warning"}`}>
+          {readiness ? ready ? "Prerequisites pass · reachability untested" : "Blocked" : "Checking…"}
+        </span>
         <div className="ml-auto flex gap-2">
-          <button className="rounded-md border border-border px-3 py-1.5 hover:bg-muted disabled:opacity-50" disabled={busy || !d?.config.configured} onClick={() => void act(() => hs())}>Check connection</button>
+          <button type="button" className="rounded-md border border-border px-3 py-1.5 hover:bg-muted disabled:opacity-50" disabled={busy} onClick={() => void verifyLatest()}>
+            {busy ? "Checking…" : "Verify latest link (read-only)"}
+          </button>
         </div>
       </div>
-      {d && !d.config.configured && <p className="mt-2 text-muted-foreground">Waiting for these secrets: {d.config.missing.join(", ")}.</p>}
-      {d && !d.config.keyConfigured && <p role="alert" className="mt-2 text-destructive">OMNI key not configured. Add OMNI_API_KEY in Project Settings → Secrets and the same value on the OMNI worker host; this is separate from GITHUB_TOKEN. Add OMNI_API_URL and matching OMNI_CALLBACK_SECRET, then check the connection.</p>}
-      {d?.connection?.last_error && <p className="mt-2 text-destructive">Last check: {d.connection.last_error}</p>}
-      {verified && d?.connection?.verified_at && <p className="mt-2 text-xs text-muted-foreground">Last successful handshake: {new Date(d.connection.verified_at).toLocaleString()} · verification expires {expiresAt} (5-minute limit).</p>}
-      {!verified && d?.connection?.last_checked_at && <p className="mt-2 text-xs text-muted-foreground">Last connection check: {new Date(d.connection.last_checked_at).toLocaleString()}.</p>}
-      {d && <p className="mt-1 text-xs text-muted-foreground">
-        {d.config.callbackUrl ? `OMNI reports results to ${d.config.callbackUrl}` : "Callback URL is withheld because it is not a valid HTTPS URL."}
-      </p>}
-      <p className="mt-1 text-xs text-muted-foreground">A connection check is a handshake only. It does not authorize or send queued jobs, run a self-test, or deploy anything.</p>
+      <p className="mt-2 text-muted-foreground">
+        This check reads Jackboy's configured link settings, storage, recorded OMNI session, and runner configuration. It never calls OMNI, runs a self-test, sends jobs, enables the link, or deploys. A recorded session is not proof of current bridge reachability.
+      </p>
+      {readiness && <ul className="mt-2 space-y-0.5 text-xs text-muted-foreground">
+        {readiness.steps.map((step) => <li key={step.name}>{step.ok ? "✓" : "✗"} {step.name}: {step.detail}</li>)}
+      </ul>}
       {msg && <p className="mt-2 break-words text-xs text-muted-foreground" role="status">{msg}</p>}
       {d && d.jobs.length > 0 && (
+        <>
+        <h3 className="mt-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Legacy outbound job records (this link check never sends them)</h3>
         <ul className="mt-3 divide-y divide-border">
           {d.jobs.map((j) => (
             <li key={j.id} className="flex flex-wrap gap-2 py-2">
@@ -70,6 +80,7 @@ export function OmniLinkPanel() {
             </li>
           ))}
         </ul>
+        </>
       )}
     </section>
     <OmniHandoffPanel />

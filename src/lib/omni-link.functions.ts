@@ -64,7 +64,12 @@ export const probeOmniConnection = createServerFn({ method: "POST" })
     await requireOwner(context);
     const { linkConfig } = await import("./omni-session.server");
     const { reverseLinkReport, REVERSE_LINK_VARS } = await import("./omni-link-readiness");
+    const { remoteRunnerDiagnostic } = await import("./omni-remote-runner");
     const env = Object.fromEntries(REVERSE_LINK_VARS.map((n) => [n, process.env[n]]));
+    const runnerEnv = Object.fromEntries(
+      ["OMNI_LINK_REMOTE_RUNNER_ENABLED", "OMNI_LINK_REMOTE_RUNNER_URL", "OMNI_LINK_REMOTE_RUNNER_SECRET"]
+        .map((n) => [n, process.env[n]]),
+    );
     const db = (await import("./untyped-db")).untyped(
       (await import("@/integrations/supabase/client.server")).supabaseAdmin,
     );
@@ -80,6 +85,7 @@ export const probeOmniConnection = createServerFn({ method: "POST" })
       configValid: linkConfig() !== null,
       storageReady: !error && Array.isArray(data),
       lastSessionAt: rows[0]?.expires_at ?? null,
+      runnerDiagnostic: remoteRunnerDiagnostic(runnerEnv),
     });
     return { ...report, error: report.verified ? null : report.missing.join(" · ") };
   });
