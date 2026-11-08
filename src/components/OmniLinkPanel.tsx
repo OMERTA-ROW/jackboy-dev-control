@@ -17,7 +17,11 @@ export function OmniLinkPanel() {
 
   const act = async (fn: () => Promise<unknown>, label: string) => {
     setBusy(true); setMsg(null);
-    try { const r = await fn(); setMsg(`${label}: ${JSON.stringify(r)}`); } catch (e) { setMsg((e as Error).message); }
+    try {
+      const r = (await fn()) as { verified?: boolean; error?: string | null; omni_version?: string } | null;
+      const when = new Date().toLocaleTimeString();
+      setMsg(r?.verified ? `${label} at ${when}: OMNI worker answered${r.omni_version ? ` (${r.omni_version})` : ""}.` : `${label} at ${when}: no answer${r?.error ? ` — ${r.error}` : ""}.`);
+    } catch (e) { setMsg(`${label} failed: ${(e as Error).message}`); }
     finally { setBusy(false); void refresh(); }
   };
 
