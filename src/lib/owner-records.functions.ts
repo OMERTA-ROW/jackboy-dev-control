@@ -17,7 +17,7 @@ import type { Handoff } from "./omni-handoff";
 const HANDOFF_COLS = "id, owner_id, source_local_id, finding_id, title, sources, hypothesis, novelty_caveat, feasibility, requirements, risk, priority, est_cost, status, revenue, provenance, approvals, original, imported_at, archived_at, created_at, updated_at";
 const MANIFEST_COLS = "id, source_local_id, handoff_id, name, version, simulated, manifest, imported_at, archived_at, created_at, updated_at";
 
-async function log(userId: string, action: string, summary: string, status: "ok" | "info" | "warn" = "ok", detail?: Record<string, unknown>) {
+async function log(userId: string, action: string, summary: string, status: "ok" | "info" | "failed" = "ok", detail?: Record<string, unknown>) {
   const { logSite } = await import("./site-log.server");
   await logSite({ actor: `owner:${userId}`, action, category: "approval", status, summary, detail });
 }
@@ -38,18 +38,19 @@ export const listOwnerRecords = createServerFn({ method: "GET" })
     if (h.error) throw new Error(`Could not read saved handoffs: ${h.error.message}`);
     if (m.error) throw new Error(`Could not read saved JAX drafts: ${m.error.message}`);
     const handoffRows = (h.data ?? []) as HandoffRow[];
-    const manifestRows = (m.data ?? []) as Record<string, unknown>[];
+    type ManifestRow = { id: string; source_local_id: string | null; handoff_id: string | null; name: string; version: string;
+      manifest: ReleaseManifest; imported_at: string | null; archived_at: string | null; created_at: string };
+    const manifestRows = (m.data ?? []) as ManifestRow[];
     return {
       checkedAt: new Date().toISOString(),
       handoffs: handoffRows.map(rowToHandoff),
       handoffSourceIds: handoffRows.map((r) => r.source_local_id).filter((v): v is string => !!v),
       manifests: manifestRows.map((r): SavedManifest => ({
-        id: String(r.id), fromDevice: r.source_local_id != null, sourceLocalId: (r.source_local_id as string) ?? null,
-        handoffId: (r.handoff_id as string) ?? null, name: String(r.name), version: String(r.version),
-        manifest: r.manifest as ReleaseManifest, importedAt: (r.imported_at as string) ?? null,
-        archivedAt: (r.archived_at as string) ?? null, createdAt: String(r.created_at),
+        id: r.id, fromDevice: r.source_local_id != null, sourceLocalId: r.source_local_id,
+        handoffId: r.handoff_id, name: r.name, version: r.version, manifest: r.manifest,
+        importedAt: r.imported_at, archivedAt: r.archived_at, createdAt: r.created_at,
       })),
-      manifestSourceIds: manifestRows.map((r) => r.source_local_id as string | null).filter((v): v is string => !!v),
+      manifestSourceIds: manifestRows.map((r) => r.source_local_id).filter((v): v is string => !!v),
     };
   });
 
@@ -100,7 +101,7 @@ export const importDeviceRecords = createServerFn({ method: "POST" })
       manifests: { added: manifestsAdded, alreadySaved: mPlan.alreadySaved + (mPlan.add.length - manifestsAdded), invalid: mPlan.invalid },
     };
     await log(owner, "records.device_import", `Imported ${handoffsAdded} OMNI handoff(s) and ${manifestsAdded} JAX draft(s) from this browser; ${result.handoffs.alreadySaved + result.manifests.alreadySaved} already saved, ${hPlan.invalid.length + mPlan.invalid.length} unreadable. Browser copy left unchanged.`,
-      hPlan.invalid.length + mPlan.invalid.length ? "warn" : "ok", { invalid: [...hPlan.invalid, ...mPlan.invalid].slice(0, 20) });
+      hPlan.invalid.length + mPlan.invalid.length ? "info" : "ok", { invalid: [...hPlan.invalid, ...mPlan.invalid].slice(0, 20) });
     return result;
   });
 
@@ -135,7 +136,7 @@ export const updateResearchHandoff = createServerFn({ method: "POST" })
     if (data.approval && approvals[data.approval.action] !== data.approval.value)
       throw new Error(`"${data.approval.action}" is locked: approve the handoff${data.approval.action === "deploy" ? "" : " and tick all three provenance boxes"} first.`);
     const patch: Record<string, unknown> = { status, provenance, approvals };
-    if (data.revenue) patch.revenue = normalizeRevenue(data.revenue);
+    if (data.revenue) patch["revenue"] = normalizeRevenue(data.revenue);
     const up = await db.from("omni_research_handoffs").update(patch).eq("id", data.id).eq("owner_id", context.userId).select(HANDOFF_COLS).single();
     if (up.error) throw new Error(`Could not save: ${up.error.message}`);
     const after = rowToHandoff(up.data as HandoffRow);
