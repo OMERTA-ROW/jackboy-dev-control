@@ -22,7 +22,12 @@ export async function handleRunnerRequest(
     Response.json({ error }, { status, headers: { "Cache-Control": "no-store" } });
   const secret = env["OMNI_LINK_REMOTE_RUNNER_SECRET"];
   if (!runnerModeOn(env, new URL(request.url).hostname) || !validRunnerSecret(secret)) return plain(404, "not_found");
-  if (request.method !== "POST" || new URL(request.url).search) return plain(400, "post_required");
+  if (request.method !== "POST") {
+    const response = plain(405, "post_required");
+    response.headers.set("Allow", "POST");
+    return response;
+  }
+  if (new URL(request.url).search) return plain(400, "post_required");
   if (!available()) return plain(503, "runner_unavailable");
   const len = Number(request.headers.get("content-length") || "0");
   if (len > 1024) return plain(413, "body_limit");

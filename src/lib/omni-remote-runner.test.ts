@@ -45,6 +45,29 @@ describe("remote runner config (live site)", () => {
 });
 
 describe("runner endpoint (runner-only host)", () => {
+  it.each(["GET", "PUT", "DELETE"])("rejects %s with JSON and never executes", async (method) => {
+    const execute = vi.fn(async () => true);
+    const response = await handleRunnerRequest(
+      new Request(cfg.url, { method }), env, execute, () => true,
+    );
+    expect(response.status).toBe(405);
+    expect(response.headers.get("allow")).toBe("POST");
+    expect(await response.json()).toEqual({ error: "post_required" });
+    expect(execute).not.toHaveBeenCalled();
+  });
+  it.each(["missing", "invalid"])("rejects %s authentication without executing", async (kind) => {
+    const execute = vi.fn(async () => true);
+    const headers = kind === "invalid" ? {
+      "X-Runner-Timestamp": String(Date.now()),
+      "X-Runner-Nonce": "n".repeat(32),
+      "X-Runner-Signature": "0".repeat(64),
+    } : {};
+    const response = await handleRunnerRequest(
+      new Request(cfg.url, { method: "POST", headers, body }), env, execute, () => true,
+    );
+    expect(response.status).toBe(401);
+    expect(execute).not.toHaveBeenCalled();
+  });
   it("is 404 when runner mode is off", async () => {
     expect((await run(await signed(body), { e: { OMNI_LINK_REMOTE_RUNNER_SECRET: SECRET } })).status).toBe(404);
   });
@@ -113,6 +136,14 @@ describe("runnerOrigin (Railway host as shown in Railway)", () => {
 });
 
 describe("runner-mode guard (dashboard hosts ignore a misplaced OMNI_LINK_RUNNER_MODE)", () => {
+  it("allows dedicated Railway loopback but never Lovable or site-configured hosts", () => {
+    const railway = { ...env, RAILWAY_ENVIRONMENT_ID: "test-environment" };
+    expect(runnerModeDecision(railway, "127.0.0.1").on).toBe(true);
+    expect(runnerModeDecision(railway, "localhost").on).toBe(true);
+    expect(runnerModeDecision(railway, "jackboy-dev-control.lovable.app").on).toBe(false);
+    expect(runnerModeDecision({ ...railway, SUPABASE_SERVICE_ROLE_KEY: "test-only" }, "127.0.0.1").on)
+      .toBe(false);
+  });
   it("the Node runner flag alone never selects runner-only mode", () => {
     expect(runnerModeDecision({ OMNI_LINK_NODE_RUNNER_ENABLED: "true" }, "x.up.railway.app"))
       .toEqual({ on: false });
