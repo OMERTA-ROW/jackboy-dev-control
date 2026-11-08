@@ -10,7 +10,8 @@ import { ACTING_CHAT_POLICY } from "./chat-action";
 
 const MODEL = "openai/gpt-6-astra";
 
-export async function verifyOwner(request: Request): Promise<string | null> {
+/** Owner check that also returns a client acting as that owner (RLS applies), for owner-scoped reads. */
+export async function verifyOwnerClient(request: Request) {
   const token = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
   if (!token) return null;
   const url = process.env["SUPABASE_URL"]!, key = process.env["SUPABASE_PUBLISHABLE_KEY"]!;
@@ -21,17 +22,28 @@ export async function verifyOwner(request: Request): Promise<string | null> {
   const { data: u } = await sb.auth.getUser(token);
   if (!u.user) return null;
   const { data: role } = await sb.rpc("my_role");
-  return role === "owner" ? u.user.id : null;
+  return role === "owner" ? { userId: u.user.id, sb } : null;
+}
+export async function verifyOwner(request: Request): Promise<string | null> {
+  return (await verifyOwnerClient(request))?.userId ?? null;
 }
 
 import { buildJackboyTools, guardTools } from "./jackboy-tools.server";
+import { contextInstructions, VISUAL_POLICY } from "./chat-context";
 export async function handleChat(request: Request) {
-  const userId = await verifyOwner(request);
-  if (!userId) return Response.json({ error: "Owner sign-in required." }, { status: 401 });
+  const owner = await verifyOwnerClient(request);
+  if (!owner) return Response.json({ error: "Owner sign-in required." }, { status: 401 });
+  const userId = owner.userId;
   const key = process.env["LOVABLE_API_KEY"];
   if (!key) return Response.json({ error: "AI is not configured on the server." }, { status: 500 });
-  const body = (await request.json()) as { messages?: UIMessage[] };
+  const body = (await request.json()) as { messages?: UIMessage[]; contextKey?: unknown };
   if (!Array.isArray(body.messages) || body.messages.length > 200) return Response.json({ error: "Invalid messages." }, { status: 400 });
+  // Context pivots read only stored notes; an unknown or removed context is refused, never guessed.
+  const { loadContextBrief } = await import("./chat-context.server");
+  const brief = await loadContextBrief(owner.sb, body.contextKey ?? "jackboy");
+  if (!brief) return Response.json({ error: "That agent or project context no longer exists. Pick another in “Talk to”." }, { status: 400 });
+  const { prepareAttachments } = await import("./chat-attachments.server");
+  const prepared = await prepareAttachments(body.messages, userId, owner.sb);
 
   const tools = buildJackboyTools(userId);
   const { TASK_TOOLS } = await import("./task-mode");
