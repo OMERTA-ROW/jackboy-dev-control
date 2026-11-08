@@ -21,20 +21,28 @@ export type LinkValueSummary = {
   allReady: boolean;
 };
 
+/** Same rule as `linkConfig()`: missing, unparseable, past, more than 24h ahead, or valid. */
+export function approvalExpiryState(raw: string | undefined, now = Date.now()): LinkValueSummary["expiry"] {
+  const v = (raw ?? "").trim();
+  const t = Date.parse(v);
+  return !v ? "missing" : !Number.isFinite(t) ? "invalid" : t <= now ? "expired" : t > now + MAX_APPROVAL_MS ? "too_far" : "valid";
+}
+
+/** Value-free wording for readiness and status lines. */
+export const APPROVAL_EXPIRY_TEXT: Record<LinkValueSummary["expiry"], string> = {
+  missing: "OMNI_LINK_APPROVAL_EXPIRES_AT is not saved in Jackboy",
+  invalid: "OMNI_LINK_APPROVAL_EXPIRES_AT saved in Jackboy is not a valid date and time",
+  expired: "OMNI_LINK_APPROVAL_EXPIRES_AT saved in Jackboy has expired",
+  too_far: "OMNI_LINK_APPROVAL_EXPIRES_AT saved in Jackboy is more than 24 hours ahead",
+  valid: "OMNI_LINK_APPROVAL_EXPIRES_AT saved in Jackboy is within the next 24 hours",
+};
+
 export function summarizeLinkValues(env: Record<string, string | undefined>, ownerUserId: string, now = Date.now()): LinkValueSummary {
   const owner = (env["OMNI_LINK_OWNER_ID"] ?? "").trim();
   const approval = (env["OMNI_LINK_APPROVAL_ID"] ?? "").trim();
   const expiresRaw = (env["OMNI_LINK_APPROVAL_EXPIRES_AT"] ?? "").trim();
   const t = Date.parse(expiresRaw);
-  const expiry: LinkValueSummary["expiry"] = !expiresRaw
-    ? "missing"
-    : !Number.isFinite(t)
-      ? "invalid"
-      : t <= now
-        ? "expired"
-        : t > now + MAX_APPROVAL_MS
-          ? "too_far"
-          : "valid";
+  const expiry = approvalExpiryState(expiresRaw, now);
   const ownerMatchesYou = owner.length > 0 && owner.toLowerCase() === ownerUserId.toLowerCase();
   const checks: ValueCheck[] = [
     {
