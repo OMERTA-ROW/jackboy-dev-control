@@ -27,7 +27,8 @@ export function OmniLinkPanel() {
     <section className="panel mb-4 p-4 text-sm" aria-labelledby="omni-link">
       <div className="flex flex-wrap items-center gap-2">
         {verified ? <CheckCircle2 className="h-4 w-4 text-success" /> : <ShieldAlert className="h-4 w-4 text-warning" />}
-        <h2 id="omni-link" className="font-semibold">{verified ? `OMNI connected (${d?.connection?.omni_version})` : "OMNI not connected"}</h2>
+        <h2 id="omni-link" className="font-semibold">{verified ? `OMNI worker answered (${d?.connection?.omni_version})` : "OMNI worker: not answered yet"}</h2>
+        <span className="w-full text-xs text-muted-foreground">This is the older worker check. The secure link's state is in "OMNI link values for Railway" above and in the Site Log (omni.link.handshake / omni.link.refused).</span>
         <div className="ml-auto flex gap-2">
           <button className="rounded-md border border-border px-3 py-1.5 hover:bg-muted disabled:opacity-50" disabled={busy || !d?.config.configured} onClick={() => act(() => hs(), "Check")}>Check connection</button>
         </div>
