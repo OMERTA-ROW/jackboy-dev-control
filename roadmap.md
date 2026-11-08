@@ -243,3 +243,8 @@ The spoken acronym “NLOA” is unconfirmed in Notion. Do not infer a technical
 - [ ] Re-save OMNI_API_URL plain; set Railway runner service to runner-only mode; fresh OMNI approval expiry — owner.
 - [ ] Merge reconciliation PR, publish, then confirm deployed commit via the version check — owner.
 - [ ] Restore remaining lost Nov 8 preview work (owner OMNI/JAX record screens, workflow-disabled detection, link refusal naming) from `lovable-backup-main-1794110944` — needs owner go-ahead.
+
+## OMNI session readiness (Nov 8 evening)
+- [x] Handshake "not ready" traced to no usable runner; readiness now names a near-miss runner switch and the Site Log records `omni.link.not_ready`.
+- [ ] Set `OMNI_LINK_REMOTE_RUNNER_ENABLED` to exactly lowercase `true` in Lovable; redeploy the Railway runner from main — owner.
+- [ ] Carry forward Lovable-only work from `lovable-backup-main-1794169703` (approval-save expiry fix, connection-drop fix, refusal naming, approval analytics) onto main — needs owner go-ahead.

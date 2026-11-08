@@ -10,7 +10,7 @@ import {
   verifyRequest,
 } from "./omni-session";
 import { runProtocolSelfTest, protocolRunnerAvailable } from "./omni-session-runner.server";
-import { callRemoteRunner, remoteRunnerConfig, RUNNER_TIMEOUT_MS } from "./omni-remote-runner";
+import { callRemoteRunner, remoteRunnerConfig, runnerConfigProblem, RUNNER_TIMEOUT_MS } from "./omni-remote-runner";
 
 export type LinkConfig = {
   clientId: string;
@@ -30,6 +30,21 @@ export type StoreReply = {
   [key: string]: unknown;
 };
 export type LinkStore = (op: string, args: Record<string, unknown>) => Promise<StoreReply>;
+/** Called when a handshake is answered `ready: false` (OMNI then reports "session not ready").
+ * `problem` names the blocking runner setting only, never a value. */
+export type NotReadyAudit = (problem: string, projectId: string) => Promise<void>;
+export const siteLogNotReadyAudit: NotReadyAudit = async (problem, projectId) => {
+  const { logSite } = await import("./site-log.server");
+  await logSite({
+    actor: "omni-link",
+    action: "omni.link.not_ready",
+    category: "config",
+    status: "blocked",
+    summary: `Handshake answered "not ready": no self-test runner — ${problem}`,
+    project_id: projectId,
+    detail: { problem },
+  });
+};
 /** Reads the passkey-saved approval (service role only). Any error = "not readable" (fail closed). */
 export async function loadEffectiveApproval(env: Record<string, string | undefined> = process.env): Promise<EffectiveApproval> {
   try {
@@ -131,6 +146,7 @@ export async function handleOmniLink(
   runner?: (signal: AbortSignal) => Promise<boolean>,
   env: Record<string, string | undefined> = process.env,
   fetcher: typeof fetch = fetch,
+  notReadyAudit?: NotReadyAudit,
 ): Promise<Response> {
   // Local Node runner first; otherwise the stateless remote runner (live site keeps all checks/storage).
   const remote = protocolRunnerAvailable() ? null : remoteRunnerConfig(env);
@@ -212,6 +228,15 @@ export async function handleOmniLink(
     };
     let out = await store(String(action), args);
     if (out.http >= 400) return await deny(out.http, out.error || "request_denied");
+    if (action === "handshake" && !runnerReady) {
+      const record = notReadyAudit ?? (store === databaseStore ? siteLogNotReadyAudit : null);
+      // Diagnostic only: a logging failure never changes the protocol answer.
+      try {
+        await record?.(runnerConfigProblem(env) ?? "no runner configured", c.projectId);
+      } catch {
+        /* ignored */
+      }
+    }
     let runnerError: string | undefined;
     if (action === "run" && out.claimed) {
       const abort = new AbortController();
