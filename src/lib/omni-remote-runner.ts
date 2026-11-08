@@ -24,9 +24,19 @@ export function remoteRunnerConfig(env: Env): RemoteRunnerConfig | null {
   if (env["OMNI_LINK_REMOTE_RUNNER_ENABLED"] !== "true") return null;
   const secret = env["OMNI_LINK_REMOTE_RUNNER_SECRET"];
   if (!validRunnerSecret(secret)) return null;
+  const u = runnerOrigin(env["OMNI_LINK_REMOTE_RUNNER_URL"]);
+  if (!u) return null;
+  return { url: `${u}${RUNNER_PATH}`, secret };
+}
+
+/** Bare host names (Railway shows "x.up.railway.app") are read as https://; plain http and paths are refused. */
+const BARE_HOST = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+(?::\d{1,5})?$/i;
+export function runnerOrigin(raw: string | undefined): string | null {
+  const v = (raw || "").trim();
+  if (!v) return null;
   let u: URL;
   try {
-    u = new URL(env["OMNI_LINK_REMOTE_RUNNER_URL"] || "");
+    u = new URL(BARE_HOST.test(v) ? `https://${v}` : v);
   } catch {
     return null;
   }
