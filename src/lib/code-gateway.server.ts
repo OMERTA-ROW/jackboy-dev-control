@@ -165,7 +165,11 @@ export async function probeProviderAccess(): Promise<{ ok: boolean; reason: stri
   }
   if (!models.length) return { ok: false, reason: "CODE_GATEWAY_PRICES lists no models." };
   const cap = Number(process.env["CODE_GATEWAY_PER_CALL_CAP_USD"]);
-  if (!Number.isFinite(cap) || cap <= 0 || cap > 5) return { ok: false, reason: "CODE_GATEWAY_PER_CALL_CAP_USD is missing or outside $0–$5." };
+  if (!Number.isFinite(cap) || cap <= 0 || cap > 5)
+    return {
+      ok: false,
+      reason: "CODE_GATEWAY_PER_CALL_CAP_USD is missing or outside $0–$5.",
+    };
   const model = models[0]!;
   try {
     const response = await fetch(`${PROVIDER_ORIGIN}/v1/models/${encodeURIComponent(model)}`, {
@@ -173,11 +177,27 @@ export async function probeProviderAccess(): Promise<{ ok: boolean; reason: stri
       redirect: "manual",
       signal: AbortSignal.timeout(10_000),
     });
-    if (response.status === 401) return { ok: false, reason: "OpenAI rejected the provider key (401). Replace CODE_PROVIDER_API_KEY." };
-    if (response.status === 403) return { ok: false, reason: `The provider key is not allowed to use ${model} (403). Check the OpenAI project's model access.` };
-    if (response.status === 404) return { ok: false, reason: `OpenAI does not offer ${model} to this key (404). Check the model name in CODE_GATEWAY_PRICES.` };
-    if (!response.ok) return { ok: false, reason: `OpenAI answered ${response.status}. Try again later.` };
-    return { ok: true, reason: `Settings are valid, per-call cap $${cap.toFixed(2)}, and the key can see ${model}. No model was run.` };
+    if (response.status === 401)
+      return {
+        ok: false,
+        reason: "OpenAI rejected the provider key (401). Replace CODE_PROVIDER_API_KEY.",
+      };
+    if (response.status === 403)
+      return {
+        ok: false,
+        reason: `The provider key is not allowed to use ${model} (403). Check the OpenAI project's model access.`,
+      };
+    if (response.status === 404)
+      return {
+        ok: false,
+        reason: `OpenAI does not offer ${model} to this key (404). Check the model name in CODE_GATEWAY_PRICES.`,
+      };
+    if (!response.ok)
+      return { ok: false, reason: `OpenAI answered ${response.status}. Try again later.` };
+    return {
+      ok: true,
+      reason: `Settings are valid, per-call cap $${cap.toFixed(2)}, and the key can see ${model}. No model was run.`,
+    };
   } catch {
     return { ok: false, reason: "Could not reach OpenAI within 10 seconds." };
   }
