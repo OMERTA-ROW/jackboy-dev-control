@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Send } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { addHandoff } from "@/lib/omni-handoff";
+import { useServerFn } from "@tanstack/react-start";
+import { createResearchHandoff } from "@/lib/owner-records.functions";
 import { CREATOR_LABEL, meta, type Finding } from "@/lib/discovery";
 
 const field = "mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm";
@@ -14,13 +15,22 @@ export function SendToOmni({ finding }: { finding: Finding }) {
     noveltyCaveat: "Novelty not established. Requires professional patent and prior-art search before any claim.",
     feasibility: finding.scores.feasibility,
     requirements: `- Validate core claim from: ${finding.title}\n- Define MVP scope\n- Test plan and success metrics`,
-    risk: "medium" as const, priority: "medium" as const, estCost: 5000,
+    risk: "medium" as "low" | "medium" | "high", priority: "medium" as "low" | "medium" | "high", estCost: 5000,
   }));
-  const submit = (e: React.FormEvent) => {
+  const create = useServerFn(createResearchHandoff);
+  const [busy, setBusy] = useState(false);
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    addHandoff({ findingId: finding.id, title: finding.idea || finding.title, sources: [finding.url, `Creator: ${CREATOR_LABEL[meta(finding).creator]} — IP remains with the original creator; consent required before use`], ...f });
-    toast("Added to OMNI pending queue — awaiting your approval.");
-    setOpen(false);
+    setBusy(true);
+    try {
+      await create({ data: { findingId: finding.id, title: (finding.idea || finding.title).slice(0, 300), sources: [finding.url, `Creator: ${CREATOR_LABEL[meta(finding).creator]} — IP remains with the original creator; consent required before use`], ...f } });
+      toast.success("Saved to your OMNI review queue — awaiting your approval. Nothing was sent.");
+      setOpen(false);
+    } catch (err) {
+      toast.error(`Not saved: ${(err as Error).message}`);
+    } finally {
+      setBusy(false);
+    }
   };
   return (
     <>
@@ -42,7 +52,7 @@ export function SendToOmni({ finding }: { finding: Finding }) {
               <label>Risk<select value={f.risk} onChange={(e) => setF({ ...f, risk: e.target.value as never })} className={field}><option>low</option><option>medium</option><option>high</option></select></label>
               <label>Priority<select value={f.priority} onChange={(e) => setF({ ...f, priority: e.target.value as never })} className={field}><option>low</option><option>medium</option><option>high</option></select></label>
             </div>
-            <button type="submit" className="w-full rounded-md bg-primary py-2 font-medium text-primary-foreground">Add to pending queue</button>
+            <button type="submit" disabled={busy} className="w-full rounded-md bg-primary py-2 font-medium text-primary-foreground disabled:opacity-50">{busy ? "Saving…" : "Add to pending queue"}</button>
           </form>
         </DialogContent>
       </Dialog>
