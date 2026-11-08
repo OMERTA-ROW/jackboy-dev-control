@@ -130,7 +130,8 @@ export async function handleOmniLink(
   const plain = (status: number, error: string) =>
     Response.json({ error }, { status, headers: { "Cache-Control": "no-store" } });
   if (!c) {
-    await logLinkRefusal(env);
+    // Only real requests (the production store) write to the Site Log; injected test stores never do.
+    if (store === databaseStore) await logLinkRefusal(env);
     return plain(503, "link_disabled");
   }
   const url = linkRequestUrl(request, env);

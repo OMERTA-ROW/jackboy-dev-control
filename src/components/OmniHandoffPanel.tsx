@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { CheckCircle2, ShieldAlert, ShieldOff } from "lucide-react";
-import { authorizeOmniProject, getOmniHandoffs, revokeOmniProject } from "@/lib/omni-handoff.functions";
+import {
+  authorizeOmniProject,
+  getOmniHandoffs,
+  linkOmniProjectRepo,
+  queueOmniJobCopy,
+  revokeOmniProject,
+} from "@/lib/omni-handoff.functions";
 import { runOmniHandshake } from "@/lib/omni-link.functions";
 import { useStepUp } from "@/lib/step-up-client";
 import { HANDOFF_KIND_LABEL, isHandoffKind, type HandoffKind } from "@/lib/omni-handoff-auth";
@@ -17,6 +23,8 @@ export function OmniHandoffPanel() {
   const authorize = useServerFn(authorizeOmniProject);
   const revoke = useServerFn(revokeOmniProject);
   const check = useServerFn(runOmniHandshake);
+  const linkRepo = useServerFn(linkOmniProjectRepo);
+  const copyJob = useServerFn(queueOmniJobCopy);
   const stepUp = useStepUp();
   const [d, setD] = useState<Data | null>(null);
   const [msg, setMsg] = useState<{ tone: "ok" | "err"; text: string } | null>(null);
@@ -163,6 +171,19 @@ export function OmniHandoffPanel() {
                     Give OMNI access with passkey
                   </button>
                 </span>
+              ) : p.suggestedRepo ? (
+                <button
+                  className="rounded-md border border-border px-3 py-1 hover:bg-muted disabled:opacity-50"
+                  disabled={busy}
+                  onClick={() =>
+                    void act(async () => {
+                      const r = await linkRepo({ data: { projectId: p.id } });
+                      return `Linked ${r.repo} to ${r.name}. OMNI still has no access until you give it with your passkey.`;
+                    })
+                  }
+                >
+                  Link {p.suggestedRepo}
+                </button>
               ) : null}
             </li>
           ))}
@@ -195,14 +216,32 @@ export function OmniHandoffPanel() {
                   ))}
                 </ul>
               )}
+              {h.repoFix && <p className="mt-1 text-xs text-muted-foreground">Next step: {h.repoFix}</p>}
               {h.grant && <p className="mt-1 text-xs text-muted-foreground">Approval expires {when(h.grant.expiresAt)}</p>}
-              <button
-                className="mt-2 rounded-md border border-border px-3 py-1 text-xs hover:bg-muted disabled:opacity-50"
-                disabled={!h.allowed}
-                onClick={() => setReview({ jobId: h.jobId, grantId: h.grant?.id ?? "" })}
-              >
-                {h.grant ? "Open approved handoff" : "Review this job"}
-              </button>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button
+                  className="rounded-md border border-border px-3 py-1 text-xs hover:bg-muted disabled:opacity-50"
+                  disabled={!h.allowed}
+                  title={h.allowed ? undefined : "Blocked — see the reasons above"}
+                  onClick={() => setReview({ jobId: h.jobId, grantId: h.grant?.id ?? "" })}
+                >
+                  {h.grant ? "Open approved handoff" : "Review this job"}
+                </button>
+                {h.copyRepo && (
+                  <button
+                    className="rounded-md border border-border px-3 py-1 text-xs hover:bg-muted disabled:opacity-50"
+                    disabled={busy}
+                    onClick={() =>
+                      void act(async () => {
+                        const r = await copyJob({ data: { jobId: h.jobId } });
+                        return `Queued a copy for ${r.repo}. The original job is unchanged and nothing was sent.`;
+                      })
+                    }
+                  >
+                    Queue a copy for {h.copyRepo}
+                  </button>
+                )}
+              </div>
             </li>
           ))}
         </ul>

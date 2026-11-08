@@ -46,8 +46,20 @@ export function OmniLinkValuesPanel() {
   const [fresh, setFresh] = useState<ReturnType<typeof suggestApproval> | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const refresh = useCallback(() => load().then(setStatus).catch((e: Error) => setMsg(e.message)), [load]);
-  useEffect(() => { void refresh(); }, [refresh]);
+  const [checkedAt, setCheckedAt] = useState<Date | null>(null);
+  const [site, setSite] = useState<string>("this site");
+  const refresh = useCallback(
+    () => load().then((r) => { setStatus(r); setCheckedAt(new Date()); }).catch((e: Error) => setMsg(e.message)),
+    [load],
+  );
+  useEffect(() => {
+    void refresh();
+    setSite(/(^|\.)id-preview--|lovableproject\.com$|^localhost$/.test(window.location.hostname) ? "the preview" : "the live site");
+    // Re-read when the owner comes back to the tab (e.g. after saving a secret or publishing).
+    const onFocus = () => void refresh();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [refresh]);
   useEffect(() => {
     if (!shown) return;
     const t = window.setTimeout(() => { setShown(null); setFresh(null); }, HIDE_AFTER_MS);
@@ -88,6 +100,26 @@ export function OmniLinkValuesPanel() {
       {status && (
         <p className="text-xs text-muted-foreground">
           Link switch on Jackboy: {status.linkEnabled ? "on" : "off"}. This view never turns it on or runs the self-test.
+        </p>
+      )}
+      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+        <span>
+          {checkedAt ? `Read from ${site}'s running settings at ${checkedAt.toLocaleTimeString()}.` : "Reading…"}
+        </span>
+        <button
+          type="button"
+          className="rounded-md border border-border px-2 py-0.5 hover:bg-muted disabled:opacity-50"
+          disabled={busy}
+          onClick={() => { setMsg(null); void refresh(); }}
+        >
+          Recheck
+        </button>
+      </div>
+      {s && s.expiry !== "valid" && !shown && (
+        <p className="text-xs text-warning">
+          {site === "the live site"
+            ? "If you already saved a newer approval expiry in Jackboy's secrets, publish again so the live site reads it, then press Recheck. Nothing here changes it for you."
+            : "The preview reads the secrets saved in Jackboy. If you saved a newer expiry, press Recheck; the live site reads it only after you publish again."}
         </p>
       )}
 

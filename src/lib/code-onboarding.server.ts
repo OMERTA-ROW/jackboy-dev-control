@@ -65,15 +65,21 @@ async function gather(projectId: string) {
   const repoInfo = x ? null : await codeGh<{ default_branch: string }>(`/repos/${p.repo}`);
   const defaultBranch = x?.base ?? repoInfo?.body?.default_branch ?? null;
 
-  let root: string[] = [], scripts: Record<string, string> | null = null;
+  let root: string[] = [], scripts: Record<string, string> | null = null, goFolders: string[] = [];
   if (x) {
     const list = await ws.repoGet<{ name: string; type: string }[]>(x, `/contents?ref=${encodeURIComponent(x.base)}`).catch(() => []);
     root = list.filter((e) => e.type === "file").map((e) => e.name);
+    if (!root.includes("go.mod") && !root.includes("package.json")) {
+      // Read-only: which top-level folders (first 12) hold their own go.mod, so the blocker can name them.
+      const dirs = list.filter((e) => e.type === "dir" && !e.name.startsWith(".")).map((e) => e.name).slice(0, 12);
+      const found = await Promise.all(dirs.map(async (d) => ((await ws.fileSha(x!, `${d}/go.mod`, x!.base).catch(() => null)) ? d : null)));
+      goFolders = found.filter((d): d is string => d !== null);
+    }
     if (root.includes("package.json")) {
       try { scripts = (JSON.parse((await ws.read(x, "package.json", x.base)).content) as { scripts?: Record<string, string> }).scripts ?? {}; } catch { scripts = {}; }
     }
   }
-  const profile = x ? detectProfile(root, scripts) : { kind: null, reason: appError ?? "Repository could not be read." } as const;
+  const profile = x ? detectProfile(root, scripts, goFolders) : { kind: null, reason: appError ?? "Repository could not be read." } as const;
   const expected: ProfileFile[] = profile.kind ? await profileFiles(profile.kind) : [];
 
   const shas = async (ref: string) => {

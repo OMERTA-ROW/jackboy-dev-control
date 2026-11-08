@@ -52,6 +52,13 @@ export function OmniLinkPanel() {
               <span className="min-w-0 flex-1 truncate">{j.instructions}</span>
               {j.pr_url && <a className="text-primary underline" href={j.pr_url} target="_blank" rel="noreferrer">Pull request</a>}
               {j.last_error && <span className="w-full text-xs text-destructive">Try {j.attempts}: {j.last_error}</span>}
+              {j.status === "queued" && !j.sent_at && (
+                <span className="w-full text-xs text-muted-foreground">
+                  {j.code_request_id
+                    ? "Not sent. CODE request: runs only through CODE approval on GitHub."
+                    : `Not sent${j.repo ? "" : " · no repository on this job"}. The exact reasons and next step are under "Build & test handoffs" below.`}
+                </span>
+              )}
             </li>
           ))}
         </ul>

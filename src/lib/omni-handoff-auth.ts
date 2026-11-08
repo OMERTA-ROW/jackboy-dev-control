@@ -129,3 +129,34 @@ export function validateAuthorizationRequest(input: { kinds: string[]; days: num
     return `Access lasts 1–${MAX_PROJECT_AUTH_DAYS} days.`;
   return null;
 }
+
+/** The Projects page and OMNI's project registry are separate lists. When a registry entry has no
+ * repository, suggest the one the owner already linked on the Projects page — only for exactly one
+ * same-named project with a valid owner/name repo. Never guesses between several. */
+export function registryRepoSuggestion(
+  registryName: string,
+  ownerProjects: { name: string; github_repo: string | null }[],
+): string | null {
+  const key = registryName.trim().toLowerCase();
+  const hits = ownerProjects.filter((p) => p.name.trim().toLowerCase() === key && p.github_repo && REPO.test(p.github_repo));
+  return hits.length === 1 ? (hits[0]?.github_repo ?? null) : null;
+}
+
+/** owner/name from a registry repo URL (https://github.com/owner/name), else null. */
+export function repoFromUrl(url: string | null): string | null {
+  return url?.match(/^https:\/\/github\.com\/([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)$/)?.[1] ?? null;
+}
+
+/** A queued job without a repository may get a NEW copy that carries its project's repository.
+ * The original is never changed. Returns why not, or null when a copy is allowed. */
+export function jobCopyRefusal(
+  job: { status: string; sentAt: string | null; codeRequestId: string | null; repo: string | null; kind: string },
+  projectRepo: string | null,
+): string | null {
+  if (!isHandoffKind(job.kind)) return "Only build or test jobs can be copied.";
+  if (job.status !== "queued" || job.sentAt) return "Only waiting, unsent jobs can be copied.";
+  if (job.codeRequestId) return "CODE requests run only through CODE approval.";
+  if (job.repo) return "This job already names a repository.";
+  if (!projectRepo) return "Link a repository to this project first.";
+  return null;
+}
