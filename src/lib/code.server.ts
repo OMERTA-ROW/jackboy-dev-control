@@ -76,7 +76,11 @@ export async function codeCapability(): Promise<{ verified: boolean; detail: str
   try { approved = await targets(); } catch { return { verified: false, detail: "CODE target allowlist is unavailable or invalid; owner review is required." }; }
   for (const [repo, target] of Object.entries(approved).slice(0, 5)) {
     try {
-      await verify({ repo, ...target });
+      try { await verify({ repo, ...target }); }
+      catch (e) {
+        // Say exactly why instead of the generic "no successful run" line (e.g. the workflow is disabled in GitHub).
+        return { verified: false, detail: `${repo}: ${(e as Error).message}` };
+      }
       const r = await gh<{ workflow_runs: Run[] }>(repo, `/actions/workflows/${CODE_WORKFLOW}/runs?event=workflow_dispatch&per_page=100`);
       if (r.workflow_runs.some(run => /^CODE [a-f0-9-]{36}$/.test(run.display_title) && run.conclusion === "success")) return { verified: true, detail: "A live CODE workflow completed successfully. Each new job still requires its own scoped approval; tests and PRs are reported from GitHub evidence." };
     } catch { /* Remain blocked; provider setup is never inferred. */ }
