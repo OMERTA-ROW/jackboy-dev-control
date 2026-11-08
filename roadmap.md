@@ -242,3 +242,5 @@ The spoken acronym “NLOA” is unconfirmed in Notion. Do not infer a technical
 - [ ] Go subfolder support in Add to CODE (waiting: folder with OMNI's go.mod)
 - [ ] Optional build/test copy of the two queued "code" jobs (waiting: owner choice)
 - [ ] Multi-site database update (waiting: separate approval)
+- [x] Activity page shows the real Site Log (local notes folded away); Recheck/Check connection show plain timed results
+- [ ] Move OMNI handoff list + JAX records into the account (waiting: owner approval of database update)
