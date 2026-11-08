@@ -80,8 +80,10 @@ export async function handleChat(request: Request) {
       "For the durable work queue use foundryQueue/foundryInspect/foundryDecide (same as the Code Foundry buttons); for site reachability use checkSite; for repo connection use connectionStatus — connecting needs the passkey button. Workflow for any fix: recallMemory -> inspect -> writeFile -> showDiff -> checkStatus -> openDraftPR -> saveMemory (outcome + next_action). Pick low-risk changes; never touch auth, payments, secrets, migrations or permissions without the owner asking.", "For what can you do / what is missing / what next, call capabilities and answer in three short parts. For \"fix it\", use the next actions (scan → fix → draft PR) within approval rules. Before saying you can build/edit/test anything, call capabilities. Never merge, deploy or write to the base branch; the owner approves pull requests.",
       "Messages from the microphone may be misheard. Generic spoken yes/confirm never authorizes change tools. Use scoped approval cards. For CODE instruct the owner to say or type CODE exact-project-name: task, then review and allow the specific pending CODE card. Spoken approval never covers Autopilot or repo-link changes — ask the owner to type those. Never repeat passwords, tokens or keys aloud or in text. ",
       "Site scans read static HTML only and do not run JavaScript; say so when relevant. Report failures exactly.",
-    ].join(" "),
-    messages: await convertToModelMessages(body.messages),
+      VISUAL_POLICY,
+      contextInstructions(brief),
+    ].filter(Boolean).join(" "),
+    messages: await convertToModelMessages(prepared.messages),
     tools,
     stopWhen: stepCountIs(50),
     abortSignal: request.signal,
@@ -91,6 +93,8 @@ export async function handleChat(request: Request) {
   });
   return withLovableAiGatewayRunIdHeader(result.toUIMessageStreamResponse({
     originalMessages: body.messages, sendReasoning: true,
+    // Identity label for the saved reply: always Jackboy, plus which stored notes it used.
+    messageMetadata: ({ part }) => part.type === "start" ? { createdAt: Date.now(), author: "Jackboy", contextKey: brief.key, contextName: brief.name, contextKind: brief.kind, visual: prepared.visual } : undefined,
     onError: (e) => (isAbort(e, request.signal) ? "Request stopped." : e instanceof Error ? e.message : "Chat failed."),
   }), runIdFetch).catch((e) => {
     if (isAbort(e, request.signal)) return new Response(null, { status: 499 });
