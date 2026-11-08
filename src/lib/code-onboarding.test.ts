@@ -53,6 +53,13 @@ describe("workflow version choice", () => {
     expect(detectProfile(["package.json", "bun.lock"], {}).kind).toBeNull();
     expect(detectProfile(["README.md"], null).kind).toBeNull();
   });
+  it("names Go folders when go.mod lives only in subfolders, and never guesses a profile for them", () => {
+    const r = detectProfile(["Dockerfile", "README.md"], null, ["cli", "inbox"]);
+    expect(r.kind).toBeNull();
+    expect(r.kind === null && r.reason).toContain("cli/, inbox/");
+    // A root go.mod still wins; subfolders are irrelevant then.
+    expect(detectProfile(["go.mod"], null, ["cli"])).toEqual({ kind: "go" });
+  });
 });
 
 describe("activation gates", () => {
