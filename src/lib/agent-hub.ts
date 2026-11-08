@@ -6,6 +6,9 @@ export const DEMON_CHECKS = ["dependency_audit", "secret_scan", "rls_review", "h
 /** Never allowed for any agent: offensive or intrusive actions. */
 export const FORBIDDEN_ACTIONS = ["exploit", "brute_force", "ddos", "credential_harvest", "port_scan_external", "malware", "phishing", "bypass_auth"] as const;
 
+export const agentProjectAnchor = (id: string) => `agent-project-${encodeURIComponent(id)}`;
+export const agentProjectHref = (id: string) => `/agents#${agentProjectAnchor(id)}`;
+
 export const SEVERITIES = ["info", "low", "medium", "high", "critical"] as const;
 export type Severity = (typeof SEVERITIES)[number];
 
