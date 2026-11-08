@@ -42,7 +42,16 @@ export function runnerOrigin(raw: string | undefined): string | null {
   }
   if (u.protocol !== "https:" || u.username || u.password || u.search || u.hash || (u.pathname !== "/" && u.pathname !== ""))
     return null;
-  return { url: `${u.origin}${RUNNER_PATH}`, secret };
+  return u.origin;
+}
+
+/** Names which runner setting is missing or malformed, without ever including a value. */
+export function runnerConfigProblem(env: Env): string | null {
+  if (env["OMNI_LINK_REMOTE_RUNNER_ENABLED"] !== "true") return "OMNI_LINK_REMOTE_RUNNER_ENABLED is not exactly true";
+  if (!validRunnerSecret(env["OMNI_LINK_REMOTE_RUNNER_SECRET"])) return "OMNI_LINK_REMOTE_RUNNER_SECRET is missing or shorter than 32 characters";
+  if (!runnerOrigin(env["OMNI_LINK_REMOTE_RUNNER_URL"]))
+    return "OMNI_LINK_REMOTE_RUNNER_URL must be the runner's https address with no path (for example https://name.up.railway.app)";
+  return null;
 }
 
 export const requestMessage = (ts: string, nonce: string, body: string) =>
