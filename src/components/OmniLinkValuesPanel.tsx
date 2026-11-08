@@ -3,7 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { CheckCircle2, Copy, Eye, EyeOff, KeyRound, ShieldAlert } from "lucide-react";
 import { getOmniLinkValueStatus, revealOmniLinkValues, saveOmniLinkApproval } from "@/lib/omni-link-values.functions";
 import { APPROVAL_SOURCE_TEXT, SAVE_APPROVAL_ACTION, SAVE_APPROVAL_TARGET } from "@/lib/omni-link-approval";
-import { expiryHint, REVEAL_ACTION, REVEAL_TARGET, suggestApproval, type LinkValueName } from "@/lib/omni-link-values";
+import { approvalSaveProblem, expiryHint, REVEAL_ACTION, REVEAL_TARGET, suggestApproval, type LinkValueName } from "@/lib/omni-link-values";
 import { useStepUp } from "@/lib/step-up-client";
 
 type Status = Awaited<ReturnType<typeof getOmniLinkValueStatus>>;
@@ -170,7 +170,10 @@ export function OmniLinkValuesPanel() {
               className="inline-flex items-center gap-2 rounded-md border border-electric px-3 py-1.5 text-xs hover:bg-muted disabled:opacity-50"
               disabled={busy || !draft.approvalId || !draft.expiresAt}
               onClick={async () => {
-                setBusy(true); setMsg(null); setSaved(null);
+                setMsg(null); setSaved(null);
+                const problem = approvalSaveProblem(draft.expiresAt);
+                if (problem) { setMsg(problem); return; }
+                setBusy(true);
                 try {
                   const r = await stepUp(SAVE_APPROVAL_ACTION, SAVE_APPROVAL_TARGET, {
                     apply: (grantId) => save({ data: { grantId, ...draft } }),
