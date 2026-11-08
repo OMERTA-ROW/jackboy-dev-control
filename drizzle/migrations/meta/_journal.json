@@ -407,6 +407,13 @@
       "when": 1794114805000,
       "tag": "0057_omni_authorization_expiry",
       "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1794120259687,
+      "tag": "0058_omni_authorization_expiry_note",
+      "breakpoints": true
     }
   ]
 }

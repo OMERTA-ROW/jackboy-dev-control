@@ -3622,6 +3622,10 @@ export type Database = {
           active_run_id: number
         }[]
       }
+      expire_omni_project_authorizations: {
+        Args: { _actor: string }
+        Returns: Json
+      }
       finish_code_runtime_slot: {
         Args: {
           p_outcome: string
