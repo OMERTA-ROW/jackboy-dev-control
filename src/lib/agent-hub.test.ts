@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { agentProjectAnchor, agentProjectHref, canPerform, hashProjectToken, isWellFormedProjectToken, newProjectToken, priorityScore, requiresOwnerApproval, reuseVerdict, validateIngest } from "./agent-hub";
+import {
+  agentProjectAnchor,
+  agentProjectHref,
+  canPerform,
+  hashProjectToken,
+  isWellFormedProjectToken,
+  newProjectToken,
+  priorityScore,
+  requiresOwnerApproval,
+  reuseVerdict,
+  validateIngest,
+} from "./agent-hub";
 
 const base = { severity: "high", title: "Leaked key in repo", detail: "" };
 
