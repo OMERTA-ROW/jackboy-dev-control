@@ -7,8 +7,24 @@ import {
   linkRequestUrl,
   SCOPES,
   UUID,
-  verifyRequest,
+  diagnoseRequest,
 } from "./omni-session";
+import { checkForReason, denialDetail, denialSummary, type DenialFacts } from "./omni-link-denial";
+
+/** Records which link check refused a request. Facts are value-free by construction. */
+export type DenialAudit = (facts: DenialFacts, projectId: string) => Promise<void>;
+export const siteLogDenialAudit: DenialAudit = async (facts, projectId) => {
+  const { logSite } = await import("./site-log.server");
+  await logSite({
+    actor: "omni-link",
+    action: "omni.link.denied_check",
+    category: "config",
+    status: "blocked",
+    summary: denialSummary(facts),
+    project_id: projectId,
+    detail: denialDetail(facts),
+  });
+};
 import { runProtocolSelfTest, protocolRunnerAvailable } from "./omni-session-runner.server";
 import { callRemoteRunner, remoteRunnerConfig, RUNNER_TIMEOUT_MS } from "./omni-remote-runner";
 
@@ -131,6 +147,7 @@ export async function handleOmniLink(
   runner?: (signal: AbortSignal) => Promise<boolean>,
   env: Record<string, string | undefined> = process.env,
   fetcher: typeof fetch = fetch,
+  audit?: DenialAudit,
 ): Promise<Response> {
   // Local Node runner first; otherwise the stateless remote runner (live site keeps all checks/storage).
   const remote = protocolRunnerAvailable() ? null : remoteRunnerConfig(env);
@@ -148,26 +165,63 @@ export async function handleOmniLink(
     approvalId: c.approvalId,
     approvalExpiresAt: c.approvalExpiresAt,
   };
-  const deny = async (status: number, reason: string) => {
+  const record: DenialAudit | null =
+    audit ?? (store === databaseStore ? siteLogDenialAudit : null);
+  let skewSeconds: number | null = null;
+  let parsedAction: string | null = null;
+  const deny = async (
+    status: number,
+    reason: string,
+    named?: Partial<Pick<DenialFacts, "check" | "authHeader" | "clientHeader">>,
+  ) => {
     await store("reject", { ...context, reason });
+    if (record) {
+      const facts: DenialFacts = {
+        check: named?.check ?? checkForReason(reason),
+        reason,
+        http: status,
+        skewSeconds,
+        action: parsedAction,
+        ...(named?.authHeader ? { authHeader: named.authHeader } : {}),
+        ...(named?.clientHeader ? { clientHeader: named.clientHeader } : {}),
+      };
+      // Diagnostic only: a logging failure never changes the protocol answer.
+      try {
+        await record(facts, c.projectId);
+      } catch {
+        /* ignored */
+      }
+    }
     return plain(status, reason);
   };
   try {
     const raw = await boundedBody(request);
-    const token =
-      request.headers.get("authorization")?.match(/^Bearer ([a-zA-Z0-9_-]{32,256})$/)?.[1] || "";
-    if (
-      !token ||
-      request.headers.get("x-omni-client") !== c.clientId ||
-      !(await verifyRequest(c.secret, token, request.headers, raw))
-    )
-      return await deny(401, "authentication_failed");
+    const authorization = request.headers.get("authorization");
+    const token = authorization?.match(/^Bearer ([a-zA-Z0-9_-]{32,256})$/)?.[1] || "";
+    const ts = request.headers.get("x-omni-timestamp") || "";
+    if (/^\d{10}$/.test(ts)) skewSeconds = Math.round((Date.now() - Number(ts) * 1000) / 1000);
+    if (!token)
+      return await deny(401, "authentication_failed", {
+        check: "token_format",
+        authHeader: !authorization ? "missing" : /^Bearer /.test(authorization) ? "bad_token_format" : "not_bearer",
+      });
+    const client = request.headers.get("x-omni-client");
+    if (client !== c.clientId)
+      return await deny(401, "authentication_failed", {
+        check: "client_id",
+        clientHeader: !client ? "missing" : client.toLowerCase() === c.clientId.toLowerCase() ? "case_only" : "mismatch",
+      });
+    const signed = await diagnoseRequest(c.secret, token, request.headers, raw);
+    skewSeconds = signed.skewSeconds;
+    if (!signed.ok) return await deny(401, "authentication_failed", { check: signed.check });
     let input: Record<string, unknown>;
     try {
       input = JSON.parse(raw);
     } catch {
       return await deny(400, "invalid_request");
     }
+    if (input && typeof input === "object" && typeof input["action"] === "string")
+      parsedAction = input["action"];
     if (
       !input ||
       Array.isArray(input) ||
@@ -188,13 +242,10 @@ export async function handleOmniLink(
       (typeof input["jobId"] !== "string" || !UUID.test(input["jobId"]))
     )
       return await deny(400, "job_id_required");
-    if (
-      action === "handshake" &&
-      (!safeEqual(token, c.bootstrap) ||
-        input["jobId"] !== undefined ||
-        input["kind"] !== undefined)
-    )
-      return await deny(401, "authentication_failed");
+    if (action === "handshake" && !safeEqual(token, c.bootstrap))
+      return await deny(401, "authentication_failed", { check: "bootstrap_key" });
+    if (action === "handshake" && (input["jobId"] !== undefined || input["kind"] !== undefined))
+      return await deny(401, "authentication_failed", { check: "other" });
     if (action !== "submit" && input["kind"] !== undefined)
       return await deny(400, "invalid_request");
     if (["submit", "run"].includes(String(action)) && !runnerReady)
