@@ -38,3 +38,5 @@
 - Site monitoring lives in `src/lib/site-monitor*.ts` (DNS-over-HTTPS + one HTTPS GET, stored on owner_projects with backoff, 15-min cron at /api/public/jobs/site-monitor); reachability never implies coding access.
 
 - Autonomous Operating Guidelines (`src/lib/guidelines.ts`, `docs/AUTONOMOUS-GUIDELINES.md`) override any task: they are prepended to every AI work/chat prompt and enforced in branch/workflow guards and the two-failure stop.
+- Deployed version is proven only by `/api/public/version` (git commit/tree/dirty stamped at build time in `vite.config.ts`, compared with GitHub main in readiness); a null commit or dirty build never counts as proven.
+- Migrations recorded in production's journal keep their exact bytes and `when`; on a number clash renumber only unapplied entries and keep them newer than the latest applied row (guard: `tests/migration-history-reconcile.test.mjs`).

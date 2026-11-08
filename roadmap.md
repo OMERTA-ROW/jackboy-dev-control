@@ -234,3 +234,12 @@ The spoken acronym “NLOA” is unconfirmed in Notion. Do not infer a technical
 - [x] One-press Undo: draft PRs close; merged changes need a fresh passkey, refuse on clashes, Jackboy merges its own revert after checks pass.
 - [ ] Live proof: publish, register a phone on the published site, send a test alert, and receive the first 7 AM report — owner only.
 - [x] Connect phone alerts to the owner's Firebase project jackboy-b6bb5 (web config from GOOGLE_API_KEY secret, VAPID key requested separately, opt-in permission, diagnostics); sending needs a server credential for that project.
+
+## Production readiness blockers (Nov 8)
+- [x] Reconciled 0055/0056 clash in code: restored applied owner-record updates at original timestamps, renumbered unapplied expiry update to 0057; regression test added.
+- [x] Live site version report (`/api/public/version`) + readiness compares it with GitHub main.
+- [x] OMNI address setting saved with chat link formatting is read safely and named; bare Railway runner host read as https.
+- [ ] Apply 0057 (OMNI access expiry) — blocked: owner backup check + explicit production approval; note the next database change of any kind also applies it.
+- [ ] Re-save OMNI_API_URL plain; set Railway runner service to runner-only mode; fresh OMNI approval expiry — owner.
+- [ ] Merge reconciliation PR, publish, then confirm deployed commit via the version check — owner.
+- [ ] Restore remaining lost Nov 8 preview work (owner OMNI/JAX record screens, workflow-disabled detection, link refusal naming) from `lovable-backup-main-1794110944` — needs owner go-ahead.
