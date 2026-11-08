@@ -54,6 +54,19 @@ async function github<T>(repo: string | null, path: string): Promise<T> {
   return (await response.json()) as T;
 }
 
+/** GitHub's on/off state of the Jackboy CODE workflow ("active", "disabled_manually", …); null when unreadable. */
+export async function codeWorkflowState(): Promise<string | null> {
+  try {
+    const w = await github<{ state?: unknown }>(
+      JACKBOY_REPO,
+      `/repos/${JACKBOY_REPO}/actions/workflows/${CODE_WORKFLOW}`,
+    );
+    return typeof w.state === "string" ? w.state : null;
+  } catch {
+    return null;
+  }
+}
+
 async function readControls() {
   const [controls, guard, meter] = await Promise.all([
     db
@@ -199,19 +212,23 @@ async function probe(id: ReadinessId): Promise<Probe> {
       return { status: r.status, reason: r.reason };
     }
     case "workflow_pins": {
-      const [{ controls }, file] = await Promise.all([
+      const [{ controls }, file, state] = await Promise.all([
         readControls(),
         github<{ sha: string }>(
           JACKBOY_REPO,
           `/repos/${JACKBOY_REPO}/contents/.github/workflows/${CODE_WORKFLOW}?ref=main`,
         ),
+        codeWorkflowState(),
       ]);
-      const { workflowPinReport } = await import("./code-workflow-readiness");
+      const { workflowPinReport, workflowStateProblem } = await import("./code-workflow-readiness");
       const report = workflowPinReport(
         controls?.targets ?? null,
         process.env["CODE_TARGETS"],
         file.sha,
       );
+      const off = workflowStateProblem(state);
+      if (report.matches && off)
+        return { status: "OWNER ACTION", reason: `Pins match (${file.sha.slice(0, 12)}), but: ${off}` };
       return report.matches
         ? {
             status: "PASS",
@@ -268,6 +285,20 @@ async function probe(id: ReadinessId): Promise<Probe> {
         github<{ sha: string }>(JACKBOY_REPO, `/repos/${JACKBOY_REPO}/commits/main`),
       ]);
       const run = runs.workflow_runs[0];
+      let sameTree = false;
+      if (run && run.status === "completed" && run.conclusion === "success" && run.head_sha !== main.sha) {
+        try {
+          const [a, b] = await Promise.all(
+            [run.head_sha, main.sha].map((sha) =>
+              github<{ commit: { tree: { sha: string } } }>(JACKBOY_REPO, `/repos/${JACKBOY_REPO}/commits/${sha}`),
+            ),
+          );
+          const ta = a?.commit?.tree?.sha, tb = b?.commit?.tree?.sha;
+          sameTree = typeof ta === "string" && /^[a-f0-9]{40}$/.test(ta) && ta === tb;
+        } catch {
+          sameTree = false; // unreadable trees never count as a match
+        }
+      }
       return acceptanceResult(
         run
           ? {
@@ -278,6 +309,7 @@ async function probe(id: ReadinessId): Promise<Probe> {
             }
           : null,
         main.sha,
+        sameTree,
       );
     }
     case "omni_prs": {
