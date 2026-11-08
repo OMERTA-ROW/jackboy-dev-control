@@ -88,10 +88,10 @@ function ActivityPage() {
         {rows === null ? <p className="text-sm text-muted-foreground">Loading…</p> : rows.length === 0 ? <p className="text-sm text-muted-foreground">No entries.</p> : (
           <ol className="divide-y divide-border font-mono text-xs">
             {rows.map((l) => (
-              <li key={l.id} className="flex flex-wrap gap-x-3 py-2">
-                <time className="w-36 shrink-0 text-muted-foreground">{l.at ? new Date(l.at).toLocaleString() : ""}</time>
-                <span className={`w-16 shrink-0 uppercase ${STATUS[l.status ?? "info"] ?? ""}`}>{l.status}</span>
-                <span className="min-w-0 flex-1 break-words text-foreground">{l.summary}</span>
+              <li key={l["id"]} className="flex flex-wrap gap-x-3 py-2">
+                <time className="w-36 shrink-0 text-muted-foreground">{l["at"] ? new Date(l["at"]).toLocaleString() : ""}</time>
+                <span className={`w-16 shrink-0 uppercase ${STATUS[l["status"] ?? "info"] ?? ""}`}>{l["status"]}</span>
+                <span className="min-w-0 flex-1 break-words text-foreground">{l["summary"]}</span>
               </li>
             ))}
           </ol>)}
@@ -101,8 +101,8 @@ function ActivityPage() {
           <summary className="cursor-pointer text-xs text-muted-foreground">Older local notes from this browser ({local.logs.length}) — not part of the Site Log</summary>
           <ol className="mt-2 divide-y divide-border font-mono text-xs">
             {local.logs.map((l) => (
-              <li key={l.id} className="flex gap-3 py-2">
-                <time className="w-36 shrink-0 text-muted-foreground">{new Date(l.at).toLocaleString()}</time>
+              <li key={l["id"]} className="flex gap-3 py-2">
+                <time className="w-36 shrink-0 text-muted-foreground">{new Date(l["at"]).toLocaleString()}</time>
                 <span className={`w-16 shrink-0 uppercase ${LOCAL[l.level]}`}>{l.level}</span>
                 <span className="min-w-0 break-words">{l.message}</span>
               </li>
