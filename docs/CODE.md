@@ -12,6 +12,30 @@ Implementation order: establish the runner contract → bind consent to a server
 
 ## Use
 
+CODE conversations reuse the owner-only account history. The plus **New
+conversation** button starts a separate thread, and the conversation dropdown
+opens saved threads. **Conversations** includes search, rename, and deletion
+with confirmation. Saved titles survive later autosaves. Returning to `/chat`
+restores the last opened thread if it is still in the account's history.
+
+Choose the CODE project explicitly in **Project and connections**; no repository
+is selected by default. Hercules Driver OS remains its own project, not Jackboy's
+default CODE target. Enter sends, Shift+Enter inserts a newline, and composition
+events do not send. A blocked CODE request shows its error and keeps the draft;
+it is not retried automatically or forwarded to ordinary chat. Sending creates
+an approval request, not permission to execute. Saving, renaming, searching, and
+deleting conversations never enables CODE or changes its spending controls.
+
+Verified tool activity appears in expandable sections above the assistant's
+response, with reduced-motion-aware animation only while the tool is active.
+Sections show allowlisted file paths, commits, reported check results, errors,
+and evidence links; they never display prompts, source contents, or private
+reasoning. CODE job sections use GitHub's actual job status and conclusion.
+There is no fabricated analysis/test/deployment progress or automatic action.
+Conversation history remains in its separate left-hand drawer, including on
+mobile. Production deployment still requires the existing owner approvals and
+successful checks for the release commit.
+
 Type or dictate `CODE Exact project name: fix the footer` and send it. The project must have a linked GitHub repository and owner-enabled development. In live voice, ask Jackboy to request a CODE task for that project; `requestCODE` creates the same visible card.
 
 Review the exact task, repository, permissions, request ID and expiry. Select **Allow once** or **Deny**. A spoken response is accepted only as `Allow CODE <full request ID>` or `Deny CODE <full request ID>` for the pending card in that authenticated session. A generic yes/confirm grants nothing. A live relay approval uses the original transcript, not a model-provided claim that consent was given.
