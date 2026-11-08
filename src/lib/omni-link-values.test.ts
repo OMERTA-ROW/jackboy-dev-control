@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAX_APPROVAL_MS, approvalExpiryState, expiryHint, suggestApproval, summarizeLinkValues } from "./omni-link-values";
+import { MAX_APPROVAL_MS, approvalExpiryState, approvalSaveProblem, expiryHint, suggestApproval, summarizeLinkValues } from "./omni-link-values";
 import { FRESH_ONLY_ACTIONS, STEP_UP_ACTIONS, mayRequest } from "./step-up";
 
 const me = "11111111-1111-4111-8111-111111111111";
@@ -90,5 +90,31 @@ describe("OMNI approval status follows the saved value", () => {
     const hint = expiryHint(s.expiry, s.expiresInMs);
     expect(hint).toBe("Saved approval expired about 34.5 hours ago.");
     expect(hint).not.toContain("2026");
+  });
+});
+
+describe("approvalSaveProblem (checked before the passkey prompt and again on the server)", () => {
+  it("accepts a fresh suggested pair", () => {
+    expect(approvalSaveProblem(suggestApproval(now).expiresAt, now)).toBeNull();
+  });
+  it("refuses an expiry that already passed and points to a new pair", () => {
+    const p = approvalSaveProblem("2026-11-07T08:00:00Z", now);
+    expect(p).toContain("passed about 10 hours ago");
+    expect(p).toContain("Make a new approval");
+  });
+  it("refuses an expiry exactly at now (same rule as the database)", () => {
+    expect(approvalSaveProblem(new Date(now).toISOString(), now)).toContain("passed");
+  });
+  it("refuses an expiry more than 24 hours ahead", () => {
+    expect(approvalSaveProblem(new Date(now + MAX_APPROVAL_MS + 60_000).toISOString(), now)).toContain("limit is 24 hours");
+  });
+  it("refuses a date without a time zone instead of guessing local time", () => {
+    expect(approvalSaveProblem("2026-11-08T10:00:00", now)).toContain("time zone");
+  });
+  it("accepts an offset other than Z by its real instant", () => {
+    expect(approvalSaveProblem("2026-11-08T05:00:00-05:00", now)).toBeNull();
+  });
+  it("refuses empty input", () => {
+    expect(approvalSaveProblem("  ", now)).toBe("Enter the approval expiry.");
   });
 });

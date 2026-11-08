@@ -165,6 +165,7 @@ export function OmniLinkValuesPanel() {
               <span className="font-mono">OMNI_LINK_APPROVAL_EXPIRES_AT</span>
               <input className="mt-1 w-full rounded-md border border-border bg-background px-2 py-1 font-mono text-sm" value={draft.expiresAt} onChange={(e) => setDraft({ ...draft, expiresAt: e.target.value.trim() })} placeholder="2026-11-09T07:00:00.000Z" autoComplete="off" spellCheck={false} />
             </label>
+            {draft.expiresAt && approvalSaveProblem(draft.expiresAt) && <p className="text-xs text-warning">{approvalSaveProblem(draft.expiresAt)}</p>}
             <button
               type="button"
               className="inline-flex items-center gap-2 rounded-md border border-electric px-3 py-1.5 text-xs hover:bg-muted disabled:opacity-50"
