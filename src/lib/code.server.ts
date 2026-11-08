@@ -4,6 +4,7 @@ import { supabaseAdmin as db } from "@/integrations/supabase/client.server";
 import { CODE_ACTION, CODE_PERMISSIONS, CODE_TTL, CODE_WORKFLOW, codeApprovalError, codeLink, codeRunName, type CodeCard, type CodeScope } from "./code";
 import { codeSafetyBlockReason, getCodeSafetyState } from "./code-safety.server";
 import { codeTargetRefusal } from "./code-safety";
+import { createCodeGithubHeaders } from "./code-github";
 import { redactTranscript } from "./voice-guard";
 
 type Target = { ref: string; workflowSha: string };
@@ -18,7 +19,7 @@ async function gh<T>(repo: string, path: string, method = "GET", body?: unknown)
   if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) throw new Error("Invalid repository.");
   const response = await fetch(`https://api.github.com/repos/${repo}${path}`, {
     method, redirect: "manual", signal: AbortSignal.timeout(15_000),
-    headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "Jackboy", "Content-Type": "application/json" },
+    headers: createCodeGithubHeaders(token),
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
   if (!response.ok) throw new Error(`CODE GitHub request failed (${response.status}). Check the workflow, Actions scope and provider authorization.`);

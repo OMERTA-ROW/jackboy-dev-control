@@ -46,7 +46,23 @@ function AgentHub() {
   const fns = { add: useServerFn(addProject), upd: useServerFn(updateProject), issue: useServerFn(issueToken), revoke: useServerFn(revokeTokens), triage: useServerFn(triageReport), propose: useServerFn(createProposal), decide: useServerFn(decideProposal) };
 
   const refresh = useCallback(() => load().then(setHub).catch((e) => setErr((e as Error).message)), [load]);
-  useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => {
+    void refresh();
+    const channel = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel("jackboy-approvals") : null;
+    if (channel) channel.onmessage = () => void refresh();
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") void refresh();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    const interval = setInterval(() => {
+      if (document.visibilityState === "visible") void refresh();
+    }, 30_000);
+    return () => {
+      channel?.close();
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      clearInterval(interval);
+    };
+  }, [refresh]);
   const act = async (p: Promise<unknown>) => { setErr(null); try { await p; await refresh(); } catch (e) { setErr((e as Error).message); } };
 
   if (!hub) return <><PageHeader title="Agent Hub" subtitle="Loading…" />{err && <p className="text-destructive text-sm">{err}</p>}</>;
