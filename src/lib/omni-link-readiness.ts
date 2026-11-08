@@ -1,5 +1,6 @@
 // Readiness for the reviewed OMNI-initiated link (omni.link/v2): OMNI calls Jackboy at
 // /api/public/omni/link. Reports variable NAMES only, never values.
+import { REFUSAL_TEXT, linkRefusal } from "./omni-link-refusal";
 export const REVERSE_LINK_VARS = [
   "OMNI_LINK_ENABLED",
   "OMNI_LINK_CLIENT_ID",
@@ -27,6 +28,8 @@ export function reverseLinkReport(input: {
   now?: number;
   /** "local" Node runner, "remote" stateless runner, or "none"; omitted = not reported. */
   runner?: "local" | "remote" | "none";
+  /** Which remote-runner setting is missing/malformed (names only), when runner is "none". */
+  runnerProblem?: string | null;
 }): ReverseLinkReport {
   const missingVars = REVERSE_LINK_VARS.filter((n) => !input.env[n]);
   const enabledFlag = input.env["OMNI_LINK_ENABLED"] === "true";
@@ -42,7 +45,10 @@ export function reverseLinkReport(input: {
           ? "OMNI_LINK_ENABLED must be exactly true"
           : input.configValid
             ? "All link settings present and valid"
-            : "Settings present but invalid (UUIDs, expiry within 24h, 32+ char distinct keys)",
+            : (() => {
+                const r = linkRefusal(input.env, input.now);
+                return r ? `Settings present but refused: ${REFUSAL_TEXT[r]}` : "Settings present but invalid (UUIDs, expiry within 24h, 32+ char distinct keys)";
+              })(),
     },
     {
       name: "Jackboy link storage",
@@ -66,7 +72,9 @@ export function reverseLinkReport(input: {
           ? "Local Node runner enabled"
           : input.runner === "remote"
             ? "Remote runner configured; reachability is proven only by a real omni-link run"
-            : "No runner: set OMNI_LINK_REMOTE_RUNNER_ENABLED/_URL/_SECRET, or submit/run returns runner_unavailable",
+            : input.runnerProblem
+              ? `No runner: ${input.runnerProblem}`
+              : "No runner: set OMNI_LINK_REMOTE_RUNNER_ENABLED/_URL/_SECRET, or submit/run returns runner_unavailable",
     });
   const missing = steps.filter((s) => !s.ok).map((s) => s.detail);
   return { direction: "omni-initiated", contract: "omni.link/v2", verified: missing.length === 0, missing, steps };
