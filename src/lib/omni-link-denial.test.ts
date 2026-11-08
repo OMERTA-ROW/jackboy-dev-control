@@ -69,7 +69,7 @@ describe("OMNI link names the refusing check without values", () => {
   });
   it("missing or malformed Authorization → token_format", async () => {
     expect((await run(await request({ auth: null }))).logged[0]).toMatchObject({ check: "token_format", authHeader: "missing" });
-    expect((await run(await request({ auth: "Bearer " + "b".repeat(64) + " " }))).logged[0]).toMatchObject({ check: "token_format", authHeader: "bad_token_format" });
+    expect((await run(await request({ auth: "Bearer " + "b".repeat(63) + "." }))).logged[0]).toMatchObject({ check: "token_format", authHeader: "bad_token_format" });
     expect((await run(await request({ auth: "Token abc" }))).logged[0]).toMatchObject({ check: "token_format", authHeader: "not_bearer" });
   });
   it("clock more than 60s apart → clock_skew with the difference in seconds", async () => {
