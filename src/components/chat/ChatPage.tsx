@@ -626,3 +626,56 @@ function useJackboyVoice() {
   const stop = useCallback(() => { audio.current?.pause(); audio.current = null; setSpeaking(false); }, []);
   return useMemo(() => ({ available, error, speaking, speak, stop }), [available, error, speaking, speak, stop]);
 }
+type AuthLink = { label: string; url: string; primary?: boolean };
+type Authorization = { provider: string; repo: string | null; state: string; missing: string[]; links: AuthLink[]; detail: string };
+const TOOL_WORDS: Record<string, string> = { authorizationHelp: "Finding the right approval link", get_status: "Checking your projects", scan_site: "Scanning the site", read_file: "Reading a file", list_files: "Looking through files", write_file: "Writing a change", open_pr: "Opening a draft pull request" };
+const human = (n: string) => TOOL_WORDS[n] ?? n.replace(/[_-]+/g, " ").replace(/^./, (c) => c.toUpperCase());
+
+/** Real tool calls appear as one quiet line while running; finished ones vanish unless they failed or need an approval link. */
+function ToolLine({ name, state, output, errorText }: { name: string; state: string; output: unknown; errorText?: string | undefined }) {
+  const running = state === "input-streaming" || state === "input-available";
+  const failed = state === "output-error" || state === "output-denied";
+  const auths = (output as { authorizations?: unknown } | null)?.authorizations;
+  const auth = Array.isArray(auths) ? (auths as Authorization[]).find((a) => a && a.state !== "authorized" && Array.isArray(a.links)) : undefined;
+  const value = (output && typeof output === "object" ? output : null) as { blocked?: boolean; reason?: unknown; evidence?: unknown } | null;
+  const evidence = links(value?.evidence);
+  if (running) return <Shimmer className="my-1 block text-sm">{`${human(name)}…`}</Shimmer>;
+  if (auth) {
+    const link = auth.links.find((l) => l.primary && l.url.startsWith("https://github.com/")) ?? auth.links.find((l) => l.url.startsWith("https://github.com/"));
+    return <p className="my-2 text-sm">{auth.provider} needs your approval{auth.repo ? ` for ${auth.repo}` : ""}.{link && <> <a href={link.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-electric underline"><ExternalLink className="size-3.5" />Approve on {auth.provider}</a></>}</p>;
+  }
+  if (state === "approval-requested") return <p className="my-1 text-sm text-warning">{human(name)} is waiting for your approval.</p>;
+  if (failed) return <p role="alert" className="my-1 text-sm text-destructive">{human(name)} didn't work{errorText ? `: ${errorText.slice(0, 200)}` : "."}</p>;
+  if (value?.blocked || evidence.length) return <div className="my-2 text-sm">{value?.blocked && <p role="alert" className="text-destructive">Blocked: {String(value.reason ?? "")}</p>}<div className="flex flex-wrap gap-3">{evidence.map((l) => <a key={l.url} href={l.url} className="inline-flex items-center gap-1 text-xs text-primary underline"><ExternalLink className="size-3.5" />{l.label}</a>)}</div></div>;
+  return null;
+}
+
+
+/** Explicit device support, microphone permission and privacy facts for voice. */
+function VoiceSupport() {
+  const statusFn = useServerFn(getVoiceChatStatus);
+  const [info, setInfo] = useState<{ secure: boolean; mic: boolean; webrtc: boolean; stt: boolean; tts: boolean; perm: string; server: boolean | null } | null>(null);
+  useEffect(() => {
+    const w = window as unknown as Record<string, unknown>;
+    const base = { secure: window.isSecureContext, mic: Boolean(navigator.mediaDevices?.getUserMedia), webrtc: typeof RTCPeerConnection !== "undefined",
+      stt: Boolean(w["SpeechRecognition"] || w["webkitSpeechRecognition"]), tts: "speechSynthesis" in window, perm: "unknown", server: null as boolean | null };
+    setInfo(base);
+    navigator.permissions?.query({ name: "microphone" as PermissionName }).then((p) => setInfo((i) => i && { ...i, perm: p.state })).catch(() => undefined);
+    statusFn().then((s) => setInfo((i) => i && { ...i, server: s.voiceAvailable })).catch(() => setInfo((i) => i && { ...i, server: false }));
+  }, [statusFn]);
+  if (!info) return null;
+  const row = (label: string, ok: boolean | null, note?: string) => <li className="flex justify-between gap-2"><span>{label}</span><span className={ok ? "text-success" : ok === null ? "text-muted-foreground" : "text-warning"}>{ok === null ? "Checking" : ok ? "Yes" : "No"}{note ? ` · ${note}` : ""}</span></li>;
+  return (
+    <section aria-label="Voice and privacy" className="space-y-2 text-xs">
+      <h3 className="text-sm font-semibold text-silver">Voice and privacy</h3>
+      <ul className="space-y-1 text-muted-foreground">
+        {row("Two-way voice on this device", info.secure && info.mic && info.webrtc)}
+        {row("Microphone permission", info.perm === "granted" ? true : info.perm === "denied" ? false : null, info.perm === "prompt" ? "will ask" : info.perm === "denied" ? "blocked in browser" : undefined)}
+        {row("Dictation (speech to text)", info.stt)}
+        {row("Spoken replies on device", info.tts)}
+        {row("Jackboy voice service", info.server)}
+      </ul>
+      <p className="text-muted-foreground">The microphone runs only after you tap it and stops when you end the call or leave. Audio is not recorded or stored; only the text transcript is kept in your conversation. Spoken requests use the same permissions and approvals as typing, and sensitive actions still need a passkey on screen.</p>
+    </section>
+  );
+}
