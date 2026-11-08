@@ -32,8 +32,8 @@ describe("OMNI-initiated link readiness", () => {
       OMNI_LINK_BOOTSTRAP_KEY: "b".repeat(40), OMNI_LINK_HMAC_SECRET: "s".repeat(40),
     };
     const step = reverseLinkReport({ env, configValid: false, storageReady: true, lastSessionAt: null, now }).steps[0];
-    expect(step.ok).toBe(false);
-    expect(step.detail).toBe("Settings present but refused: approval expired");
+    expect(step?.ok).toBe(false);
+    expect(step?.detail).toBe("Settings present but refused: approval expired");
   });
   it("names the blocking runner setting", () => {
     const r = reverseLinkReport({ env: full, configValid: true, storageReady: true, lastSessionAt: null, runner: "none", runnerProblem: "OMNI_LINK_REMOTE_RUNNER_URL must be https" });
