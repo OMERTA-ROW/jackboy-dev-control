@@ -182,8 +182,8 @@ export async function handleOmniLink(
         http: status,
         skewSeconds,
         action: parsedAction,
-        authHeader: named?.authHeader,
-        clientHeader: named?.clientHeader,
+        ...(named?.authHeader ? { authHeader: named.authHeader } : {}),
+        ...(named?.clientHeader ? { clientHeader: named.clientHeader } : {}),
       };
       // Diagnostic only: a logging failure never changes the protocol answer.
       try {
