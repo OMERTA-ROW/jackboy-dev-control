@@ -562,6 +562,136 @@ export type Database = {
           },
         ]
       }
+      chat_contexts: {
+        Row: {
+          created_at: string
+          id: string
+          kind: string
+          name: string
+          notes: string
+          notes_updated_at: string | null
+          notes_updated_by: string | null
+          project_id: string | null
+          role: string
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          kind?: string
+          name: string
+          notes?: string
+          notes_updated_at?: string | null
+          notes_updated_by?: string | null
+          project_id?: string | null
+          role?: string
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          kind?: string
+          name?: string
+          notes?: string
+          notes_updated_at?: string | null
+          notes_updated_by?: string | null
+          project_id?: string | null
+          role?: string
+          slug?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_contexts_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "owner_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_messages: {
+        Row: {
+          author: string
+          content: string
+          context_key: string | null
+          created_at: string
+          id: string
+          metadata: Json
+          owner_id: string
+          parts: Json
+          role: string
+          thread_id: string
+          ui_id: string
+        }
+        Insert: {
+          author?: string
+          content?: string
+          context_key?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json
+          owner_id: string
+          parts?: Json
+          role: string
+          thread_id: string
+          ui_id: string
+        }
+        Update: {
+          author?: string
+          content?: string
+          context_key?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json
+          owner_id?: string
+          parts?: Json
+          role?: string
+          thread_id?: string
+          ui_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_messages_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "chat_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_threads: {
+        Row: {
+          context_key: string
+          created_at: string
+          id: string
+          mode: string
+          owner_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          context_key?: string
+          created_at?: string
+          id: string
+          mode?: string
+          owner_id: string
+          title?: string
+          updated_at?: string
+        }
+        Update: {
+          context_key?: string
+          created_at?: string
+          id?: string
+          mode?: string
+          owner_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       code_provider_calls: {
         Row: {
           actual_usd: number | null

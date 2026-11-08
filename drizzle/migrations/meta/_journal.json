@@ -379,6 +379,13 @@
       "when": 1794072319747,
       "tag": "0053_audit_logs_append_only_attributed",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1794098970048,
+      "tag": "0054_chat_threads_contexts_attachments",
+      "breakpoints": true
     }
   ]
 }
