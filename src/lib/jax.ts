@@ -1,5 +1,3 @@
-import { useSyncExternalStore } from "react";
-import { log } from "./jackboy-store";
 import { projectAnnual, type Handoff } from "./omni-handoff";
 
 export const CONTRACT_VERSION = "jax.release-manifest/0.1";
@@ -88,34 +86,5 @@ export const INTEGRATION_CONTRACT = {
   ],
 };
 
-type S = { manifests: ReleaseManifest[] };
-const KEY = "jackboy:jax:v1";
-let state: S = { manifests: [] }; let loaded = false;
-const ls = new Set<() => void>();
-const initial: S = { manifests: [] };
-function load() {
-  if (loaded || typeof window === "undefined") return;
-  loaded = true;
-  try { const r = localStorage.getItem(KEY); if (r) state = JSON.parse(r); } catch { /* ignore */ }
-}
-function set(fn: (s: S) => S) {
-  load(); state = fn(state);
-  if (typeof window !== "undefined") localStorage.setItem(KEY, JSON.stringify(state));
-  ls.forEach((l) => l());
-}
-export function addManifest(m: ReleaseManifest) {
-  set((s) => ({ manifests: [m, ...s.manifests] }));
-  log("approval", `JAX: simulated release manifest ${m.name} v${m.version} created`);
-}
-export function updateManifest(id: string, fn: (m: ReleaseManifest) => ReleaseManifest, event?: string) {
-  set((s) => ({ manifests: s.manifests.map((m) => {
-    if (m.id !== id) return m;
-    const n = fn(m);
-    return event ? { ...n, audit: [...n.audit, { at: new Date().toISOString(), event }] } : n;
-  }) }));
-  if (event) log("approval", `JAX: ${event}`);
-}
-export function removeManifest(id: string) { set((s) => ({ manifests: s.manifests.filter((m) => m.id !== id) })); }
-export function useManifests() {
-  return useSyncExternalStore((l) => { ls.add(l); if (!loaded) { load(); queueMicrotask(l); } return () => ls.delete(l); }, () => state, () => initial).manifests;
-}
+// Draft manifests are stored per owner in the database (owner-records.functions.ts). Older browser-only
+// copies under "jackboy:jax:v1" are read only for the one-press import and never modified.
