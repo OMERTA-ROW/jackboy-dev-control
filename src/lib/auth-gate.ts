@@ -4,7 +4,7 @@
 
 export type GateUserResult = {
   user: { id: string } | null;
-  error: { name?: string; status?: number; message?: string } | null;
+  error: { name?: string | undefined; status?: number | undefined; message?: string | undefined } | null;
 };
 export type GateRoleResult = { role: unknown; error: unknown };
 export type GateDecision =
