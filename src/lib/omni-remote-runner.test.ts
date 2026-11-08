@@ -51,7 +51,9 @@ describe("remote runner config (live site)", () => {
     expect(runnerConfigProblem(ok)).toBeNull();
     expect(runnerConfigProblem({ ...ok, OMNI_LINK_REMOTE_RUNNER_ENABLED: "yes" })).toContain("OMNI_LINK_REMOTE_RUNNER_ENABLED");
     expect(runnerConfigProblem({ ...ok, OMNI_LINK_REMOTE_RUNNER_URL: "http://x.up.railway.app" })).toContain("OMNI_LINK_REMOTE_RUNNER_URL");
-    expect(runnerConfigProblem({ ...ok, OMNI_LINK_REMOTE_RUNNER_SECRET: "short" })).not.toContain("short");
+    const p = runnerConfigProblem({ ...ok, OMNI_LINK_REMOTE_RUNNER_SECRET: "zq9secretvalue" });
+    expect(p).toContain("OMNI_LINK_REMOTE_RUNNER_SECRET");
+    expect(p).not.toContain("zq9secretvalue");
   });
 });
 
