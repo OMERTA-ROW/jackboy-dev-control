@@ -64,7 +64,7 @@ function AgentHub() {
       {hub.projects.length === 0 && <p className="panel mb-6 p-4 text-sm text-muted-foreground">No projects registered yet.</p>}
       <div className="mb-6 grid gap-3 lg:grid-cols-2">
         {hub.projects.map((p) => (
-          <article key={p.id} id={agentProjectAnchor(p.id)} className="panel p-4 text-sm">
+          <article key={p.id} id={agentProjectAnchor(p.id)} className="panel scroll-mt-24 p-4 text-sm">
             <div className="flex items-center justify-between"><span className="font-medium">{p.name}</span><span className="text-xs uppercase text-muted-foreground">{p.enrolled ? `enrolled · ${p.health}` : "not enrolled"}</span></div>
             <p className="mt-1 text-xs text-muted-foreground">{p.last_report_at ? `Last report ${new Date(p.last_report_at).toLocaleString()}` : "No reports received yet"}</p>
             <div className="mt-3 grid gap-2 text-xs">
