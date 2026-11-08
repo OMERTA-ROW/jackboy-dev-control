@@ -1,6 +1,6 @@
 // Code Foundry runtime (server-only). Uses real repo tools; every state change writes an immutable event.
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { assertTransition, backoffMs, budget, canApprove, canExecute, classifyRisk, idempotencyKey, IN_FLIGHT, isTransient, nextProject, projectSlotFree, quotaLeft, usageSpike, type ApprovedAction, type State } from "./foundry";
+import { assertTaskTransitionClaim, assertTransition, backoffMs, budget, canApprove, canExecute, classifyRisk, idempotencyKey, IN_FLIGHT, isTransient, nextProject, projectSlotFree, quotaLeft, usageSpike, type ApprovedAction, type State } from "./foundry";
 import * as ws from "./repo-workspace.server";
 import { capabilityForTestGap } from "./autoconnect";
 
@@ -21,8 +21,8 @@ async function event(task: Pick<Task, "id" | "project_id"> | null, action: strin
 
 async function move(t: Task, to: State, actor: string, note = "", patch: Record<string, unknown> = {}) {
   assertTransition(t.state, to);
-  const { error } = await supabaseAdmin.from("foundry_tasks").update({ ...patch, state: to, updated_at: new Date().toISOString() } as never).eq("id", t.id).eq("state", t.state);
-  if (error) throw new Error(error.message);
+  const { data, error } = await supabaseAdmin.from("foundry_tasks").update({ ...patch, state: to, updated_at: new Date().toISOString() } as never).eq("id", t.id).eq("state", t.state).select("id").maybeSingle();
+  assertTaskTransitionClaim(data, error);
   await event(t, "transition", actor, t.state, to, note, patch);
   Object.assign(t, patch, { state: to });
 }

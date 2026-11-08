@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { canApprove, canExecute, canTransition, classifyRisk, nextProject, quotaLeft } from "./foundry";
+import { assertTaskTransitionClaim, canApprove, canExecute, canTransition, classifyRisk, nextProject, quotaLeft } from "./foundry";
 
 describe("foundry state machine", () => {
+  it("requires a conditional state update to claim an operation", () => {
+    expect(() => assertTaskTransitionClaim({ id: "task-1" }, null)).not.toThrow();
+    expect(() => assertTaskTransitionClaim(null, null)).toThrow(/state changed/);
+    expect(() => assertTaskTransitionClaim(null, { message: "database unavailable" })).toThrow("database unavailable");
+  });
   it("follows the happy path", () => {
     const path = ["discovered", "analyzing", "patch_prepared", "testing", "awaiting_approval", "approved", "executing", "verifying", "completed"] as const;
     for (let i = 0; i < path.length - 1; i++) expect(canTransition(path[i]!, path[i + 1]!)).toBe(true);

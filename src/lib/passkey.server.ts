@@ -24,7 +24,20 @@ export async function takeChallenge(id: string, userId: string, purpose: string)
 export async function issueGrant(userId: string, action: string, target: string, credentialId: string) {
   const { data, error } = await supabaseAdmin.from("step_up_grants").insert({ user_id: userId, action, target, credential_id: credentialId, expires_at: new Date(Date.now() + GRANT_TTL_MS).toISOString() }).select("id, expires_at").single();
   if (error) throw new Error(error.message);
-  await supabaseAdmin.from("audit_logs").insert({ actor: userId, action: "stepup.granted", detail: { action, target, grant: data.id } as never, outcome: "ok" });
+  const { error: auditError } = await supabaseAdmin.from("audit_logs").insert({ actor: userId, action: "stepup.granted", detail: { action, target, grant: data.id } as never, outcome: "ok" });
+  if (auditError) {
+    const { data: invalidated, error: invalidateError } = await supabaseAdmin
+      .from("step_up_grants")
+      .update({ used_at: new Date().toISOString() })
+      .eq("id", data.id)
+      .is("used_at", null)
+      .select("id")
+      .maybeSingle();
+    if (invalidateError || !invalidated) {
+      throw new Error("Passkey grant auditing failed and invalidation could not be verified. Treat the action as blocked and investigate.");
+    }
+    throw new Error("Passkey grant could not be audited; the grant was invalidated.");
+  }
   return data;
 }
 
