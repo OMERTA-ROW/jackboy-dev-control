@@ -48,7 +48,12 @@ function isH3SwallowedErrorBody(body: string): boolean {
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
-      if (new URL(request.url).pathname === "/api/live") {
+      const pathname = new URL(request.url).pathname;
+      // Runner-only hosts (Railway) answer nothing but the fixed self-test runner.
+      if (process.env["OMNI_LINK_RUNNER_MODE"] === "true" && pathname !== "/api/public/omni/runner") {
+        return new Response("Not found", { status: 404, headers: { "Cache-Control": "no-store" } });
+      }
+      if (pathname === "/api/live") {
         return handleLiveRequest(request);
       }
       const handler = await getServerEntry();

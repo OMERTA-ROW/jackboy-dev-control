@@ -118,3 +118,14 @@ PGlite verifies SQL behavior and concurrent application requests but is a single
 - All new TypeScript/JavaScript files pass ESLint including formatting. Repository-wide non-format lint still reports **48 errors and 35 warnings**, identical to the repaired base branch. Existing lint debt was not broadly changed. Full repository formatting lint is not claimed green.
 - Companion Go inbox/client race tests, vet/build and original CLI tests/vet passed.
 - No production migration, key provisioning, provider call, CODE workflow dispatch or live agent activation occurred.
+
+
+## Remote self-test runner (approved 2026-11-07)
+
+The live site cannot start a Node child process, and the Railway copy cannot reach Jackboy's database. Instead, OMNI talks only to the live site (`JACKBOY_LINK_ORIGIN=https://jackboy-dev-control.lovable.app`). The live site runs every session/owner/project/approval/Kill Switch/job-state check and keeps all storage. On `run`, if it has no local runner, it sends one signed request to a **stateless runner-only** Railway host at `POST /api/public/omni/runner` (contract `omni.runner/v1`).
+
+- Request: exact body `{"kind":"protocol.self-test","jobId":<uuid>}`, `X-Runner-Timestamp` (ms, ±60 s), `X-Runner-Nonce` (one-time, kept in memory for 10 minutes), `X-Runner-Signature` = HMAC-SHA256 over `omni.runner/v1\nrequest\n<ts>\n<nonce>\n<body>`. Bodies are capped at 1 KiB.
+- Response: `{jobId, nonce, passed}` with `X-Runner-Proof` over `omni.runner/v1\nresponse\n<nonce>\n<body>`. The live site checks the proof, job ID and nonce. If the runner is unreachable (5 s timeout) or the proof is invalid, the job **fails** (`runnerError: runner_unreachable | runner_proof_invalid`). It is never retried silently and never counted as a pass.
+- In runner mode (`OMNI_LINK_RUNNER_MODE=true`), the host answers every other path with 404. It holds no database credentials and no OMNI link secrets.
+
+Settings. Live site (Jackboy secrets): `OMNI_LINK_REMOTE_RUNNER_ENABLED=true`, `OMNI_LINK_REMOTE_RUNNER_URL` (https origin only), `OMNI_LINK_REMOTE_RUNNER_SECRET` (32+ chars, shared). Railway runner host: `OMNI_LINK_RUNNER_MODE=true`, `OMNI_LINK_NODE_RUNNER_ENABLED=true`, the same `OMNI_LINK_REMOTE_RUNNER_SECRET`; remove the link secrets and database keys from that host. To disable, unset `OMNI_LINK_REMOTE_RUNNER_ENABLED` on Jackboy.

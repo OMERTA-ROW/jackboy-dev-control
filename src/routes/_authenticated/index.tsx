@@ -8,7 +8,7 @@ import { PageHeader } from "@/components/AppShell";
 import { StatusPill, btn, primaryBtn } from "@/components/ProjectBits";
 import { scanNow } from "@/lib/autopilot.functions";
 import { getProjectHub } from "@/lib/project-hub.functions";
-import { latestScans, projectStatus } from "@/lib/project-hub";
+import { cardConnection, latestScans, projectStatus } from "@/lib/project-hub";
 import { groupProposals, optimisticApprove } from "@/lib/approval-state";
 import { setProposalStatus } from "@/lib/update-writer.functions";
 import { AddSiteButton, ProjectConnectButtons, ProjectResyncIcon } from "@/components/ProjectCardActions";
@@ -113,7 +113,7 @@ function Home() {
                   <div className="mt-auto flex flex-wrap items-center gap-2">
                     {p.site_url && <button className={btn} disabled={busy !== null} aria-busy={busy === p.id} onClick={() => runScan(p.id, p.name)}>{busy === p.id ? "Scanning…" : "Scan & Review"}</button>}
                     <AddSiteButton p={p} onSaved={(m) => { setMsg(m); void refresh(); }} />
-                    <ProjectConnectButtons p={p} gone={gone.has(p.id)} onRemoved={(m) => { setMsg(m); void refresh(); }} />
+                    <ProjectConnectButtons p={p} gone={gone.has(p.id)} tone={cardConnection(p, hub.checks[p.id]).tone} onRemoved={(m) => { setMsg(m); void refresh(); }} />
                     <Link to="/project/$id" params={{ id: p.id }} className={btn}>Manage</Link>
                     <ProjectResyncIcon p={p} onDone={(m, g) => { setMsg(m); if (g) setGone((s) => new Set(s).add(p.id)); void refresh(); }} />
                   </div>

@@ -1,4 +1,4 @@
--- PROPOSED, NOT APPLIED. Needs explicit owner approval before it is applied.
+-- APPLIED Nov 7 2026 02:27 UTC on owner authorization (journal 0048_code_spend_meter_and_activation). Kept for review history.
 -- Depends on the applied cumulative guard (0046_code_total_spend_guard) and hard-cap gate
 -- (0047_code_hard_cap_gate); refuses to run without them, or while CODE is on.
 --

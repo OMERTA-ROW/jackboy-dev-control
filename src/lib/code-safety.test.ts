@@ -62,7 +62,13 @@ describe("CODE runtime safety policy", () => {
     expect(restrictCodeTargets({}, JSON.stringify(targets))).toEqual({});
     expect(restrictCodeTargets(targets, JSON.stringify({ [repo]: { ref: "main", workflowSha: "b".repeat(40) } }))).toEqual({});
     expect(() => restrictCodeTargets(targets, JSON.stringify({ [repo]: { ref: "dev", workflowSha: "a".repeat(40) } }))).toThrow(/main/);
-    expect(() => restrictCodeTargets(targets, JSON.stringify({ "OMERTA-ROW/Omni": targets[repo] }))).toThrow(/only/);
+    // A site listed only in CODE_TARGETS, without a passkey-approved database pin, is never usable.
+    expect(restrictCodeTargets(targets, JSON.stringify({ "OMERTA-ROW/Omni": targets[repo] }))).toEqual({});
+    // Several sites work only where both locks agree.
+    const two = { ...targets, "OMERTA-ROW/hercules-driver-os": { ref: "main", workflowSha: "c".repeat(40) } };
+    expect(restrictCodeTargets(two, JSON.stringify(two))).toEqual(two);
+    expect(restrictCodeTargets(targets, JSON.stringify(two))).toEqual(targets);
+    expect(restrictCodeTargets(two, JSON.stringify(targets))).toEqual(targets);
   });
   it("pauses at the exact $5 daily cap, including delayed reporting, and uses the edited threshold", () => {
     expect(shouldPauseForSpend(5, 0, 5)).toBe(true);

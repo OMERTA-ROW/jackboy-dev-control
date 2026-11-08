@@ -7,6 +7,7 @@ import {
   openDb,
   supabaseStubs,
   replay,
+  setActivatedControls,
   closeAdmin,
   dropClosedDatabase,
 } from "./helpers/staging-pg.mjs";
@@ -53,7 +54,8 @@ async function setup({ reserved = 2, run = true, through } = {}) {
     [id, reserved],
   );
   if (run) {
-    await db.query(
+    await setActivatedControls(
+      db,
       "UPDATE public.code_runtime_controls SET enabled = true, kill_switch = false, active_request_id = $1, active_run_id = 7",
       [id],
     );
@@ -101,9 +103,13 @@ test("admission fails closed without an authorised runtime", { skip: skipNoPg },
   try {
     await db.query("UPDATE public.code_runtime_controls SET kill_switch = true");
     await assert.rejects(admit(db, id, 0.1), /not authorised/);
-    await db.query("UPDATE public.code_runtime_controls SET kill_switch = false, enabled = false");
+    await setActivatedControls(
+      db,
+      "UPDATE public.code_runtime_controls SET kill_switch = false, enabled = false",
+    );
     await assert.rejects(admit(db, id, 0.1), /not authorised/);
-    await db.query(
+    await setActivatedControls(
+      db,
       "UPDATE public.code_runtime_controls SET enabled = true, stop_requested_at = now()",
     );
     await assert.rejects(admit(db, id, 0.1), /not authorised/);

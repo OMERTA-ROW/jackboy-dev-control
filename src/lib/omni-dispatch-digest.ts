@@ -4,7 +4,8 @@ export type DispatchPayload = {
   grantId: string;
   jobId: string;
   repo: string;
-  kind: "test";
+  /** Wire kind (`build` for Jackboy `code` jobs). Test digests are unchanged from v2. */
+  kind: "build" | "test";
   instructions: string;
 };
 

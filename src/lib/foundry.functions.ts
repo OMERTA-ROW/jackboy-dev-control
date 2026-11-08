@@ -53,13 +53,36 @@ export const getFoundry = createServerFn({ method: "GET" })
     return { tasks: tasks.data ?? [], events: events.data ?? [], patterns: patterns.data ?? [], schedule: schedule.data, projects: projects.data ?? [], packages: packages.data ?? [], connectors };
   });
 
+/** Live progress for running coding loops: the projects' own Foundry events since the run started. Read-only. */
+export const foundryProgress = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ projectIds: z.array(z.string().uuid()).min(1).max(50), since: z.string().datetime() }).parse(d))
+  .handler(async ({ data, context }) => {
+    await owner(context as never);
+    const { data: rows, error } = await context.supabase.from("foundry_events").select("project_id, action, to_state, note, created_at, detail")
+      .in("project_id", data.projectIds).gte("created_at", data.since).order("created_at", { ascending: false }).limit(300);
+    if (error) throw new Error(error.message);
+    return (rows ?? []).reverse(); // newest 300, returned oldest → newest
+  });
+
 export const foundryInspect = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: { projectId: string }) => ({ projectId: String(d.projectId) }))
+  .inputValidator((d: unknown) => z.object({ projectId: z.string().uuid(), runId: z.string().uuid().optional() }).parse(d))
   .handler(async ({ data, context }) => {
     const actor = await owner(context as never);
     const s = await import("./foundry.server");
-    return s.inspectProject(data.projectId, actor, "manual", 1);
+    return s.inspectProject(data.projectId, actor, "manual", 1, { runId: data.runId });
+  });
+
+/** Owner Stop for one running inspection (cooperative: honoured at the run's next safe point, never mid-write). */
+export const foundryStopInspect = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ projectId: z.string().uuid(), runId: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const actor = await owner(context as never);
+    const s = await import("./foundry.server");
+    await s.requestInspectStop(data.projectId, data.runId, actor);
+    return { ok: true };
   });
 
 export const foundryAct = createServerFn({ method: "POST" })

@@ -562,6 +562,136 @@ export type Database = {
           },
         ]
       }
+      chat_contexts: {
+        Row: {
+          created_at: string
+          id: string
+          kind: string
+          name: string
+          notes: string
+          notes_updated_at: string | null
+          notes_updated_by: string | null
+          project_id: string | null
+          role: string
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          kind?: string
+          name: string
+          notes?: string
+          notes_updated_at?: string | null
+          notes_updated_by?: string | null
+          project_id?: string | null
+          role?: string
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          kind?: string
+          name?: string
+          notes?: string
+          notes_updated_at?: string | null
+          notes_updated_by?: string | null
+          project_id?: string | null
+          role?: string
+          slug?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_contexts_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "owner_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_messages: {
+        Row: {
+          author: string
+          content: string
+          context_key: string | null
+          created_at: string
+          id: string
+          metadata: Json
+          owner_id: string
+          parts: Json
+          role: string
+          thread_id: string
+          ui_id: string
+        }
+        Insert: {
+          author?: string
+          content?: string
+          context_key?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json
+          owner_id: string
+          parts?: Json
+          role: string
+          thread_id: string
+          ui_id: string
+        }
+        Update: {
+          author?: string
+          content?: string
+          context_key?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json
+          owner_id?: string
+          parts?: Json
+          role?: string
+          thread_id?: string
+          ui_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_messages_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "chat_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_threads: {
+        Row: {
+          context_key: string
+          created_at: string
+          id: string
+          mode: string
+          owner_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          context_key?: string
+          created_at?: string
+          id: string
+          mode?: string
+          owner_id: string
+          title?: string
+          updated_at?: string
+        }
+        Update: {
+          context_key?: string
+          created_at?: string
+          id?: string
+          mode?: string
+          owner_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       code_provider_calls: {
         Row: {
           actual_usd: number | null
@@ -666,6 +796,7 @@ export type Database = {
           provider_usage_at: string | null
           reconcile_grace_seconds: number
           singleton: boolean
+          spend_meter: Json | null
           stop_requested_at: string | null
           total_spend_limit_usd: number
           updated_at: string
@@ -688,6 +819,7 @@ export type Database = {
           provider_usage_at?: string | null
           reconcile_grace_seconds?: number
           singleton?: boolean
+          spend_meter?: Json | null
           stop_requested_at?: string | null
           total_spend_limit_usd?: number
           updated_at?: string
@@ -710,6 +842,7 @@ export type Database = {
           provider_usage_at?: string | null
           reconcile_grace_seconds?: number
           singleton?: boolean
+          spend_meter?: Json | null
           stop_requested_at?: string | null
           total_spend_limit_usd?: number
           updated_at?: string
@@ -772,6 +905,60 @@ export type Database = {
           },
         ]
       }
+      code_undos: {
+        Row: {
+          actor: string
+          created_at: string
+          detail: string | null
+          finished_at: string | null
+          id: string
+          kind: string
+          merged_sha: string | null
+          pr_number: number
+          repo: string
+          republish_needed: boolean
+          request_id: string
+          revert_head_sha: string | null
+          revert_pr_number: number | null
+          revert_pr_url: string | null
+          status: string
+        }
+        Insert: {
+          actor: string
+          created_at?: string
+          detail?: string | null
+          finished_at?: string | null
+          id?: string
+          kind: string
+          merged_sha?: string | null
+          pr_number: number
+          repo: string
+          republish_needed?: boolean
+          request_id: string
+          revert_head_sha?: string | null
+          revert_pr_number?: number | null
+          revert_pr_url?: string | null
+          status?: string
+        }
+        Update: {
+          actor?: string
+          created_at?: string
+          detail?: string | null
+          finished_at?: string | null
+          id?: string
+          kind?: string
+          merged_sha?: string | null
+          pr_number?: number
+          repo?: string
+          republish_needed?: boolean
+          request_id?: string
+          revert_head_sha?: string | null
+          revert_pr_number?: number | null
+          revert_pr_url?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
       code_usage_events: {
         Row: {
           cost_usd: number
@@ -809,6 +996,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      daily_reports: {
+        Row: {
+          body: Json
+          generated_at: string
+          id: string
+          report_date: string
+          summary: string
+        }
+        Insert: {
+          body?: Json
+          generated_at?: string
+          id?: string
+          report_date: string
+          summary: string
+        }
+        Update: {
+          body?: Json
+          generated_at?: string
+          id?: string
+          report_date?: string
+          summary?: string
+        }
+        Relationships: []
       }
       feature_flags: {
         Row: {
@@ -1612,6 +1823,7 @@ export type Database = {
       }
       omni_dispatch_grants: {
         Row: {
+          authorization_id: string | null
           created_at: string
           expires_at: string
           id: string
@@ -1624,6 +1836,7 @@ export type Database = {
           revoked_at: string | null
         }
         Insert: {
+          authorization_id?: string | null
           created_at?: string
           expires_at: string
           id?: string
@@ -1636,6 +1849,7 @@ export type Database = {
           revoked_at?: string | null
         }
         Update: {
+          authorization_id?: string | null
           created_at?: string
           expires_at?: string
           id?: string
@@ -1648,6 +1862,13 @@ export type Database = {
           revoked_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "omni_dispatch_grants_authorization_id_fkey"
+            columns: ["authorization_id"]
+            isOneToOne: false
+            referencedRelation: "omni_project_authorizations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "omni_dispatch_grants_job_id_fkey"
             columns: ["job_id"]
@@ -1859,6 +2080,131 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      omni_project_authorizations: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          kinds: string[]
+          owner_id: string
+          project_id: string
+          repo: string
+          revoked_at: string | null
+          revoked_reason: string | null
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          id?: string
+          kinds: string[]
+          owner_id: string
+          project_id: string
+          repo: string
+          revoked_at?: string | null
+          revoked_reason?: string | null
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          kinds?: string[]
+          owner_id?: string
+          project_id?: string
+          repo?: string
+          revoked_at?: string | null
+          revoked_reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "omni_project_authorizations_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "agent_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      owner_alert_outbox: {
+        Row: {
+          attempts: number
+          body: string
+          created_at: string
+          dedupe_key: string
+          id: string
+          kind: string
+          last_error: string | null
+          link: string
+          reminder: boolean
+          sent_at: string | null
+          status: string
+          title: string
+          urgent: boolean
+        }
+        Insert: {
+          attempts?: number
+          body: string
+          created_at?: string
+          dedupe_key: string
+          id?: string
+          kind: string
+          last_error?: string | null
+          link?: string
+          reminder?: boolean
+          sent_at?: string | null
+          status?: string
+          title: string
+          urgent?: boolean
+        }
+        Update: {
+          attempts?: number
+          body?: string
+          created_at?: string
+          dedupe_key?: string
+          id?: string
+          kind?: string
+          last_error?: string | null
+          link?: string
+          reminder?: boolean
+          sent_at?: string | null
+          status?: string
+          title?: string
+          urgent?: boolean
+        }
+        Relationships: []
+      }
+      owner_alert_settings: {
+        Row: {
+          alerts_enabled: boolean
+          quiet_end: number | null
+          quiet_start: number | null
+          report_hour: number
+          singleton: boolean
+          timezone: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          alerts_enabled?: boolean
+          quiet_end?: number | null
+          quiet_start?: number | null
+          report_hour?: number
+          singleton?: boolean
+          timezone?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          alerts_enabled?: boolean
+          quiet_end?: number | null
+          quiet_start?: number | null
+          report_hour?: number
+          singleton?: boolean
+          timezone?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
       }
       owner_notifications: {
         Row: {
@@ -2135,6 +2481,39 @@ export type Database = {
           reason?: string | null
           request_id?: string | null
           target?: string
+        }
+        Relationships: []
+      }
+      push_devices: {
+        Row: {
+          active: boolean
+          created_at: string
+          id: string
+          label: string
+          last_error: string | null
+          last_sent_at: string | null
+          token: string
+          user_id: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          label?: string
+          last_error?: string | null
+          last_sent_at?: string | null
+          token: string
+          user_id: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          id?: string
+          label?: string
+          last_error?: string | null
+          last_sent_at?: string | null
+          token?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -2506,6 +2885,175 @@ export type Database = {
         }
         Relationships: []
       }
+      task_events: {
+        Row: {
+          created_at: string
+          detail: Json
+          id: string
+          kind: string
+          message: string
+          step_id: string | null
+          task_id: string
+        }
+        Insert: {
+          created_at?: string
+          detail?: Json
+          id?: string
+          kind: string
+          message: string
+          step_id?: string | null
+          task_id: string
+        }
+        Update: {
+          created_at?: string
+          detail?: Json
+          id?: string
+          kind?: string
+          message?: string
+          step_id?: string | null
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_events_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_skip_rules: {
+        Row: {
+          project_ids: string[]
+          step_type: string
+          updated_at: string
+          updated_by: string
+        }
+        Insert: {
+          project_ids?: string[]
+          step_type: string
+          updated_at?: string
+          updated_by: string
+        }
+        Update: {
+          project_ids?: string[]
+          step_type?: string
+          updated_at?: string
+          updated_by?: string
+        }
+        Relationships: []
+      }
+      task_steps: {
+        Row: {
+          approval_grant: string | null
+          approval_reason: string | null
+          approved_at: string | null
+          args: Json
+          error: string | null
+          fingerprint: string
+          finished_at: string | null
+          id: string
+          position: number
+          project_id: string | null
+          result: Json | null
+          started_at: string | null
+          status: string
+          step_type: string
+          task_id: string
+          tool: string
+          why: string
+        }
+        Insert: {
+          approval_grant?: string | null
+          approval_reason?: string | null
+          approved_at?: string | null
+          args?: Json
+          error?: string | null
+          fingerprint: string
+          finished_at?: string | null
+          id?: string
+          position: number
+          project_id?: string | null
+          result?: Json | null
+          started_at?: string | null
+          status?: string
+          step_type: string
+          task_id: string
+          tool: string
+          why?: string
+        }
+        Update: {
+          approval_grant?: string | null
+          approval_reason?: string | null
+          approved_at?: string | null
+          args?: Json
+          error?: string | null
+          fingerprint?: string
+          finished_at?: string | null
+          id?: string
+          position?: number
+          project_id?: string | null
+          result?: Json | null
+          started_at?: string | null
+          status?: string
+          step_type?: string
+          task_id?: string
+          tool?: string
+          why?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_steps_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tasks: {
+        Row: {
+          created_at: string
+          expires_at: string | null
+          failures: number
+          finished_at: string | null
+          goal: string
+          id: string
+          owner_id: string
+          started_at: string | null
+          status: string
+          stop_reason: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string | null
+          failures?: number
+          finished_at?: string | null
+          goal: string
+          id?: string
+          owner_id: string
+          started_at?: string | null
+          status?: string
+          stop_reason?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string | null
+          failures?: number
+          finished_at?: string | null
+          goal?: string
+          id?: string
+          owner_id?: string
+          started_at?: string | null
+          status?: string
+          stop_reason?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       update_installs: {
         Row: {
           created_at: string
@@ -2867,6 +3415,19 @@ export type Database = {
         Args: { _approve: boolean; _id: string }
         Returns: undefined
       }
+      audit_log_attributed: {
+        Args: { _before?: string; _limit?: number }
+        Returns: {
+          action: string
+          actor: string
+          actor_email: string
+          actor_role: Database["public"]["Enums"]["app_role"]
+          at: string
+          detail: Json
+          id: string
+          outcome: string
+        }[]
+      }
       claim_code_runner: {
         Args: {
           p_operation: string
@@ -2906,6 +3467,7 @@ export type Database = {
         Args: { p_request_id: string }
         Returns: number
       }
+      code_spend_meter_status: { Args: never; Returns: Json }
       code_total_spend_committed: { Args: never; Returns: number }
       code_total_spend_guard_enforced: { Args: never; Returns: boolean }
       code_total_spend_guard_status: { Args: never; Returns: Json }
@@ -2921,6 +3483,7 @@ export type Database = {
         Args: { p_call_id: string }
         Returns: undefined
       }
+      enable_code_runtime: { Args: { p_actor: string }; Returns: Json }
       engage_code_kill_switch: {
         Args: { p_actor: string }
         Returns: {
@@ -2978,6 +3541,19 @@ export type Database = {
         Returns: Json
       }
       omni_link_action: { Args: { _a: Json; _op: string }; Returns: Json }
+      omni_link_live: { Args: never; Returns: boolean }
+      omni_project_authorization_action: {
+        Args: {
+          _actor: string
+          _days: number
+          _kinds: string[]
+          _op: string
+          _project: string
+          _reason: string
+          _step: string
+        }
+        Returns: Json
+      }
       reconcile_code_provider_day: {
         Args: { p_actor: string; p_day: string; p_tolerance_usd?: number }
         Returns: Json
@@ -3003,6 +3579,7 @@ export type Database = {
         Args: { p_actor: string; p_rows: Json; p_synced_at: string }
         Returns: undefined
       }
+      refresh_code_spend_meter: { Args: never; Returns: Json }
       release_code_spend_holds: {
         Args: { p_actor: string; p_reason: string; p_request_ids: string[] }
         Returns: number

@@ -1,0 +1,78 @@
+--- .github/workflows/code.yml	2026-11-07 10:51:48.661736685 +0000
++++ staging/code-lane/code.yml	2026-11-07 10:59:13.307708448 +0000
+@@ -7,6 +7,12 @@
+         description: Existing owner-approved CODE request ID
+         required: true
+         type: string
++      lane:
++        description: Approval lane chosen by Jackboy (the server re-checks it; anything but auto is reviewed)
++        required: false
++        default: reviewed
++        type: choice
++        options: [reviewed, auto]
+ permissions:
+   contents: read
+ concurrency:
+@@ -16,7 +22,7 @@
+   prepare:
+     runs-on: ubuntu-latest
+     timeout-minutes: 30
+-    environment: CODE
++    environment: ${{ inputs.lane == 'auto' && 'CODE-AUTO' || 'CODE' }}
+     permissions:
+       contents: read
+       id-token: write
+@@ -200,13 +206,43 @@
+   draft_pr:
+     needs: [prepare, validate]
+     timeout-minutes: 10
+-    environment: CODE-PUBLISH
++    environment: ${{ inputs.lane == 'auto' && 'CODE-PUBLISH-AUTO' || 'CODE-PUBLISH' }}
+     permissions:
+       contents: write
+       pull-requests: write
+       id-token: write
+       attestations: read
+     steps:
++      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
++        with:
++          artifact-ids: ${{ needs.prepare.outputs.artifact_id }}
++          merge-multiple: true
++          path: ${{ runner.temp }}/code-report
++      - name: Report the patch size for the server's lane re-check
++        env:
++          EXPECTED_PATCH_SHA256: ${{ needs.prepare.outputs.patch_sha256 }}
++        run: |
++          node --input-type=module <<'NODE'
++          import { readFileSync, appendFileSync } from 'node:fs';
++          import { createHash } from 'node:crypto';
++          const patch = readFileSync(`${process.env.RUNNER_TEMP}/code-report/code.patch`);
++          if (createHash('sha256').update(patch).digest('hex') !== process.env.EXPECTED_PATCH_SHA256) throw new Error('Patch digest mismatch.');
++          const files = [];
++          let cur = null, inHunk = false;
++          for (const line of patch.toString('utf8').split('\n')) {
++            const m = line.match(/^diff --git a\/(.+) b\/(.+)$/);
++            if (m) { cur = { path: m[2], status: 'modified', additions: 0, deletions: 0 }; files.push(cur); inHunk = false; continue; }
++            if (!cur) continue;
++            if (line.startsWith('@@')) { inHunk = true; continue; }
++            if (inHunk) { if (line.startsWith('+')) cur.additions++; else if (line.startsWith('-')) cur.deletions++; continue; }
++            if (line.startsWith('new file mode')) cur.status = 'added';
++            else if (line.startsWith('deleted file mode')) cur.status = 'removed';
++            else if (line.startsWith('rename from') || line.startsWith('similarity index')) cur.status = 'renamed';
++            else if (line.startsWith('Binary files') || line.startsWith('GIT binary patch')) cur.status = 'binary';
++          }
++          const report = { fileCount: files.length, files: files.slice(0, 4).map((f) => ({ ...f, path: f.path.slice(0, 200) })) };
++          appendFileSync(process.env.GITHUB_ENV, `CODE_PATCH_REPORT=${JSON.stringify(report)}\n`);
++          NODE
+       - name: Claim independent publishing authorization
+         env:
+           CODE_REQUEST: ${{ inputs.request_id }}
+@@ -236,7 +272,7 @@
+           const response = await fetch(new URL('/api/public/code/claim', origin), {
+             method: 'POST',
+             headers: runnerHeaders,
+-            body: JSON.stringify({ requestId: process.env.CODE_REQUEST, stage: 'publish' }),
++            body: JSON.stringify({ requestId: process.env.CODE_REQUEST, stage: 'publish', patch: JSON.parse(process.env.CODE_PATCH_REPORT || 'null') }),
+             redirect: 'error',
+             signal: AbortSignal.timeout(15000),
+           });
