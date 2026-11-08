@@ -26,6 +26,7 @@ export function AgentStatusPanel() {
         <h2 className="text-sm font-semibold tracking-wide text-foreground">Agent Status</h2>
         <button className="text-xs text-primary hover:underline" onClick={() => q.refetch()}>{q.isFetching ? "Checking…" : "Recheck"}</button>
       </div>
+      {q.dataUpdatedAt > 0 && !q.isFetching && <p className="mb-1 text-xs text-muted-foreground" role="status">Checked at {new Date(q.dataUpdatedAt).toLocaleTimeString()}</p>}
       {q.error && <p className="text-sm text-destructive">{(q.error as Error).message}</p>}
       {!s && !q.error && <p className="text-sm text-muted-foreground">Checking real connections…</p>}
       {s && (
