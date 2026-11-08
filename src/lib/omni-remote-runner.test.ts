@@ -107,6 +107,6 @@ describe("runnerOrigin (Railway host as shown in Railway)", () => {
     expect(runnerConfigProblem(ok)).toBeNull();
     expect(remoteRunnerConfig(ok)?.url).toBe("https://x.up.railway.app/api/public/omni/runner");
     expect(runnerConfigProblem({ ...ok, OMNI_LINK_REMOTE_RUNNER_URL: "http://x" })).toContain("OMNI_LINK_REMOTE_RUNNER_URL");
-    expect(runnerConfigProblem({ ...ok, OMNI_LINK_REMOTE_RUNNER_SECRET: "short" })).not.toContain("short");
+    expect(runnerConfigProblem({ ...ok, OMNI_LINK_REMOTE_RUNNER_SECRET: "zq9-private" })).not.toContain("zq9-private");
   });
 });
