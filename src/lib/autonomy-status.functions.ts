@@ -11,7 +11,8 @@ export const getAutonomyStatus = createServerFn({ method: "POST" })
       import("@/integrations/supabase/client.server"), import("./untyped-db"), import("./autonomy-status"),
     ]);
     const db = untyped(supabaseAdmin);
-    const [pol, projects, uws, fs, site, beat, code, omni] = await Promise.all([
+    const { codeWorkflowState } = await import("./readiness.server");
+    const [pol, projects, uws, fs, site, beat, code, omni, workflowState] = await Promise.all([
       supabaseAdmin.from("automation_policy").select("paused").eq("id", 1).maybeSingle(),
       supabaseAdmin.from("owner_projects").select("name, github_repo, dev_enabled, autopilot").eq("active", true).order("name"),
       supabaseAdmin.from("update_writer_settings").select("autopilot_enabled, paused_reason, last_run_at").eq("id", 1).maybeSingle(),
@@ -20,6 +21,7 @@ export const getAutonomyStatus = createServerFn({ method: "POST" })
       supabaseAdmin.from("site_log").select("at").eq("action", "owner_alerts.heartbeat").order("at", { ascending: false }).limit(1).maybeSingle(),
       db.from("code_runtime_controls").select("enabled, kill_switch, provider_hard_cap_verified, spend_meter, consecutive_failures, active_request_id, allowed_targets").limit(1).maybeSingle(),
       supabaseAdmin.from("omni_connection").select("verified").limit(1).maybeSingle(),
+      codeWorkflowState(),
     ]);
     const c = code.data as Record<string, unknown> | null;
     const meter = (c?.["spend_meter"] ?? null) as { ok?: unknown } | null;
@@ -37,6 +39,7 @@ export const getAutonomyStatus = createServerFn({ method: "POST" })
         enabled: c["enabled"] === true, killSwitch: c["kill_switch"] !== false, hardCap: c["provider_hard_cap_verified"] === true,
         meterOk: typeof meter?.ok === "boolean" ? meter.ok : null, failures: Number(c["consecutive_failures"] ?? 0),
         activeRun: Boolean(c["active_request_id"]), targets: Object.keys((c["allowed_targets"] ?? {}) as Record<string, unknown>),
+        workflowState,
       } : null,
       omniVerified: omni.data?.verified === true,
     });

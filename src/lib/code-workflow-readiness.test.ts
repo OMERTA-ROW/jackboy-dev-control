@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { workflowPinReport } from "./code-workflow-readiness";
+import { workflowPinReport, workflowStateProblem } from "./code-workflow-readiness";
+
+describe("CODE workflow on/off state in GitHub", () => {
+  it("only an active workflow is runnable", () => {
+    expect(workflowStateProblem("active")).toBeNull();
+    expect(workflowStateProblem("disabled_manually")).toContain("Enable workflow");
+    expect(workflowStateProblem("disabled_inactivity")).toContain("disabled_inactivity");
+    expect(workflowStateProblem(null)).toContain("treated as off");
+  });
+});
 
 const repo = "OMERTA-ROW/jackboy-dev-control";
 const old = "82c0c44e9afeacb45e666ff131e34b90ae2da23b";
