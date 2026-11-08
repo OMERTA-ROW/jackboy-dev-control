@@ -1,10 +1,11 @@
 import { createFileRoute, Outlet, redirect, useRouter, type ErrorComponentProps } from "@tanstack/react-router";
 import { useEffect } from "react";
+import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { decideRole, decideUser, gateCacheValid, GATE_CONNECTION_MESSAGE } from "@/lib/auth-gate";
 
 type Role = "owner" | "admin" | "member";
-let cache: { token: string; at: number; user: { id: string }; role: Role } | null = null;
+let cache: { token: string; at: number; user: User; role: Role } | null = null;
 
 class GateConnectionError extends Error {
   constructor(public reason: string) {
