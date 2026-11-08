@@ -84,7 +84,7 @@ export const READINESS: ReadinessDef[] = [
   {
     id: "deployment_identity",
     name: "Published deployment",
-    what: "Loads the live site and looks for a publish record that ties it to an exact commit.",
+    what: "Reads the live site's version report and compares its build commit with GitHub main; falls back to publish records.",
   },
   {
     id: "backup_restore",
