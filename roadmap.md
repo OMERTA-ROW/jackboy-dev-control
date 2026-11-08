@@ -250,4 +250,14 @@ The spoken acronym “NLOA” is unconfirmed in Notion. Do not infer a technical
 - [ ] Optional build/test copy of the two queued "code" jobs (waiting: owner choice)
 - [ ] Multi-site database update (waiting: separate approval)
 - [x] Activity page shows the real Site Log (local notes folded away); Recheck/Check connection show plain timed results
-- [ ] Move OMNI handoff list + JAX records into the account (waiting: owner approval of database update)
+- [x] Move OMNI handoff list + JAX records into the account (approved; applied 0055/0056)
+
+## Restore CODE + Autonomous Mode (Nov 8)
+- [x] Diagnose: CODE switch on since Nov 7 (passkey), but GitHub CODE workflow is "disabled manually" and has never run
+- [x] Readiness + "What's really running" now show the disabled workflow instead of a false "on"
+- [x] Runner acceptance accepts a passing run whose files are identical to main
+- [ ] Owner: GitHub → Actions → CODE → Enable workflow (GitHub setting; owner-only)
+- [ ] Owner: approve turning the hourly job back on (steps 4 rolling releases, Autopilot/Foundry/AutoConnect ticks)
+- [ ] Owner: Recurring inspections / Autopilot master / fix-writer credit hold (35 credits left)
+- [ ] Owner: OMNI approval expiry in Jackboy Secrets is still expired (preview reads ~29 h ago); save the Railway pair, then publish
+- [ ] Publish these fixes (owner)
