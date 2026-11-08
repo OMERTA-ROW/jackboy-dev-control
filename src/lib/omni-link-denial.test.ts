@@ -53,14 +53,14 @@ describe("OMNI link names the refusing check without values", () => {
     const { res, logged } = await run(await request({ secret: "w".repeat(64) }));
     expect(res.status).toBe(401);
     expect(logged).toHaveLength(1);
-    expect(logged[0].check).toBe("signature");
-    expect(typeof logged[0].skewSeconds).toBe("number");
-    expect(Math.abs(logged[0].skewSeconds!)).toBeLessThanOrEqual(2);
+    expect(logged[0]!.check).toBe("signature");
+    expect(typeof logged[0]!.skewSeconds).toBe("number");
+    expect(Math.abs(logged[0]!.skewSeconds!)).toBeLessThanOrEqual(2);
   });
   it("matching secret but wrong bootstrap key → bootstrap_key (signature passed)", async () => {
     const { res, logged } = await run(await request({ token: "x".repeat(64) }));
     expect(res.status).toBe(401);
-    expect(logged[0].check).toBe("bootstrap_key");
+    expect(logged[0]!.check).toBe("bootstrap_key");
   });
   it("client ID differences: case only, mismatch, missing", async () => {
     expect((await run(await request({ client: "OMNI-test" }))).logged[0]).toMatchObject({ check: "client_id", clientHeader: "case_only" });
@@ -74,9 +74,9 @@ describe("OMNI link names the refusing check without values", () => {
   });
   it("clock more than 60s apart → clock_skew with the difference in seconds", async () => {
     const { logged } = await run(await request({ tsOffset: 125 }));
-    expect(logged[0].check).toBe("clock_skew");
-    expect(logged[0].skewSeconds).toBeGreaterThanOrEqual(124);
-    expect(logged[0].skewSeconds).toBeLessThanOrEqual(127);
+    expect(logged[0]!.check).toBe("clock_skew");
+    expect(logged[0]!.skewSeconds).toBeGreaterThanOrEqual(124);
+    expect(logged[0]!.skewSeconds).toBeLessThanOrEqual(127);
   });
   it("wrong project ID → project", async () => {
     const { res, logged } = await run(await request({ body: { action: "handshake", projectId: "99999999-9999-4999-8999-999999999999" } }));
@@ -85,10 +85,10 @@ describe("OMNI link names the refusing check without values", () => {
   });
   it("store refusals map to session/grant/replay", async () => {
     const reply = (error: string, http: number): LinkStore => async (op) => (op === "reject" ? { http: 200 } : { http, error });
-    expect((await run(await request(), reply("grant_unavailable", 403))).logged[0].check).toBe("grant");
-    expect((await run(await request(), reply("replay", 409))).logged[0].check).toBe("replay");
+    expect((await run(await request(), reply("grant_unavailable", 403))).logged[0]!.check).toBe("grant");
+    expect((await run(await request(), reply("replay", 409))).logged[0]!.check).toBe("replay");
     const status = await request({ token: "z".repeat(64), body: { action: "status", projectId: config.projectId, jobId: "44444444-4444-4444-8444-444444444444" } });
-    expect((await run(status, reply("session_expired_or_invalid", 401))).logged[0].check).toBe("session");
+    expect((await run(status, reply("session_expired_or_invalid", 401))).logged[0]!.check).toBe("session");
   });
   it("a successful handshake logs no denial, and the protocol answer is unchanged", async () => {
     const { res, logged } = await run(await request());
@@ -110,7 +110,7 @@ describe("OMNI link names the refusing check without values", () => {
       await request({ body: { action: "handshake", projectId: "99999999-9999-4999-8999-999999999999" } }),
     ]) {
       const { logged } = await run(req);
-      const text = denialSummary(logged[0]) + JSON.stringify(denialDetail(logged[0]));
+      const text = denialSummary(logged[0]!) + JSON.stringify(denialDetail(logged[0]!));
       for (const v of [...SECRET_VALUES, "99999999-9999-4999-8999-999999999999", "OMNI-test"]) expect(text).not.toContain(v);
       expect(text).not.toContain(config.clientId);
     }
