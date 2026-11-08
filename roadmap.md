@@ -1,5 +1,12 @@
 # Jackboy roadmap
 
+## Full-site stability audit (Nov 8, 10:46 UTC)
+- [x] Live site runs commit d1c28f0 (same as workspace); GitHub main (91163fe) is 8 commits behind it.
+- [x] Fixed: a brief connection drop sent the signed-in owner to Sign in or "no access yet" — now shows Try again. 852 tests pass.
+- [ ] Publish the fix — owner only.
+- [ ] OMNI link refuses calls (`link_disabled`): no passkey-saved approval yet and the old one is expired — owner saves a fresh pair on /omni.
+- [ ] Hourly inspections paused and fix writer on "Not enough credits" hold since Nov 3 — owner choice.
+
 ## Jackboy Chat upgrade (Nov 8, 00:44 UTC)
 - [x] Conversations saved to the owner's account (own page per conversation), searchable, with one-press import of conversations saved only on this device.
 - [x] "Talk to" switcher: Jackboy, OMNI, JAX, Razul, Iggy, other owner-added agents and projects — replies use only stored notes; empty notes are said plainly.
