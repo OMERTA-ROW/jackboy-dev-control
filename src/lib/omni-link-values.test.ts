@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAX_APPROVAL_MS, suggestApproval, summarizeLinkValues } from "./omni-link-values";
+import { MAX_APPROVAL_MS, approvalExpiryState, expiryHint, suggestApproval, summarizeLinkValues } from "./omni-link-values";
 import { FRESH_ONLY_ACTIONS, STEP_UP_ACTIONS, mayRequest } from "./step-up";
 
 const me = "11111111-1111-4111-8111-111111111111";
