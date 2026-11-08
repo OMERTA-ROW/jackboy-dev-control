@@ -262,6 +262,8 @@ export function omniSessionObservation(
 export function acceptanceResult(
   run: { conclusion: string | null; status: string; headSha: string; createdAt: string } | null,
   mainSha: string | null,
+  /** True only when GitHub reports the run's commit and current main have the identical file tree. */
+  sameTreeAsMain = false,
 ): Omit<ReadinessResult, "at" | "source"> {
   if (!run)
     return {
@@ -278,6 +280,12 @@ export function acceptanceResult(
     return {
       status: "BLOCKED",
       reason: `The latest CODE acceptance run ended "${run.conclusion ?? "unknown"}". Open it in GitHub Actions to see which check failed.`,
+    };
+  if (mainSha && run.headSha !== mainSha && sameTreeAsMain)
+    // A merge commit with no file changes of its own: the tested files are exactly main's files.
+    return {
+      status: "PASS",
+      reason: `CODE acceptance passed on commit ${run.headSha.slice(0, 7)}, whose files are identical to current main ${mainSha.slice(0, 7)}.`,
     };
   if (!mainSha || run.headSha !== mainSha)
     return {
