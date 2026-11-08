@@ -1,0 +1,113 @@
+{
+  "schema_version": 1,
+  "events": {
+    "project.omni_approval_rechecked": {
+      "event_schema_version": 1,
+      "description": "Owner pressed Recheck saved values on the OMNI link panel; reports outcome, expiry state and approval source labels only.",
+      "privacy": {
+        "contains_pii": false,
+        "purpose": "product_analytics"
+      },
+      "properties_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "result"
+        ],
+        "properties": {
+          "result": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "failed"
+            ]
+          },
+          "expiry": {
+            "type": "string",
+            "enum": [
+              "missing",
+              "invalid",
+              "expired",
+              "too_far",
+              "valid"
+            ]
+          },
+          "source": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "project.omni_approval_save_failed": {
+      "event_schema_version": 1,
+      "description": "Saving an OMNI link approval failed, with a fixed reason code. No approval values, IDs or error text are sent.",
+      "privacy": {
+        "contains_pii": false,
+        "purpose": "product_analytics"
+      },
+      "properties_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "stage",
+          "reason",
+          "pair_origin"
+        ],
+        "properties": {
+          "stage": {
+            "type": "string",
+            "enum": [
+              "before_passkey",
+              "after_passkey"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "missing",
+              "invalid",
+              "expired",
+              "too_far",
+              "passkey_cancelled",
+              "passkey_refused",
+              "not_owner",
+              "readback_failed",
+              "other"
+            ]
+          },
+          "pair_origin": {
+            "type": "string",
+            "enum": [
+              "new_pair",
+              "entered"
+            ]
+          }
+        }
+      }
+    },
+    "project.omni_approval_saved": {
+      "event_schema_version": 1,
+      "description": "Owner saved a new OMNI link approval pair after a passkey check and it read back. No approval values or IDs are sent.",
+      "privacy": {
+        "contains_pii": false,
+        "purpose": "product_analytics"
+      },
+      "properties_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "pair_origin"
+        ],
+        "properties": {
+          "pair_origin": {
+            "type": "string",
+            "enum": [
+              "new_pair",
+              "entered"
+            ]
+          }
+        }
+      }
+    }
+  }
+}
