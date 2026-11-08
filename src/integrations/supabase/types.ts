@@ -1652,6 +1652,62 @@ export type Database = {
         }
         Relationships: []
       }
+      jax_release_manifests: {
+        Row: {
+          archived_at: string | null
+          created_at: string
+          handoff_id: string | null
+          id: string
+          imported_at: string | null
+          manifest: Json
+          name: string
+          original: Json | null
+          owner_id: string
+          simulated: boolean
+          source_local_id: string | null
+          updated_at: string
+          version: string
+        }
+        Insert: {
+          archived_at?: string | null
+          created_at?: string
+          handoff_id?: string | null
+          id?: string
+          imported_at?: string | null
+          manifest: Json
+          name: string
+          original?: Json | null
+          owner_id: string
+          simulated?: boolean
+          source_local_id?: string | null
+          updated_at?: string
+          version?: string
+        }
+        Update: {
+          archived_at?: string | null
+          created_at?: string
+          handoff_id?: string | null
+          id?: string
+          imported_at?: string | null
+          manifest?: Json
+          name?: string
+          original?: Json | null
+          owner_id?: string
+          simulated?: boolean
+          source_local_id?: string | null
+          updated_at?: string
+          version?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jax_release_manifests_handoff_id_fkey"
+            columns: ["handoff_id"]
+            isOneToOne: false
+            referencedRelation: "omni_research_handoffs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       learning_events: {
         Row: {
           created_at: string
@@ -2124,6 +2180,81 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      omni_research_handoffs: {
+        Row: {
+          approvals: Json
+          archived_at: string | null
+          created_at: string
+          est_cost: number
+          feasibility: number
+          finding_id: string
+          hypothesis: string
+          id: string
+          imported_at: string | null
+          novelty_caveat: string
+          original: Json | null
+          owner_id: string
+          priority: string
+          provenance: Json
+          requirements: string
+          revenue: Json
+          risk: string
+          source_local_id: string | null
+          sources: Json
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          approvals?: Json
+          archived_at?: string | null
+          created_at?: string
+          est_cost?: number
+          feasibility?: number
+          finding_id?: string
+          hypothesis?: string
+          id?: string
+          imported_at?: string | null
+          novelty_caveat?: string
+          original?: Json | null
+          owner_id: string
+          priority?: string
+          provenance?: Json
+          requirements?: string
+          revenue?: Json
+          risk?: string
+          source_local_id?: string | null
+          sources?: Json
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          approvals?: Json
+          archived_at?: string | null
+          created_at?: string
+          est_cost?: number
+          feasibility?: number
+          finding_id?: string
+          hypothesis?: string
+          id?: string
+          imported_at?: string | null
+          novelty_caveat?: string
+          original?: Json | null
+          owner_id?: string
+          priority?: string
+          provenance?: Json
+          requirements?: string
+          revenue?: Json
+          risk?: string
+          source_local_id?: string | null
+          sources?: Json
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       owner_alert_outbox: {
         Row: {
