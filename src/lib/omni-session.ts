@@ -49,6 +49,35 @@ export async function digest(value: string) {
 export function requestMessage(ts: string, nonce: string, tokenHash: string, body: string) {
   return `${LINK_CONTRACT}\nPOST\n${LINK_PATH}\n${ts}\n${nonce}\n${tokenHash}\n${body}`;
 }
+export type RequestCheck =
+  | { ok: true; skewSeconds: number }
+  | {
+      ok: false;
+      check: "timestamp_format" | "clock_skew" | "nonce_format" | "signature";
+      skewSeconds: number | null;
+    };
+/** Same rules as `verifyRequest`, but names the failing check and the clock skew (seconds,
+ *  Jackboy minus OMNI). Returns no secret-derived data. */
+export async function diagnoseRequest(
+  secret: string,
+  token: string,
+  headers: Headers,
+  body: string,
+  now = Date.now(),
+): Promise<RequestCheck> {
+  const ts = headers.get("x-omni-timestamp") || "",
+    nonce = headers.get("x-omni-nonce") || "";
+  if (!/^\d{10}$/.test(ts)) return { ok: false, check: "timestamp_format", skewSeconds: null };
+  const skewMs = now - Number(ts) * 1000;
+  const skewSeconds = Math.round(skewMs / 1000);
+  if (Math.abs(skewMs) > 60_000) return { ok: false, check: "clock_skew", skewSeconds };
+  if (!/^[a-f0-9]{32}$/.test(nonce)) return { ok: false, check: "nonce_format", skewSeconds };
+  const match = safeEqual(
+    headers.get("x-omni-signature") || "",
+    await hmacHex(secret, requestMessage(ts, nonce, await digest(token), body)),
+  );
+  return match ? { ok: true, skewSeconds } : { ok: false, check: "signature", skewSeconds };
+}
 export async function verifyRequest(
   secret: string,
   token: string,
@@ -56,16 +85,5 @@ export async function verifyRequest(
   body: string,
   now = Date.now(),
 ) {
-  const ts = headers.get("x-omni-timestamp") || "",
-    nonce = headers.get("x-omni-nonce") || "";
-  if (
-    !/^\d{10}$/.test(ts) ||
-    Math.abs(now - Number(ts) * 1000) > 60_000 ||
-    !/^[a-f0-9]{32}$/.test(nonce)
-  )
-    return false;
-  return safeEqual(
-    headers.get("x-omni-signature") || "",
-    await hmacHex(secret, requestMessage(ts, nonce, await digest(token), body)),
-  );
+  return (await diagnoseRequest(secret, token, headers, body, now)).ok;
 }
