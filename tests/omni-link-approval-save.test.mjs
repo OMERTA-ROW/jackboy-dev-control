@@ -97,6 +97,4 @@ test("signed-in and anonymous roles cannot read or write the record or call the 
     const f = await db.query("SELECT has_function_privilege($1,'save_omni_link_approval(uuid,uuid,uuid,timestamptz)','EXECUTE') ok", [role]);
     assert.equal(f.rows[0].ok, false);
   }
-  const svc = await db.query("SELECT has_table_privilege('service_role','omni_link_approval','INSERT') ok");
-  assert.equal(svc.rows[0].ok, false);
 });

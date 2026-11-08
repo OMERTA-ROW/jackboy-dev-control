@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { CheckCircle2, Copy, Eye, EyeOff, KeyRound, ShieldAlert } from "lucide-react";
-import { getOmniLinkValueStatus, revealOmniLinkValues } from "@/lib/omni-link-values.functions";
+import { getOmniLinkValueStatus, revealOmniLinkValues, saveOmniLinkApproval } from "@/lib/omni-link-values.functions";
+import { APPROVAL_SOURCE_TEXT, SAVE_APPROVAL_ACTION, SAVE_APPROVAL_TARGET } from "@/lib/omni-link-approval";
 import { expiryHint, REVEAL_ACTION, REVEAL_TARGET, suggestApproval, type LinkValueName } from "@/lib/omni-link-values";
 import { useStepUp } from "@/lib/step-up-client";
 
@@ -39,7 +40,9 @@ function CopyRow({ name, value, note }: { name: string; value: string | null; no
 
 /** Owner-only: the three values OMNI on Railway must match. Showing them needs a fresh passkey. */
 export function OmniLinkValuesPanel() {
-  const load = useServerFn(getOmniLinkValueStatus), reveal = useServerFn(revealOmniLinkValues);
+  const load = useServerFn(getOmniLinkValueStatus), reveal = useServerFn(revealOmniLinkValues), save = useServerFn(saveOmniLinkApproval);
+  const [draft, setDraft] = useState({ approvalId: "", expiresAt: "" });
+  const [saved, setSaved] = useState<string | null>(null);
   const stepUp = useStepUp();
   const [status, setStatus] = useState<Status | null>(null);
   const [shown, setShown] = useState<Revealed | null>(null);
@@ -91,6 +94,12 @@ export function OmniLinkValuesPanel() {
       )}
       {s && <p className="text-xs text-muted-foreground">{expiryHint(s.expiry, s.expiresInMs)}</p>}
       {status && (
+        <p className={status.approval.source === "unavailable" ? "text-xs text-destructive" : "text-xs text-muted-foreground"}>
+          Approval source: {APPROVAL_SOURCE_TEXT[status.approval.source]}
+          {status.approval.savedAt && ` · saved ${new Date(status.approval.savedAt).toLocaleString()}`}
+        </p>
+      )}
+      {status && (
         <p className="text-xs text-muted-foreground">
           Link switch on Jackboy: {status.linkEnabled ? "on" : "off"}. This shows only what Jackboy has saved; it does not read Railway, prove OMNI is connected, turn the link on or run the self-test.
         </p>
@@ -138,30 +147,56 @@ export function OmniLinkValuesPanel() {
               <ul className="mt-2"><CopyRow name="Your owner ID" value={shown.yourOwnerId} /></ul>
             </div>
           )}
-          {needsNewApproval && (
-            <div className="space-y-2 rounded-md border border-warning/50 p-3">
-              <p className="text-xs">
-                The approval saved in Jackboy is missing or no longer valid. The button below only suggests a new pair — it saves nothing, and Jackboy cannot update Railway for you.
-              </p>
-              <ol className="list-decimal space-y-1 pl-5 text-xs">
-                <li>In Lovable, open Project Settings → Secrets and replace OMNI_LINK_APPROVAL_ID and OMNI_LINK_APPROVAL_EXPIRES_AT with the new pair. Change both together.</li>
-                <li>Publish Jackboy so the live site reads the new pair.</li>
-                <li>In Railway, set the same two variables on OMNI to exactly the same text, then redeploy OMNI.</li>
-                <li>Come back here and press “Recheck saved values”. It should say “Set and valid”.</li>
-              </ol>
-              <p className="text-xs text-muted-foreground">The pair stops working 24 hours after you make it at most, so finish all steps soon after.</p>
-              {!fresh ? (
-                <button type="button" className="rounded-md border border-border px-3 py-1 text-xs hover:bg-muted" onClick={() => setFresh(suggestApproval())}>
-                  Make a new approval (valid 23 hours)
-                </button>
-              ) : (
-                <ul className="space-y-2">
-                  <CopyRow name="New OMNI_LINK_APPROVAL_ID" value={fresh.approvalId} />
-                  <CopyRow name="New OMNI_LINK_APPROVAL_EXPIRES_AT" value={fresh.expiresAt} />
-                </ul>
-              )}
-            </div>
-          )}
+          <div className={`space-y-2 rounded-md border p-3 ${needsNewApproval ? "border-warning/50" : "border-border"}`}>
+            <p className="text-xs font-medium">Save an approval in Jackboy</p>
+            <p className="text-xs">
+              {needsNewApproval ? "The approval Jackboy uses is missing or no longer valid. " : ""}
+              Paste the approval ID and expiry Railway already has, or make a new pair. Saving needs a new passkey check, stores both together, and replaces the old project settings for the link. It does not turn the link on, give OMNI project access, or change Railway.
+            </p>
+            <button type="button" className="rounded-md border border-border px-3 py-1 text-xs hover:bg-muted" onClick={() => { const f = suggestApproval(); setFresh(f); setDraft(f); }}>
+              Make a new approval (valid 23 hours)
+            </button>
+            {fresh && <p className="text-xs text-muted-foreground">New pair filled in below. Nothing is saved until you press Save.</p>}
+            <label className="block text-xs">
+              <span className="font-mono">OMNI_LINK_APPROVAL_ID</span>
+              <input className="mt-1 w-full rounded-md border border-border bg-background px-2 py-1 font-mono text-sm" value={draft.approvalId} onChange={(e) => setDraft({ ...draft, approvalId: e.target.value.trim() })} autoComplete="off" spellCheck={false} />
+            </label>
+            <label className="block text-xs">
+              <span className="font-mono">OMNI_LINK_APPROVAL_EXPIRES_AT</span>
+              <input className="mt-1 w-full rounded-md border border-border bg-background px-2 py-1 font-mono text-sm" value={draft.expiresAt} onChange={(e) => setDraft({ ...draft, expiresAt: e.target.value.trim() })} placeholder="2026-11-09T07:00:00.000Z" autoComplete="off" spellCheck={false} />
+            </label>
+            <button
+              type="button"
+              className="inline-flex items-center gap-2 rounded-md border border-electric px-3 py-1.5 text-xs hover:bg-muted disabled:opacity-50"
+              disabled={busy || !draft.approvalId || !draft.expiresAt}
+              onClick={async () => {
+                setBusy(true); setMsg(null); setSaved(null);
+                try {
+                  const r = await stepUp(SAVE_APPROVAL_ACTION, SAVE_APPROVAL_TARGET, {
+                    apply: (grantId) => save({ data: { grantId, ...draft } }),
+                    applyingText: "Passkey confirmed. Saving the approval…",
+                    doneText: () => "Approval saved in Jackboy.",
+                  });
+                  setStatus(r); setCheckedAt(new Date());
+                  setShown((cur) => cur && { ...cur, summary: r.summary, approval: r.approval, values: { ...cur.values, OMNI_LINK_APPROVAL_ID: draft.approvalId.toLowerCase(), OMNI_LINK_APPROVAL_EXPIRES_AT: new Date(Date.parse(draft.expiresAt)).toISOString() } });
+                  setSaved(`Saved and read back at ${new Date().toLocaleTimeString()}. Railway is not updated automatically — do the steps below.`);
+                } catch (e) {
+                  setMsg((e as Error).message);
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              <KeyRound className="h-4 w-4" aria-hidden /> Save approval with passkey
+            </button>
+            {saved && <p role="status" className="text-xs text-success">{saved}</p>}
+            <ol className="list-decimal space-y-1 pl-5 text-xs">
+              <li>Save the pair here with your passkey (works on the published site after publishing this update).</li>
+              <li>In Railway, set OMNI_LINK_APPROVAL_ID and OMNI_LINK_APPROVAL_EXPIRES_AT on OMNI to exactly the same text, then redeploy OMNI. Jackboy cannot do this for you.</li>
+              <li>Press “Recheck saved values”. It should say “Set and valid” with source “Saved in Jackboy”. That still does not prove OMNI is connected — only a real OMNI session does.</li>
+            </ol>
+            <p className="text-xs text-muted-foreground">An approval lasts at most 24 hours, so finish the Railway step soon after saving.</p>
+          </div>
           <button
             type="button"
             className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-1.5 text-xs hover:bg-muted"
