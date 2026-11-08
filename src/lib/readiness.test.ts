@@ -57,6 +57,13 @@ describe("readiness rules", () => {
     expect(acceptanceResult(run, "b".repeat(40)).status).toBe("OWNER ACTION");
     expect(acceptanceResult({ ...run, conclusion: "failure" }, "a".repeat(40)).status).toBe("BLOCKED");
   });
+  it("a passing run on a commit with files identical to main counts; a failing one never does", () => {
+    const run = { status: "completed", conclusion: "success", headSha: "a".repeat(40), createdAt: "" };
+    expect(acceptanceResult(run, "b".repeat(40), true).status).toBe("PASS");
+    expect(acceptanceResult(run, "b".repeat(40), false).status).toBe("OWNER ACTION");
+    expect(acceptanceResult({ ...run, conclusion: "failure" }, "b".repeat(40), true).status).toBe("BLOCKED");
+    expect(acceptanceResult({ ...run, status: "in_progress" }, "b".repeat(40), true).status).toBe("IN PROGRESS");
+  });
   it("GitHub App fails least privilege with workflow write or all-repository access", () => {
     expect(appPrivilegeResult({ permissions: { contents: "write" }, selection: "selected" }).status).toBe("PASS");
     expect(appPrivilegeResult({ permissions: { workflows: "write" }, selection: "selected" }).status).toBe("OWNER ACTION");

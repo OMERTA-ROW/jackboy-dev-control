@@ -46,6 +46,17 @@ describe("What's really running", () => {
     expect(row(s.code, "code-sites")).toBe("blocked");
     expect(s.headline.code).toMatch(/GitHub approval/);
   });
+  it("never reports CODE as on while GitHub has the CODE workflow turned off", () => {
+    const code = { enabled: true, killSwitch: false, hardCap: true, meterOk: true, failures: 0, activeRun: false, targets: ["OMERTA-ROW/jackboy-dev-control"] };
+    const off = summarizeAutonomy(base({ code: { ...code, workflowState: "disabled_manually" } }));
+    expect(off.code.find((r) => r.id === "code-on")?.state).toBe("blocked");
+    expect(off.code.find((r) => r.id === "code-workflow")?.fix).toContain("Enable workflow");
+    expect(off.headline.code).toContain("turned off in GitHub");
+    const unknown = summarizeAutonomy(base({ code: { ...code, workflowState: null } }));
+    expect(unknown.code.find((r) => r.id === "code-on")?.state).toBe("unverified");
+    const active = summarizeAutonomy(base({ code: { ...code, workflowState: "active" } }));
+    expect(active.code.find((r) => r.id === "code-on")?.state).toBe("on");
+  });
   it("treats unreadable CODE controls as off and OMNI unverified as blocked", () => {
     const s = summarizeAutonomy(base({ code: null }));
     expect(s.headline.code).toMatch(/treated as off/);
