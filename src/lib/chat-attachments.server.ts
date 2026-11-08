@@ -18,10 +18,12 @@ type Part = UIMessage["parts"][number];
 export async function prepareAttachments(messages: UIMessage[], userId: string, sb: SupabaseClient): Promise<{ messages: UIMessage[]; visual: boolean }> {
   const recent = inlineTurns(messages);
   let budget = TOTAL_INLINE;
-  let visual = false;
+  let visual = false; // true only when the newest user turn carries images/frames
+  const lastUser = messages.map((m) => m.role).lastIndexOf("user");
   const out: UIMessage[] = [];
   for (let i = 0; i < messages.length; i++) {
     const m = messages[i]!;
+    const markVisual = () => { if (i === lastUser) visual = true; };
     if (m.role !== "user" || !m.parts.some((p) => p.type === "file")) { out.push(m); continue; }
     const parts: Part[] = [];
     for (const p of m.parts) {
@@ -32,14 +34,14 @@ export async function prepareAttachments(messages: UIMessage[], userId: string, 
       if (!path || !ownedPath(path, userId) || !kind) { parts.push({ type: "text", text: `[Attachment "${f.filename ?? "file"}" skipped: not in your private storage.]` }); continue; }
       if (!recent.has(i)) { parts.push({ type: "text", text: `[Earlier attachment "${f.filename ?? "file"}" — not re-sent.]` }); continue; }
       parts.push({ type: "text", text: attachmentNote(f) });
-      if (kind === "video") { visual = true; continue; } // its sampled frames follow as images
+      if (kind === "video") { markVisual(); continue; } // its sampled frames follow as images
       const dl = await sb.storage.from(ATTACH_BUCKET).download(path);
       if (dl.error || !dl.data) { parts.push({ type: "text", text: `[Couldn't read "${f.filename ?? "file"}" from storage.]` }); continue; }
       const bytes = new Uint8Array(await dl.data.arrayBuffer());
       if (bytes.length > LIMITS[kind] || bytes.length > budget) { parts.push({ type: "text", text: `[“${f.filename ?? "file"}” too large to send this turn.]` }); continue; }
       budget -= bytes.length;
       if (kind === "text") parts.push({ type: "text", text: new TextDecoder().decode(bytes).slice(0, LIMITS.text) });
-      else { visual = true; parts.push({ type: "file", mediaType: f.mediaType, filename: f.filename, url: `data:${f.mediaType};base64,${toBase64(bytes)}` } as Part); }
+      else { markVisual(); parts.push({ type: "file", mediaType: f.mediaType, filename: f.filename, url: `data:${f.mediaType};base64,${toBase64(bytes)}` } as Part); }
     }
     out.push({ ...m, parts });
   }
