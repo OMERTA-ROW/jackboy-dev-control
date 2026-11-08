@@ -35,7 +35,7 @@ async function request(
     "x-omni-timestamp": ts,
     "x-omni-signature": signature,
   };
-  if (opts.auth !== null) headers.authorization = opts.auth ?? "Bearer " + token;
+  if (opts.auth !== null) headers["authorization"] = opts.auth ?? "Bearer " + token;
   if (opts.client !== null) headers["x-omni-client"] = opts.client ?? config.clientId;
   return new Request("https://jackboy.test" + LINK_PATH, { method: "POST", headers, body });
 }
