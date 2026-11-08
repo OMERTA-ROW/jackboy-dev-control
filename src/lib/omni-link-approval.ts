@@ -37,6 +37,17 @@ export function withApproval<T extends Record<string, string | undefined>>(env: 
   return { ...env, OMNI_LINK_APPROVAL_ID: a.approvalId || undefined, OMNI_LINK_APPROVAL_EXPIRES_AT: a.expiresAt || undefined };
 }
 
+/** Maps database refusals to owner wording; unknown errors never leak raw details. */
+export function saveErrorText(message: string | undefined): string {
+  const m = message ?? "";
+  if (/Owner required/.test(m)) return "Only the owner can save the OMNI approval.";
+  if (/Fresh passkey/.test(m)) return "This needs a new passkey check (not a reused one).";
+  if (/in the future/.test(m)) return "The expiry has already passed.";
+  if (/within 24 hours/.test(m)) return "The expiry must be within 24 hours.";
+  if (/both required/.test(m)) return "Approval ID and expiry are both required.";
+  return "Jackboy could not save the approval.";
+}
+
 export const APPROVAL_SOURCE_TEXT: Record<ApprovalSource, string> = {
   database: "Saved in Jackboy with your passkey (this overrides the old project settings)",
   legacy_env: "Old project settings (OMNI_LINK_APPROVAL_* in Secrets) — no passkey-saved approval yet",
