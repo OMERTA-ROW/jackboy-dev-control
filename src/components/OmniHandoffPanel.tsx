@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { CheckCircle2, ShieldAlert, ShieldOff } from "lucide-react";
 import { blockerNextStep } from "@/lib/omni-handoff-auth";
+import { agentProjectHref } from "@/lib/agent-hub";
 import { authorizeOmniProject, getOmniHandoffs, revokeOmniProject } from "@/lib/omni-handoff.functions";
 import { probeOmniConnection } from "@/lib/omni-link.functions";
 import { useStepUp } from "@/lib/step-up-client";
@@ -206,7 +207,7 @@ export function OmniHandoffPanel() {
                       {b.message}
                       {nextStep === "check_connection" && <button type="button" className="ml-2 underline" disabled={busy} onClick={checkConnection}>Verify latest link (read-only)</button>}
                       {nextStep === "project_access" && <a className="ml-2 underline" href={`#omni-project-${h.projectId ?? "access"}`}>Review project access</a>}
-                      {nextStep === "review_project" && h.projectId && <a className="ml-2 underline" href={`/project/${encodeURIComponent(h.projectId)}`}>Review project</a>}
+                      {nextStep === "review_project" && h.projectId && <a className="ml-2 underline" href={agentProjectHref(h.projectId)}>Review project in Agent Hub</a>}
                       {nextStep === "review_settings" && <a className="ml-2 underline" href="/settings">Review Kill Switch in Settings</a>}
                     </li>;
                   })}
