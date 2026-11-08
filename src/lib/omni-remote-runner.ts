@@ -36,9 +36,20 @@ export function runnerModeDecision(env: Env, hostname?: string): RunnerModeDecis
   return { on: true };
 }
 
+/** The switch must be exactly lowercase `true` (the gate never loosens). A value that only
+ * differs by capitals, spaces or quotes is named as such so it is not mistaken for "disabled". */
+export const ENABLED_NOT_EXACT =
+  "OMNI_LINK_REMOTE_RUNNER_ENABLED is set but is not exactly lowercase true (check capital letters, spaces or quotes); the runner stays off until it is exactly true";
+function enabledProblem(v: string | undefined): string | null {
+  if (v === "true") return null;
+  const loose = (v ?? "").trim().replace(/^["']|["']$/g, "").trim().toLowerCase();
+  return loose === "true" ? ENABLED_NOT_EXACT : "OMNI_LINK_REMOTE_RUNNER_ENABLED is not exactly true";
+}
+
 export function remoteRunnerDiagnostic(env: Env): string {
-  if (env["OMNI_LINK_REMOTE_RUNNER_ENABLED"] !== "true")
-    return "Remote self-test runner is disabled; this readiness check does not enable it.";
+  const enabled = enabledProblem(env["OMNI_LINK_REMOTE_RUNNER_ENABLED"]);
+  if (enabled === ENABLED_NOT_EXACT) return `${ENABLED_NOT_EXACT}.`;
+  if (enabled) return "Remote self-test runner is disabled; this readiness check does not enable it.";
   if (!env["OMNI_LINK_REMOTE_RUNNER_URL"])
     return "OMNI_LINK_REMOTE_RUNNER_URL is missing.";
   if (!runnerOrigin(env["OMNI_LINK_REMOTE_RUNNER_URL"])) {
@@ -86,7 +97,8 @@ export function runnerOrigin(raw: string | undefined): string | null {
 
 /** Names which runner setting blocks the remote runner, without ever including a value. */
 export function runnerConfigProblem(env: Env): string | null {
-  if (env["OMNI_LINK_REMOTE_RUNNER_ENABLED"] !== "true") return "OMNI_LINK_REMOTE_RUNNER_ENABLED is not exactly true";
+  const enabled = enabledProblem(env["OMNI_LINK_REMOTE_RUNNER_ENABLED"]);
+  if (enabled) return enabled;
   if (!validRunnerSecret(env["OMNI_LINK_REMOTE_RUNNER_SECRET"])) return "OMNI_LINK_REMOTE_RUNNER_SECRET is missing or shorter than 32 characters";
   if (!runnerOrigin(env["OMNI_LINK_REMOTE_RUNNER_URL"]))
     return "OMNI_LINK_REMOTE_RUNNER_URL must be the runner's https address with no path (for example https://name.up.railway.app)";
