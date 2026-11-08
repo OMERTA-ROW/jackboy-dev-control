@@ -1,19 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { Download, Trash2, CheckCircle2, XCircle } from "lucide-react";
+import { Download, Archive, ArchiveRestore, CheckCircle2, XCircle, PackagePlus } from "lucide-react";
 import { GuidanceTip, PageHeader } from "@/components/AppShell";
-import {
-  canApprove,
-  projectAnnual,
-  removeHandoff,
-  toMarkdown,
-  updateHandoff,
-  useHandoffs,
-  type Handoff,
-  type OwnerAction,
-  type Revenue,
-} from "@/lib/omni-handoff";
+import { canApprove, projectAnnual, toMarkdown, type Handoff, type OwnerAction, type Revenue } from "@/lib/omni-handoff";
+import { canPrepareJaxDraft, type SavedHandoff } from "@/lib/owner-records";
+import { createJaxDraft, setResearchHandoffArchived, updateResearchHandoff } from "@/lib/owner-records.functions";
+import { DeviceRecordsImport, useOwnerRecords } from "@/components/OwnerRecords";
 import { getOmniQueue, requestOmniJob } from "@/lib/passport.functions";
 import { OmniLinkPanel } from "@/components/OmniLinkPanel";
 import { OmniLinkValuesPanel } from "@/components/OmniLinkValuesPanel";
@@ -50,9 +43,15 @@ function download(name: string, text: string, type: string) {
 }
 
 function OmniPage() {
-  const handoffs = useHandoffs();
+  const { data, error, loading, refresh, setData } = useOwnerRecords();
   const [selected, setSelected] = useState<string | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
+  const all = data?.handoffs ?? [];
+  const archivedCount = all.filter((h) => h.archivedAt).length;
+  const handoffs = all.filter((h) => (showArchived ? h.archivedAt : !h.archivedAt));
   const current = handoffs.find((h) => h.id === selected) ?? handoffs[0];
+  const replace = (h: SavedHandoff) =>
+    setData((d) => (d ? { ...d, handoffs: d.handoffs.map((x) => (x.id === h.id ? h : x)) } : d));
 
   return (
     <>
@@ -85,13 +84,40 @@ function OmniPage() {
       </section>
       <InternalTaskQueue />
 
-      {handoffs.length === 0 ? (
+      <section className="mb-3 flex flex-wrap items-center justify-between gap-2" aria-label="Research handoffs">
+        <h2 className="text-lg font-semibold text-silver">Research handoffs</h2>
+        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+          {data && <span>Saved to your account · read {new Date(data.checkedAt).toLocaleTimeString()}</span>}
+          {archivedCount > 0 && (
+            <button onClick={() => setShowArchived((v) => !v)} className="text-electric underline">
+              {showArchived ? "Show active" : `Show archived (${archivedCount})`}
+            </button>
+          )}
+          <button onClick={() => void refresh()} disabled={loading} className="rounded-md border border-border px-2 py-1 disabled:opacity-50">
+            {loading ? "Reading…" : "Refresh"}
+          </button>
+        </div>
+      </section>
+      {error && (
+        <p role="alert" className="mb-3 text-sm text-destructive">
+          {error}
+        </p>
+      )}
+      <DeviceRecordsImport records={data} onImported={refresh} />
+
+      {!data ? (
+        <section className="panel p-6 text-sm text-muted-foreground">{loading ? "Reading your saved handoffs…" : "Saved handoffs couldn't be read."}</section>
+      ) : handoffs.length === 0 ? (
         <section className="panel p-6 text-sm text-muted-foreground">
-          No research handoffs yet. Open{" "}
-          <Link to="/discovery" className="text-electric underline">
-            Discovery
-          </Link>{" "}
-          — handoffs appear here once a real discovery source produces findings.
+          {showArchived ? "No archived handoffs." : (
+            <>
+              No research handoffs in your account yet. Open{" "}
+              <Link to="/discovery" className="text-electric underline">
+                Discovery
+              </Link>{" "}
+              — handoffs appear here once a real discovery source produces findings.
+            </>
+          )}
         </section>
       ) : (
         <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
@@ -104,19 +130,20 @@ function OmniPage() {
                   className={`panel w-full p-3 text-left ${current?.id === h.id ? "glow-electric" : ""}`}
                 >
                   <div className="text-sm font-medium text-silver">{h.title}</div>
-                  <div className="mt-1 flex items-center gap-2 text-xs">
+                  <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
                     <span className={`rounded border px-1.5 py-0.5 uppercase ${STATUS_STYLE[h.status]}`}>
                       {h.status}
                     </span>
                     <span className="text-muted-foreground">
                       priority {h.priority} · risk {h.risk}
                     </span>
+                    {h.fromDevice && <span className="text-muted-foreground">· imported</span>}
                   </div>
                 </button>
               </li>
             ))}
           </ul>
-          {current && <Detail h={current} />}
+          {current && <Detail key={current.id} h={current} onSaved={replace} onArchived={refresh} />}
         </div>
       )}
     </>
@@ -236,38 +263,43 @@ function InternalTaskQueue() {
   );
 }
 
-function Detail({ h }: { h: Handoff }) {
-  const { streams, total } = projectAnnual(h.revenue);
+function Detail({ h, onSaved, onArchived }: { h: SavedHandoff; onSaved: (h: SavedHandoff) => void; onArchived: () => Promise<void> }) {
+  const save = useServerFn(updateResearchHandoff);
+  const archive = useServerFn(setResearchHandoffArchived);
+  const makeJax = useServerFn(createJaxDraft);
+  const [revenue, setRevenue] = useState<Revenue>(h.revenue);
+  const [notes, setNotes] = useState(h.provenance.notes);
+  const [busy, setBusy] = useState("");
+  const [msg, setMsg] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
+  const [version, setVersion] = useState("0.1.0");
+  const { streams, total } = projectAnnual(revenue);
+  const locked = !!h.archivedAt;
+  const run = async (label: string, fn: () => Promise<string | void>) => {
+    setBusy(label);
+    setMsg(null);
+    try {
+      const text = await fn();
+      setMsg({ tone: "ok", text: text || "Saved." });
+    } catch (e) {
+      setMsg({ tone: "error", text: `Not saved: ${(e as Error).message}` });
+    } finally {
+      setBusy("");
+    }
+  };
+  const patch = (label: string, data: Omit<Parameters<typeof updateResearchHandoff>[0]["data"], "id">) =>
+    run(label, async () => {
+      const next = await save({ data: { id: h.id, ...data } });
+      onSaved(next);
+      setRevenue(next.revenue);
+      setNotes(next.provenance.notes);
+    });
+  const revenueDirty = JSON.stringify(revenue) !== JSON.stringify(h.revenue);
   const setRev = <K extends keyof Revenue>(k: K, key: keyof Revenue[K], v: number) =>
-    updateHandoff(h.id, (x) => ({
-      ...x,
-      revenue: { ...x.revenue, [k]: { ...x.revenue[k], [key]: Math.max(0, v || 0) } },
-    }));
+    setRevenue((x) => ({ ...x, [k]: { ...x[k], [key]: Math.max(0, v || 0) } }));
   const prov = (k: "ownershipConfirmed" | "ossReviewed" | "noScrapedOrUnlicensed", v: boolean) =>
-    updateHandoff(
-      h.id,
-      (x) => ({ ...x, provenance: { ...x.provenance, [k]: v } }),
-      `${k} set to ${v} on "${h.title}"`,
-      "approval",
-    );
-  const decide = (status: Handoff["status"]) =>
-    updateHandoff(
-      h.id,
-      (x) => ({
-        ...x,
-        status,
-        approvals: status === "approved" ? x.approvals : { publish: false, pricing: false, deploy: false, sell: false },
-      }),
-      `${status} "${h.title}"`,
-      "approval",
-    );
-  const approveAction = (a: OwnerAction, v: boolean) =>
-    updateHandoff(
-      h.id,
-      (x) => ({ ...x, approvals: { ...x.approvals, [a]: v } }),
-      `${v ? "approved" : "revoked"} ${a} for "${h.title}"`,
-      "approval",
-    );
+    patch(k, { provenance: { ...h.provenance, notes, [k]: v } });
+  const decide = (status: Handoff["status"]) => patch(status, { status });
+  const approveAction = (a: OwnerAction, v: boolean) => patch(a, { approval: { action: a, value: v } });
 
   const STREAMS: { k: keyof Revenue; label: string; fields: [string, string][] }[] = [
     {
@@ -335,11 +367,19 @@ function Detail({ h }: { h: Handoff }) {
               JSON
             </button>
             <button
-              aria-label="Delete handoff"
-              onClick={() => removeHandoff(h.id)}
-              className="rounded-md border border-destructive/40 px-2 py-1.5 text-destructive"
+              aria-label={locked ? "Restore handoff" : "Archive handoff"}
+              disabled={!!busy}
+              onClick={() =>
+                run("archive", async () => {
+                  await archive({ data: { id: h.id, archived: !locked } });
+                  await onArchived();
+                  return locked ? "Restored." : "Archived — kept in your account, not deleted.";
+                })
+              }
+              className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1.5 text-xs disabled:opacity-50"
             >
-              <Trash2 className="h-3.5 w-3.5" />
+              {locked ? <ArchiveRestore className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}
+              {locked ? "Restore" : "Archive"}
             </button>
           </div>
         </div>
@@ -370,7 +410,7 @@ function Detail({ h }: { h: Handoff }) {
         <div className="mt-4 flex flex-wrap gap-2">
           <button
             onClick={() => decide("approved")}
-            disabled={h.status === "approved"}
+            disabled={locked || !!busy || h.status === "approved"}
             className="inline-flex items-center gap-1 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50"
           >
             <CheckCircle2 className="h-3.5 w-3.5" />
@@ -378,7 +418,7 @@ function Detail({ h }: { h: Handoff }) {
           </button>
           <button
             onClick={() => decide("rejected")}
-            disabled={h.status === "rejected"}
+            disabled={locked || !!busy || h.status === "rejected"}
             className="inline-flex items-center gap-1 rounded-md border border-destructive/40 px-3 py-1.5 text-xs text-destructive disabled:opacity-50"
           >
             <XCircle className="h-3.5 w-3.5" />
@@ -386,12 +426,19 @@ function Detail({ h }: { h: Handoff }) {
           </button>
           <button
             onClick={() => decide("pending")}
-            disabled={h.status === "pending"}
+            disabled={locked || !!busy || h.status === "pending"}
             className="rounded-md border border-border px-3 py-1.5 text-xs disabled:opacity-50"
           >
             Back to pending
           </button>
         </div>
+        {busy && <p className="mt-2 text-xs text-muted-foreground" role="status">Saving…</p>}
+        {msg && (
+          <p role={msg.tone === "error" ? "alert" : "status"} className={`mt-2 text-xs ${msg.tone === "error" ? "text-destructive" : "text-success"}`}>
+            {msg.text}
+          </p>
+        )}
+        {locked && <p className="mt-2 text-xs text-warning">Archived — restore it to make changes.</p>}
       </section>
 
       <section className="panel p-4" aria-labelledby="mon">
@@ -412,7 +459,8 @@ function Detail({ h }: { h: Handoff }) {
                   <input
                     type="number"
                     min={0}
-                    value={(h.revenue[k] as Record<string, number>)[key]}
+                    disabled={locked}
+                    value={(revenue[k] as Record<string, number>)[key]}
                     onChange={(e) => setRev(k, key as never, Number(e.target.value))}
                     className={num}
                   />
@@ -426,6 +474,13 @@ function Detail({ h }: { h: Handoff }) {
           <span>Projected gross (estimate)</span>
           <span className="font-display text-lg text-electric">{usd(total)}/yr</span>
         </div>
+        <button
+          onClick={() => patch("revenue", { revenue: revenue as unknown as Record<string, Record<string, number>> })}
+          disabled={locked || !revenueDirty || !!busy}
+          className="mt-3 rounded-md border border-border px-3 py-1.5 text-xs disabled:opacity-50"
+        >
+          {busy === "revenue" ? "Saving…" : revenueDirty ? "Save estimates" : "Estimates saved"}
+        </button>
       </section>
 
       <section className="panel p-4" aria-labelledby="prov">
@@ -450,6 +505,7 @@ function Detail({ h }: { h: Handoff }) {
               <input
                 type="checkbox"
                 checked={h.provenance[k]}
+                disabled={locked || !!busy}
                 onChange={(e) => prov(k, e.target.checked)}
                 className="mt-1 accent-[var(--electric)]"
               />
@@ -458,13 +514,20 @@ function Detail({ h }: { h: Handoff }) {
           ))}
           <textarea
             placeholder="Provenance notes (licenses, dependencies, attributions)…"
-            value={h.provenance.notes}
-            onChange={(e) =>
-              updateHandoff(h.id, (x) => ({ ...x, provenance: { ...x.provenance, notes: e.target.value } }))
-            }
+            value={notes}
+            disabled={locked}
+            maxLength={4000}
+            onChange={(e) => setNotes(e.target.value)}
             className="mt-2 w-full rounded-md border border-input bg-background p-2 text-sm"
             rows={2}
           />
+          <button
+            onClick={() => patch("notes", { provenance: { ...h.provenance, notes } })}
+            disabled={locked || notes === h.provenance.notes || !!busy}
+            className="rounded-md border border-border px-3 py-1.5 text-xs disabled:opacity-50"
+          >
+            {busy === "notes" ? "Saving…" : notes === h.provenance.notes ? "Notes saved" : "Save notes"}
+          </button>
           <p className="text-xs text-muted-foreground">
             Self-attestation only. Jackboy does not scan licenses yet; get legal review before commercial use.
           </p>
@@ -484,7 +547,7 @@ function Detail({ h }: { h: Handoff }) {
                 <label className={`flex items-center gap-2 text-xs ${allowed ? "" : "text-muted-foreground"}`}>
                   <input
                     type="checkbox"
-                    disabled={!allowed}
+                    disabled={!allowed || locked || !!busy}
                     checked={h.approvals[a] && allowed}
                     onChange={(e) => approveAction(a, e.target.checked)}
                   />
@@ -498,6 +561,44 @@ function Detail({ h }: { h: Handoff }) {
           Approval records your decision only. Nothing is published, priced, deployed or sold until OMNI and payment
           integrations are connected and verified.
         </p>
+      </section>
+
+      <section className="panel p-4" aria-labelledby="jaxdraft">
+        <h3 id="jaxdraft" className="text-sm font-semibold uppercase tracking-wider text-silver">
+          JAX draft manifest
+        </h3>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Saves a simulated release manifest to your account for planning. JAX is not connected, so nothing is sent,
+          listed or sold.
+        </p>
+        {canPrepareJaxDraft(h) && !locked ? (
+          <div className="mt-3 flex flex-wrap items-end gap-2">
+            <label className="text-[11px] text-muted-foreground">
+              Version
+              <input value={version} onChange={(e) => setVersion(e.target.value)} maxLength={40} className={num} />
+            </label>
+            <button
+              disabled={!!busy || !/^[0-9A-Za-z.+-]{1,40}$/.test(version.trim())}
+              onClick={() =>
+                run("jax", async () => {
+                  await makeJax({ data: { handoffId: h.id, version: version.trim() } });
+                  return "JAX draft saved — see the JAX page.";
+                })
+              }
+              className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-xs disabled:opacity-50"
+            >
+              <PackagePlus className="h-3.5 w-3.5" />
+              {busy === "jax" ? "Saving…" : "Save JAX draft"}
+            </button>
+            <Link to="/jax" className="text-xs text-electric underline">
+              Open JAX
+            </Link>
+          </div>
+        ) : (
+          <p className="mt-2 text-xs text-warning">
+            {locked ? "Restore this handoff first." : "Locked: approve the handoff and tick all three provenance boxes first."}
+          </p>
+        )}
       </section>
     </div>
   );
