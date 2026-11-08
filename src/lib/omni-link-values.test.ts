@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAX_APPROVAL_MS, suggestApproval, summarizeLinkValues } from "./omni-link-values";
+import { MAX_APPROVAL_MS, approvalExpiryState, expiryHint, suggestApproval, summarizeLinkValues } from "./omni-link-values";
 import { FRESH_ONLY_ACTIONS, STEP_UP_ACTIONS, mayRequest } from "./step-up";
 
 const me = "11111111-1111-4111-8111-111111111111";
@@ -59,5 +59,36 @@ describe("reveal passkey rule", () => {
     expect(STEP_UP_ACTIONS.omni_link_values.roles).toEqual(["owner"]);
     expect(mayRequest("omni_link_values", "admin").ok).toBe(false);
     expect((FRESH_ONLY_ACTIONS as readonly string[]).includes("omni_link_values")).toBe(true);
+  });
+});
+
+describe("OMNI approval status follows the saved value", () => {
+  const owner = "93a2e690-a179-4d08-bd68-a3a793fced11";
+  const now = Date.parse("2026-11-08T08:00:00Z");
+  const env = (expires: string) => ({
+    OMNI_LINK_OWNER_ID: owner,
+    OMNI_LINK_APPROVAL_ID: "0b6f3c1e-2a4d-4e8f-9c1a-1234567890ab",
+    OMNI_LINK_APPROVAL_EXPIRES_AT: expires,
+  });
+  it("re-reads on every check, so a newly saved expiry turns an expired status valid", () => {
+    expect(summarizeLinkValues(env("2026-11-06T22:00:00Z"), owner, now).expiry).toBe("expired");
+    expect(summarizeLinkValues(env("2026-11-09T06:00:00Z"), owner, now).expiry).toBe("valid");
+  });
+  it("matches the link gate's boundaries exactly", () => {
+    expect(approvalExpiryState("2026-11-08T08:00:00Z", now)).toBe("expired");
+    expect(approvalExpiryState("2026-11-09T08:00:00Z", now)).toBe("valid");
+    expect(approvalExpiryState("2026-11-09T08:00:00.001Z", now)).toBe("too_far");
+    expect(approvalExpiryState("  ", now)).toBe("missing");
+    expect(approvalExpiryState("08/11/2026 9am", now)).toBe("invalid");
+  });
+  it("respects time zones written into the value", () => {
+    expect(approvalExpiryState("2026-11-08T03:00:00-05:00", now)).toBe("expired");
+    expect(approvalExpiryState("2026-11-08T03:00:01-05:00", now)).toBe("valid");
+  });
+  it("describes expiry relative to now without showing the value", () => {
+    const s = summarizeLinkValues(env("2026-11-06T21:30:00Z"), owner, now);
+    const hint = expiryHint(s.expiry, s.expiresInMs);
+    expect(hint).toBe("Saved approval expired about 34.5 hours ago.");
+    expect(hint).not.toContain("2026");
   });
 });

@@ -1,5 +1,6 @@
 // Readiness for the reviewed OMNI-initiated link (omni.link/v2): OMNI calls Jackboy at
 // /api/public/omni/link. Reports variable NAMES only, never values.
+import { APPROVAL_EXPIRY_TEXT, approvalExpiryState } from "./omni-link-values";
 export const REVERSE_LINK_VARS = [
   "OMNI_LINK_ENABLED",
   "OMNI_LINK_CLIENT_ID",
@@ -31,6 +32,7 @@ export function reverseLinkReport(input: {
   runnerDiagnostic?: string;
 }): ReverseLinkReport {
   const missingVars = REVERSE_LINK_VARS.filter((n) => !input.env[n]);
+  const expiry = approvalExpiryState(input.env["OMNI_LINK_APPROVAL_EXPIRES_AT"], input.now ?? Date.now());
   const enabledFlag = input.env["OMNI_LINK_ENABLED"] === "true";
   const sessionExpiry = input.lastSessionAt ? Date.parse(input.lastSessionAt) : NaN;
   const activeSession = Number.isFinite(sessionExpiry) && sessionExpiry > (input.now ?? Date.now());
@@ -44,7 +46,9 @@ export function reverseLinkReport(input: {
           ? "OMNI_LINK_ENABLED must be exactly true"
           : input.configValid
             ? "All link settings present and valid"
-            : "Settings present but invalid (UUIDs, expiry within 24h, 32+ char distinct keys)",
+            : expiry !== "valid"
+              ? `${APPROVAL_EXPIRY_TEXT[expiry]}; the link refuses OMNI until a matching approval ID and expiry are saved in Jackboy and Railway`
+              : "Settings present but invalid (UUIDs, 32+ char distinct keys)",
     },
     {
       name: "Jackboy link storage",
