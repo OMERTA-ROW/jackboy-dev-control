@@ -92,3 +92,19 @@ describe("round trip", () => {
     expect(await verifyRunnerRequest(SECRET, h, body, claim)).toEqual({ error: "replayed_request" });
   });
 });
+
+describe("runnerOrigin (Railway host as shown in Railway)", () => {
+  it("reads a bare Railway host as https and never as http", () => {
+    expect(runnerOrigin("x.up.railway.app")).toBe("https://x.up.railway.app");
+    expect(runnerOrigin(" https://x.up.railway.app/ ")).toBe("https://x.up.railway.app");
+    expect(runnerOrigin("http://x.up.railway.app")).toBeNull();
+    expect(runnerOrigin("x.up.railway.app/api/public/omni/runner")).toBeNull();
+  });
+  it("names the blocking runner setting without values", () => {
+    const ok = { OMNI_LINK_REMOTE_RUNNER_ENABLED: "true", OMNI_LINK_REMOTE_RUNNER_SECRET: "s".repeat(32), OMNI_LINK_REMOTE_RUNNER_URL: "x.up.railway.app" };
+    expect(runnerConfigProblem(ok)).toBeNull();
+    expect(remoteRunnerConfig(ok)?.url).toBe("https://x.up.railway.app/api/public/omni/runner");
+    expect(runnerConfigProblem({ ...ok, OMNI_LINK_REMOTE_RUNNER_URL: "http://x" })).toContain("OMNI_LINK_REMOTE_RUNNER_URL");
+    expect(runnerConfigProblem({ ...ok, OMNI_LINK_REMOTE_RUNNER_SECRET: "short" })).not.toContain("short");
+  });
+});
