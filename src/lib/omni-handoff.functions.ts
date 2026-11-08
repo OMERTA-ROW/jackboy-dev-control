@@ -240,3 +240,87 @@ export const revokeOmniProject = createServerFn({ method: "POST" })
     if (result.error || !result.data) throw new Error("OMNI access could not be revoked.");
     return z.object({ revoked: z.literal(true), revokedJobApprovals: z.number() }).parse(result.data);
   });
+
+/** Owner only: fill an EMPTY repository on OMNI's project list with the one the owner already linked
+ * on the Projects page (exactly one same-named project). Grants nothing: OMNI still needs the
+ * passkey "Give OMNI access" step, which binds this repository. Never overwrites an existing link. */
+export const linkOmniProjectRepo = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => z.object({ projectId: z.string().uuid() }).strict().parse(input))
+  .handler(async ({ context, data }) => {
+    await requireConfirmedOwner(context as unknown as Ctx);
+    const db = await admin();
+    const { data: p } = await db.from("agent_projects").select("id,name,repo_url,created_by").eq("id", data.projectId).maybeSingle();
+    const row = p as { id: string; name: string; repo_url: string | null; created_by: string | null } | null;
+    if (!row) throw new Error("Project not found.");
+    if (row.created_by !== context.userId) throw new Error("This project belongs to someone else.");
+    if (row.repo_url) throw new Error("This project already has a repository; it was not changed.");
+    const { data: owners } = await db.from("owner_projects").select("name, github_repo");
+    const repo = registryRepoSuggestion(row.name, (owners ?? []) as { name: string; github_repo: string | null }[]);
+    if (!repo) throw new Error(`No single project named "${row.name}" with a GitHub repository was found on the Projects page.`);
+    const { data: updated, error } = await db
+      .from("agent_projects")
+      .update({ repo_url: `https://github.com/${repo}` })
+      .eq("id", row.id)
+      .is("repo_url", null)
+      .select("id");
+    if (error || !updated || (updated as unknown[]).length !== 1) throw new Error("The repository could not be linked (nothing changed).");
+    const { logSite } = await import("./site-log.server");
+    await logSite({
+      actor: context.userId, action: "omni.project.repo_linked", category: "config", status: "ok", repo,
+      summary: `Linked ${repo} to ${row.name} in OMNI's project list (from the Projects page). OMNI access still needs a passkey.`,
+    });
+    return { repo, name: row.name };
+  });
+
+/** Owner only: queue a NEW unsent copy of a repository-less build/test job, carrying its project's
+ * repository. The original job is never changed; nothing is sent (handoff rules still apply). */
+export const queueOmniJobCopy = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => z.object({ jobId: z.string().uuid() }).strict().parse(input))
+  .handler(async ({ context, data }) => {
+    await requireConfirmedOwner(context as unknown as Ctx);
+    const db = await admin();
+    const { data: j } = await db
+      .from("omni_jobs")
+      .select("id,project_id,kind,status,sent_at,code_request_id,repo,instructions,report_id")
+      .eq("id", data.jobId)
+      .maybeSingle();
+    const job = j as (JobRow & { report_id: string | null }) | null;
+    if (!job || !job.project_id) throw new Error("Job not found.");
+    const { data: p } = await db.from("agent_projects").select("id,name,repo_url,created_by").eq("id", job.project_id).maybeSingle();
+    const proj = p as { id: string; name: string; repo_url: string | null; created_by: string | null } | null;
+    if (!proj || proj.created_by !== context.userId) throw new Error("Only your own project's jobs can be copied.");
+    const repo = repoFromUrl(proj.repo_url);
+    const refusal = jobCopyRefusal(
+      { status: job.status, sentAt: job.sent_at, codeRequestId: job.code_request_id, repo: job.repo, kind: job.kind },
+      repo,
+    );
+    if (refusal) throw new Error(refusal);
+    const { data: existing } = await db
+      .from("omni_jobs")
+      .select("id")
+      .eq("project_id", proj.id)
+      .eq("kind", job.kind)
+      .eq("repo", repo)
+      .eq("instructions", job.instructions)
+      .eq("status", "queued")
+      .is("sent_at", null)
+      .limit(1);
+    if (existing && (existing as unknown[]).length > 0) throw new Error("A copy with this repository is already waiting.");
+    const { data: ins, error } = await db
+      .from("omni_jobs")
+      .insert({
+        project_id: proj.id, report_id: job.report_id, kind: job.kind, instructions: job.instructions,
+        repo, created_by: context.userId, status: "queued", sent_at: null, guardian_verdict: "pending",
+      })
+      .select("id")
+      .single();
+    if (error || !ins) throw new Error("The copy could not be queued.");
+    const { logSite } = await import("./site-log.server");
+    await logSite({
+      actor: context.userId, action: "omni.job.copied", category: "config", status: "pending", repo,
+      summary: `Queued a copy of OMNI job ${job.id.slice(0, 8)} for ${repo} (${proj.name}). Original unchanged; nothing sent.`,
+    });
+    return { id: (ins as { id: string }).id, repo };
+  });
