@@ -220,6 +220,8 @@ export async function handleOmniLink(
     } catch {
       return await deny(400, "invalid_request");
     }
+    if (input && typeof input === "object" && typeof input["action"] === "string")
+      parsedAction = input["action"];
     if (
       !input ||
       Array.isArray(input) ||
@@ -228,7 +230,6 @@ export async function handleOmniLink(
     )
       return await deny(403, "project_denied");
     const action = input["action"];
-    if (typeof action === "string") parsedAction = action;
     if (
       !["handshake", "submit", "status", "run", "cancel"].includes(String(action)) ||
       Object.keys(input).some((k) => !["action", "projectId", "jobId", "kind"].includes(k))
