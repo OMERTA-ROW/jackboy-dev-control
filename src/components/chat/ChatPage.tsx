@@ -159,7 +159,7 @@ function OwnerChat({ threadId, userId, role }: { threadId: string; userId: strin
     setLoadState("loading"); setLoadErr(null);
     try {
       const r = await getThread({ data: { id: threadId } });
-      const msgs = r.messages as UIMessage[];
+      const msgs = r.messages as unknown as UIMessage[];
       savedPrints.current = new Map(msgs.map((m) => [m.id, fingerprint(m)]));
       loadedIds.current = new Set(msgs.map((m) => m.id));
       setMessages(msgs);
