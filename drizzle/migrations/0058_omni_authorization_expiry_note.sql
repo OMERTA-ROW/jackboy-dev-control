@@ -1,0 +1,1 @@
+COMMENT ON FUNCTION public.expire_omni_project_authorizations(uuid) IS 'Owner-only: revokes expired OMNI project authorizations and dependent dispatch grants (added by 0057_omni_authorization_expiry).';
