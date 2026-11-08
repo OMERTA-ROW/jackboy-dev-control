@@ -49,3 +49,29 @@ describe("OMNI-initiated link readiness", () => {
     })).toContain("does not test live reachability");
   });
 });
+
+describe("OMNI link readiness names the approval expiry problem", () => {
+  const base = { ...full, OMNI_LINK_APPROVAL_EXPIRES_AT: "" };
+  const detail = (expires: string) =>
+    reverseLinkReport({ env: { ...base, OMNI_LINK_APPROVAL_EXPIRES_AT: expires }, configValid: false, storageReady: true, lastSessionAt: null, now })
+      .steps.find((s) => s.name === "Jackboy link settings")!;
+  it("says expired for a past expiry", () => {
+    const s = detail("2026-11-03T22:00:00Z");
+    expect(s.ok).toBe(false);
+    expect(s.detail).toContain("has expired");
+  });
+  it("says too far for an expiry more than 24 hours ahead", () => {
+    expect(detail("2026-11-05T00:00:01Z").detail).toContain("more than 24 hours ahead");
+  });
+  it("says invalid for an unreadable expiry", () => {
+    expect(detail("tomorrow-ish").detail).toContain("not a valid date");
+  });
+  it("names the missing expiry variable", () => {
+    const r = reverseLinkReport({ env: base, configValid: false, storageReady: true, lastSessionAt: null, now });
+    expect(r.steps[0]!.detail).toContain("OMNI_LINK_APPROVAL_EXPIRES_AT");
+  });
+  it("never puts the saved expiry value in the report", () => {
+    const value = "2026-11-03T22:00:00Z";
+    expect(JSON.stringify(reverseLinkReport({ env: { ...base, OMNI_LINK_APPROVAL_EXPIRES_AT: value }, configValid: false, storageReady: true, lastSessionAt: null, now }))).not.toContain(value);
+  });
+});
