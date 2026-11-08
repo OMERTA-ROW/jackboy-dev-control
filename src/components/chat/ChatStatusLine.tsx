@@ -38,7 +38,7 @@ export function ChatStatusLine({ projectId, hasRepo }: { projectId: string | nul
   const s = d.safety, w = d.waiting, f = d.failures;
   const failedPr = ci?.pulls.filter((p) => p.ci.state === "failed").length ?? 0;
   return (
-    <div role="status" aria-label="Status" className="no-scrollbar flex gap-1.5 overflow-x-auto px-3 pb-2 text-[11px] text-muted-foreground sm:px-6">
+    <div role="status" aria-label="Status" className="flex [scrollbar-width:none] gap-1.5 overflow-x-auto px-3 pb-2 text-[11px] text-muted-foreground sm:px-6">
       <Link to="/settings" hash="activation" className={chip}>{s ? dot(s.killSwitch ? "warn" : "ok") : dot("muted")}Kill Switch {s ? (s.killSwitch ? "on" : "off") : "?"}</Link>
       <Link to="/settings" hash="activation" className={chip}>{s ? dot(s.codeEnabled ? "ok" : "muted") : dot("muted")}CODE {s ? (s.codeEnabled ? "on" : "off") : "?"}</Link>
       <Link to="/updates" className={chip}>{w ? dot(w.count ? "warn" : "ok") : dot("muted")}{w ? `${w.count} waiting${w.complete ? "" : " (partial)"}` : "Approvals ?"}</Link>
