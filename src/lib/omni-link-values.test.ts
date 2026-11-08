@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAX_APPROVAL_MS, approvalExpiryState, approvalSaveProblem, expiryHint, suggestApproval, summarizeLinkValues } from "./omni-link-values";
+import { MAX_APPROVAL_MS, approvalExpiryState, approvalSaveFailureReason, approvalSaveProblem, expiryHint, suggestApproval, summarizeLinkValues } from "./omni-link-values";
 import { FRESH_ONLY_ACTIONS, STEP_UP_ACTIONS, mayRequest } from "./step-up";
 
 const me = "11111111-1111-4111-8111-111111111111";
@@ -116,5 +116,20 @@ describe("approvalSaveProblem (checked before the passkey prompt and again on th
   });
   it("refuses empty input", () => {
     expect(approvalSaveProblem("  ", now)).toBe("Enter the approval expiry.");
+  });
+});
+
+describe("approvalSaveFailureReason (analytics reason codes, never values)", () => {
+  const now = Date.parse("2026-11-08T10:00:00Z");
+  it("maps pre-save problems to fixed codes", () => {
+    expect(approvalSaveFailureReason(approvalSaveProblem("", now)!)).toBe("missing");
+    expect(approvalSaveFailureReason(approvalSaveProblem("2026-11-07T10:00:00Z", now)!)).toBe("expired");
+    expect(approvalSaveFailureReason(approvalSaveProblem("2026-11-10T10:00:00Z", now)!)).toBe("too_far");
+  });
+  it("maps passkey and server refusals", () => {
+    expect(approvalSaveFailureReason("Passkey confirmation cancelled. Nothing was changed.")).toBe("passkey_cancelled");
+    expect(approvalSaveFailureReason("Only the owner can save the OMNI approval.")).toBe("not_owner");
+    expect(approvalSaveFailureReason("Saved, but Jackboy could not read it back.")).toBe("readback_failed");
+    expect(approvalSaveFailureReason("Something unexpected 1234-abcd")).toBe("other");
   });
 });

@@ -113,6 +113,24 @@ export function approvalSaveProblem(raw: string | undefined, now = Date.now()): 
     : `This expiry is ${ago} ahead; the limit is 24 hours. Press “Make a new approval” instead.`;
 }
 
+/** Fixed, value-free reason codes for a failed approval save (used for analytics; never the message or values). */
+export type ApprovalSaveFailure =
+  | "missing" | "invalid" | "expired" | "too_far"
+  | "passkey_cancelled" | "passkey_refused" | "not_owner" | "readback_failed" | "other";
+
+export function approvalSaveFailureReason(message: string): ApprovalSaveFailure {
+  const m = message ?? "";
+  if (/cancelled/i.test(m)) return "passkey_cancelled";
+  if (/Enter the approval expiry|both required/i.test(m)) return "missing";
+  if (/time zone|valid date/i.test(m)) return "invalid";
+  if (/passed .*ago|already passed|has expired/i.test(m)) return "expired";
+  if (/limit is 24|within 24 hours/i.test(m)) return "too_far";
+  if (/read it back/i.test(m)) return "readback_failed";
+  if (/owner/i.test(m)) return "not_owner";
+  if (/passkey/i.test(m)) return "passkey_refused";
+  return "other";
+}
+
 /** A fresh approval pair for the owner to save in BOTH Jackboy and Railway. Nothing is stored. */
 export function suggestApproval(now = Date.now(), uuid: () => string = () => crypto.randomUUID()) {
   return { approvalId: uuid(), expiresAt: new Date(now + SUGGESTED_APPROVAL_MS).toISOString() };

@@ -3,7 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { CheckCircle2, Copy, Eye, EyeOff, KeyRound, ShieldAlert } from "lucide-react";
 import { getOmniLinkValueStatus, revealOmniLinkValues, saveOmniLinkApproval } from "@/lib/omni-link-values.functions";
 import { APPROVAL_SOURCE_TEXT, SAVE_APPROVAL_ACTION, SAVE_APPROVAL_TARGET } from "@/lib/omni-link-approval";
-import { approvalSaveProblem, expiryHint, REVEAL_ACTION, REVEAL_TARGET, suggestApproval, type LinkValueName } from "@/lib/omni-link-values";
+import { approvalSaveFailureReason, approvalSaveProblem, expiryHint, REVEAL_ACTION, REVEAL_TARGET, suggestApproval, type LinkValueName } from "@/lib/omni-link-values";
 import { useStepUp } from "@/lib/step-up-client";
 
 type Status = Awaited<ReturnType<typeof getOmniLinkValueStatus>>;
@@ -51,7 +51,8 @@ export function OmniLinkValuesPanel() {
   const [busy, setBusy] = useState(false);
   const [checkedAt, setCheckedAt] = useState<Date | null>(null);
   const refresh = useCallback(
-    () => load().then((r) => { setStatus(r); setCheckedAt(new Date()); setMsg(null); }).catch((e: Error) => setMsg(e.message)),
+    (): Promise<Status | null> =>
+      load().then((r) => { setStatus(r); setCheckedAt(new Date()); setMsg(null); return r; }).catch((e: Error) => { setMsg(e.message); return null; }),
     [load],
   );
   useEffect(() => {
@@ -105,7 +106,13 @@ export function OmniLinkValuesPanel() {
         </p>
       )}
       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-        <button type="button" className="rounded-md border border-border px-2 py-1 hover:bg-muted" onClick={() => void refresh()}>
+        <button type="button" className="rounded-md border border-border px-2 py-1 hover:bg-muted" onClick={async () => {
+          const r = await refresh();
+          // Value-free: only the outcome, expiry state and approval source labels.
+          window.__lovableEvents?.track?.("project.omni_approval_rechecked", r
+            ? { result: "ok", expiry: r.summary.expiry, source: r.approval.source }
+            : { result: "failed" });
+        }}>
           Recheck saved values
         </button>
         {checkedAt && <span>Checked at {checkedAt.toLocaleTimeString()}</span>}
@@ -172,8 +179,14 @@ export function OmniLinkValuesPanel() {
               disabled={busy || !draft.approvalId || !draft.expiresAt}
               onClick={async () => {
                 setMsg(null); setSaved(null);
+                // Only whether the pair came from "Make a new approval"; the values never leave this comparison.
+                const pairOrigin = fresh && fresh.approvalId === draft.approvalId && fresh.expiresAt === draft.expiresAt ? "new_pair" : "entered";
                 const problem = approvalSaveProblem(draft.expiresAt);
-                if (problem) { setMsg(problem); return; }
+                if (problem) {
+                  setMsg(problem);
+                  window.__lovableEvents?.track?.("project.omni_approval_save_failed", { stage: "before_passkey", reason: approvalSaveFailureReason(problem), pair_origin: pairOrigin });
+                  return;
+                }
                 setBusy(true);
                 try {
                   const r = await stepUp(SAVE_APPROVAL_ACTION, SAVE_APPROVAL_TARGET, {
@@ -184,8 +197,10 @@ export function OmniLinkValuesPanel() {
                   setStatus(r); setCheckedAt(new Date());
                   setShown((cur) => cur && { ...cur, summary: r.summary, approval: r.approval, values: { ...cur.values, OMNI_LINK_APPROVAL_ID: draft.approvalId.toLowerCase(), OMNI_LINK_APPROVAL_EXPIRES_AT: new Date(Date.parse(draft.expiresAt)).toISOString() } });
                   setSaved(`Saved and read back at ${new Date().toLocaleTimeString()}. Railway is not updated automatically — do the steps below.`);
+                  window.__lovableEvents?.track?.("project.omni_approval_saved", { pair_origin: pairOrigin });
                 } catch (e) {
                   setMsg((e as Error).message);
+                  window.__lovableEvents?.track?.("project.omni_approval_save_failed", { stage: "after_passkey", reason: approvalSaveFailureReason((e as Error).message), pair_origin: pairOrigin });
                 } finally {
                   setBusy(false);
                 }
