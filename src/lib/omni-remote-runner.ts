@@ -30,7 +30,8 @@ const SITE_ONLY_SETTINGS = ["SUPABASE_SERVICE_ROLE_KEY", "OMNI_LINK_REMOTE_RUNNE
 export function runnerModeDecision(env: Env, hostname?: string): RunnerModeDecision {
   if (env["OMNI_LINK_RUNNER_MODE"] !== "true") return { on: false };
   const host = (hostname ?? "").trim();
-  if (host && (DASHBOARD_HOST.test(host) || LOCAL_HOST.test(host))) return { on: false, ignored: "lovable_host" };
+  if (host && (DASHBOARD_HOST.test(host) || (LOCAL_HOST.test(host) && !env["RAILWAY_ENVIRONMENT_ID"])))
+    return { on: false, ignored: "lovable_host" };
   if (env["OMNI_LINK_REMOTE_RUNNER_ENABLED"] === "true" || SITE_ONLY_SETTINGS.some((k) => !!env[k]))
     return { on: false, ignored: "site_settings" };
   return { on: true };

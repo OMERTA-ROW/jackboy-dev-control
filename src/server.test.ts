@@ -20,6 +20,8 @@ describe("dashboard routing with misplaced runner flags", () => {
     vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "");
     vi.stubEnv("OMNI_LINK_REMOTE_RUNNER_URL", "");
     vi.stubEnv("OMNI_LINK_REMOTE_RUNNER_ENABLED", "");
+    vi.stubEnv("RAILWAY_ENVIRONMENT_ID", "");
+    vi.stubEnv("OMNI_LINK_REMOTE_RUNNER_SECRET", "r".repeat(40));
   });
   afterEach(() => vi.unstubAllEnvs());
 
@@ -40,6 +42,27 @@ describe("dashboard routing with misplaced runner flags", () => {
     const response = await server.fetch(
       new Request("https://jackboy-runner.up.railway.app/settings"), {}, {},
     );
+    expect(response.status).toBe(404);
+    expect(dashboardFetch).not.toHaveBeenCalled();
+  });
+
+  it.each(["http://127.0.0.1:8080", "https://runner.up.railway.app"])(
+    "returns JSON method rejection, not dashboard HTML, at %s",
+    async (origin) => {
+      vi.stubEnv("RAILWAY_ENVIRONMENT_ID", "test-environment");
+      const response = await server.fetch(
+        new Request(`${origin}/api/public/omni/runner`), {}, {},
+      );
+      expect(response.status).toBe(405);
+      expect(response.headers.get("content-type")).toContain("application/json");
+      expect(response.headers.get("allow")).toBe("POST");
+      expect(dashboardFetch).not.toHaveBeenCalled();
+    },
+  );
+
+  it("keeps Railway loopback dashboard pages closed", async () => {
+    vi.stubEnv("RAILWAY_ENVIRONMENT_ID", "test-environment");
+    const response = await server.fetch(new Request("http://127.0.0.1:8080/"), {}, {});
     expect(response.status).toBe(404);
     expect(dashboardFetch).not.toHaveBeenCalled();
   });

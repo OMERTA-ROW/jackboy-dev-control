@@ -62,6 +62,10 @@ export default {
       if (runnerMode.on && pathname !== RUNNER_PATH) {
         return new Response("Not found", { status: 404, headers: { "Cache-Control": "no-store" } });
       }
+      if (pathname === RUNNER_PATH) {
+        const { handleRunnerRequest } = await import("./lib/omni-remote-runner.server");
+        return handleRunnerRequest(request);
+      }
       if (pathname === "/api/live") {
         return handleLiveRequest(request);
       }
