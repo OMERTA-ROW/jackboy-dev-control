@@ -82,8 +82,8 @@ describe("OMNI approval status follows the saved value", () => {
     expect(approvalExpiryState("08/11/2026 9am", now)).toBe("invalid");
   });
   it("respects time zones written into the value", () => {
-    expect(approvalExpiryState("2026-11-08T04:00:00-05:00", now)).toBe("expired");
-    expect(approvalExpiryState("2026-11-08T04:00:01-05:00", now)).toBe("valid");
+    expect(approvalExpiryState("2026-11-08T03:00:00-05:00", now)).toBe("expired");
+    expect(approvalExpiryState("2026-11-08T03:00:01-05:00", now)).toBe("valid");
   });
   it("describes expiry relative to now without showing the value", () => {
     const s = summarizeLinkValues(env("2026-11-06T21:30:00Z"), owner, now);
