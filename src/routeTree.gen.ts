@@ -59,6 +59,7 @@ import { Route as AuthenticatedPassportAgentIdRouteImport } from './routes/_auth
 import { Route as AuthenticatedProjectIdRouteImport } from './routes/_authenticated/project.$id'
 import { Route as ApiAgentManifestRouteImport } from './routes/api/agent/manifest'
 import { Route as ApiPublicAgentIngestRouteImport } from './routes/api/public/agent-ingest'
+import { Route as ApiPublicVersionRouteImport } from './routes/api/public/version'
 import { Route as ApiPublicCodeClaimRouteImport } from './routes/api/public/code/claim'
 import { Route as ApiPublicCodeFinishRouteImport } from './routes/api/public/code/finish'
 import { Route as ApiPublicFeedsSourceIdRouteImport } from './routes/api/public/feeds.$sourceId'
@@ -336,6 +337,11 @@ const ApiPublicAgentIngestRoute = ApiPublicAgentIngestRouteImport.update({
   path: '/api/public/agent-ingest',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicVersionRoute = ApiPublicVersionRouteImport.update({
+  id: '/api/public/version',
+  path: '/api/public/version',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicCodeClaimRoute = ApiPublicCodeClaimRouteImport.update({
   id: '/api/public/code/claim',
   path: '/api/public/code/claim',
@@ -498,6 +504,7 @@ export interface FileRoutesByFullPath {
   '/project/$id': typeof AuthenticatedProjectIdRoute
   '/api/agent/manifest': typeof ApiAgentManifestRoute
   '/api/public/agent-ingest': typeof ApiPublicAgentIngestRoute
+  '/api/public/version': typeof ApiPublicVersionRoute
   '/chat/': typeof AuthenticatedChatIndexRoute
   '/api/public/code/claim': typeof ApiPublicCodeClaimRoute
   '/api/public/code/finish': typeof ApiPublicCodeFinishRoute
@@ -569,6 +576,7 @@ export interface FileRoutesByTo {
   '/project/$id': typeof AuthenticatedProjectIdRoute
   '/api/agent/manifest': typeof ApiAgentManifestRoute
   '/api/public/agent-ingest': typeof ApiPublicAgentIngestRoute
+  '/api/public/version': typeof ApiPublicVersionRoute
   '/chat': typeof AuthenticatedChatIndexRoute
   '/api/public/code/claim': typeof ApiPublicCodeClaimRoute
   '/api/public/code/finish': typeof ApiPublicCodeFinishRoute
@@ -643,6 +651,7 @@ export interface FileRoutesById {
   '/_authenticated/project/$id': typeof AuthenticatedProjectIdRoute
   '/api/agent/manifest': typeof ApiAgentManifestRoute
   '/api/public/agent-ingest': typeof ApiPublicAgentIngestRoute
+  '/api/public/version': typeof ApiPublicVersionRoute
   '/_authenticated/chat/': typeof AuthenticatedChatIndexRoute
   '/api/public/code/claim': typeof ApiPublicCodeClaimRoute
   '/api/public/code/finish': typeof ApiPublicCodeFinishRoute
@@ -717,6 +726,7 @@ export interface FileRouteTypes {
     | '/project/$id'
     | '/api/agent/manifest'
     | '/api/public/agent-ingest'
+    | '/api/public/version'
     | '/chat/'
     | '/api/public/code/claim'
     | '/api/public/code/finish'
@@ -788,6 +798,7 @@ export interface FileRouteTypes {
     | '/project/$id'
     | '/api/agent/manifest'
     | '/api/public/agent-ingest'
+    | '/api/public/version'
     | '/chat'
     | '/api/public/code/claim'
     | '/api/public/code/finish'
@@ -861,6 +872,7 @@ export interface FileRouteTypes {
     | '/_authenticated/project/$id'
     | '/api/agent/manifest'
     | '/api/public/agent-ingest'
+    | '/api/public/version'
     | '/_authenticated/chat/'
     | '/api/public/code/claim'
     | '/api/public/code/finish'
@@ -898,6 +910,7 @@ export interface RootRouteChildren {
   ApiTranscribeRoute: typeof ApiTranscribeRoute
   ApiAgentManifestRoute: typeof ApiAgentManifestRoute
   ApiPublicAgentIngestRoute: typeof ApiPublicAgentIngestRoute
+  ApiPublicVersionRoute: typeof ApiPublicVersionRoute
   ApiPublicCodeClaimRoute: typeof ApiPublicCodeClaimRoute
   ApiPublicCodeFinishRoute: typeof ApiPublicCodeFinishRoute
   ApiPublicFeedsSourceIdRoute: typeof ApiPublicFeedsSourceIdRoute
@@ -1273,6 +1286,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicAgentIngestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/version': {
+      id: '/api/public/version'
+      path: '/api/public/version'
+      fullPath: '/api/public/version'
+      preLoaderRoute: typeof ApiPublicVersionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/code/claim': {
       id: '/api/public/code/claim'
       path: '/api/public/code/claim'
@@ -1530,6 +1550,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiTranscribeRoute: ApiTranscribeRoute,
   ApiAgentManifestRoute: ApiAgentManifestRoute,
   ApiPublicAgentIngestRoute: ApiPublicAgentIngestRoute,
+  ApiPublicVersionRoute: ApiPublicVersionRoute,
   ApiPublicCodeClaimRoute: ApiPublicCodeClaimRoute,
   ApiPublicCodeFinishRoute: ApiPublicCodeFinishRoute,
   ApiPublicFeedsSourceIdRoute: ApiPublicFeedsSourceIdRoute,

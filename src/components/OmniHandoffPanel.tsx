@@ -95,7 +95,8 @@ export function OmniHandoffPanel() {
         that kind of job, nothing has been revoked, and the Kill Switch is off. OMNI only receives
         the job; nothing runs, merges or deploys from here. The separate OMNI-initiated readiness check is read-only and does not enable this legacy outbound route.
       </p>
-      {d?.link.config && !d.link.config.configured && <p className="text-xs text-warning">Connection configuration is incomplete. Missing secret names: {d.link.config.missing.join(", ") || "not reported"}; values are never displayed here.</p>}
+      {d?.link.config && !d.link.config.configured && <p className="text-xs text-warning">Connection configuration is incomplete. Missing secret names: {d.link.config.missing.join(", ") || "none"}; values are never displayed here.</p>}
+      {d?.link.config?.urlProblem && <p className="text-xs text-warning">{d.link.config.urlProblem}</p>}
       {d?.link.live && d.link.verifiedAt && d.link.expiresAt && <p className="text-xs text-muted-foreground">Last successful handshake: {when(d.link.verifiedAt)} · expires {when(d.link.expiresAt)}.</p>}
       {d?.expiredAuthorizations ? <p className="text-xs text-warning">Automatically expired and recorded {d.expiredAuthorizations} project authorization(s) and revoked {d.expiredJobApprovals} related job approval(s). Replacement still requires a fresh passkey.</p> : <p className="text-xs text-muted-foreground">Expired project access and job approvals are reconciled on refresh; replacement access always needs a fresh passkey.</p>}
       {d?.link.lastError && !d.link.live && <p className="text-xs text-warning">Last link check: {d.link.lastError}</p>}

@@ -95,6 +95,39 @@ export function isOmniVerificationFresh(
   );
 }
 
+export const OMNI_URL_INVALID_MESSAGE =
+  "OMNI_API_URL is not a usable https address. Re-save it as the plain address, for example https://name.up.railway.app.";
+export const OMNI_URL_FORMATTED_NOTICE =
+  "OMNI_API_URL was saved with chat link formatting ([address](address)). Jackboy reads the address inside it; re-save it as the plain address.";
+
+const OMNI_BARE_HOST = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+(?::\d{1,5})?(?:\/[^\s?#]*)?$/i;
+/**
+ * Reads the OMNI base address. Accepts a plain https URL or bare host, and a chat-formatted
+ * "[X](X)" only when both parts are the same address. Never returns http, credentials, queries
+ * or fragments. The value itself is never placed in messages.
+ */
+export function omniApiUrl(raw: string | undefined): { url: string | null; reformatted: boolean } {
+  let v = (raw ?? "").trim();
+  let reformatted = false;
+  const md = /^\[([^\]\s]+)\]\(([^)\s]+)\)$/.exec(v);
+  if (md) {
+    const strip = (s: string) => s.replace(/\/+$/, "");
+    if (strip(md[1]!) !== strip(md[2]!)) return { url: null, reformatted: true };
+    v = md[1]!;
+    reformatted = true;
+  }
+  if (!v) return { url: null, reformatted };
+  let u: URL;
+  try {
+    u = new URL(OMNI_BARE_HOST.test(v) ? `https://${v}` : v);
+  } catch {
+    return { url: null, reformatted };
+  }
+  if (u.protocol !== "https:" || u.username || u.password || u.search || u.hash)
+    return { url: null, reformatted };
+  return { url: `${u.origin}${u.pathname.replace(/\/+$/, "")}`, reformatted };
+}
+
 /** Remote handshake errors are untrusted; only expose known-safe, useful diagnostics. */
 export function safeOmniDiagnostic(value: unknown): string | null {
   if (typeof value !== "string" || !value.trim()) return null;
@@ -107,6 +140,8 @@ export function safeOmniDiagnostic(value: unknown): string | null {
   if (http) return `OMNI answered HTTP ${http[1]}. Response details withheld.`;
   if (message === "OMNI proof did not match OMNI_CALLBACK_SECRET") return "OMNI did not prove the configured callback secret.";
   if (message === "OMNI returned invalid handshake JSON") return message;
+  if (message === OMNI_URL_INVALID_MESSAGE) return message;
+  if (/^OMNI could not be reached \((?:timeout|network error)\)\.$/.test(message)) return message;
   if (
     message === "OMNI did not answer with the handshake contract" ||
     message === "OMNI handshake has no version" ||
