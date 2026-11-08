@@ -139,7 +139,7 @@ export function registryRepoSuggestion(
 ): string | null {
   const key = registryName.trim().toLowerCase();
   const hits = ownerProjects.filter((p) => p.name.trim().toLowerCase() === key && p.github_repo && REPO.test(p.github_repo));
-  return hits.length === 1 ? (hits[0].github_repo as string) : null;
+  return hits.length === 1 ? (hits[0]?.github_repo ?? null) : null;
 }
 
 /** owner/name from a registry repo URL (https://github.com/owner/name), else null. */
