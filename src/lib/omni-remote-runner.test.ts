@@ -5,6 +5,7 @@ import {
   nonceCache,
   remoteRunnerConfig,
   runnerConfigProblem,
+  runnerModeDecision,
   runnerOrigin,
   requestMessage,
   responseMessage,
@@ -108,5 +109,32 @@ describe("runnerOrigin (Railway host as shown in Railway)", () => {
     expect(remoteRunnerConfig(ok)?.url).toBe("https://x.up.railway.app/api/public/omni/runner");
     expect(runnerConfigProblem({ ...ok, OMNI_LINK_REMOTE_RUNNER_URL: "http://x" })).toContain("OMNI_LINK_REMOTE_RUNNER_URL");
     expect(runnerConfigProblem({ ...ok, OMNI_LINK_REMOTE_RUNNER_SECRET: "zq9-private" })).not.toContain("zq9-private");
+  });
+});
+
+describe("runner-mode guard (dashboard hosts ignore a misplaced OMNI_LINK_RUNNER_MODE)", () => {
+  it("stays on for a plain runner host with only runner settings", () => {
+    expect(runnerModeDecision(env, "jackboy-runner.up.railway.app")).toEqual({ on: true });
+  });
+  it("is off when runner mode is not exactly true", () => {
+    expect(runnerModeDecision({ ...env, OMNI_LINK_RUNNER_MODE: "TRUE" }, "x.up.railway.app").on).toBe(false);
+  });
+  it.each(["jackboy-dev-control.lovable.app", "id-preview--abc.lovable.app", "abc.lovableproject.com", "localhost"])(
+    "is ignored on dashboard host %s",
+    (host) => expect(runnerModeDecision(env, host)).toEqual({ on: false, ignored: "lovable_host" }),
+  );
+  it.each([
+    ["SUPABASE_SERVICE_ROLE_KEY", "k"],
+    ["OMNI_LINK_REMOTE_RUNNER_URL", "https://x.up.railway.app"],
+    ["OMNI_LINK_REMOTE_RUNNER_ENABLED", "true"],
+  ])("is ignored when the site-only setting %s is present", (k, v) => {
+    expect(runnerModeDecision({ ...env, [k]: v }, "x.up.railway.app")).toEqual({ on: false, ignored: "site_settings" });
+  });
+  it("runner endpoint refuses signed requests on a dashboard host", async () => {
+    const req = await signed(body);
+    const onDashboard = new Request("https://jackboy-dev-control.lovable.app/api/public/omni/runner", {
+      method: "POST", headers: req.headers, body,
+    });
+    expect((await run(onDashboard)).status).toBe(404);
   });
 });
