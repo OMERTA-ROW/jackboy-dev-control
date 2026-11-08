@@ -108,6 +108,22 @@ export async function replay(db, { through = "9999", from = "0000", skip = [] } 
   return applied;
 }
 
+// Simulate an already-activated runtime in disposable databases without disabling the guard.
+export async function setActivatedControls(db, sql, params = []) {
+  const client = await db.pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT set_config('jackboy.code_activation', 'owner-enabled', true)");
+    await client.query(sql, params);
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 export async function closeAdmin() {
   await admin?.end();
   admin = undefined;

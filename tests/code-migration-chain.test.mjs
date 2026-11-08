@@ -2,7 +2,14 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { skipNoPg, openDb, supabaseStubs, replay, closeAdmin } from "./helpers/staging-pg.mjs";
+import {
+  skipNoPg,
+  openDb,
+  supabaseStubs,
+  replay,
+  setActivatedControls,
+  closeAdmin,
+} from "./helpers/staging-pg.mjs";
 
 // Real-PostgreSQL migration-chain replay (loopback disposable server only; see helpers/staging-pg.mjs).
 after(closeAdmin);
@@ -66,9 +73,17 @@ test(
           "Reviewed guard evidence for test",
         ]);
       await assert.rejects(attest(stranger), /Only the owner/);
-      await db.query("UPDATE public.code_runtime_controls SET kill_switch = false");
+      await assert.rejects(
+        db.query("UPDATE public.code_runtime_controls SET kill_switch = false"),
+        /enable_code_runtime/,
+      );
+      await setActivatedControls(db, "UPDATE public.code_runtime_controls SET kill_switch = false");
       await assert.rejects(attest(owner), /disabled and stopped/);
       await db.query("UPDATE public.code_runtime_controls SET kill_switch = true");
+      await assert.rejects(
+        db.query("UPDATE public.code_runtime_controls SET kill_switch = false"),
+        /enable_code_runtime/,
+      );
       await db.exec("ALTER TABLE public.code_usage_events DISABLE TRIGGER code_usage_events_total_guard");
       await assert.rejects(attest(owner), /not enforced/);
       await db.exec("ALTER TABLE public.code_usage_events ENABLE TRIGGER code_usage_events_total_guard");
@@ -102,7 +117,11 @@ test(
       assert.ok(applied.includes(baseline));
       assert.ok(applied.includes("0042_code_provider_gateway.sql"));
       assert.ok(applied.includes("0045_omni_dispatch_grants.sql"));
-      assert.equal(applied.at(-1), "0047_code_hard_cap_gate.sql");
+      assert.ok(applied.includes("0047_code_hard_cap_gate.sql"));
+      assert.ok(
+        applied.indexOf("0048_code_spend_meter_and_activation.sql") >
+          applied.indexOf("0047_code_hard_cap_gate.sql"),
+      );
       assert.ok(applied.indexOf(baseline) > applied.indexOf("0030_omni_sessions.sql"));
       assert.ok(
         applied.indexOf(baseline) < applied.indexOf("0031_repository_resync_drift_removals.sql"),
