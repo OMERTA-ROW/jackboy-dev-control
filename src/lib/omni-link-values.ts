@@ -82,6 +82,18 @@ export function summarizeLinkValues(env: Record<string, string | undefined>, own
   };
 }
 
+/** Relative, value-free description of the saved approval expiry. */
+export function expiryHint(expiry: LinkValueSummary["expiry"], inMs: number | null): string {
+  const hours = inMs === null ? null : Math.round(Math.abs(inMs) / 360_000) / 10;
+  switch (expiry) {
+    case "valid": return `Saved approval is valid for about ${hours} more hours.`;
+    case "expired": return `Saved approval expired about ${hours} hours ago.`;
+    case "too_far": return `Saved approval ends about ${hours} hours from now — more than the 24-hour limit, so the link refuses it.`;
+    case "invalid": return "Saved approval expiry is not a valid date and time.";
+    default: return "No approval expiry is saved in Jackboy.";
+  }
+}
+
 /** A fresh approval pair for the owner to save in BOTH Jackboy and Railway. Nothing is stored. */
 export function suggestApproval(now = Date.now(), uuid: () => string = () => crypto.randomUUID()) {
   return { approvalId: uuid(), expiresAt: new Date(now + SUGGESTED_APPROVAL_MS).toISOString() };

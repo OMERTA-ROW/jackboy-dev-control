@@ -2,24 +2,12 @@ import { useCallback, useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { CheckCircle2, Copy, Eye, EyeOff, KeyRound, ShieldAlert } from "lucide-react";
 import { getOmniLinkValueStatus, revealOmniLinkValues } from "@/lib/omni-link-values.functions";
-import { REVEAL_ACTION, REVEAL_TARGET, suggestApproval, type LinkValueName } from "@/lib/omni-link-values";
+import { expiryHint, REVEAL_ACTION, REVEAL_TARGET, suggestApproval, type LinkValueName } from "@/lib/omni-link-values";
 import { useStepUp } from "@/lib/step-up-client";
 
 type Status = Awaited<ReturnType<typeof getOmniLinkValueStatus>>;
 type Revealed = Awaited<ReturnType<typeof revealOmniLinkValues>>;
 const HIDE_AFTER_MS = 2 * 60_000;
-
-/** Relative, value-free description of the saved approval expiry. */
-export function expiryHint(expiry: Status["summary"]["expiry"], inMs: number | null): string {
-  const hours = inMs === null ? null : Math.round(Math.abs(inMs) / 360_000) / 10;
-  switch (expiry) {
-    case "valid": return `Saved approval is valid for about ${hours} more hours.`;
-    case "expired": return `Saved approval expired about ${hours} hours ago.`;
-    case "too_far": return `Saved approval ends about ${hours} hours from now — more than the 24-hour limit, so the link refuses it.`;
-    case "invalid": return "Saved approval expiry is not a valid date and time.";
-    default: return "No approval expiry is saved in Jackboy.";
-  }
-}
 
 function CopyRow({ name, value, note }: { name: string; value: string | null; note?: string | null }) {
   const [done, setDone] = useState(false);
