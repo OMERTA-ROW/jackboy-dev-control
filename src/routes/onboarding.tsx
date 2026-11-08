@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { claimOwner, getAccountStatus } from "@/lib/account.functions";
+import { GATE_CONNECTION_MESSAGE, isTransientAuthError } from "@/lib/auth-gate";
 
 export const Route = createFileRoute("/onboarding")({
   ssr: false,
