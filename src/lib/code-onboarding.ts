@@ -30,8 +30,23 @@ export async function gitBlobSha(content: string): Promise<string> {
 }
 
 /** Which approved workflow version fits a repo, from its root files. null + reason when none fits. */
-export function detectProfile(rootFiles: string[], pkgScripts: Record<string, string> | null): { kind: ProfileKind } | { kind: null; reason: string } {
+export function detectProfile(
+  rootFiles: string[],
+  pkgScripts: Record<string, string> | null,
+  /** Top-level folders that contain their own go.mod (only checked when the root has neither file). */
+  goModuleFolders: string[] = [],
+): { kind: ProfileKind } | { kind: null; reason: string } {
   const has = (f: string) => rootFiles.includes(f);
+  if (!has("go.mod") && !has("package.json") && goModuleFolders.length > 0) {
+    const list = goModuleFolders.map((f) => `${f}/`).join(", ");
+    return {
+      kind: null,
+      reason:
+        `Go code found in ${list}, but not at the repository root. The approved Go workflow builds one module at the root, ` +
+        `so it can't check this layout yet. Owner choice: add a root go.mod (or go.work) to the repository, or ask Jackboy to prepare ` +
+        `a reviewed multi-folder workflow version for your approval.`,
+    };
+  }
   if (has("go.mod")) return { kind: "go" };
   if (has("package.json")) {
     if (!has("bun.lock") && !has("bun.lockb") && !has("package-lock.json"))
