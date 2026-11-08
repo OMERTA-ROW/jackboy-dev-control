@@ -117,8 +117,11 @@ export function PasskeyPanel() {
       <label className="mt-3 block text-sm">Device name<input value={name} maxLength={60} onChange={(e) => setName(e.target.value)} placeholder="e.g. iPhone or security key" className="mt-1 block w-full rounded-md border border-input bg-background px-3 py-2" /></label>
       <div className="mt-3 flex flex-wrap gap-2">
         <Button variant="outline" disabled={busy || supported === false || !here} onClick={add}><Plus />{busy ? "Waiting for device…" : "Add a passkey"}</Button>
-        <button className={btn} disabled={busy || supported === false || hereKeys.length === 0} onClick={test}>Test my passkey</button>
+        <button className={btn} disabled={busy || supported === false || hereKeys.length === 0} title={hereKeys.length === 0 ? "No passkey saved for this site address yet" : undefined} onClick={test}>Test my passkey</button>
       </div>
+      {!busy && supported !== false && hereKeys.length === 0 && (
+        <p className="mt-2 text-xs text-muted-foreground">Test is available once a passkey is saved for this site address. Passkeys saved on the live site don't work on the preview address.</p>
+      )}
       {msg && <p aria-live="polite" className="mt-2 text-sm">{msg}</p>}
       {d && <ul className="mt-3 text-xs">{d.actions.map((a) => <li key={a.id}>{a.label}: {a.unavailable ? <span className="text-warning">blocked ({a.unavailable})</span> : <span className="text-success">passkey required</span>}</li>)}</ul>}
     </section>
