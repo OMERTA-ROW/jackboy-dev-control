@@ -22,7 +22,7 @@ await db.exec(`
 `);
 await db.exec(
   await readFile(
-    new URL("../drizzle/migrations/0055_omni_authorization_expiry.sql", import.meta.url),
+    new URL("../drizzle/migrations/0057_omni_authorization_expiry.sql", import.meta.url),
     "utf8",
   ),
 );
