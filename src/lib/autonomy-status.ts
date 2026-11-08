@@ -18,6 +18,8 @@ export type AutonomyInput = {
   code: {
     enabled: boolean; killSwitch: boolean; hardCap: boolean; meterOk: boolean | null;
     failures: number; activeRun: boolean; targets: string[];
+    /** GitHub's own CODE workflow state; anything but "active" means no run can start. null = unread. */
+    workflowState?: string | null;
   } | null;
   omniVerified: boolean;
 };
@@ -114,10 +116,15 @@ export function summarizeAutonomy(i: AutonomyInput) {
         : "Off. Work runs only when you start it.";
 
   const c = i.code;
+  const switchedOn = Boolean(c && c.enabled && !c.killSwitch);
+  // undefined = caller didn't check GitHub (older callers); null = check failed → unverified, never "on".
+  const wf = c?.workflowState;
+  const workflowOff = c ? wf !== undefined && wf !== "active" : false;
   const codeRows: StatusRow[] = !c
     ? [{ id: "code", label: "CODE controls", state: "unverified", detail: "Couldn't read CODE controls; treat CODE as off." }]
     : [
-        { id: "code-on", label: "CODE execution", state: c.enabled && !c.killSwitch ? "on" : "off", detail: c.enabled ? (c.killSwitch ? "Switched on, but its emergency stop is engaged." : "On. Every run still waits for your approval in GitHub.") : "Off." },
+        { id: "code-on", label: "CODE execution", state: switchedOn ? (workflowOff ? (wf === null ? "unverified" : "blocked") : "on") : "off", detail: c.enabled ? (c.killSwitch ? "Switched on, but its emergency stop is engaged." : workflowOff ? (wf === null ? "Switched on here, but GitHub didn't report the CODE workflow's state, so no run is assumed possible." : "Switched on here, but the CODE workflow is turned off in GitHub, so no run can start.") : "On. Every run still waits for your approval in GitHub.") : "Off." },
+        ...(switchedOn && workflowOff && wf !== null ? [{ id: "code-workflow", label: "CODE workflow in GitHub", state: "blocked" as const, detail: `GitHub reports it as "${wf}".`, fix: "GitHub → jackboy-dev-control → Actions → CODE → Enable workflow." }] : []),
         { id: "code-stop", label: "CODE emergency stop", state: c.killSwitch ? "blocked" : "off", detail: c.killSwitch ? "Engaged — CODE can't run." : "Released." },
         { id: "code-sites", label: "Allowed sites", state: c.targets.length ? "on" : "blocked", detail: c.targets.length ? c.targets.join(", ") : "None — CODE refuses every repository." },
         { id: "code-cap", label: "Provider hard cap", state: c.hardCap ? "on" : "blocked", detail: c.hardCap ? "Marked verified by you." : "Not marked." },
@@ -125,7 +132,13 @@ export function summarizeAutonomy(i: AutonomyInput) {
         { id: "code-fail", label: "Failures in a row", state: c.failures >= 2 ? "blocked" : "on", detail: `${c.failures} of 2 (two stops CODE automatically).` },
         { id: "code-run", label: "Active run", state: c.activeRun ? "running" : "off", detail: c.activeRun ? "A CODE run is in progress." : "None." },
       ];
-  const codeHeadline = !c ? "Unknown — treated as off." : c.enabled && !c.killSwitch ? "On — each run needs your GitHub approval." : "Off.";
+  const codeHeadline = !c
+    ? "Unknown — treated as off."
+    : switchedOn
+      ? workflowOff
+        ? wf === null ? "Switched on, but GitHub's workflow state is unknown — treated as not runnable." : "Switched on, but blocked: the CODE workflow is turned off in GitHub."
+        : "On — each run needs your GitHub approval."
+      : "Off.";
   const omni: StatusRow = i.omniVerified
     ? { id: "omni", label: "OMNI build link", state: "on", detail: "Verified." }
     : { id: "omni", label: "OMNI build link", state: "blocked", detail: "Not verified. OMNI receives no build or test work." };
