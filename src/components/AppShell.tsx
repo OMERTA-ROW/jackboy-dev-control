@@ -489,7 +489,7 @@ function AccountNav() {
 export function AppShell({ children }: { children: ReactNode }) {
   const path = useRouterState({ select: (r) => r.location.pathname });
   // The conversation is a dedicated full-screen view without dashboard chrome.
-  if (path === "/chat") return <>{children}</>;
+  if (path === "/chat" || path.startsWith("/chat/")) return <>{children}</>;
   if (path === "/auth" || path === "/onboarding" || path === "/recover") {
     return (
       <div className="min-h-screen px-4 py-6">

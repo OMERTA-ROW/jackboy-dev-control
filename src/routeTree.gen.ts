@@ -53,6 +53,8 @@ import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as ApiCodeRouteImport } from './routes/api/code'
 import { Route as ApiSafetyStatusRouteImport } from './routes/api/safety-status'
 import { Route as ApiTranscribeRouteImport } from './routes/api/transcribe'
+import { Route as AuthenticatedChatIndexRouteImport } from './routes/_authenticated/chat.index'
+import { Route as AuthenticatedChatThreadIdRouteImport } from './routes/_authenticated/chat.$threadId'
 import { Route as AuthenticatedPassportAgentIdRouteImport } from './routes/_authenticated/passport.$agentId'
 import { Route as AuthenticatedProjectIdRouteImport } from './routes/_authenticated/project.$id'
 import { Route as ApiAgentManifestRouteImport } from './routes/api/agent/manifest'
@@ -302,6 +304,17 @@ const ApiTranscribeRoute = ApiTranscribeRouteImport.update({
   path: '/api/transcribe',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedChatIndexRoute = AuthenticatedChatIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthenticatedChatRoute,
+} as any)
+const AuthenticatedChatThreadIdRoute =
+  AuthenticatedChatThreadIdRouteImport.update({
+    id: '/$threadId',
+    path: '/$threadId',
+    getParentRoute: () => AuthenticatedChatRoute,
+  } as any)
 const AuthenticatedPassportAgentIdRoute =
   AuthenticatedPassportAgentIdRouteImport.update({
     id: '/passport/$agentId',
@@ -452,7 +465,7 @@ export interface FileRoutesByFullPath {
   '/automation': typeof AuthenticatedAutomationRoute
   '/autopilot': typeof AuthenticatedAutopilotRoute
   '/blockers': typeof AuthenticatedBlockersRoute
-  '/chat': typeof AuthenticatedChatRoute
+  '/chat': typeof AuthenticatedChatRouteWithChildren
   '/connect': typeof AuthenticatedConnectRoute
   '/deployments': typeof AuthenticatedDeploymentsRoute
   '/discovery': typeof AuthenticatedDiscoveryRoute
@@ -480,10 +493,12 @@ export interface FileRoutesByFullPath {
   '/api/code': typeof ApiCodeRoute
   '/api/safety-status': typeof ApiSafetyStatusRoute
   '/api/transcribe': typeof ApiTranscribeRoute
+  '/chat/$threadId': typeof AuthenticatedChatThreadIdRoute
   '/passport/$agentId': typeof AuthenticatedPassportAgentIdRoute
   '/project/$id': typeof AuthenticatedProjectIdRoute
   '/api/agent/manifest': typeof ApiAgentManifestRoute
   '/api/public/agent-ingest': typeof ApiPublicAgentIngestRoute
+  '/chat/': typeof AuthenticatedChatIndexRoute
   '/api/public/code/claim': typeof ApiPublicCodeClaimRoute
   '/api/public/code/finish': typeof ApiPublicCodeFinishRoute
   '/api/public/feeds/$sourceId': typeof ApiPublicFeedsSourceIdRoute
@@ -521,7 +536,6 @@ export interface FileRoutesByTo {
   '/automation': typeof AuthenticatedAutomationRoute
   '/autopilot': typeof AuthenticatedAutopilotRoute
   '/blockers': typeof AuthenticatedBlockersRoute
-  '/chat': typeof AuthenticatedChatRoute
   '/connect': typeof AuthenticatedConnectRoute
   '/deployments': typeof AuthenticatedDeploymentsRoute
   '/discovery': typeof AuthenticatedDiscoveryRoute
@@ -550,10 +564,12 @@ export interface FileRoutesByTo {
   '/api/safety-status': typeof ApiSafetyStatusRoute
   '/api/transcribe': typeof ApiTranscribeRoute
   '/': typeof AuthenticatedIndexRoute
+  '/chat/$threadId': typeof AuthenticatedChatThreadIdRoute
   '/passport/$agentId': typeof AuthenticatedPassportAgentIdRoute
   '/project/$id': typeof AuthenticatedProjectIdRoute
   '/api/agent/manifest': typeof ApiAgentManifestRoute
   '/api/public/agent-ingest': typeof ApiPublicAgentIngestRoute
+  '/chat': typeof AuthenticatedChatIndexRoute
   '/api/public/code/claim': typeof ApiPublicCodeClaimRoute
   '/api/public/code/finish': typeof ApiPublicCodeFinishRoute
   '/api/public/feeds/$sourceId': typeof ApiPublicFeedsSourceIdRoute
@@ -593,7 +609,7 @@ export interface FileRoutesById {
   '/_authenticated/automation': typeof AuthenticatedAutomationRoute
   '/_authenticated/autopilot': typeof AuthenticatedAutopilotRoute
   '/_authenticated/blockers': typeof AuthenticatedBlockersRoute
-  '/_authenticated/chat': typeof AuthenticatedChatRoute
+  '/_authenticated/chat': typeof AuthenticatedChatRouteWithChildren
   '/_authenticated/connect': typeof AuthenticatedConnectRoute
   '/_authenticated/deployments': typeof AuthenticatedDeploymentsRoute
   '/_authenticated/discovery': typeof AuthenticatedDiscoveryRoute
@@ -622,10 +638,12 @@ export interface FileRoutesById {
   '/api/safety-status': typeof ApiSafetyStatusRoute
   '/api/transcribe': typeof ApiTranscribeRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
+  '/_authenticated/chat/$threadId': typeof AuthenticatedChatThreadIdRoute
   '/_authenticated/passport/$agentId': typeof AuthenticatedPassportAgentIdRoute
   '/_authenticated/project/$id': typeof AuthenticatedProjectIdRoute
   '/api/agent/manifest': typeof ApiAgentManifestRoute
   '/api/public/agent-ingest': typeof ApiPublicAgentIngestRoute
+  '/_authenticated/chat/': typeof AuthenticatedChatIndexRoute
   '/api/public/code/claim': typeof ApiPublicCodeClaimRoute
   '/api/public/code/finish': typeof ApiPublicCodeFinishRoute
   '/api/public/feeds/$sourceId': typeof ApiPublicFeedsSourceIdRoute
@@ -694,10 +712,12 @@ export interface FileRouteTypes {
     | '/api/code'
     | '/api/safety-status'
     | '/api/transcribe'
+    | '/chat/$threadId'
     | '/passport/$agentId'
     | '/project/$id'
     | '/api/agent/manifest'
     | '/api/public/agent-ingest'
+    | '/chat/'
     | '/api/public/code/claim'
     | '/api/public/code/finish'
     | '/api/public/feeds/$sourceId'
@@ -735,7 +755,6 @@ export interface FileRouteTypes {
     | '/automation'
     | '/autopilot'
     | '/blockers'
-    | '/chat'
     | '/connect'
     | '/deployments'
     | '/discovery'
@@ -764,10 +783,12 @@ export interface FileRouteTypes {
     | '/api/safety-status'
     | '/api/transcribe'
     | '/'
+    | '/chat/$threadId'
     | '/passport/$agentId'
     | '/project/$id'
     | '/api/agent/manifest'
     | '/api/public/agent-ingest'
+    | '/chat'
     | '/api/public/code/claim'
     | '/api/public/code/finish'
     | '/api/public/feeds/$sourceId'
@@ -835,10 +856,12 @@ export interface FileRouteTypes {
     | '/api/safety-status'
     | '/api/transcribe'
     | '/_authenticated/'
+    | '/_authenticated/chat/$threadId'
     | '/_authenticated/passport/$agentId'
     | '/_authenticated/project/$id'
     | '/api/agent/manifest'
     | '/api/public/agent-ingest'
+    | '/_authenticated/chat/'
     | '/api/public/code/claim'
     | '/api/public/code/finish'
     | '/api/public/feeds/$sourceId'
@@ -1208,6 +1231,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiTranscribeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/chat/': {
+      id: '/_authenticated/chat/'
+      path: '/'
+      fullPath: '/chat/'
+      preLoaderRoute: typeof AuthenticatedChatIndexRouteImport
+      parentRoute: typeof AuthenticatedChatRoute
+    }
+    '/_authenticated/chat/$threadId': {
+      id: '/_authenticated/chat/$threadId'
+      path: '/$threadId'
+      fullPath: '/chat/$threadId'
+      preLoaderRoute: typeof AuthenticatedChatThreadIdRouteImport
+      parentRoute: typeof AuthenticatedChatRoute
+    }
     '/_authenticated/passport/$agentId': {
       id: '/_authenticated/passport/$agentId'
       path: '/passport/$agentId'
@@ -1386,6 +1423,19 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AuthenticatedChatRouteChildren {
+  AuthenticatedChatThreadIdRoute: typeof AuthenticatedChatThreadIdRoute
+  AuthenticatedChatIndexRoute: typeof AuthenticatedChatIndexRoute
+}
+
+const AuthenticatedChatRouteChildren: AuthenticatedChatRouteChildren = {
+  AuthenticatedChatThreadIdRoute: AuthenticatedChatThreadIdRoute,
+  AuthenticatedChatIndexRoute: AuthenticatedChatIndexRoute,
+}
+
+const AuthenticatedChatRouteWithChildren =
+  AuthenticatedChatRoute._addFileChildren(AuthenticatedChatRouteChildren)
+
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAccessRoute: typeof AuthenticatedAccessRoute
   AuthenticatedAccountRoute: typeof AuthenticatedAccountRoute
@@ -1396,7 +1446,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAutomationRoute: typeof AuthenticatedAutomationRoute
   AuthenticatedAutopilotRoute: typeof AuthenticatedAutopilotRoute
   AuthenticatedBlockersRoute: typeof AuthenticatedBlockersRoute
-  AuthenticatedChatRoute: typeof AuthenticatedChatRoute
+  AuthenticatedChatRoute: typeof AuthenticatedChatRouteWithChildren
   AuthenticatedConnectRoute: typeof AuthenticatedConnectRoute
   AuthenticatedDeploymentsRoute: typeof AuthenticatedDeploymentsRoute
   AuthenticatedDiscoveryRoute: typeof AuthenticatedDiscoveryRoute
@@ -1435,7 +1485,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAutomationRoute: AuthenticatedAutomationRoute,
   AuthenticatedAutopilotRoute: AuthenticatedAutopilotRoute,
   AuthenticatedBlockersRoute: AuthenticatedBlockersRoute,
-  AuthenticatedChatRoute: AuthenticatedChatRoute,
+  AuthenticatedChatRoute: AuthenticatedChatRouteWithChildren,
   AuthenticatedConnectRoute: AuthenticatedConnectRoute,
   AuthenticatedDeploymentsRoute: AuthenticatedDeploymentsRoute,
   AuthenticatedDiscoveryRoute: AuthenticatedDiscoveryRoute,

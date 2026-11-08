@@ -1,5 +1,14 @@
 # Jackboy roadmap
 
+## Jackboy Chat upgrade (Nov 8, 00:44 UTC)
+- [x] Conversations saved to the owner's account (own page per conversation), searchable, with one-press import of conversations saved only on this device.
+- [x] "Talk to" switcher: Jackboy, OMNI, JAX, Razul, Iggy, other owner-added agents and projects — replies use only stored notes; empty notes are said plainly.
+- [x] Private attachments: images, short videos (described from sampled frames), text files; visual descriptions are observational, never medical; unclear motion marked "uncertain".
+- [x] Who-said-what labels, compact status line (Kill Switch, CODE, waiting approvals, failures, CI for project), ON/OFF chat settings, links to research, GitHub, OMNI handoffs, audit, log.
+- [x] Tests for the rules (25 new, 781 total pass); voice, CODE mode, approvals and safety gates unchanged. Preview checked signed in as owner.
+- [ ] Notes for OMNI, JAX, Razul and Iggy are empty — waiting on the owner to write them (and say what Iggy is).
+- [ ] Two-way live voice with a real microphone — not testable in the sandbox; owner to try on a phone.
+
 ## OMNI build/test handoffs (Nov 7, 17:09 UTC)
 - [x] Handoffs for build and test jobs that need a live OMNI link (< 5 min), owner + own enrolled project, a current unrevoked project access, and the Kill Switch off — checked at approval and at every send. 717 tests pass.
 - [ ] First real handoff — blocked: OMNI's live link isn't verified and no registered project is enrolled with a GitHub repo; OMNI's side must also accept `build`.

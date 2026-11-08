@@ -10,7 +10,8 @@ import { ACTING_CHAT_POLICY } from "./chat-action";
 
 const MODEL = "openai/gpt-6-astra";
 
-export async function verifyOwner(request: Request): Promise<string | null> {
+/** Owner check that also returns a client acting as that owner (RLS applies), for owner-scoped reads. */
+export async function verifyOwnerClient(request: Request) {
   const token = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
   if (!token) return null;
   const url = process.env["SUPABASE_URL"]!, key = process.env["SUPABASE_PUBLISHABLE_KEY"]!;
@@ -21,17 +22,28 @@ export async function verifyOwner(request: Request): Promise<string | null> {
   const { data: u } = await sb.auth.getUser(token);
   if (!u.user) return null;
   const { data: role } = await sb.rpc("my_role");
-  return role === "owner" ? u.user.id : null;
+  return role === "owner" ? { userId: u.user.id, sb } : null;
+}
+export async function verifyOwner(request: Request): Promise<string | null> {
+  return (await verifyOwnerClient(request))?.userId ?? null;
 }
 
 import { buildJackboyTools, guardTools } from "./jackboy-tools.server";
+import { contextInstructions, VISUAL_POLICY } from "./chat-context";
 export async function handleChat(request: Request) {
-  const userId = await verifyOwner(request);
-  if (!userId) return Response.json({ error: "Owner sign-in required." }, { status: 401 });
+  const owner = await verifyOwnerClient(request);
+  if (!owner) return Response.json({ error: "Owner sign-in required." }, { status: 401 });
+  const userId = owner.userId;
   const key = process.env["LOVABLE_API_KEY"];
   if (!key) return Response.json({ error: "AI is not configured on the server." }, { status: 500 });
-  const body = (await request.json()) as { messages?: UIMessage[] };
+  const body = (await request.json()) as { messages?: UIMessage[]; contextKey?: unknown };
   if (!Array.isArray(body.messages) || body.messages.length > 200) return Response.json({ error: "Invalid messages." }, { status: 400 });
+  // Context pivots read only stored notes; an unknown or removed context is refused, never guessed.
+  const { loadContextBrief } = await import("./chat-context.server");
+  const brief = await loadContextBrief(owner.sb, body.contextKey ?? "jackboy");
+  if (!brief) return Response.json({ error: "That agent or project context no longer exists. Pick another in “Talk to”." }, { status: 400 });
+  const { prepareAttachments } = await import("./chat-attachments.server");
+  const prepared = await prepareAttachments(body.messages, userId, owner.sb);
 
   const tools = buildJackboyTools(userId);
   const { TASK_TOOLS } = await import("./task-mode");
@@ -68,8 +80,10 @@ export async function handleChat(request: Request) {
       "For the durable work queue use foundryQueue/foundryInspect/foundryDecide (same as the Code Foundry buttons); for site reachability use checkSite; for repo connection use connectionStatus — connecting needs the passkey button. Workflow for any fix: recallMemory -> inspect -> writeFile -> showDiff -> checkStatus -> openDraftPR -> saveMemory (outcome + next_action). Pick low-risk changes; never touch auth, payments, secrets, migrations or permissions without the owner asking.", "For what can you do / what is missing / what next, call capabilities and answer in three short parts. For \"fix it\", use the next actions (scan → fix → draft PR) within approval rules. Before saying you can build/edit/test anything, call capabilities. Never merge, deploy or write to the base branch; the owner approves pull requests.",
       "Messages from the microphone may be misheard. Generic spoken yes/confirm never authorizes change tools. Use scoped approval cards. For CODE instruct the owner to say or type CODE exact-project-name: task, then review and allow the specific pending CODE card. Spoken approval never covers Autopilot or repo-link changes — ask the owner to type those. Never repeat passwords, tokens or keys aloud or in text. ",
       "Site scans read static HTML only and do not run JavaScript; say so when relevant. Report failures exactly.",
-    ].join(" "),
-    messages: await convertToModelMessages(body.messages),
+      VISUAL_POLICY,
+      contextInstructions(brief),
+    ].filter(Boolean).join(" "),
+    messages: await convertToModelMessages(prepared.messages),
     tools,
     stopWhen: stepCountIs(50),
     abortSignal: request.signal,
@@ -79,6 +93,8 @@ export async function handleChat(request: Request) {
   });
   return withLovableAiGatewayRunIdHeader(result.toUIMessageStreamResponse({
     originalMessages: body.messages, sendReasoning: true,
+    // Identity label for the saved reply: always Jackboy, plus which stored notes it used.
+    messageMetadata: ({ part }) => part.type === "start" ? { createdAt: Date.now(), author: "Jackboy", contextKey: brief.key, contextName: brief.name, contextKind: brief.kind, visual: prepared.visual } : undefined,
     onError: (e) => (isAbort(e, request.signal) ? "Request stopped." : e instanceof Error ? e.message : "Chat failed."),
   }), runIdFetch).catch((e) => {
     if (isAbort(e, request.signal)) return new Response(null, { status: 499 });
