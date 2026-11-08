@@ -94,6 +94,25 @@ export function expiryHint(expiry: LinkValueSummary["expiry"], inMs: number | nu
   }
 }
 
+/** An expiry the save accepts must name its time zone (Z or ±hh:mm); otherwise the browser reads it as local time. */
+const HAS_ZONE = /(Z|[+-]\d{2}:?\d{2})$/i;
+
+/** Value-free reason a typed/pasted expiry cannot be saved (null = savable). Same 24-hour rule as
+ * the server and database; the browser runs it before the passkey prompt so a doomed save never asks for a tap. */
+export function approvalSaveProblem(raw: string | undefined, now = Date.now()): string | null {
+  const v = (raw ?? "").trim();
+  if (!v) return "Enter the approval expiry.";
+  if (!HAS_ZONE.test(v) || !Number.isFinite(Date.parse(v)))
+    return "The expiry must be a full date and time with a time zone, like 2026-11-09T07:00:00.000Z.";
+  const state = approvalExpiryState(v, now);
+  if (state === "valid") return null;
+  const ms = Math.abs(Date.parse(v) - now);
+  const ago = ms < 3_600_000 ? "less than an hour" : `about ${Math.round(ms / 360_000) / 10} hours`;
+  return state === "expired"
+    ? `This expiry passed ${ago} ago, so it can't be saved. Press “Make a new approval”, save that pair, then copy the same pair into Railway.`
+    : `This expiry is ${ago} ahead; the limit is 24 hours. Press “Make a new approval” instead.`;
+}
+
 /** A fresh approval pair for the owner to save in BOTH Jackboy and Railway. Nothing is stored. */
 export function suggestApproval(now = Date.now(), uuid: () => string = () => crypto.randomUUID()) {
   return { approvalId: uuid(), expiresAt: new Date(now + SUGGESTED_APPROVAL_MS).toISOString() };

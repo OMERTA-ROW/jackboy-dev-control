@@ -4,7 +4,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
-import { APPROVAL_EXPIRY_TEXT, approvalExpiryState, REVEAL_ACTION, REVEAL_TARGET, summarizeLinkValues } from "./omni-link-values";
+import { approvalSaveProblem, REVEAL_ACTION, REVEAL_TARGET, summarizeLinkValues } from "./omni-link-values";
 import { saveErrorText, withApproval, type EffectiveApproval } from "./omni-link-approval";
 
 type Ctx = {
@@ -56,8 +56,8 @@ export const saveOmniLinkApproval = createServerFn({ method: "POST" })
   )
   .handler(async ({ context, data }) => {
     await requireConfirmedOwner(context as unknown as Ctx);
-    const check = approvalExpiryState(data.expiresAt);
-    if (check !== "valid") throw new Error(APPROVAL_EXPIRY_TEXT[check].replace("saved in Jackboy ", "") + " — nothing was saved.");
+    const problem = approvalSaveProblem(data.expiresAt);
+    if (problem) throw new Error(`${problem} Nothing was saved.`);
     const db = (await import("./untyped-db")).untyped((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const { error } = await db.rpc("save_omni_link_approval", {
       _actor: context.userId,
