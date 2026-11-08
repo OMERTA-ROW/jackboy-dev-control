@@ -29,12 +29,17 @@ function Onboarding() {
   const [busy, setBusy] = useState(false);
 
   async function refresh() {
-    const { data } = await supabase.auth.getUser();
+    const { data, error } = await supabase.auth.getUser();
+    if (!data.user && isTransientAuthError(error)) return setMsg(GATE_CONNECTION_MESSAGE);
     if (!data.user) return nav({ to: "/auth" });
     setEmail(data.user.email ?? null);
-    const s = await statusFn();
-    if (s.role) return nav({ to: "/" });
-    setStatus(s);
+    try {
+      const s = await statusFn();
+      if (s.role) return nav({ to: "/" });
+      setStatus(s);
+    } catch {
+      setMsg(GATE_CONNECTION_MESSAGE);
+    }
   }
   useEffect(() => { void refresh(); }, []);
 
