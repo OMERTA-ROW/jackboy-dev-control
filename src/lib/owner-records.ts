@@ -27,17 +27,22 @@ export type HandoffInsert = {
   source_local_id: string; finding_id: string; title: string; sources: string[]; hypothesis: string;
   novelty_caveat: string; feasibility: number; requirements: string; risk: Handoff["risk"];
   priority: Handoff["priority"]; est_cost: number; status: Handoff["status"]; revenue: Revenue;
-  provenance: Provenance; approvals: Record<OwnerAction, boolean>; original: unknown; created_at?: string;
+  provenance: Provenance; approvals: Record<OwnerAction, boolean>; original: unknown; created_at?: string | undefined;
 };
 export type ManifestInsert = {
   source_local_id: string; source_handoff_local_id: string | null; name: string; version: string;
-  manifest: ReleaseManifest; original: unknown; created_at?: string;
+  manifest: ReleaseManifest; original: unknown; created_at?: string | undefined;
 };
 export type SavedHandoff = Handoff & { importedAt: string | null; archivedAt: string | null; fromDevice: boolean };
 
 type Normalized<T> = { ok: true; row: T } | { ok: false; reason: string };
 
-const obj = (v: unknown): Record<string, unknown> => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
+type KnownKey = "id" | "title" | "findingId" | "sources" | "hypothesis" | "noveltyCaveat" | "feasibility" | "requirements"
+  | "risk" | "priority" | "estCost" | "status" | "revenue" | "provenance" | "approvals" | "createdAt" | "name" | "version"
+  | "contract" | "handoffId" | "ownershipConfirmed" | "ossReviewed" | "noScrapedOrUnlicensed" | "notes"
+  | "publish" | "pricing" | "sell" | "deploy";
+type Loose = { [K in KnownKey]?: unknown } & Record<string, unknown>;
+const obj = (v: unknown): Loose => (v && typeof v === "object" && !Array.isArray(v) ? (v as Loose) : {});
 const str = (v: unknown, max: number, fallback = "") => (typeof v === "string" ? v.slice(0, max) : fallback);
 const num = (v: unknown, min: number, max: number) => {
   const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;

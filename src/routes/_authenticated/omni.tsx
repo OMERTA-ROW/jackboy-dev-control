@@ -5,7 +5,12 @@ import { Download, Archive, ArchiveRestore, CheckCircle2, XCircle, PackagePlus }
 import { GuidanceTip, PageHeader } from "@/components/AppShell";
 import { canApprove, projectAnnual, toMarkdown, type Handoff, type OwnerAction, type Revenue } from "@/lib/omni-handoff";
 import { canPrepareJaxDraft, type SavedHandoff } from "@/lib/owner-records";
-import { createJaxDraft, setResearchHandoffArchived, updateResearchHandoff } from "@/lib/owner-records.functions";
+import {
+  createJaxDraft,
+  setResearchHandoffArchived,
+  updateResearchHandoff,
+  type HandoffPatchInput,
+} from "@/lib/owner-records.functions";
 import { DeviceRecordsImport, useOwnerRecords } from "@/components/OwnerRecords";
 import { getOmniQueue, requestOmniJob } from "@/lib/passport.functions";
 import { OmniLinkPanel } from "@/components/OmniLinkPanel";
@@ -286,7 +291,7 @@ function Detail({ h, onSaved, onArchived }: { h: SavedHandoff; onSaved: (h: Save
       setBusy("");
     }
   };
-  const patch = (label: string, data: Omit<Parameters<typeof updateResearchHandoff>[0]["data"], "id">) =>
+  const patch = (label: string, data: HandoffPatchInput) =>
     run(label, async () => {
       const next = await save({ data: { id: h.id, ...data } });
       onSaved(next);

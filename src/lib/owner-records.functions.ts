@@ -115,6 +115,8 @@ const patchSchema = z.object({
   revenue: revenueSchema.optional(),
 });
 
+export type HandoffPatchInput = Omit<z.infer<typeof patchSchema>, "id">;
+
 /** Saves one owner decision on a handoff and returns the stored result (approval rules applied by the database). */
 export const updateResearchHandoff = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
