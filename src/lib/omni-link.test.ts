@@ -95,3 +95,25 @@ describe("omni link", () => {
     expect(nextStatus("sent", "failed")).toBe("failed");
   });
 });
+
+describe("omniApiUrl (OMNI_API_URL reader)", () => {
+  it("reads a plain https address and drops a trailing slash", () => {
+    expect(omniApiUrl("https://omni.example.app/")).toEqual({ url: "https://omni.example.app", reformatted: false });
+  });
+  it("reads a bare host name as https", () => {
+    expect(omniApiUrl("omni.example.app").url).toBe("https://omni.example.app");
+  });
+  it("unwraps chat link formatting only when both parts are the same address", () => {
+    expect(omniApiUrl("[https://omni.example.app](https://omni.example.app)")).toEqual({ url: "https://omni.example.app", reformatted: true });
+    expect(omniApiUrl("[https://omni.example.app](https://evil.example)").url).toBeNull();
+  });
+  it("refuses http, credentials, queries and fragments", () => {
+    for (const v of ["http://omni.example.app", "https://u:p@omni.example.app", "https://omni.example.app?k=1", "https://omni.example.app#x", "not a url", ""])
+      expect(omniApiUrl(v).url).toBeNull();
+  });
+  it("lets only the fixed invalid-address and reachability messages through the diagnostic filter", () => {
+    expect(safeOmniDiagnostic(OMNI_URL_INVALID_MESSAGE)).toBe(OMNI_URL_INVALID_MESSAGE);
+    expect(safeOmniDiagnostic("OMNI could not be reached (timeout).")).toBe("OMNI could not be reached (timeout).");
+    expect(safeOmniDiagnostic("Invalid URL: [https://omni.example.app](https://omni.example.app)/jackboy/handshake")).toBe("OMNI reported an error; response details withheld.");
+  });
+});
