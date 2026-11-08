@@ -3,8 +3,8 @@ export const Route = createFileRoute("/api/public/omni/link")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const { handleOmniLink } = await import("@/lib/omni-session.server");
-        return handleOmniLink(request);
+        const { handleOmniLink, resolvedLinkConfig } = await import("@/lib/omni-session.server");
+        return handleOmniLink(request, await resolvedLinkConfig());
       },
     },
   },

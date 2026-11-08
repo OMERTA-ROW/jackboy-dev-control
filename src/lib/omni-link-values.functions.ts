@@ -4,7 +4,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
-import { REVEAL_ACTION, REVEAL_TARGET, summarizeLinkValues } from "./omni-link-values";
+import { APPROVAL_EXPIRY_TEXT, approvalExpiryState, REVEAL_ACTION, REVEAL_TARGET, summarizeLinkValues } from "./omni-link-values";
+import { saveErrorText, withApproval, type EffectiveApproval } from "./omni-link-approval";
 
 type Ctx = {
   userId: string;
@@ -22,21 +23,54 @@ async function requireConfirmedOwner(ctx: Ctx) {
     throw new Error("A confirmed owner session is required.");
 }
 
-const linkEnv = () => ({
-  OMNI_LINK_OWNER_ID: process.env["OMNI_LINK_OWNER_ID"],
-  OMNI_LINK_APPROVAL_ID: process.env["OMNI_LINK_APPROVAL_ID"],
-  OMNI_LINK_APPROVAL_EXPIRES_AT: process.env["OMNI_LINK_APPROVAL_EXPIRES_AT"],
-});
+/** The three values with the effective approval (passkey-saved record over legacy settings). */
+async function linkEnv() {
+  const { loadEffectiveApproval } = await import("./omni-session.server");
+  const approval = await loadEffectiveApproval();
+  return {
+    env: withApproval({ OMNI_LINK_OWNER_ID: process.env["OMNI_LINK_OWNER_ID"] } as Record<string, string | undefined>, approval),
+    approval,
+  };
+}
+const statusOf = (approval: EffectiveApproval) => ({ source: approval.source, savedAt: approval.savedAt });
 
-/** Read-only, no values: which of the three are set, valid and matching. */
+/** Read-only, no values: which of the three are set, valid and matching, and where the approval comes from. */
 export const getOmniLinkValueStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     await requireConfirmedOwner(context as unknown as Ctx);
+    const { env, approval } = await linkEnv();
     return {
-      summary: summarizeLinkValues(linkEnv(), context.userId),
+      summary: summarizeLinkValues(env, context.userId),
+      approval: statusOf(approval),
       linkEnabled: process.env["OMNI_LINK_ENABLED"] === "true",
     };
+  });
+
+/** Owner + fresh passkey (`omni_link_approval_save`): stores approval ID and expiry together in
+ * Jackboy's single saved record. Never enables the link, never touches Railway or project access. */
+export const saveOmniLinkApproval = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ grantId: z.string().uuid(), approvalId: z.string().uuid(), expiresAt: z.string().datetime({ offset: true }) }).strict().parse(input),
+  )
+  .handler(async ({ context, data }) => {
+    await requireConfirmedOwner(context as unknown as Ctx);
+    const check = approvalExpiryState(data.expiresAt);
+    if (check !== "valid") throw new Error(APPROVAL_EXPIRY_TEXT[check].replace("saved in Jackboy ", "") + " — nothing was saved.");
+    const db = (await import("./untyped-db")).untyped((await import("@/integrations/supabase/client.server")).supabaseAdmin);
+    const { error } = await db.rpc("save_omni_link_approval", {
+      _actor: context.userId,
+      _grant: data.grantId,
+      _approval: data.approvalId.toLowerCase(),
+      _expires: new Date(Date.parse(data.expiresAt)).toISOString(),
+    });
+    if (error) throw new Error(`${saveErrorText((error as { message?: string }).message)} Nothing was saved.`);
+    const { env, approval } = await linkEnv();
+    const summary = summarizeLinkValues(env, context.userId);
+    if (approval.source !== "database" || approval.approvalId !== data.approvalId.toLowerCase())
+      throw new Error("Saved, but Jackboy could not read it back. Press Recheck before copying anything to Railway.");
+    return { summary, approval: statusOf(approval), linkEnabled: process.env["OMNI_LINK_ENABLED"] === "true" };
   });
 
 /** Owner + fresh passkey (`omni_link_values`): returns the three values to copy into Railway. */
@@ -48,7 +82,7 @@ export const revealOmniLinkValues = createServerFn({ method: "POST" })
     await (await import("./passkey.server")).consumeGrant(data.grantId, context.userId, REVEAL_ACTION, REVEAL_TARGET, {
       requireFresh: true,
     });
-    const env = linkEnv();
+    const { env, approval } = await linkEnv();
     const summary = summarizeLinkValues(env, context.userId);
     const { logSite } = await import("./site-log.server");
     await logSite({
@@ -66,5 +100,6 @@ export const revealOmniLinkValues = createServerFn({ method: "POST" })
       },
       yourOwnerId: context.userId,
       summary,
+      approval: statusOf(approval),
     };
   });

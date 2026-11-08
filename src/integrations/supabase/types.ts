@@ -2105,6 +2105,30 @@ export type Database = {
           },
         ]
       }
+      omni_link_approval: {
+        Row: {
+          approval_id: string
+          expires_at: string
+          id: number
+          saved_at: string
+          saved_by: string
+        }
+        Insert: {
+          approval_id: string
+          expires_at: string
+          id?: number
+          saved_at?: string
+          saved_by: string
+        }
+        Update: {
+          approval_id?: string
+          expires_at?: string
+          id?: number
+          saved_at?: string
+          saved_by?: string
+        }
+        Relationships: []
+      }
       omni_link_sessions: {
         Row: {
           approval_id: string
@@ -3622,6 +3646,10 @@ export type Database = {
           active_run_id: number
         }[]
       }
+      expire_omni_project_authorizations: {
+        Args: { _actor: string }
+        Returns: Json
+      }
       finish_code_runtime_slot: {
         Args: {
           p_outcome: string
@@ -3731,6 +3759,15 @@ export type Database = {
         Returns: boolean
       }
       revoke_invitation: { Args: { _id: string }; Returns: undefined }
+      save_omni_link_approval: {
+        Args: {
+          _actor: string
+          _approval: string
+          _expires: string
+          _grant: string
+        }
+        Returns: Json
+      }
       set_automation_policy: {
         Args: {
           _max_files: number
