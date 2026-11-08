@@ -59,6 +59,7 @@ export const probeOmniConnection = createServerFn({ method: "POST" })
     const rows = (data ?? []) as { expires_at: string }[];
     const report = reverseLinkReport({
       runner: (await import("./omni-runner-mode.server")).runnerMode(),
+      runnerProblem: (await import("./omni-runner-mode.server")).runnerProblem(),
       env,
       configValid: linkConfig() !== null,
       storageReady: !error && Array.isArray(data),
