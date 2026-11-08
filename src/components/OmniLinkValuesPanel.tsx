@@ -76,6 +76,11 @@ export function OmniLinkValuesPanel() {
               {c.ok ? <CheckCircle2 className="h-4 w-4 text-success" aria-hidden /> : <ShieldAlert className="h-4 w-4 text-warning" aria-hidden />}
               <span className="font-mono text-xs">{c.name}</span>
               <span className={c.ok ? "text-xs text-success" : "text-xs text-warning"}>{c.ok ? "Set and valid" : c.problem}</span>
+              {c.name === "OMNI_LINK_APPROVAL_EXPIRES_AT" && s.expiresInMs !== null && (
+                <span className="text-xs text-muted-foreground">
+                  {s.expiresInMs > 0 ? `· ${Math.floor(s.expiresInMs / 3_600_000)} h left` : `· ended ${Math.round(-s.expiresInMs / 3_600_000)} h ago`}
+                </span>
+              )}
             </li>
           ))}
         </ul>
