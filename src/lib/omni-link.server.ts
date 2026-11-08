@@ -8,6 +8,9 @@ import {
   DEFAULT_CALLBACK_URL,
   hmacHex,
   isOmniVerificationFresh,
+  omniApiUrl,
+  OMNI_URL_FORMATTED_NOTICE,
+  OMNI_URL_INVALID_MESSAGE,
   nextStatus,
   omniConfigurationFingerprint,
   parseHandshake,
@@ -19,17 +22,25 @@ import {
 import { LINK_AGED_MESSAGE, LINK_CONFIG_CHANGED_MESSAGE } from "./omni-handoff-auth";
 
 function config() {
-  const url = process.env["OMNI_API_URL"], key = process.env["OMNI_API_KEY"], secret = process.env["OMNI_CALLBACK_SECRET"];
-  const missing = [!url && "OMNI_API_URL", !key && "OMNI_API_KEY", !secret && "OMNI_CALLBACK_SECRET"].filter(Boolean) as string[];
-  return { url: url?.replace(/\/$/, ""), key, secret, missing, callbackUrl: process.env["JACKBOY_CALLBACK_URL"] || DEFAULT_CALLBACK_URL };
+  const rawUrl = process.env["OMNI_API_URL"], key = process.env["OMNI_API_KEY"], secret = process.env["OMNI_CALLBACK_SECRET"];
+  const missing = [!rawUrl && "OMNI_API_URL", !key && "OMNI_API_KEY", !secret && "OMNI_CALLBACK_SECRET"].filter(Boolean) as string[];
+  const parsed = omniApiUrl(rawUrl);
+  return {
+    url: parsed.url ?? undefined,
+    urlInvalid: Boolean(rawUrl) && !parsed.url,
+    urlReformatted: parsed.reformatted,
+    key, secret, missing,
+    callbackUrl: process.env["JACKBOY_CALLBACK_URL"] || DEFAULT_CALLBACK_URL,
+  };
 }
 
 export function omniConfigState() {
   const c = config();
   return {
-    configured: c.missing.length === 0,
+    configured: c.missing.length === 0 && !c.urlInvalid,
     keyConfigured: Boolean(c.key),
     missing: c.missing,
+    urlProblem: c.urlInvalid ? OMNI_URL_INVALID_MESSAGE : c.urlReformatted ? OMNI_URL_FORMATTED_NOTICE : null,
     callbackUrl: safeOmniCallbackOrigin(c.callbackUrl),
   };
 }
@@ -56,13 +67,24 @@ export async function omniHandshake(actor: string) {
     });
     return { verified: false, error: `Missing secrets: ${c.missing.join(", ")}` };
   }
+  if (c.urlInvalid || !c.url) {
+    await setConnection({ verified: false, verified_at: null, config_hash: null, last_error: OMNI_URL_INVALID_MESSAGE });
+    await logSite({ actor, action: "omni.handshake", category: "config", status: "failed", summary: `OMNI handshake failed: ${OMNI_URL_INVALID_MESSAGE}` });
+    return { verified: false, error: OMNI_URL_INVALID_MESSAGE };
+  }
   const challenge = crypto.randomUUID().replace(/-/g, "") + crypto.randomUUID().replace(/-/g, "");
   try {
-    const r = await fetch(`${c.url}/jackboy/handshake`, {
-      method: "POST", signal: AbortSignal.timeout(10_000),
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${c.key}` },
-      body: JSON.stringify({ challenge, callbackUrl: c.callbackUrl }),
-    });
+    let r: Response;
+    try {
+      r = await fetch(`${c.url}/jackboy/handshake`, {
+        method: "POST", signal: AbortSignal.timeout(10_000),
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${c.key}` },
+        body: JSON.stringify({ challenge, callbackUrl: c.callbackUrl }),
+      });
+    } catch (e) {
+      const timeout = e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError");
+      throw new Error(`OMNI could not be reached (${timeout ? "timeout" : "network error"}).`);
+    }
     if (!r.ok) throw new Error(`OMNI answered HTTP ${r.status}`);
     const text = await r.text();
     let response: unknown;
