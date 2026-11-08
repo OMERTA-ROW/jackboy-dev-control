@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   evaluateHandoff,
+  blockerNextStep,
   validateAuthorizationRequest,
   wireKind,
   type HandoffFacts,
@@ -44,6 +45,14 @@ const codes = (f: HandoffFacts, stage: "issue" | "use" = "issue") =>
   evaluateHandoff(f, stage, NOW).blockers.map((b) => b.code);
 
 describe("OMNI build/test handoff authorization", () => {
+  it("offers only safe, non-mutating next steps for common blockers", () => {
+    expect(blockerNextStep("link_stale")).toBe("check_connection");
+    expect(blockerNextStep("authorization_expired")).toBe("project_access");
+    expect(blockerNextStep("kill_switch")).toBe("review_settings");
+    expect(blockerNextStep("project_repo")).toBe("review_project");
+    expect(blockerNextStep("job_code")).toBeNull();
+  });
+
   it("allows a build and a test handoff when every check passes", () => {
     expect(evaluateHandoff(facts(), "use", NOW).allowed).toBe(true);
     expect(evaluateHandoff(facts({ job: { ...facts().job, kind: "test" } }), "use", NOW).allowed).toBe(true);

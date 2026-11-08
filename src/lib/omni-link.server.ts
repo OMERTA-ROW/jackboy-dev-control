@@ -9,8 +9,10 @@ import {
   hmacHex,
   isOmniVerificationFresh,
   nextStatus,
-  omniEndpointFingerprint,
+  omniConfigurationFingerprint,
   parseHandshake,
+  safeOmniDiagnostic,
+  safeOmniCallbackOrigin,
   safeEqual,
   type JobResult,
 } from "./omni-link";
@@ -24,12 +26,17 @@ function config() {
 
 export function omniConfigState() {
   const c = config();
-  return { configured: c.missing.length === 0, keyConfigured: Boolean(c.key), missing: c.missing, callbackUrl: c.callbackUrl };
+  return {
+    configured: c.missing.length === 0,
+    keyConfigured: Boolean(c.key),
+    missing: c.missing,
+    callbackUrl: safeOmniCallbackOrigin(c.callbackUrl),
+  };
 }
 
 async function configHash(c = config()) {
   if (c.missing.length) return null;
-  return omniEndpointFingerprint(c.url!);
+  return omniConfigurationFingerprint(c.url!, c.key!, c.secret!, c.callbackUrl);
 }
 
 async function setConnection(patch: Record<string, unknown>) {
@@ -56,23 +63,27 @@ export async function omniHandshake(actor: string) {
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${c.key}` },
       body: JSON.stringify({ challenge, callbackUrl: c.callbackUrl }),
     });
+    if (!r.ok) throw new Error(`OMNI answered HTTP ${r.status}`);
     const text = await r.text();
-    if (!r.ok) throw new Error(`OMNI answered HTTP ${r.status}: ${text.slice(0, 200)}`);
-    const h = parseHandshake(JSON.parse(text));
+    let response: unknown;
+    try {
+      response = JSON.parse(text);
+    } catch {
+      throw new Error("OMNI returned invalid handshake JSON");
+    }
+    const h = parseHandshake(response);
     if (typeof h === "string") throw new Error(h);
     if (!safeEqual(h.proof, await hmacHex(c.secret!, challenge))) throw new Error("OMNI proof did not match OMNI_CALLBACK_SECRET");
     await setConnection({
       verified: true,
       verified_at: new Date().toISOString(),
       config_hash: await configHash(c),
-      omni_version: h.version,
-      capabilities: h.capabilities,
       last_error: null,
     });
-    await logSite({ actor, action: "omni.handshake", category: "config", status: "ok", summary: `OMNI ${h.version} verified (${h.capabilities.join(", ")})` });
-    return { verified: true, version: h.version, capabilities: h.capabilities };
+    await logSite({ actor, action: "omni.handshake", category: "config", status: "ok", summary: "OMNI handshake verified." });
+    return { verified: true };
   } catch (e) {
-    const msg = (e as Error).message.slice(0, 300);
+    const msg = safeOmniDiagnostic(e instanceof Error ? e.message : null) ?? "OMNI handshake failed; response details withheld.";
     await setConnection({ verified: false, verified_at: null, config_hash: null, last_error: msg });
     await logSite({ actor, action: "omni.handshake", category: "config", status: "failed", summary: `OMNI handshake failed: ${msg}` });
     return { verified: false, error: msg };
@@ -110,7 +121,8 @@ export async function isOmniVerified() {
   const c = config(), expectedHash = await configHash(c);
   if (!expectedHash) {
     // Missing settings count as a lost link: the DB trigger revokes live OMNI job approvals.
-    await setConnection({ verified: false, verified_at: null, config_hash: null, last_error: `Missing secrets: ${c.missing.join(", ")}` });
+    const missing = `Missing secrets: ${c.missing.join(", ")}`;
+    await setConnection({ verified: false, verified_at: null, config_hash: null, last_error: missing });
     return false;
   }
   const { data, error } = await supabaseAdmin
