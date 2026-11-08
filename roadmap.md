@@ -234,3 +234,11 @@ The spoken acronym “NLOA” is unconfirmed in Notion. Do not infer a technical
 - [x] One-press Undo: draft PRs close; merged changes need a fresh passkey, refuse on clashes, Jackboy merges its own revert after checks pass.
 - [ ] Live proof: publish, register a phone on the published site, send a test alert, and receive the first 7 AM report — owner only.
 - [x] Connect phone alerts to the owner's Firebase project jackboy-b6bb5 (web config from GOOGLE_API_KEY secret, VAPID key requested separately, opt-in permission, diagnostics); sending needs a server credential for that project.
+
+## OMNI link + blocker repair (Nov 8)
+- [x] Site Log names which link check refused OMNI (no values)
+- [x] Values panel shows hours left / ended; older worker heading relabelled
+- [ ] Owner: save today's approval expiry + ID in Jackboy Secrets, then publish
+- [ ] Go subfolder support in Add to CODE (waiting: folder with OMNI's go.mod)
+- [ ] Optional build/test copy of the two queued "code" jobs (waiting: owner choice)
+- [ ] Multi-site database update (waiting: separate approval)
