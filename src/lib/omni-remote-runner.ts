@@ -19,6 +19,23 @@ export function validRunnerSecret(s: string | undefined): s is string {
   return typeof s === "string" && s.length >= 32 && s.length <= 512;
 }
 
+// Runner-only mode is a Railway setting. A host that is clearly the Jackboy dashboard (a Lovable
+// address, or one holding site-only settings such as the database key or the caller-side runner
+// address) ignores it, so a misplaced OMNI_LINK_RUNNER_MODE can never blank the dashboard.
+export type RunnerModeDecision = { on: boolean; ignored?: "lovable_host" | "site_settings" };
+const DASHBOARD_HOST = /(^|\.)(lovable\.app|lovableproject\.com|lovable\.dev)$/i;
+const LOCAL_HOST = /^(localhost|127\.0\.0\.1|\[::1\]|::1)$/i;
+const SITE_ONLY_SETTINGS = ["SUPABASE_SERVICE_ROLE_KEY", "OMNI_LINK_REMOTE_RUNNER_URL"] as const;
+
+export function runnerModeDecision(env: Env, hostname?: string): RunnerModeDecision {
+  if (env["OMNI_LINK_RUNNER_MODE"] !== "true") return { on: false };
+  const host = (hostname ?? "").trim();
+  if (host && (DASHBOARD_HOST.test(host) || LOCAL_HOST.test(host))) return { on: false, ignored: "lovable_host" };
+  if (env["OMNI_LINK_REMOTE_RUNNER_ENABLED"] === "true" || SITE_ONLY_SETTINGS.some((k) => !!env[k]))
+    return { on: false, ignored: "site_settings" };
+  return { on: true };
+}
+
 export function remoteRunnerDiagnostic(env: Env): string {
   if (env["OMNI_LINK_REMOTE_RUNNER_ENABLED"] !== "true")
     return "Remote self-test runner is disabled; this readiness check does not enable it.";
