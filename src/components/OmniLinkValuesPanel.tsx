@@ -9,6 +9,18 @@ type Status = Awaited<ReturnType<typeof getOmniLinkValueStatus>>;
 type Revealed = Awaited<ReturnType<typeof revealOmniLinkValues>>;
 const HIDE_AFTER_MS = 2 * 60_000;
 
+/** Relative, value-free description of the saved approval expiry. */
+export function expiryHint(expiry: Status["summary"]["expiry"], inMs: number | null): string {
+  const hours = inMs === null ? null : Math.round(Math.abs(inMs) / 360_000) / 10;
+  switch (expiry) {
+    case "valid": return `Saved approval is valid for about ${hours} more hours.`;
+    case "expired": return `Saved approval expired about ${hours} hours ago.`;
+    case "too_far": return `Saved approval ends about ${hours} hours from now — more than the 24-hour limit, so the link refuses it.`;
+    case "invalid": return "Saved approval expiry is not a valid date and time.";
+    default: return "No approval expiry is saved in Jackboy.";
+  }
+}
+
 function CopyRow({ name, value, note }: { name: string; value: string | null; note?: string | null }) {
   const [done, setDone] = useState(false);
   return (
@@ -46,8 +58,17 @@ export function OmniLinkValuesPanel() {
   const [fresh, setFresh] = useState<ReturnType<typeof suggestApproval> | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const refresh = useCallback(() => load().then(setStatus).catch((e: Error) => setMsg(e.message)), [load]);
-  useEffect(() => { void refresh(); }, [refresh]);
+  const [checkedAt, setCheckedAt] = useState<Date | null>(null);
+  const refresh = useCallback(
+    () => load().then((r) => { setStatus(r); setCheckedAt(new Date()); setMsg(null); }).catch((e: Error) => setMsg(e.message)),
+    [load],
+  );
+  useEffect(() => {
+    void refresh();
+    const onFocus = () => void refresh();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [refresh]);
   useEffect(() => {
     if (!shown) return;
     const t = window.setTimeout(() => { setShown(null); setFresh(null); }, HIDE_AFTER_MS);
@@ -80,11 +101,18 @@ export function OmniLinkValuesPanel() {
           ))}
         </ul>
       )}
+      {s && <p className="text-xs text-muted-foreground">{expiryHint(s.expiry, s.expiresInMs)}</p>}
       {status && (
         <p className="text-xs text-muted-foreground">
-          Link switch on Jackboy: {status.linkEnabled ? "on" : "off"}. This view never turns it on or runs the self-test.
+          Link switch on Jackboy: {status.linkEnabled ? "on" : "off"}. This shows only what Jackboy has saved; it does not read Railway, prove OMNI is connected, turn the link on or run the self-test.
         </p>
       )}
+      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+        <button type="button" className="rounded-md border border-border px-2 py-1 hover:bg-muted" onClick={() => void refresh()}>
+          Recheck saved values
+        </button>
+        {checkedAt && <span>Checked at {checkedAt.toLocaleTimeString()}</span>}
+      </div>
 
       {!shown ? (
         <button
@@ -125,8 +153,15 @@ export function OmniLinkValuesPanel() {
           {needsNewApproval && (
             <div className="space-y-2 rounded-md border border-warning/50 p-3">
               <p className="text-xs">
-                The approval is missing or no longer valid, so copying it to Railway will not work. Make a new pair below, then save the same two values in Jackboy's secret settings and in Railway. Nothing is saved by this button.
+                The approval saved in Jackboy is missing or no longer valid. The button below only suggests a new pair — it saves nothing, and Jackboy cannot update Railway for you.
               </p>
+              <ol className="list-decimal space-y-1 pl-5 text-xs">
+                <li>In Lovable, open Project Settings → Secrets and replace OMNI_LINK_APPROVAL_ID and OMNI_LINK_APPROVAL_EXPIRES_AT with the new pair. Change both together.</li>
+                <li>Publish Jackboy so the live site reads the new pair.</li>
+                <li>In Railway, set the same two variables on OMNI to exactly the same text, then redeploy OMNI.</li>
+                <li>Come back here and press “Recheck saved values”. It should say “Set and valid”.</li>
+              </ol>
+              <p className="text-xs text-muted-foreground">The pair stops working 24 hours after you make it at most, so finish all steps soon after.</p>
               {!fresh ? (
                 <button type="button" className="rounded-md border border-border px-3 py-1 text-xs hover:bg-muted" onClick={() => setFresh(suggestApproval())}>
                   Make a new approval (valid 23 hours)
