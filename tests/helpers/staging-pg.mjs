@@ -62,6 +62,9 @@ export const supabaseStubs = `
   CREATE FUNCTION auth.role() RETURNS text LANGUAGE sql STABLE AS $$ SELECT 'anon' $$;
   CREATE SCHEMA extensions;
   CREATE SCHEMA storage;
+  CREATE FUNCTION storage.foldername(name text) RETURNS text[] LANGUAGE sql IMMUTABLE AS $$
+    SELECT (string_to_array(name, '/'))[1:array_length(string_to_array(name, '/'), 1) - 1]
+  $$;
   CREATE TABLE storage.buckets(id text PRIMARY KEY, name text, public boolean);
   CREATE TABLE storage.objects(id uuid DEFAULT gen_random_uuid(), bucket_id text, name text, owner uuid);
   ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;`;
