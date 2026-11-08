@@ -1,5 +1,15 @@
 # Jackboy roadmap
 
+## Restore CODE + autonomous mode (Nov 8, 03:35 UTC, owner-authorized)
+- [x] CODE workflow switched back on in GitHub (it was "disabled manually"; it only starts when a run is dispatched, 0 runs so far). Workflow version check now passes; 8 of 12 readiness checks pass.
+- [x] Hourly job, hourly fix writer and 15-minute site monitor schedules on again (fix writer stays on its "Not enough credits" hold).
+- [x] OMNI checks now name the exact problem: approval expired; runner address saved without "https://" is now accepted as https (preview only until publish).
+- [x] "Test my passkey" explains why it's greyed out when no passkey exists for the address. 807 tests pass.
+- [ ] Publish — owner choice (live site still refuses OMNI with older settings).
+- [ ] OMNI: save the new approval ID + expiry (≤ 24 h ahead) in Jackboy secrets, publish, then run the handshake from OMNI — owner.
+- [ ] First CODE run: Chat → CODE on the Jackboy repo ($1 hold), passkey + GitHub approval — owner.
+- [ ] Autopilot master switch, Code Foundry "Resume all" + recurring inspections, fix-writer credit hold — owner (use paid AI credits; 31 credits left).
+
 ## OMNI handoffs + JAX drafts saved to the owner's account (Nov 8, 02:46 UTC)
 - [x] Owner-approved storage (journal 0055 + 0056): each owner sees only their own records, signed-out visitors nothing, no deletes (archive), original browser record kept unchanged, approval rules enforced by the database. 5 isolated database tests + 9 rule tests.
 - [x] OMNI page and JAX page read/save from the account; one-press "Import to my account" for records saved only in a browser (repeat-safe, browser copy kept); clear Saved/Not saved messages. Preview import tried signed in with a labelled test record (removed afterwards).

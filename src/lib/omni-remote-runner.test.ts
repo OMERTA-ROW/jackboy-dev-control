@@ -6,6 +6,7 @@ import {
   remoteRunnerConfig,
   requestMessage,
   responseMessage,
+  runnerConfigProblem,
   verifyRunnerRequest,
 } from "./omni-remote-runner";
 import { handleRunnerRequest } from "./omni-remote-runner.server";
@@ -38,6 +39,21 @@ describe("remote runner config (live site)", () => {
     expect(remoteRunnerConfig({ ...ok, OMNI_LINK_REMOTE_RUNNER_URL: "http://x.up.railway.app" })).toBeNull();
     expect(remoteRunnerConfig({ ...ok, OMNI_LINK_REMOTE_RUNNER_URL: "https://x.app/other" })).toBeNull();
     expect(remoteRunnerConfig({ ...ok, OMNI_LINK_REMOTE_RUNNER_SECRET: "short" })).toBeNull();
+  });
+  it("reads a bare Railway host name as https, never http", () => {
+    const ok = { OMNI_LINK_REMOTE_RUNNER_ENABLED: "true", OMNI_LINK_REMOTE_RUNNER_URL: "x.up.railway.app", OMNI_LINK_REMOTE_RUNNER_SECRET: SECRET };
+    expect(remoteRunnerConfig(ok)?.url).toBe("https://x.up.railway.app/api/public/omni/runner");
+    expect(remoteRunnerConfig({ ...ok, OMNI_LINK_REMOTE_RUNNER_URL: "x.up.railway.app/other" })).toBeNull();
+    expect(remoteRunnerConfig({ ...ok, OMNI_LINK_REMOTE_RUNNER_URL: "localhost" })).toBeNull();
+  });
+  it("names the blocking runner setting without its value", () => {
+    const ok = { OMNI_LINK_REMOTE_RUNNER_ENABLED: "true", OMNI_LINK_REMOTE_RUNNER_URL: "https://x.up.railway.app", OMNI_LINK_REMOTE_RUNNER_SECRET: SECRET };
+    expect(runnerConfigProblem(ok)).toBeNull();
+    expect(runnerConfigProblem({ ...ok, OMNI_LINK_REMOTE_RUNNER_ENABLED: "yes" })).toContain("OMNI_LINK_REMOTE_RUNNER_ENABLED");
+    expect(runnerConfigProblem({ ...ok, OMNI_LINK_REMOTE_RUNNER_URL: "http://x.up.railway.app" })).toContain("OMNI_LINK_REMOTE_RUNNER_URL");
+    const p = runnerConfigProblem({ ...ok, OMNI_LINK_REMOTE_RUNNER_SECRET: "zq9secretvalue" });
+    expect(p).toContain("OMNI_LINK_REMOTE_RUNNER_SECRET");
+    expect(p).not.toContain("zq9secretvalue");
   });
 });
 

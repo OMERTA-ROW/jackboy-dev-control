@@ -24,15 +24,34 @@ export function remoteRunnerConfig(env: Env): RemoteRunnerConfig | null {
   if (env["OMNI_LINK_REMOTE_RUNNER_ENABLED"] !== "true") return null;
   const secret = env["OMNI_LINK_REMOTE_RUNNER_SECRET"];
   if (!validRunnerSecret(secret)) return null;
+  const u = runnerOrigin(env["OMNI_LINK_REMOTE_RUNNER_URL"]);
+  if (!u) return null;
+  return { url: `${u}${RUNNER_PATH}`, secret };
+}
+
+/** Bare host names (Railway shows "x.up.railway.app") are read as https://; plain http and paths are refused. */
+const BARE_HOST = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+(?::\d{1,5})?$/i;
+export function runnerOrigin(raw: string | undefined): string | null {
+  const v = (raw || "").trim();
+  if (!v) return null;
   let u: URL;
   try {
-    u = new URL(env["OMNI_LINK_REMOTE_RUNNER_URL"] || "");
+    u = new URL(BARE_HOST.test(v) ? `https://${v}` : v);
   } catch {
     return null;
   }
   if (u.protocol !== "https:" || u.username || u.password || u.search || u.hash || (u.pathname !== "/" && u.pathname !== ""))
     return null;
-  return { url: `${u.origin}${RUNNER_PATH}`, secret };
+  return u.origin;
+}
+
+/** Names which runner setting is missing or malformed, without ever including a value. */
+export function runnerConfigProblem(env: Env): string | null {
+  if (env["OMNI_LINK_REMOTE_RUNNER_ENABLED"] !== "true") return "OMNI_LINK_REMOTE_RUNNER_ENABLED is not exactly true";
+  if (!validRunnerSecret(env["OMNI_LINK_REMOTE_RUNNER_SECRET"])) return "OMNI_LINK_REMOTE_RUNNER_SECRET is missing or shorter than 32 characters";
+  if (!runnerOrigin(env["OMNI_LINK_REMOTE_RUNNER_URL"]))
+    return "OMNI_LINK_REMOTE_RUNNER_URL must be the runner's https address with no path (for example https://name.up.railway.app)";
+  return null;
 }
 
 export const requestMessage = (ts: string, nonce: string, body: string) =>
