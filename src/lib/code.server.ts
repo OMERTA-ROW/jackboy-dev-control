@@ -74,17 +74,20 @@ export async function codeCapability(): Promise<{ verified: boolean; detail: str
   }
   let approved: Record<string, Target>;
   try { approved = await targets(); } catch { return { verified: false, detail: "CODE target allowlist is unavailable or invalid; owner review is required." }; }
+  let problem: string | null = null;
   for (const [repo, target] of Object.entries(approved).slice(0, 5)) {
     try {
       try { await verify({ repo, ...target }); }
       catch (e) {
-        // Say exactly why instead of the generic "no successful run" line (e.g. the workflow is disabled in GitHub).
-        return { verified: false, detail: `${repo}: ${(e as Error).message}` };
+        // Keep the exact reason (e.g. the workflow is disabled in GitHub) instead of the generic line below.
+        problem ??= `${repo}: ${(e as Error).message}`;
+        continue;
       }
       const r = await gh<{ workflow_runs: Run[] }>(repo, `/actions/workflows/${CODE_WORKFLOW}/runs?event=workflow_dispatch&per_page=100`);
       if (r.workflow_runs.some(run => /^CODE [a-f0-9-]{36}$/.test(run.display_title) && run.conclusion === "success")) return { verified: true, detail: "A live CODE workflow completed successfully. Each new job still requires its own scoped approval; tests and PRs are reported from GitHub evidence." };
     } catch { /* Remain blocked; provider setup is never inferred. */ }
   }
+  if (problem) return { verified: false, detail: problem };
   return { verified: false, detail: "No successful live CODE run has been verified. Review the approved workflow and provider-native authorization, then perform the documented acceptance run." };
 }
 async function audit(user: string, action: string, id: string) {
