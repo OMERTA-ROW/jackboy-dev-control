@@ -3618,7 +3618,7 @@ export type Database = {
         }
         Returns: boolean
       }
-      code_acceptance_guard_status: { Args: never; Returns: boolean };
+      code_acceptance_guard_status: { Args: never; Returns: boolean }
       code_provider_call_holds: {
         Args: { p_request_id: string }
         Returns: number
@@ -3783,9 +3783,9 @@ export type Database = {
         Returns: Json
       }
       set_guardian_limits: {
-        Args: { _max_files: number; _max_lines: number; _tier: number };
-        Returns: undefined;
-      };
+        Args: { _max_files: number; _max_lines: number; _tier: number }
+        Returns: undefined
+      }
       set_jax_enrollment: {
         Args: { _enroll: boolean; _id: string; _purpose: string }
         Returns: undefined
