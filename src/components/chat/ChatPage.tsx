@@ -26,6 +26,7 @@ import { deleteChatThread, getChatContextBrief, getChatThread, listChatThreads, 
 import { ChatHistorySheet, type ThreadRow } from "@/components/chat/ChatHistorySheet";
 import { ChatContextSheet, ContextNotesCard, type ContextChoice } from "@/components/chat/ChatContextSheet";
 import { ChatStatusLine } from "@/components/chat/ChatStatusLine";
+import { OMNI_TOOLS, OmniToolResult, TestOmniLinkButton } from "@/components/chat/OmniToolResult";
 import { AttachButton, MessageAttachments, PendingChips, usePendingAttachments } from "@/components/chat/ChatAttachments";
 import { ChatActivity } from "@/components/chat/ChatActivity";
 
@@ -519,6 +520,11 @@ function OwnerChat({ threadId, userId, role }: { threadId: string; userId: strin
             <Toggle label="Status line" on={prefs.statusLine} onChange={(v) => setPref("statusLine", v)} />
             {!prefs.saveHistory && <p className="text-xs text-warning">New messages aren't saved while this is off. Earlier saved messages stay.</p>}
           </section>
+          <section aria-label="OMNI link" className="space-y-2">
+            <h3 className="text-sm font-semibold text-silver">OMNI link</h3>
+            <p className="text-xs text-muted-foreground">Checks the live link to OMNI. Sends no job.</p>
+            <TestOmniLinkButton />
+          </section>
           <VoiceSupport />
           <nav aria-label="Secondary" className="flex flex-col gap-1 text-sm">
             <Link to="/research" className="rounded-lg px-3 py-2 hover:bg-muted">Research</Link>
@@ -697,6 +703,7 @@ function ToolLine({ name, state, output }: { name: string; state: string; output
   const value = (output && typeof output === "object" ? output : null) as { blocked?: boolean; reason?: unknown; evidence?: unknown } | null;
   const evidence = links(value?.evidence);
   if (running) return null;
+  if (OMNI_TOOLS.has(name) && !failed) return <OmniToolResult name={name} output={output} />;
   if (auth) {
     const link = auth.links.find((l) => l.primary && l.url.startsWith("https://github.com/")) ?? auth.links.find((l) => l.url.startsWith("https://github.com/"));
     return <p className="my-2 text-sm">{auth.provider} needs your approval{auth.repo ? ` for ${auth.repo}` : ""}.{link && <> <a href={link.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-electric underline"><ExternalLink className="size-3.5" />Approve on {auth.provider}</a></>}</p>;
