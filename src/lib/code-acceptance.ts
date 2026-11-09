@@ -90,7 +90,7 @@ export function acceptancePatchCheck(patch: string): Check {
       if (line.length > 201) add("An added line is too long.");
       if (/^\+.*Acceptance test \d{4}-\d{2}-\d{2}/.test(line)) dated = true;
     } else if (line.startsWith("-")) add("The patch deletes or rewrites existing lines.");
-    else if (line.startsWith(" ") || line === "\\ No newline at end of file" || line === "") continue;
+    else if (line.startsWith(" ") || line === "\\ No newline at end of file") continue;
     else if (hunk.test(line)) continue;
     else add(`Unexpected patch line: ${show(line)}`);
   }
