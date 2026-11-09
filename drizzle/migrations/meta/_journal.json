@@ -428,6 +428,13 @@
       "when": 1794215442298,
       "tag": "0060_code_acceptance_guard_verification",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1794234033152,
+      "tag": "0061_verify_0059_0060_install",
+      "breakpoints": true
     }
   ]
 }
