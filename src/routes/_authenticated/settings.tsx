@@ -107,14 +107,17 @@ function Settings() {
           <section key={g.group} className="panel p-5" aria-labelledby={`g-${g.group}`}>
             <h2 id={`g-${g.group}`} className="text-sm font-semibold uppercase tracking-wider text-silver">{g.group}</h2>
             <ul className="mt-3 space-y-1">
-              {g.items.map((i) => (
-                <li key={i.to + ("hash" in i ? i.hash : "")}>
-                  <Link to={i.to} {...("hash" in i ? { hash: i.hash } : {})} className="block rounded-md p-2 hover:bg-muted">
-                    <span className="text-sm font-medium">{i.label}</span>
-                    <span className="block text-xs text-muted-foreground">{i.note}</span>
-                  </Link>
-                </li>
-              ))}
+              {g.items.map((i) => {
+                const hash: string = "hash" in i ? i.hash : "";
+                const body = <><span className="text-sm font-medium">{i.label}</span><span className="block text-xs text-muted-foreground">{i.note}</span></>;
+                return (
+                  <li key={i.to + hash}>
+                    {hash
+                      ? <Link to="/settings" hash={hash} className="block rounded-md p-2 hover:bg-muted">{body}</Link>
+                      : <Link to={i.to} className="block rounded-md p-2 hover:bg-muted">{body}</Link>}
+                  </li>
+                );
+              })}
             </ul>
           </section>
         ))}
