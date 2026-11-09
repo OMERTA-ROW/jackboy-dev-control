@@ -158,6 +158,35 @@ These are local results, not production output or new app-suite results.
 
 ## Evidence comparison and release checklist
 
+### Synchronization repair: 0061 fixture identity
+
+The sync source `lovable-sync-1794234102` at
+`dcd14c522a650c86dcdcffbade0356c9b38c37ed` adds verification migration 0061.
+Its SQL remains byte-identical (SHA-256
+`a104a54f80beaed3de6ef2566d1f0cc42e7807b76581c4b42fbb2d9f5641263f`,
+journal timestamp `1794234033152`). Authenticated production access is unavailable,
+so installation/production ownership/privileges remain BLOCKED. The existing
+read-only pack lists the complete journal and the relevant function owners and
+effective privileges; the authorized DBA must compare the 0061 row with this
+hash/timestamp. A commit label is not installation evidence.
+
+The isolated acceptance/gateway clusters previously used `initdb -U stg`.
+0061 rightly rejects functions owned by that role. Provisioning now uses
+`initdb -U postgres` and the matching loopback connection inside the same
+no-network namespace. This renames the disposable bootstrap identity; it adds
+no grants and changes no production resources. No migration check, role assertion,
+spending cap, test selector or no-skip enforcement is removed. Added tests pin
+0061's bytes and prove rejection on owner/grant/trigger tampering.
+
+The sync also broadened preview UUID matching beyond version-4/variant bits and
+recognized `live--<uuid>[-thr_<id>]` as brokerable hosts. Editor-origin restrictions
+remain, but more hostnames can select a project identity and enter session
+get/set/remove brokerage. Repository code cannot establish the provider's
+cross-project routing contract or approval for that wider authentication surface.
+The change is therefore excluded: `previewAuthStorage.ts` is restored exactly to
+main, with no claimed vulnerability fix or new auth scope. Generated RPC type
+additions are retained with only their added lines formatted.
+
 Rehearsal baseline: commit `24362dae4151145086212e889cab4e29c1e4e8b8`;
 PostgreSQL 17.11, source image
 `sha256:7bd84e6a1d5322c7b864b9751873a0ac50f48df3f20a776e88114eadb2948fc0`.
