@@ -64,7 +64,7 @@ export function GuardianPanel() {
       {q.data && (
         <>
           <div className="mt-3 grid gap-3 md:grid-cols-2">
-            <div role="status" data-testid="guardian-status" className={`rounded-md border px-3 py-2 ${q.data.status.state === "on" ? "border-success/40" : "border-warning/50"}`}>
+            <div role="status" data-testid="guardian-status" className={`self-start rounded-md border px-3 py-2 ${q.data.status.state === "on" ? "border-success/40" : "border-warning/50"}`}>
               <p className="flex items-center gap-2 text-sm font-medium">
                 {q.data.status.state === "on" ? <ShieldCheck className="h-4 w-4 text-success" aria-hidden /> : <ShieldAlert className="h-4 w-4 text-warning" aria-hidden />}
                 {q.data.status.headline}
@@ -90,9 +90,9 @@ export function GuardianPanel() {
 
           <details className="mt-4" open>
             <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wider text-silver">Active rules ({rules.length})</summary>
-            <div className="mt-2 grid gap-3 md:grid-cols-2">
+            <div className="mt-2 gap-6 md:columns-2">
               {groups.map((g) => (
-                <div key={g}>
+                <div key={g} className="mb-3 break-inside-avoid">
                   <h4 className="text-xs font-medium text-foreground">{g}</h4>
                   <ul className="mt-1 list-disc space-y-1 pl-5 text-xs text-muted-foreground">
                     {rules.filter((r) => r.group === g).map((r) => <li key={r.text}>{r.text}</li>)}
