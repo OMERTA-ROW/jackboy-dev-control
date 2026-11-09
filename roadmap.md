@@ -256,3 +256,6 @@ The spoken acronym “NLOA” is unconfirmed in Notion. Do not infer a technical
 - [ ] Merge reconciliation PR, publish, then confirm deployed commit via the version check — owner.
 - [ ] Restore remaining lost Nov 8 preview work (owner OMNI/JAX record screens, workflow-disabled detection, link refusal naming) from `lovable-backup-main-1794110944` — needs owner go-ahead.
 - [x] Read-only CODE activation audit (Nov 9): self-test 8e387dcf confirmed completed; open blockers — controlled $1 test (owner spend approval), OpenAI cost cross-check never synced, OMNI project permission, Guardian record.
+
+## Owner request Nov 9
+- [x] Guardian section in Settings (status, protections, plain-language rules, recent allowed/blocked/flagged log, owner-only limits, Fleet/Automation/OMNI links) + Guardian entry in the Settings menu.
