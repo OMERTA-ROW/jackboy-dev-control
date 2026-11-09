@@ -57,6 +57,11 @@ vi.mock("@/components/chat/ChatContextSheet", () => ({
   ContextNotesCard: () => null,
 }));
 vi.mock("@/components/chat/ChatStatusLine", () => ({ ChatStatusLine: () => null }));
+vi.mock("@/components/chat/OmniToolResult", () => ({
+  OMNI_TOOLS: new Set<string>(),
+  OmniToolResult: () => null,
+  TestOmniLinkButton: () => null,
+}));
 vi.mock("@/components/ai-elements/message", () => ({
   MessageResponse: ({ children }: { children: React.ReactNode }) => <span>{children}</span>,
 }));

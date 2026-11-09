@@ -24,6 +24,10 @@ let slotCalls;
 let githubCalls;
 let claimedArgs;
 let safetyState;
+let acceptanceGuard;
+let auditFails;
+let gateResult;
+let gateAudits;
 
 const scope = () => ({
   repo: "owner/repo",
@@ -43,6 +47,10 @@ class ApprovalQuery {
   select() {
     return this;
   }
+  insert(value) {
+    gateAudits.push(value);
+    return Promise.resolve({ error: auditFails ? { message: "audit unavailable" } : null });
+  }
   eq(key, value) {
     this.filters.push((candidate) => candidate[key] === value);
     return this;
@@ -56,6 +64,9 @@ class ApprovalQuery {
 globalThis.__claimDb = {
   from: () => new ApprovalQuery(),
   async rpc(_name, args) {
+    if (_name === "code_acceptance_guard_status") {
+      return { data: acceptanceGuard, error: null };
+    }
     if (_name === "claim_code_runtime_slot") {
       slotCalls++;
       return { data: true, error: null };
@@ -105,6 +116,12 @@ registerHooks({
         context,
       );
     }
+    if (specifier === "./code-acceptance.server") {
+      return next(
+        "data:text/javascript,export const acceptancePublishGate=async()=>globalThis.__acceptanceGate()",
+        context,
+      );
+    }
     if (specifier.startsWith("./") && !/\.[a-z]+$/.test(specifier))
       return next(`${specifier}.ts`, context);
     return next(specifier, context);
@@ -121,7 +138,8 @@ globalThis.fetch = async (input) => {
     return Response.json({ keys: [jwk] });
   }
   if (failGithub) return new Response(null, { status: 503 });
-  if (url.pathname === "/repos/owner/repo") return Response.json({ default_branch: "main" });
+  if (url.pathname === "/repos/owner/repo" || url.pathname === "/repos/OMERTA-ROW/jackboy-dev-control")
+    return Response.json({ default_branch: "main" });
   if (url.pathname.endsWith("/actions/workflows/code.yml"))
     return Response.json({ state: "active" });
   if (url.pathname.endsWith("/contents/.github/workflows/code.yml")) {
@@ -216,6 +234,11 @@ beforeEach(() => {
     totalSpendGuard: { enforced: true, limitUsd: 10, committedUsd: 0 },
     spendMeter: { ok: true, reasons: [], measuredAt: new Date().toISOString(), measuredTodayUsd: 0, gatewayTodayUsd: 0, providerTodayUsd: 0, gatewayHourUsd: 0, unreportedDays: [], bypassDays: [] },
   };
+  acceptanceGuard = true;
+  auditFails = false;
+  gateAudits = [];
+  gateResult = { ok: true, reasons: [] };
+  globalThis.__acceptanceGate = () => gateResult;
   globalThis.__meterRefreshes = 0;
   globalThis.__autoLane = false;
   globalThis.__codeSafety = safetyState;
@@ -387,4 +410,52 @@ test("a request stored with any other lane value stays reviewed", async () => {
   globalThis.__autoLane = true;
   assert.equal((await laneClaim("execute", "CODE-AUTO")).status, 403);
   assert.equal((await laneClaim("execute", "CODE")).status, 200);
+});
+
+const acceptanceRepo = "OMERTA-ROW/jackboy-dev-control";
+function acceptanceSetup() {
+  row.resources = { ...scope(), repo: acceptanceRepo, acceptance: true, taskBudgetUsd: 1 };
+  safetyState.allowedTargets[acceptanceRepo] = { ref: "main", workflowSha };
+}
+const acceptanceToken = (environment = "CODE") => makeToken({
+  repository: acceptanceRepo,
+  workflow_ref: `${acceptanceRepo}/.github/workflows/code.yml@refs/heads/main`,
+  sub: `repo:${acceptanceRepo}:environment:${environment}`,
+  environment,
+});
+
+test("acceptance claims require fixed scope, reviewed lane and installed database guard", async () => {
+  acceptanceSetup();
+  row.resources.repo = "owner/repo";
+  assert.equal((await claim()).status, 403);
+  acceptanceSetup();
+  row.resources.lane = "auto";
+  globalThis.__autoLane = true;
+  assert.equal((await claim("execute", acceptanceToken("CODE-AUTO"))).status, 403);
+  acceptanceSetup();
+  safetyState.perTaskReserveUsd = 2;
+  assert.equal((await claim("execute", acceptanceToken())).status, 403);
+  safetyState.perTaskReserveUsd = 1;
+  acceptanceGuard = false;
+  assert.equal((await claim("execute", acceptanceToken())).status, 409);
+  assert.equal(rpcCalls, 0);
+  assert.equal(slotCalls, 0);
+});
+
+test("acceptance publish cannot claim on missing evidence or audit failure", async () => {
+  acceptanceSetup();
+  assert.equal((await claim("execute", acceptanceToken())).status, 200);
+  donePrepare();
+  gateResult = { ok: false, reasons: ["Evidence unavailable"] };
+  assert.equal((await claim("publish", acceptanceToken("CODE-PUBLISH"))).status, 409);
+  assert.equal(row.runner_publish_claimed_at, null);
+  gateResult = { ok: true, reasons: [] };
+  auditFails = true;
+  assert.equal((await claim("publish", acceptanceToken("CODE-PUBLISH"))).status, 409);
+  assert.equal(row.runner_publish_claimed_at, null);
+  assert.equal(rpcCalls, 1);
+  assert.equal(gateAudits.length, 2);
+  auditFails = false;
+  assert.equal((await claim("publish", acceptanceToken("CODE-PUBLISH"))).status, 200);
+  assert.ok(row.runner_publish_claimed_at);
 });

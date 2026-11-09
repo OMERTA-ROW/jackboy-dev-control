@@ -3,6 +3,8 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Check, Circle, CircleDot, OctagonX, Power } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ReadinessChecks } from "./ReadinessChecks";
+import { CodeAcceptanceCard } from "./CodeAcceptanceCard";
+import type { AcceptanceGates } from "@/lib/code-acceptance";
 import { useStepUp } from "@/lib/step-up-client";
 import {
   enableCodeRuntime,
@@ -48,6 +50,8 @@ type Props = {
   message?: string | null;
   /** Optional extra evidence shown under the readiness checks. */
   evidence?: ReactNode;
+  /** Live gates for the one-time $1 acceptance test; null while loading. */
+  acceptance?: AcceptanceGates | null;
 };
 
 /** One place for every CODE activation step, in order. All buttons call the same server functions with
@@ -61,6 +65,7 @@ export function ActivationPanel({
   run,
   message,
   evidence,
+  acceptance = null,
 }: Props) {
   const stepUp = useStepUp();
   const stop = useServerFn(engageCodeKillSwitch);
@@ -526,6 +531,7 @@ export function ActivationPanel({
           ) : (
             stepList
           ))}
+      {progress?.complete && acceptance && <CodeAcceptanceCard gates={acceptance} />}
       <details className="mt-4 border-t border-border pt-3" open={!progress?.complete}>
         <summary className="cursor-pointer text-xs text-muted-foreground">
           Readiness checks and tests

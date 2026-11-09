@@ -1,5 +1,23 @@
 # Jackboy roadmap
 
+## Synchronization safety repair
+- Chat OMNI execution is disabled: typed text and a handshake do not replace project authorization and an exact-job passkey grant. Status reads remain available.
+- Guardian limit saves use a limit-only atomic RPC; Stop is never copied from a prior read. Migration 0059 requires separate production review and approval.
+- Acceptance is bound to Jackboy/main, reviewed lane and its approved <=$1 actual hold, with a required database guard and fail-closed publish audit. Retries need a new Settings passkey request.
+- No migration application, paid execution, merge, publishing, deployment or autonomous activation is authorized by these repairs.
+
+## Chat routes OMNI jobs to OMNI (Nov 9, 02:16 UTC)
+- [x] Typed chat requests to run something on OMNI send a real job (POST /jackboy/jobs); the card shows job ID, HTTP status, status, OMNI's output, and the exact error with "did not run" on failure. Kill Switch and repo list checked; voice can't send. 833 tests pass.
+- [x] "Test OMNI link" (chat Shortcuts panel + chat tool) shows OMNI's contract, version and capabilities. Verified live: v0.1.0; test job f8ba1f5a completed, tests passed.
+- [ ] OMNI can't run shell commands (only clone + optional patch + go test) — needs an OMNI-side feature if wanted.
+- [ ] OMNI's result callbacks are still refused by Jackboy (legacy path disabled), so chat reads results by polling; publish needed for the live site.
+
+## $1 CODE acceptance test control (Nov 9, 02:00 UTC — owner approved build)
+- [x] Settings → Activation card: fixed docs-only task, reviewed lane, fresh passkey, existing $1/$5/$10 guards, server re-checks gates.
+- [x] Fail-closed publish gate: server reads the run's exact patch before the draft PR opens and refuses anything but added lines in docs/CODE-ACCEPTANCE.md; evidence panel (gate result, hold, AI calls, run, draft PR). 818 tests pass.
+- [ ] Publish dashboard — waits on separate owner approval.
+- [ ] Run the paid $1 test — waits on owner spend approval; GitHub artifact download by the CODE credential unproven until then.
+
 ## Jackboy Chat upgrade (Nov 8, 00:44 UTC)
 - [x] Conversations saved to the owner's account (own page per conversation), searchable, with one-press import of conversations saved only on this device.
 - [x] "Talk to" switcher: Jackboy, OMNI, JAX, Razul, Iggy, other owner-added agents and projects — replies use only stored notes; empty notes are said plainly.
@@ -243,3 +261,7 @@ The spoken acronym “NLOA” is unconfirmed in Notion. Do not infer a technical
 - [ ] Re-save OMNI_API_URL plain; set Railway runner service to runner-only mode; fresh OMNI approval expiry — owner.
 - [ ] Merge reconciliation PR, publish, then confirm deployed commit via the version check — owner.
 - [ ] Restore remaining lost Nov 8 preview work (owner OMNI/JAX record screens, workflow-disabled detection, link refusal naming) from `lovable-backup-main-1794110944` — needs owner go-ahead.
+- [x] Read-only CODE activation audit (Nov 9): self-test 8e387dcf confirmed completed; open blockers — controlled $1 test (owner spend approval), OpenAI cost cross-check never synced, OMNI project permission, Guardian record.
+
+## Owner request Nov 9
+- [x] Guardian section in Settings (status, protections, plain-language rules, recent allowed/blocked/flagged log, owner-only limits, Fleet/Automation/OMNI links) + Guardian entry in the Settings menu.

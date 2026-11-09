@@ -12,6 +12,46 @@ Implementation order: establish the runner contract → bind consent to a server
 
 ## Use
 
+### Synchronization safety guards (migration 0059)
+
+The Settings acceptance control fixes the repository to
+`OMERTA-ROW/jackboy-dev-control`, ref `main`, reviewed lane and
+`docs/CODE-ACCEPTANCE.md`. The project display name is not authority: the server
+rejects a resolved project whose repository differs. A fresh
+`code_acceptance_test` passkey creates the pending request; Allow and both GitHub
+environment approvals remain separate. Retrying requires another fresh Settings
+request, never conversion to an unrestricted CODE request.
+
+Request creation, approval and runner claims bind the reservation to the approved
+hold, at most $1. Migration `0059_sync_safety_guards.sql` additionally checks the
+actual reservation inside the existing admission transaction, so a concurrent
+configuration change cannot increase it. Missing or disabled database protection
+blocks acceptance. The existing $5 daily/$10 cumulative, metering, Emergency Stop,
+workflow identity and two-failure gates are unchanged. The publish patch decision
+must be successfully audited before a publish claim; unreadable evidence is an
+error, not zero spend or a passed gate.
+
+Migration 0059 also adds owner-only `set_guardian_limits`: only tier/file/line
+limits are updated and audited atomically, never the pause column. Until the
+reviewed migration is installed, that new settings save fails closed. No existing
+pause, permission, authorization, budget or schedule is enabled by the migration.
+It adds functions/triggers only, with no table-shape snapshot change.
+
+Review the migration and backup/restore readiness through the approved production
+process before applying it. Local PGlite tests cover rollback, failed installation,
+audit failure, role restrictions, pause preservation and acceptance hold rejection;
+they are not production migration evidence. A failed transactional installation
+must roll back. After installation, prefer a forward repair; an application
+rollback must keep the database acceptance guard in place, not remove spending
+protection to make a run pass.
+
+Chat-to-OMNI job execution remains disabled until it can reuse the existing
+current project authorization and exact-job passkey approval at dispatch.
+`sendOmniJob` only returns an audited refusal; a typed instruction or successful
+handshake grants no execution authority. Status polling and transport checks do
+not send repository work. Empty or invalid repository configuration is refused.
+No live job or paid acceptance run is part of these local checks.
+
 CODE conversations reuse the owner-only account history. The plus **New
 conversation** button starts a separate thread, and the conversation dropdown
 opens saved threads. **Conversations** includes search, rename, and deletion

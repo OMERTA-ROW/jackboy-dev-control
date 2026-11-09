@@ -82,7 +82,7 @@ test("the approval-save migration is appended after 0057 and links to the preced
   assert.ok(entry, "approval-save migration missing from journal");
   assert.equal(entry.idx, 58);
   assert.ok(entry.when > expiry.when);
-  assert.equal(journal.entries.at(-1).tag, entry.tag);
+  assert.ok(journal.entries.indexOf(entry) > journal.entries.findIndex((e) => e.tag === expiry.tag));
   const [previous, current] = await Promise.all(
     ["0056", "0058"].map(async (n) =>
       JSON.parse(await readFile(new URL(`meta/${n}_snapshot.json`, dir), "utf8")),
@@ -96,4 +96,11 @@ test("snapshot chain for the restored entries links back to 0054", async () => {
   const [s54, s55, s56] = await Promise.all(["0054", "0055", "0056"].map(snap));
   assert.equal(s55.prevId, s54.id);
   assert.equal(s56.prevId, s55.id);
+});
+
+test("sync safety guards append after approval-save without rewriting its history", () => {
+  const previous = journal.entries.find((e) => e.tag === "0058_omni_link_approval_save");
+  const current = journal.entries.find((e) => e.tag === "0059_sync_safety_guards");
+  assert.equal(current?.idx, 59);
+  assert.ok(current.when > previous.when);
 });

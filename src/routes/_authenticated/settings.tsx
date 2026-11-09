@@ -10,6 +10,8 @@ import { CodeLanePanel } from "@/components/CodeLanePanel";
 import { TaskSkipRules } from "@/components/TaskSkipRules";
 import { CapabilitiesPanel } from "@/components/CapabilitiesPanel";
 import { AutonomyStatusPanel } from "@/components/AutonomyStatusPanel";
+import { GuardianPanel } from "@/components/GuardianPanel";
+import { ShieldCheck } from "lucide-react";
 import { PageHeader } from "@/components/AppShell";
 
 export const Route = createFileRoute("/_authenticated/settings")({
@@ -38,6 +40,7 @@ export const ADVANCED = [
     { to: "/automation", label: "Automation policy", note: "Approval tiers and playbooks" },
   ] },
   { group: "Agents & partners", items: [
+    { to: "/settings", hash: "guardian", label: "Guardian", note: "What Guardian protects, its rules, recent decisions and owner settings" },
     { to: "/agents", label: "Agent Hub", note: "Registered Lovable projects, reports, keys" },
     { to: "/fleet", label: "Agent Fleet", note: "Capabilities and emergency pause" },
     { to: "/omni", label: "OMNI", note: "Build task queue and OMNI link values for Railway (not connected)" },
@@ -75,8 +78,15 @@ function Settings() {
   return (
     <>
       <PageHeader title="Settings & Advanced" subtitle="Every advanced Jackboy tool, grouped. Your everyday flow lives on Home and Projects." />
+      <nav aria-label="Jump to" className="mb-4 flex flex-wrap gap-2 text-xs">
+        <Link to="/settings" hash="guardian" className="inline-flex items-center gap-1 rounded-md border border-electric px-3 py-1.5 font-medium text-electric hover:bg-muted">
+          <ShieldCheck className="h-4 w-4" aria-hidden /> Guardian
+        </Link>
+        <Link to="/settings" hash="activation" className="inline-flex items-center rounded-md border border-border px-3 py-1.5 font-medium hover:border-electric">Activation & Kill Switch</Link>
+      </nav>
       <CodeSafetyPanel />
       <AutonomyStatusPanel />
+      <GuardianPanel />
       <CodeSitesList />
       <CodeLanePanel />
       <TaskSkipRules />
@@ -97,14 +107,17 @@ function Settings() {
           <section key={g.group} className="panel p-5" aria-labelledby={`g-${g.group}`}>
             <h2 id={`g-${g.group}`} className="text-sm font-semibold uppercase tracking-wider text-silver">{g.group}</h2>
             <ul className="mt-3 space-y-1">
-              {g.items.map((i) => (
-                <li key={i.to}>
-                  <Link to={i.to} className="block rounded-md p-2 hover:bg-muted">
-                    <span className="text-sm font-medium">{i.label}</span>
-                    <span className="block text-xs text-muted-foreground">{i.note}</span>
-                  </Link>
-                </li>
-              ))}
+              {g.items.map((i) => {
+                const hash: string = "hash" in i ? i.hash : "";
+                const body = <><span className="text-sm font-medium">{i.label}</span><span className="block text-xs text-muted-foreground">{i.note}</span></>;
+                return (
+                  <li key={i.to + hash}>
+                    {hash
+                      ? <Link to="/settings" hash={hash} className="block rounded-md p-2 hover:bg-muted">{body}</Link>
+                      : <Link to={i.to} className="block rounded-md p-2 hover:bg-muted">{body}</Link>}
+                  </li>
+                );
+              })}
             </ul>
           </section>
         ))}
