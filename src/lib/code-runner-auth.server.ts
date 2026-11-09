@@ -287,6 +287,10 @@ export async function handleCodeRunnerClaim(request: Request): Promise<Response>
         if (!check.lowRisk) return reply({ error: `This patch needs the reviewed lane: ${check.reasons.join(" ")}` }, 409);
       }
     }
+    const acceptance = (scope as { acceptance?: unknown }).acceptance === true;
+    if (acceptance && lane !== "reviewed") {
+      return reply({ error: "The acceptance test only runs in the reviewed lane." }, 403);
+    }
     await verifyWorkflowRun(
       claims,
       scope.repo,
@@ -296,6 +300,23 @@ export async function handleCodeRunnerClaim(request: Request): Promise<Response>
       body.stage,
       lane,
     );
+    if (acceptance && body.stage === "publish") {
+      // Fail closed: the exact patch must touch only the acceptance file before any draft PR can open.
+      const { acceptancePublishGate } = await import("./code-acceptance.server");
+      const gate = await acceptancePublishGate(
+        scope.repo,
+        Number(claims.run_id),
+        Number(claims.run_attempt),
+        process.env["CODE_GITHUB_TOKEN"],
+      );
+      await db.from("audit_logs").insert({
+        actor: row.requested_by,
+        action: gate.ok ? "code.acceptance_publish_allowed" : "code.acceptance_publish_blocked",
+        detail: { request: body.requestId, run_id: Number(claims.run_id), run_attempt: Number(claims.run_attempt), reasons: gate.reasons },
+        outcome: gate.ok ? "allowed" : "denied",
+      });
+      if (!gate.ok) return reply({ error: `Acceptance test blocked: ${gate.reasons.join(" ")}` }, 409);
+    }
     const { data, error: claimError } = await db.rpc("claim_code_runner", {
       p_request_id: body.requestId,
       p_stage: body.stage,

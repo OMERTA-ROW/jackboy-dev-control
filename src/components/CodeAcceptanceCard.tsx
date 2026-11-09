@@ -65,7 +65,8 @@ export function CodeAcceptanceCard({ gates }: { gates: AcceptanceGates }) {
         <li>Fixed task (not editable): {acceptanceInstruction(new Date())}</li>
         <li>Money set aside: up to ${gates.perTaskReserveUsd ?? "?"} · limits $5/day, $10 total</li>
         <li>Result: a draft PR changing only <code>{ACCEPTANCE_FILE}</code>. Nothing is merged or published.</li>
-        <li>Steps: passkey → Allow → approve the <code>CODE</code> environment in GitHub Actions.</li>
+        <li>Steps: passkey → Allow → in GitHub Actions approve <code>CODE</code> (prepare), then <code>CODE-PUBLISH</code> (draft PR).</li>
+        <li>Safety: before the draft PR opens, Jackboy reads the exact change and refuses to publish if it touches any other file, deletes lines, or can't be read.</li>
       </ul>
       {blocked && !card && <p className="mt-2 text-xs text-warning">Can't start: {blocked}</p>}
       {!card && (
@@ -87,6 +88,28 @@ export function CodeAcceptanceCard({ gates }: { gates: AcceptanceGates }) {
               GitHub run: <a className="underline" href={card.run.url} target="_blank" rel="noreferrer">{card.run.status}{card.run.conclusion ? ` · ${card.run.conclusion}` : ""}</a>
               {card.run.pr && <> · <a className="underline" href={card.run.pr} target="_blank" rel="noreferrer">draft PR</a></>}
             </p>
+          )}
+          {card.acceptanceEvidence && (
+            <ul className="space-y-1 text-muted-foreground">
+              <li>
+                Publish gate (checked before any draft PR):{" "}
+                {card.acceptanceEvidence.publishGate === null
+                  ? "not reached yet"
+                  : card.acceptanceEvidence.publishGate.ok
+                    ? <span className="text-success">passed at {new Date(card.acceptanceEvidence.publishGate.at).toLocaleString()}</span>
+                    : <span className="text-warning">BLOCKED — {card.acceptanceEvidence.publishGate.reasons.join(" ")}</span>}
+              </li>
+              <li>
+                Money held:{" "}
+                {card.acceptanceEvidence.hold
+                  ? `$${card.acceptanceEvidence.hold.reservedUsd.toFixed(2)} held · $${card.acceptanceEvidence.hold.releasedUsd.toFixed(2)} returned · ${card.acceptanceEvidence.hold.status}`
+                  : "nothing held yet"}
+              </li>
+              <li>
+                AI calls: {card.acceptanceEvidence.calls.count} · ${card.acceptanceEvidence.calls.actualUsd.toFixed(4)} metered
+                {card.acceptanceEvidence.calls.models.length > 0 && ` · ${card.acceptanceEvidence.calls.models.join(", ")}`}
+              </li>
+            </ul>
           )}
           {card.acceptance && (
             <p className={card.acceptance.ok ? "text-success" : "text-warning"}>
