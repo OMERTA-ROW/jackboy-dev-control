@@ -51,7 +51,11 @@ export function CodeAcceptanceCard({ gates }: { gates: AcceptanceGates }) {
     const next = await call({ op: "decide", id: card.id, nonce: card.nonce, decision });
     setCard(next);
   });
-  const refresh = () => guard(async () => { if (card) const fresh = await call(undefined, card.id); setCard(card.nonce ? { ...fresh, nonce: card.nonce } : fresh); });
+  const refresh = () => guard(async () => {
+    if (!card) return;
+    const fresh = await call(undefined, card.id);
+    setCard(card.nonce ? { ...fresh, nonce: card.nonce } : fresh);
+  });
 
   return (
     <div className="mt-4 rounded-md border border-border p-3" aria-labelledby="acceptance-heading">
