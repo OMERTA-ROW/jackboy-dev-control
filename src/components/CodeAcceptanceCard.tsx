@@ -65,7 +65,7 @@ export function CodeAcceptanceCard({ gates }: { gates: AcceptanceGates }) {
         <li>Fixed task (not editable): {acceptanceInstruction(new Date())}</li>
         <li>Money set aside: up to ${gates.perTaskReserveUsd ?? "?"} · limits $5/day, $10 total</li>
         <li>Result: a draft PR changing only <code>{ACCEPTANCE_FILE}</code>. Nothing is merged or published.</li>
-        <li>Steps: passkey → Allow → approve the <code>CODE</code> environment in GitHub Actions.</li>
+        <li>Steps: passkey → Allow → in GitHub Actions approve <code>CODE</code> (prepare), then <code>CODE-PUBLISH</code> (draft PR).</li>
         <li>Safety: before the draft PR opens, Jackboy reads the exact change and refuses to publish if it touches any other file, deletes lines, or can't be read.</li>
       </ul>
       {blocked && !card && <p className="mt-2 text-xs text-warning">Can't start: {blocked}</p>}
