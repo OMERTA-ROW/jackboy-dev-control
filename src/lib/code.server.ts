@@ -104,6 +104,7 @@ export async function requestCode(
   userId: string,
   sessionHash: string,
   retry = false,
+  opts: { acceptance?: boolean } = {},
 ) {
   const p = await project(projectId);
   await verify(p); // A real read, never a configured=true claim.
@@ -118,12 +119,14 @@ export async function requestCode(
     correlation: id,
     operation: retry ? "retry" : "dispatch",
     taskBudgetUsd: p.taskBudgetUsd,
+    ...(opts.acceptance ? { acceptance: true as const } : {}),
   };
   // Automatic lane: only when the owner switched it on for this site (passkey) and every low-risk rule holds.
   // Without the staged storage, autoLaneAllowed is false and every request stays in the reviewed lane.
   try {
     const lane = await import("./code-lane.server");
-    if (await lane.autoLaneAllowed(p.repo)) {
+    // The acceptance test always stays in the reviewed lane.
+    if (!opts.acceptance && await lane.autoLaneAllowed(p.repo)) {
       const { chooseLane, AUTO_HOLD_USD } = await import("./code-lane");
       const { getCodeSafetyState } = await import("./code-safety.server");
       const choice = chooseLane({
@@ -176,6 +179,20 @@ export async function getCode(id: string, userId: string): Promise<CodeCard> {
   ]);
   const url = codeLink(run.html_url, s.repo);
   if (!url) throw new Error("GitHub returned an invalid CODE run link.");
+  const draft = prs.find(p => p.draft);
+  if (s.acceptance) {
+    if (!draft) card.acceptance = { ok: null, reasons: ["No draft PR yet."] };
+    else {
+      const num = /\/pull\/(\d+)/.exec(draft.html_url)?.[1];
+      const files = num ? await gh<{ filename: string; status: string; deletions: number }[]>(s.repo, `/pulls/${num}/files?per_page=100`) : [];
+      const { acceptanceFilesCheck } = await import("./code-acceptance");
+      card.acceptance = acceptanceFilesCheck(files);
+      if (!card.acceptance.ok) {
+        card.outcome = `Acceptance test FAILED its docs-only check: ${card.acceptance.reasons.join(" ")} Close the draft PR without merging.`;
+        await db.from("audit_logs").insert({ actor: userId, action: "code.acceptance_scope_violation", detail: { request: id, reasons: card.acceptance.reasons } as never, outcome: "denied" });
+      }
+    }
+  }
   return { ...card, run: { id: run.id, status: run.status, conclusion: run.conclusion, updatedAt: run.updated_at ?? null, url, jobs: jobs.jobs.map(j => ({ name: j.name, status: j.status, conclusion: j.conclusion })), downloads: artifacts.artifacts.filter(a => !a.expired).flatMap(a => { const u = codeLink(`${url}/artifacts/${a.id}`, s.repo); return u ? [{ name: a.name, url: u }] : []; }), pr: codeLink(prs.find(p => p.draft)?.html_url, s.repo) } };
 }
 export async function decideCode(id: string, nonce: string, decision: "allow" | "deny", userId: string, sessionHash: string) {
