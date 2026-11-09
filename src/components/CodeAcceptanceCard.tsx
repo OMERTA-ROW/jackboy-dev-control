@@ -48,7 +48,8 @@ export function CodeAcceptanceCard({ gates }: { gates: AcceptanceGates }) {
   });
   const decide = (decision: "allow" | "deny") => guard(async () => {
     if (!card?.nonce) throw new Error("This request can no longer be decided here.");
-    setCard(await call({ op: "decide", id: card.id, nonce: card.nonce, decision }));
+    const next = await call({ op: "decide", id: card.id, nonce: card.nonce, decision });
+    setCard(next);
   });
   const refresh = () => guard(async () => { if (card) const fresh = await call(undefined, card.id); setCard(card.nonce ? { ...fresh, nonce: card.nonce } : fresh); });
 
