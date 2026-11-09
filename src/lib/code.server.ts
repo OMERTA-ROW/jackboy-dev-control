@@ -182,15 +182,15 @@ export async function getCode(id: string, userId: string): Promise<CodeCard> {
   const draft = prs.find(p => p.draft);
   if (s.acceptance) {
     const [gateRows, holdRows, callRows] = await Promise.all([
-      db.from("audit_logs").select("action, detail, created_at").in("action", ["code.acceptance_publish_allowed", "code.acceptance_publish_blocked"]).eq("detail->>request", id).order("created_at", { ascending: false }).limit(1),
+      db.from("audit_logs").select("action, detail, at").in("action", ["code.acceptance_publish_allowed", "code.acceptance_publish_blocked"]).eq("detail->>request", id).order("at", { ascending: false }).limit(1),
       db.from("code_spend_reservations").select("reserved_usd, released_usd, status").eq("request_id", id).order("created_at", { ascending: false }).limit(1),
       db.from("code_provider_calls").select("model, actual_usd").eq("request_id", id).limit(100),
     ]);
-    const g = gateRows.data?.[0] as { action: string; detail: { reasons?: unknown } | null; created_at: string } | undefined;
+    const g = gateRows.data?.[0] as { action: string; detail: { reasons?: unknown } | null; at: string } | undefined;
     const h = holdRows.data?.[0];
     const calls = callRows.data ?? [];
     card.acceptanceEvidence = {
-      publishGate: g ? { ok: g.action === "code.acceptance_publish_allowed", reasons: Array.isArray(g.detail?.reasons) ? (g.detail!.reasons as unknown[]).map(String) : [], at: g.created_at } : null,
+      publishGate: g ? { ok: g.action === "code.acceptance_publish_allowed", reasons: Array.isArray(g.detail?.reasons) ? (g.detail!.reasons as unknown[]).map(String) : [], at: g.at } : null,
       hold: h ? { reservedUsd: Number(h.reserved_usd), releasedUsd: Number(h.released_usd), status: h.status } : null,
       calls: { count: calls.length, actualUsd: calls.reduce((t, c) => t + (Number(c.actual_usd) || 0), 0), models: [...new Set(calls.map((c) => c.model))] },
     };
