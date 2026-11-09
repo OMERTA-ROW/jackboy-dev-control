@@ -47,6 +47,9 @@ protection to make a run pass.
 
 ### Forward verification repair (migration 0060)
 
+For the repeatable, disconnected PostgreSQL 17.11 restored-data rehearsal and its
+remaining recovery exclusions, see [CODE recovery rehearsal](CODE-RECOVERY-REHEARSAL.md).
+
 No existing companion 0060 was available in main or the inspected Lovable branch.
 `0060_code_acceptance_guard_verification.sql` is a new, unapplied forward repair,
 not a recovered production migration. The reviewed 0059 SQL and journal timestamp
