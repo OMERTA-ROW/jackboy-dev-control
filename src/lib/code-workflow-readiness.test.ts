@@ -18,6 +18,15 @@ describe("post-merge workflow pin evidence", () => {
     expect(workflowPinReport(targets(old), JSON.stringify(targets(merged)), merged).matches).toBe(false);
     expect(workflowPinReport(targets(merged), JSON.stringify({ ...targets(merged), "OMERTA-ROW/Omni": { ref: "main", workflowSha: merged } }), merged).matches).toBe(false);
   });
+  it("keeps CODE blocked after PR #50 changed the workflow until both stored pins name the live blob", () => {
+    const approved = "37368194f883bc1cf5175aecf4832945203b602b";
+    const live = "72f48d395602c92d8af81d883ee6f85655eb56d0";
+    const stale = workflowPinReport(targets(approved), JSON.stringify(targets(approved)), live);
+    expect(stale.matches).toBe(false);
+    expect(stale.proposedTargets).toEqual(targets(live));
+    expect(workflowPinReport(targets(live), JSON.stringify(targets(approved)), live).matches).toBe(false);
+    expect(workflowPinReport(targets(live), JSON.stringify(targets(live)), live).matches).toBe(true);
+  });
   it("fails closed on absent policy, unavailable GitHub evidence or a non-main ref", () => {
     expect(workflowPinReport(targets(merged), undefined, merged).matches).toBe(false);
     expect(workflowPinReport(targets(merged), JSON.stringify(targets(merged)), null).proposedTargets).toBeNull();
