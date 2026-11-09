@@ -122,7 +122,7 @@ describe("bounded ZIP reader", () => {
     await expect(readZipEntry(zipOf("code.patch", goodNew, 8, ["code.patch", "code.patch"]), "code.patch", 65536)).rejects.toThrow();
     await expect(readZipEntry(zipOf("code.patch", goodNew), "code.patch", 10)).rejects.toThrow();
     const bad = zipOf("code.patch", goodNew, 0);
-    bad[40] ^= 0xff;
+    bad[40] = bad[40]! ^ 0xff;
     await expect(readZipEntry(bad, "code.patch", 65536)).rejects.toThrow(/integrity/);
     await expect(readZipEntry(new Uint8Array(10), "code.patch", 65536)).rejects.toThrow();
   });

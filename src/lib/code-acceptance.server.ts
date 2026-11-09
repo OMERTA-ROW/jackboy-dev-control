@@ -26,7 +26,7 @@ export async function acceptancePublishGate(
   try {
     const list = await fetchImpl(
       `https://api.github.com/repos/${repo}/actions/runs/${runId}/artifacts?name=${encodeURIComponent(name)}&per_page=10`,
-      { headers, redirect: "error", signal: AbortSignal.timeout(10_000) },
+      { headers, redirect: "manual", signal: AbortSignal.timeout(10_000) },
     );
     if (!list.ok) return fail("Jackboy couldn't list the run's evidence.");
     const artifacts = ((await list.json()) as { artifacts?: Artifact[] }).artifacts ?? [];
@@ -46,7 +46,7 @@ export async function acceptancePublishGate(
     const url = new URL(location);
     if (url.protocol !== "https:" || url.username || url.password) return fail("GitHub returned an unsafe download address.");
     // Signed download URL: never forward the GitHub credential to it.
-    const download = await fetchImpl(url.href, { redirect: "error", signal: AbortSignal.timeout(15_000) });
+    const download = await fetchImpl(url.href, { redirect: "manual", signal: AbortSignal.timeout(15_000) });
     if (!download.ok) return fail("Jackboy couldn't download the patch evidence.");
     const declared = Number(download.headers.get("content-length") ?? "0");
     if (declared > ACCEPTANCE_MAX_ARTIFACT_BYTES) return fail("The patch evidence is too large.");
