@@ -108,7 +108,7 @@ export function TestOmniLinkButton() {
     finally { setBusy(false); }
   };
   return (
-    <div className="px-3 pb-2 sm:px-6">
+    <div>
       <Button size="sm" variant="outline" disabled={busy} onClick={() => void go()}>{busy ? "Testing OMNI link…" : "Test OMNI link"}</Button>
       {r && <div className="mt-2"><HandshakeResult r={r} /></div>}
     </div>

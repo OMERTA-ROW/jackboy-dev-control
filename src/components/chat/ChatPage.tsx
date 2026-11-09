@@ -520,6 +520,11 @@ function OwnerChat({ threadId, userId, role }: { threadId: string; userId: strin
             <Toggle label="Status line" on={prefs.statusLine} onChange={(v) => setPref("statusLine", v)} />
             {!prefs.saveHistory && <p className="text-xs text-warning">New messages aren't saved while this is off. Earlier saved messages stay.</p>}
           </section>
+          <section aria-label="OMNI link" className="space-y-2">
+            <h3 className="text-sm font-semibold text-silver">OMNI link</h3>
+            <p className="text-xs text-muted-foreground">Checks the live link to OMNI. Sends no job.</p>
+            <TestOmniLinkButton />
+          </section>
           <VoiceSupport />
           <nav aria-label="Secondary" className="flex flex-col gap-1 text-sm">
             <Link to="/research" className="rounded-lg px-3 py-2 hover:bg-muted">Research</Link>
