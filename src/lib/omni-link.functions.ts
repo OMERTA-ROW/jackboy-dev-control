@@ -56,6 +56,16 @@ export const runOmniHandshake = createServerFn({ method: "POST" })
     return omniHandshake(context.userId);
   });
 
+/** Read-only status of one chat-sent OMNI job (real GET /jackboy/jobs/{id}). */
+export const checkOmniJob = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { jobId: string }) => z.object({ jobId: z.string().uuid() }).parse(input))
+  .handler(async ({ context, data }) => {
+    await requireOwner(context);
+    const { getOmniJob } = await import("./omni-jobs.server");
+    return getOmniJob(data.jobId);
+  });
+
 /** Read-only check of the reviewed OMNI-initiated link (omni.link/v2, PR #3 design).
  * OMNI calls Jackboy, so Jackboy never calls OMNI here; it never sends work or reads secret values. */
 export const probeOmniConnection = createServerFn({ method: "POST" })

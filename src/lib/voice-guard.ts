@@ -6,7 +6,7 @@ import type { ToolRisk } from "./agent-contracts";
 export const TOOL_RISK: Record<string, ToolRisk> = {
   scanSite: "bounded", fixIssue: "bounded", writeFile: "bounded", openDraftPR: "bounded",
   foundryInspect: "bounded", foundryDecide: "bounded", saveMemory: "bounded",
-  createTask: "bounded",
+  createTask: "bounded", sendOmniJob: "bounded",
   setAutopilot: "sensitive", linkRepo: "sensitive", setDevEnabled: "sensitive",
 };
 export const PRIVILEGED_TOOLS = Object.keys(TOOL_RISK);

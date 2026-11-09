@@ -61,6 +61,24 @@ export async function handleChat(request: Request) {
   });
 
 
+  // OMNI jobs: the owner's typed request is the per-job authorization; voice is blocked by guardTools below.
+  // Results come only from OMNI's real HTTP replies — never from the model.
+  (tools as Record<string, unknown>)["sendOmniJob"] = tool({
+    description: "Send ONE real job to OMNI's job inbox (POST /jackboy/jobs) and return OMNI's actual reply: job ID, HTTP status, status and any output. Use for every request to run a command, code, test or job on OMNI. kind 'test' runs OMNI's fixed test routine; kind 'code' needs a unified diff in patch. repo is optional (defaults to the first OMNI-allowed repo).",
+    inputSchema: z.object({ kind: z.enum(["test", "code"]).default("test"), instructions: z.string().min(1).max(4000), repo: z.string().max(200).optional(), patch: z.string().max(200 * 1024).optional() }),
+    execute: async ({ kind, instructions, repo, patch }) => (await import("./omni-jobs.server")).submitOmniJob(userId, { kind, instructions, repo, patch }),
+  });
+  (tools as Record<string, unknown>)["omniJobStatus"] = tool({
+    description: "Read an OMNI job's real status and output (GET /jackboy/jobs/{id}). Read-only.",
+    inputSchema: z.object({ jobId: z.string().uuid() }),
+    execute: async ({ jobId }) => (await import("./omni-jobs.server")).getOmniJob(jobId),
+  });
+  (tools as Record<string, unknown>)["testOmniLink"] = tool({
+    description: "Run the OMNI link handshake (POST /jackboy/handshake) and return OMNI's contract, version and capabilities, or the real error with HTTP status. Sends no job.",
+    inputSchema: z.object({}),
+    execute: async () => (await import("./omni-link.server")).omniHandshake(userId),
+  });
+
   // GuardianPolicy: voice is intent, not identity. Each privileged tool is re-decided per call.
   guardTools(tools, userId, (n) => decideTool(n, body.messages as never), PRIVILEGED_TOOLS);
   const runIdFetch = createLovableAiGatewayRunIdFetch(getLovableAiGatewayRunId(request));
@@ -80,6 +98,7 @@ export async function handleChat(request: Request) {
       "For the durable work queue use foundryQueue/foundryInspect/foundryDecide (same as the Code Foundry buttons); for site reachability use checkSite; for repo connection use connectionStatus — connecting needs the passkey button. Workflow for any fix: recallMemory -> inspect -> writeFile -> showDiff -> checkStatus -> openDraftPR -> saveMemory (outcome + next_action). Pick low-risk changes; never touch auth, payments, secrets, migrations or permissions without the owner asking.", "For what can you do / what is missing / what next, call capabilities and answer in three short parts. For \"fix it\", use the next actions (scan → fix → draft PR) within approval rules. Before saying you can build/edit/test anything, call capabilities. Never merge, deploy or write to the base branch; the owner approves pull requests.",
       "Messages from the microphone may be misheard. Generic spoken yes/confirm never authorizes change tools. Use scoped approval cards. For CODE instruct the owner to say or type CODE exact-project-name: task, then review and allow the specific pending CODE card. Spoken approval never covers Autopilot or repo-link changes — ask the owner to type those. Never repeat passwords, tokens or keys aloud or in text. ",
       "Site scans read static HTML only and do not run JavaScript; say so when relevant. Report failures exactly.",
+      "OMNI: you never run, predict or simulate OMNI jobs yourself. For any request to run a command, code, test or job on OMNI, call sendOmniJob, then report only what it returned: job ID, HTTP status, status and OMNI's output. OMNI's worker does not execute shell commands (it clones an allowed repo, applies an optional patch and runs go test), so say plainly that the command text went as instructions and never present expected command output (for example an echo result) as if OMNI produced it. If sendOmniJob returns sent:false, say the job did not run and quote its error with the HTTP status; do not retry silently or answer in OMNI's place. Use omniJobStatus for later status and testOmniLink to check the link.",
       VISUAL_POLICY,
       contextInstructions(brief),
     ].filter(Boolean).join(" "),
