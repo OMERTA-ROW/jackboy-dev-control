@@ -13,7 +13,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** What OMNI's current worker really does, so chat never implies it ran an arbitrary command. */
 export const OMNI_WORKER_NOTE =
-  "OMNI's worker does not run shell commands. It clones the allowed repository into a throwaway folder, applies a patch if one was sent, runs `go test ./...` and never pushes. Your text was sent as the job's instructions.";
+  "OMNI's worker does not run shell commands. It clones the allowed repository into a throwaway folder, applies a patch if one was sent, runs go test ./... and never pushes. Your text was sent as the job's instructions.";
 
 /** Comma-separated owner/repo list (same format OMNI uses). Invalid entries are dropped. */
 export function parseAllowedRepos(raw: string | undefined): string[] {

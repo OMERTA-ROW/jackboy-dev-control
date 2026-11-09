@@ -1,5 +1,11 @@
 # Jackboy roadmap
 
+## Chat routes OMNI jobs to OMNI (Nov 9, 02:16 UTC)
+- [x] Typed chat requests to run something on OMNI send a real job (POST /jackboy/jobs); the card shows job ID, HTTP status, status, OMNI's output, and the exact error with "did not run" on failure. Kill Switch and repo list checked; voice can't send. 833 tests pass.
+- [x] "Test OMNI link" (chat Shortcuts panel + chat tool) shows OMNI's contract, version and capabilities. Verified live: v0.1.0; test job f8ba1f5a completed, tests passed.
+- [ ] OMNI can't run shell commands (only clone + optional patch + go test) — needs an OMNI-side feature if wanted.
+- [ ] OMNI's result callbacks are still refused by Jackboy (legacy path disabled), so chat reads results by polling; publish needed for the live site.
+
 ## $1 CODE acceptance test control (Nov 9, 02:00 UTC — owner approved build)
 - [x] Settings → Activation card: fixed docs-only task, reviewed lane, fresh passkey, existing $1/$5/$10 guards, server re-checks gates.
 - [x] Fail-closed publish gate: server reads the run's exact patch before the draft PR opens and refuses anything but added lines in docs/CODE-ACCEPTANCE.md; evidence panel (gate result, hold, AI calls, run, draft PR). 818 tests pass.
