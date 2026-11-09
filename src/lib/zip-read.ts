@@ -19,7 +19,13 @@ export function crc32(data: Uint8Array): number {
 }
 
 async function inflateRaw(data: Uint8Array, max: number): Promise<Uint8Array> {
-  const stream = new Blob([data as BlobPart]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+  const source = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(data);
+      controller.close();
+    },
+  });
+  const stream = source.pipeThrough(new DecompressionStream("deflate-raw") as unknown as ReadableWritablePair<Uint8Array, Uint8Array>);
   const reader = stream.getReader();
   const chunks: Uint8Array[] = [];
   let total = 0;
