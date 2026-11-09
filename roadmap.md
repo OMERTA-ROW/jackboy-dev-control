@@ -1,5 +1,11 @@
 # Jackboy roadmap
 
+## Synchronization safety repair
+- Chat OMNI execution is disabled: typed text and a handshake do not replace project authorization and an exact-job passkey grant. Status reads remain available.
+- Guardian limit saves use a limit-only atomic RPC; Stop is never copied from a prior read. Migration 0059 requires separate production review and approval.
+- Acceptance is bound to Jackboy/main, reviewed lane and its approved <=$1 actual hold, with a required database guard and fail-closed publish audit. Retries need a new Settings passkey request.
+- No migration application, paid execution, merge, publishing, deployment or autonomous activation is authorized by these repairs.
+
 ## Chat routes OMNI jobs to OMNI (Nov 9, 02:16 UTC)
 - [x] Typed chat requests to run something on OMNI send a real job (POST /jackboy/jobs); the card shows job ID, HTTP status, status, OMNI's output, and the exact error with "did not run" on failure. Kill Switch and repo list checked; voice can't send. 833 tests pass.
 - [x] "Test OMNI link" (chat Shortcuts panel + chat tool) shows OMNI's contract, version and capabilities. Verified live: v0.1.0; test job f8ba1f5a completed, tests passed.

@@ -192,7 +192,9 @@ export function CodeSafetyPanel() {
                 globalPaused: gates ? gates.globalPaused : null,
                 activeRequestId: settings.activeRequestId,
                 perTaskReserveUsd: settings.perTaskReserveUsd,
-                allowed: !!(settings.targets as Record<string, { workflowSha?: string }> | null)?.[ACCEPTANCE_REPO]?.workflowSha,
+                allowed:
+                  settings.targets[ACCEPTANCE_REPO]?.ref === "main" &&
+                  !!settings.targets[ACCEPTANCE_REPO]?.workflowSha,
               }
             : null
         }

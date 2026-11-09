@@ -17,7 +17,10 @@ async function call(body?: unknown, id?: string): Promise<CodeCard> {
   if (!data.session) throw new Error("Sign in to use CODE.");
   const r = await fetch(id ? `/api/code?id=${encodeURIComponent(id)}` : "/api/code", {
     method: id ? "GET" : "POST",
-    headers: { Authorization: `Bearer ${data.session.access_token}`, "Content-Type": "application/json" },
+    headers: {
+      Authorization: `Bearer ${data.session.access_token}`,
+      "Content-Type": "application/json",
+    },
     ...(id ? {} : { body: JSON.stringify(body) }),
   });
   const result = await r.json();
@@ -34,70 +37,127 @@ export function CodeAcceptanceCard({ gates }: { gates: AcceptanceGates }) {
   const blocked = acceptanceBlockReason(gates);
 
   const guard = async (fn: () => Promise<void>) => {
-    setBusy(true); setError(null);
-    try { await fn(); } catch (e) { setError(e instanceof Error ? e.message : "Acceptance test failed."); }
-    finally { setBusy(false); }
+    setBusy(true);
+    setError(null);
+    try {
+      await fn();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Acceptance test failed.");
+    } finally {
+      setBusy(false);
+    }
   };
-  const start = () => guard(async () => {
-    const result = await stepUp("code_acceptance_test", acceptanceTarget(ACCEPTANCE_REPO), {
-      applyingText: "Passkey confirmed. Creating the acceptance test request…",
-      apply: (grantId) => call({ op: "acceptance", grantId }),
-      doneText: () => "Request created. Press Allow to dispatch it to GitHub.",
+  const start = () =>
+    guard(async () => {
+      const result = await stepUp("code_acceptance_test", acceptanceTarget(ACCEPTANCE_REPO), {
+        applyingText: "Passkey confirmed. Creating the acceptance test request…",
+        apply: (grantId) => call({ op: "acceptance", grantId }),
+        doneText: () => "Request created. Press Allow to dispatch it to GitHub.",
+      });
+      if (result && typeof result === "object" && "id" in (result as object))
+        setCard(result as CodeCard);
     });
-    if (result && typeof result === "object" && "id" in (result as object)) setCard(result as CodeCard);
-  });
-  const decide = (decision: "allow" | "deny") => guard(async () => {
-    if (!card?.nonce) throw new Error("This request can no longer be decided here.");
-    const next = await call({ op: "decide", id: card.id, nonce: card.nonce, decision });
-    setCard(next);
-  });
-  const refresh = () => guard(async () => {
-    if (!card) return;
-    const fresh = await call(undefined, card.id);
-    setCard(card.nonce ? { ...fresh, nonce: card.nonce } : fresh);
-  });
+  const decide = (decision: "allow" | "deny") =>
+    guard(async () => {
+      if (!card?.nonce) throw new Error("This request can no longer be decided here.");
+      const next = await call({ op: "decide", id: card.id, nonce: card.nonce, decision });
+      setCard(next);
+    });
+  const refresh = () =>
+    guard(async () => {
+      if (!card) return;
+      const fresh = await call(undefined, card.id);
+      setCard(card.nonce ? { ...fresh, nonce: card.nonce } : fresh);
+    });
 
   return (
     <div className="mt-4 rounded-md border border-border p-3" aria-labelledby="acceptance-heading">
-      <h3 id="acceptance-heading" className="text-sm font-semibold">First $1 CODE acceptance test</h3>
+      <h3 id="acceptance-heading" className="text-sm font-semibold">
+        First $1 CODE acceptance test
+      </h3>
       <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
-        <li>Target: <code>{ACCEPTANCE_REPO}</code> · main · reviewed lane only</li>
+        <li>
+          Target: <code>{ACCEPTANCE_REPO}</code> · main · reviewed lane only
+        </li>
         <li>Fixed task (not editable): {acceptanceInstruction(new Date())}</li>
         <li>Money set aside: up to ${gates.perTaskReserveUsd ?? "?"} · limits $5/day, $10 total</li>
-        <li>Result: a draft PR changing only <code>{ACCEPTANCE_FILE}</code>. Nothing is merged or published.</li>
-        <li>Steps: passkey → Allow → in GitHub Actions approve <code>CODE</code> (prepare), then <code>CODE-PUBLISH</code> (draft PR).</li>
-        <li>Safety: before the draft PR opens, Jackboy reads the exact change and refuses to publish if it touches any other file, deletes lines, or can't be read.</li>
+        <li>
+          Result: a draft PR changing only <code>{ACCEPTANCE_FILE}</code>. Nothing is merged or
+          published.
+        </li>
+        <li>
+          Steps: passkey → Allow → in GitHub Actions approve <code>CODE</code> (prepare), then{" "}
+          <code>CODE-PUBLISH</code> (draft PR).
+        </li>
+        <li>
+          Safety: before the draft PR opens, Jackboy reads the exact change and refuses to publish
+          if it touches any other file, deletes lines, or can't be read.
+        </li>
       </ul>
       {blocked && !card && <p className="mt-2 text-xs text-warning">Can't start: {blocked}</p>}
       {!card && (
-        <Button size="sm" className="mt-3" disabled={busy || blocked !== null} onClick={() => void start()}>
+        <Button
+          size="sm"
+          className="mt-3"
+          disabled={busy || blocked !== null}
+          onClick={() => void start()}
+        >
           Start $1 test with passkey
         </Button>
       )}
       {card && (
         <div className="mt-3 space-y-2 text-xs">
-          <p>Request <code>{card.id}</code> · status <strong>{card.status}</strong></p>
+          <p>
+            Request <code>{card.id}</code> · status <strong>{card.status}</strong>
+          </p>
           {card.status === "pending" && (
             <div className="flex gap-2">
-              <Button size="sm" disabled={busy} onClick={() => void decide("allow")}>Allow (dispatch to GitHub)</Button>
-              <Button size="sm" variant="outline" disabled={busy} onClick={() => void decide("deny")}>Deny</Button>
+              <Button size="sm" disabled={busy} onClick={() => void decide("allow")}>
+                Allow (dispatch to GitHub)
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={busy}
+                onClick={() => void decide("deny")}
+              >
+                Deny
+              </Button>
             </div>
           )}
           {card.run && (
             <p>
-              GitHub run: <a className="underline" href={card.run.url} target="_blank" rel="noreferrer">{card.run.status}{card.run.conclusion ? ` · ${card.run.conclusion}` : ""}</a>
-              {card.run.pr && <> · <a className="underline" href={card.run.pr} target="_blank" rel="noreferrer">draft PR</a></>}
+              GitHub run:{" "}
+              <a className="underline" href={card.run.url} target="_blank" rel="noreferrer">
+                {card.run.status}
+                {card.run.conclusion ? ` · ${card.run.conclusion}` : ""}
+              </a>
+              {card.run.pr && (
+                <>
+                  {" "}
+                  ·{" "}
+                  <a className="underline" href={card.run.pr} target="_blank" rel="noreferrer">
+                    draft PR
+                  </a>
+                </>
+              )}
             </p>
           )}
           {card.acceptanceEvidence && (
             <ul className="space-y-1 text-muted-foreground">
               <li>
                 Publish gate (checked before any draft PR):{" "}
-                {card.acceptanceEvidence.publishGate === null
-                  ? "not reached yet"
-                  : card.acceptanceEvidence.publishGate.ok
-                    ? <span className="text-success">passed at {new Date(card.acceptanceEvidence.publishGate.at).toLocaleString()}</span>
-                    : <span className="text-warning">BLOCKED — {card.acceptanceEvidence.publishGate.reasons.join(" ")}</span>}
+                {card.acceptanceEvidence.publishGate === null ? (
+                  "not reached yet"
+                ) : card.acceptanceEvidence.publishGate.ok ? (
+                  <span className="text-success">
+                    passed at {new Date(card.acceptanceEvidence.publishGate.at).toLocaleString()}
+                  </span>
+                ) : (
+                  <span className="text-warning">
+                    BLOCKED — {card.acceptanceEvidence.publishGate.reasons.join(" ")}
+                  </span>
+                )}
               </li>
               <li>
                 Money held:{" "}
@@ -106,22 +166,40 @@ export function CodeAcceptanceCard({ gates }: { gates: AcceptanceGates }) {
                   : "nothing held yet"}
               </li>
               <li>
-                AI calls: {card.acceptanceEvidence.calls.count} · ${card.acceptanceEvidence.calls.actualUsd.toFixed(4)} metered
-                {card.acceptanceEvidence.calls.models.length > 0 && ` · ${card.acceptanceEvidence.calls.models.join(", ")}`}
+                AI calls: {card.acceptanceEvidence.calls.count} · $
+                {card.acceptanceEvidence.calls.actualUsd.toFixed(4)} metered
+                {card.acceptanceEvidence.calls.models.length > 0 &&
+                  ` · ${card.acceptanceEvidence.calls.models.join(", ")}`}
               </li>
             </ul>
           )}
           {card.acceptance && (
             <p className={card.acceptance.ok ? "text-success" : "text-warning"}>
-              Docs-only check: {card.acceptance.ok === null ? "waiting for the draft PR" : card.acceptance.ok ? "passed" : `FAILED — ${card.acceptance.reasons.join(" ")}`}
+              Docs-only check:{" "}
+              {card.acceptance.ok === null
+                ? "waiting for the draft PR"
+                : card.acceptance.ok
+                  ? "passed"
+                  : `FAILED — ${card.acceptance.reasons.join(" ")}`}
             </p>
           )}
           {card.outcome && <p className="text-muted-foreground">{card.outcome}</p>}
-          {card.status !== "pending" && <Button size="sm" variant="outline" disabled={busy} onClick={() => void refresh()}>Refresh evidence</Button>}
-          <p className="text-muted-foreground">After the run: spending and provider calls appear under CODE safety; the OpenAI cost cross-check runs about 6 hours after the UTC day closes.</p>
+          {card.status !== "pending" && (
+            <Button size="sm" variant="outline" disabled={busy} onClick={() => void refresh()}>
+              Refresh evidence
+            </Button>
+          )}
+          <p className="text-muted-foreground">
+            After the run: spending and provider calls appear under CODE safety; the OpenAI cost
+            cross-check runs about 6 hours after the UTC day closes.
+          </p>
         </div>
       )}
-      {error && <p role="alert" className="mt-2 text-xs text-warning">{error}</p>}
+      {error && (
+        <p role="alert" className="mt-2 text-xs text-warning">
+          {error}
+        </p>
+      )}
     </div>
   );
 }

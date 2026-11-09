@@ -4,7 +4,12 @@ import { redact } from "./site-log";
 import { JOB_CONTRACT } from "./omni-link";
 
 export type OmniJobKind = "code" | "test";
-export type OmniJobInput = { kind: OmniJobKind; repo: string; instructions: string; patch?: string | undefined };
+export type OmniJobInput = {
+  kind: OmniJobKind;
+  repo: string;
+  instructions: string;
+  patch?: string | undefined;
+};
 
 export const OMNI_JOB_MAX_INSTRUCTIONS = 4000;
 export const OMNI_JOB_MAX_PATCH = 200 * 1024;
@@ -15,20 +20,37 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const OMNI_WORKER_NOTE =
   "OMNI's worker does not run shell commands. It clones the allowed repository into a throwaway folder, applies a patch if one was sent, runs go test ./... and never pushes. Your text was sent as the job's instructions.";
 
+export const OMNI_CHAT_EXECUTION_BLOCKED =
+  "OMNI chat execution is disabled. Review project access and approve the exact job with passkey on the OMNI page. Typed text and a connection handshake do not authorize execution.";
+
 /** Comma-separated owner/repo list (same format OMNI uses). Invalid entries are dropped. */
 export function parseAllowedRepos(raw: string | undefined): string[] {
-  return [...new Set((raw ?? "").split(",").map((r) => r.trim()).filter((r) => REPO.test(r)))];
+  return [
+    ...new Set(
+      (raw ?? "")
+        .split(",")
+        .map((r) => r.trim())
+        .filter((r) => REPO.test(r)),
+    ),
+  ];
 }
 
 /** Picks the job's repository: the requested one must be on Jackboy's list; no request uses the first entry. */
-export function pickOmniRepo(requested: string | undefined, allowed: string[]): { repo: string } | { error: string } {
+export function pickOmniRepo(
+  requested: string | undefined,
+  allowed: string[],
+): { repo: string } | { error: string } {
+  if (!allowed.length)
+    return {
+      error: "OMNI_ALLOWED_REPOS is empty or invalid, so no OMNI repository is authorized.",
+    };
   const want = requested?.trim();
   if (want) {
     if (!REPO.test(want)) return { error: `"${want.slice(0, 100)}" is not an owner/repo name.` };
-    if (allowed.length && !allowed.includes(want)) return { error: `${want} is not on Jackboy's OMNI repository list (OMNI_ALLOWED_REPOS).` };
+    if (!allowed.includes(want))
+      return { error: `${want} is not on Jackboy's OMNI repository list (OMNI_ALLOWED_REPOS).` };
     return { repo: want };
   }
-  if (!allowed.length) return { error: "No repository was named and OMNI_ALLOWED_REPOS is empty, so Jackboy can't pick one." };
   return { repo: allowed[0]! };
 }
 
@@ -36,8 +58,10 @@ export function validateOmniJob(input: OmniJobInput): string | null {
   if (input.kind !== "code" && input.kind !== "test") return "Job kind must be code or test.";
   if (!REPO.test(input.repo)) return "Repository must be an owner/repo name.";
   if (!input.instructions.trim()) return "The job needs instructions.";
-  if (input.instructions.length > OMNI_JOB_MAX_INSTRUCTIONS) return `Instructions are longer than ${OMNI_JOB_MAX_INSTRUCTIONS} characters.`;
-  if (input.patch && input.patch.length > OMNI_JOB_MAX_PATCH) return "The patch is larger than 200 KB.";
+  if (input.instructions.length > OMNI_JOB_MAX_INSTRUCTIONS)
+    return `Instructions are longer than ${OMNI_JOB_MAX_INSTRUCTIONS} characters.`;
+  if (input.patch && input.patch.length > OMNI_JOB_MAX_PATCH)
+    return "The patch is larger than 200 KB.";
   return null;
 }
 
@@ -74,15 +98,24 @@ export type OmniJobResult = {
 };
 export type OmniJobStatus = { id: string; status: string; result: OmniJobResult | null };
 
-export function parseOmniAccepted(x: unknown): { accepted: boolean; ref: string; duplicate: boolean; status: string } | null {
+export function parseOmniAccepted(
+  x: unknown,
+): { accepted: boolean; ref: string; duplicate: boolean; status: string } | null {
   const o = x as Record<string, unknown> | null;
-  if (!o || o["accepted"] !== true || typeof o["ref"] !== "string" || !UUID.test(o["ref"])) return null;
-  return { accepted: true, ref: o["ref"], duplicate: o["duplicate"] === true, status: typeof o["status"] === "string" ? o["status"].slice(0, 40) : "unknown" };
+  if (!o || o["accepted"] !== true || typeof o["ref"] !== "string" || !UUID.test(o["ref"]))
+    return null;
+  return {
+    accepted: true,
+    ref: o["ref"],
+    duplicate: o["duplicate"] === true,
+    status: typeof o["status"] === "string" ? o["status"].slice(0, 40) : "unknown",
+  };
 }
 
 export function parseOmniStatus(x: unknown): OmniJobStatus | null {
   const o = x as Record<string, unknown> | null;
-  if (!o || typeof o["id"] !== "string" || !UUID.test(o["id"]) || typeof o["status"] !== "string") return null;
+  if (!o || typeof o["id"] !== "string" || !UUID.test(o["id"]) || typeof o["status"] !== "string")
+    return null;
   const r = o["result"] as Record<string, unknown> | null | undefined;
   const t = r?.["tests"] as Record<string, unknown> | null | undefined;
   return {
@@ -92,8 +125,14 @@ export function parseOmniStatus(x: unknown): OmniJobStatus | null {
       ? {
           status: String(r["status"] ?? "").slice(0, 40),
           summary: redact(String(r["summary"] ?? "")).slice(0, 2000),
-          tests: t && typeof t["passed"] === "boolean" ? { passed: t["passed"], output: redact(String(t["output"] ?? "")).slice(0, 8000) } : null,
-          diffStat: typeof r["diffStat"] === "string" && r["diffStat"] ? redact(r["diffStat"]).slice(0, 4000) : null,
+          tests:
+            t && typeof t["passed"] === "boolean"
+              ? { passed: t["passed"], output: redact(String(t["output"] ?? "")).slice(0, 8000) }
+              : null,
+          diffStat:
+            typeof r["diffStat"] === "string" && r["diffStat"]
+              ? redact(r["diffStat"]).slice(0, 4000)
+              : null,
         }
       : null,
   };

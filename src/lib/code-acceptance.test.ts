@@ -1,8 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { acceptanceBlockReason, acceptanceFilesCheck, acceptanceInstruction, ACCEPTANCE_FILE } from "./code-acceptance";
+import {
+  acceptanceBlockReason,
+  acceptanceFilesCheck,
+  acceptanceInstruction,
+  acceptanceScopeBlockReason,
+  ACCEPTANCE_FILE,
+  ACCEPTANCE_REPO,
+} from "./code-acceptance";
 import { FRESH_ONLY_ACTIONS, mayRequest, recentEligible } from "./step-up";
 
-const ok = { enabled: true, killSwitch: false, globalPaused: false, activeRequestId: null, perTaskReserveUsd: 1, allowed: true };
+const ok = {
+  enabled: true,
+  killSwitch: false,
+  globalPaused: false,
+  activeRequestId: null,
+  perTaskReserveUsd: 1,
+  allowed: true,
+};
 
 describe("CODE acceptance test", () => {
   it("starts only when every gate passes", () => {
@@ -24,9 +38,18 @@ describe("CODE acceptance test", () => {
     expect(text).toContain("Change no other file");
   });
   it("accepts only the one acceptance file", () => {
-    expect(acceptanceFilesCheck([{ filename: ACCEPTANCE_FILE, status: "added", deletions: 0 }]).ok).toBe(true);
-    expect(acceptanceFilesCheck([{ filename: ACCEPTANCE_FILE, status: "modified", deletions: 0 }, { filename: "src/x.ts", status: "modified", deletions: 0 }]).ok).toBe(false);
-    expect(acceptanceFilesCheck([{ filename: ACCEPTANCE_FILE, status: "modified", deletions: 2 }]).ok).toBe(false);
+    expect(
+      acceptanceFilesCheck([{ filename: ACCEPTANCE_FILE, status: "added", deletions: 0 }]).ok,
+    ).toBe(true);
+    expect(
+      acceptanceFilesCheck([
+        { filename: ACCEPTANCE_FILE, status: "modified", deletions: 0 },
+        { filename: "src/x.ts", status: "modified", deletions: 0 },
+      ]).ok,
+    ).toBe(false);
+    expect(
+      acceptanceFilesCheck([{ filename: ACCEPTANCE_FILE, status: "modified", deletions: 2 }]).ok,
+    ).toBe(false);
     expect(acceptanceFilesCheck([]).ok).toBe(false);
   });
   it("needs a fresh owner passkey every time", () => {
@@ -34,5 +57,22 @@ describe("CODE acceptance test", () => {
     expect(mayRequest("code_acceptance_test", "admin").ok).toBe(false);
     expect(FRESH_ONLY_ACTIONS).toContain("code_acceptance_test");
     expect(recentEligible("code_acceptance_test", "code_acceptance:a/b")).toBe(false);
+  });
+  it("binds admission to the exact repo, main, reviewed lane and approved hold", () => {
+    const scope = { repo: ACCEPTANCE_REPO, ref: "main", taskBudgetUsd: 1 };
+    expect(acceptanceScopeBlockReason(scope, 1)).toBeNull();
+    for (const patch of [
+      { repo: "owner/other" },
+      { ref: "next" },
+      { lane: "auto" },
+      { lane: null },
+      { taskBudgetUsd: null },
+      { taskBudgetUsd: 1.01 },
+      { taskBudgetUsd: Number.NaN },
+    ])
+      expect(acceptanceScopeBlockReason({ ...scope, ...patch }, 1)).not.toBeNull();
+    for (const reserve of [null, 0, 1.01, Number.NaN, Number.POSITIVE_INFINITY])
+      expect(acceptanceScopeBlockReason(scope, reserve)).not.toBeNull();
+    expect(acceptanceScopeBlockReason({ ...scope, taskBudgetUsd: 0.5 }, 1)).not.toBeNull();
   });
 });

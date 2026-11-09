@@ -2,7 +2,7 @@
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { registerHooks } from 'node:module';
-const records = { action_requests: [], owner_projects: [], audit_logs: [], omni_connection: [], omni_jobs: [], code_runtime_controls: [], code_usage_events: [], code_spend_reservations: [] };
+const records = { action_requests: [], owner_projects: [], audit_logs: [], omni_connection: [], omni_jobs: [], code_runtime_controls: [], code_usage_events: [], code_spend_reservations: [], code_provider_calls: [] };
 let run, dispatches, omniDispatches, cancellations, retries, auditFails, uncertain, afterAllowAudit, failingTable;
 class Query {
   constructor(table) { this.table = table; this.filters = []; this.operation = 'select'; }
@@ -11,6 +11,7 @@ class Query {
   upsert(value) { this.operation = 'upsert'; this.value = value; return this; }
   update(value) { this.operation = 'update'; this.value = value; return this; }
   eq(key, value) { this.filters.push(r => r[key] === value); return this; }
+  in(key, values) { this.filters.push(r => values.includes(r[key])); return this; }
   neq(key, value) { this.filters.push(r => r[key] !== value); return this; }
   gt(key, value) { this.filters.push(r => r[key] > value); return this; }
   gte(key, value) { this.filters.push(r => r[key] >= value); return this; }
@@ -50,9 +51,12 @@ class Query {
 }
 let totalGuard; // stand-in for code_total_spend_guard_status(); null = guard not installed
 let spendMeter; // stand-in for code_spend_meter_status(); null = meter not installed
+let acceptanceGuard;
 globalThis.__codeDb = {
   from: table => new Query(table),
-  rpc: async name => name === 'code_total_spend_guard_status' && totalGuard
+  rpc: async name => name === 'code_acceptance_guard_status'
+    ? { data: acceptanceGuard, error: null }
+    : name === 'code_total_spend_guard_status' && totalGuard
     ? { data: totalGuard, error: null }
     : (name === 'code_spend_meter_status' || name === 'refresh_code_spend_meter') && spendMeter
       ? { data: spendMeter, error: null }
@@ -70,7 +74,7 @@ const projectId = '00000000-0000-4000-8000-000000000001';
 globalThis.fetch = async (url, init = {}) => {
   const path = new URL(url).pathname;
   const json = data => Response.json(data);
-  if (path === '/repos/OMERTA-ROW/jackboy-dev-control') return json({ default_branch: 'main' });
+  if (path === '/repos/OMERTA-ROW/jackboy-dev-control' || path === '/repos/owner/other') return json({ default_branch: 'main' });
   if (path.endsWith('/commits/main')) return json({ sha: 'b'.repeat(40) });
   if (path.includes('/contents/')) return json({ sha: 'a'.repeat(40) });
   if (path.endsWith('/actions/workflows/code.yml')) return json({ state: 'active' });
@@ -117,6 +121,40 @@ beforeEach(() => {
   process.env.OMNI_API_KEY = 'isolated-test-api-key';
   process.env.OMNI_CALLBACK_SECRET = 'isolated-test-callback-secret';
   run = undefined; dispatches = omniDispatches = cancellations = retries = 0; auditFails = uncertain = false; afterAllowAudit = undefined; failingTable = undefined; totalGuard = { enforced: true, limit_usd: 10, committed_usd: 0 }; spendMeter = healthyMeter();
+  acceptanceGuard = true;
+});
+test('acceptance rejects a renamed-project repo mismatch and unavailable database guard', async () => {
+  records.owner_projects[0].github_repo = 'owner/other';
+  const targets = {
+    'OMERTA-ROW/jackboy-dev-control': { ref: 'main', workflowSha: 'a'.repeat(40) },
+    'owner/other': { ref: 'main', workflowSha: 'a'.repeat(40) },
+  };
+  records.code_runtime_controls[0].allowed_targets = targets;
+  process.env.CODE_TARGETS = JSON.stringify(targets);
+  await assert.rejects(requestCode(projectId, 'Fixed acceptance', 'owner', 'session', false, { acceptance: true }), /restricted to/);
+  records.owner_projects[0].github_repo = 'OMERTA-ROW/jackboy-dev-control';
+  acceptanceGuard = false;
+  await assert.rejects(requestCode(projectId, 'Fixed acceptance', 'owner', 'session', false, { acceptance: true }), /database guard/);
+  assert.equal(records.action_requests.length, 0);
+  assert.equal(dispatches, 0);
+});
+test('acceptance reservation changes cannot dispatch before or after approval auditing', async () => {
+  const c = await requestCode(projectId, 'Fixed acceptance', 'owner', 'session', false, { acceptance: true });
+  records.code_runtime_controls[0].per_task_reserve_usd = 2;
+  await assert.rejects(decideCode(c.id, c.nonce, 'allow', 'owner', 'session'), /approved hold or \$1/);
+  records.code_runtime_controls[0].per_task_reserve_usd = 1;
+  afterAllowAudit = () => { records.code_runtime_controls[0].per_task_reserve_usd = 2; };
+  await assert.rejects(decideCode(c.id, c.nonce, 'allow', 'owner', 'session'), /current safety evidence/);
+  assert.equal(dispatches, 0);
+});
+test('acceptance retry requires another fresh-passkey entry and evidence read failures are explicit', async () => {
+  const c = await requestCode(projectId, 'Fixed acceptance', 'owner', 'session', false, { acceptance: true });
+  await decideCode(c.id, c.nonce, 'allow', 'owner', 'session');
+  run.status = 'completed'; run.conclusion = 'failure';
+  await assert.rejects(controlCode(c.id, 'retry', 'owner', 'session'), /fresh-passkey/);
+  failingTable = 'code_provider_calls';
+  await assert.rejects(getCode(c.id, 'owner'), /evidence could not be read/);
+  assert.equal(records.action_requests.length, 1);
 });
 test('voice/text intent → pending approval → real server dispatch path → evidence and draft PR (mock transport)', async () => {
   assert.equal(await codeProjectId('Jackboy'), projectId);
