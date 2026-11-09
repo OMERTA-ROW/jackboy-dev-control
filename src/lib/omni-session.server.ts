@@ -1,4 +1,5 @@
 import { hmacHex, safeEqual } from "./omni-link";
+import { resolveApproval, type EffectiveApproval, type SavedApproval } from "./omni-link-approval";
 import {
   digest,
   LINK_CONTRACT,
@@ -29,14 +30,37 @@ export type StoreReply = {
   [key: string]: unknown;
 };
 export type LinkStore = (op: string, args: Record<string, unknown>) => Promise<StoreReply>;
-export function linkConfig(): LinkConfig | null {
+/** Reads the passkey-saved approval (service role only). Any error = "not readable" (fail closed). */
+export async function loadEffectiveApproval(env: Record<string, string | undefined> = process.env): Promise<EffectiveApproval> {
+  try {
+    const db = (await import("./untyped-db")).untyped((await import("@/integrations/supabase/client.server")).supabaseAdmin);
+    const { data, error } = await db.from("omni_link_approval").select("approval_id, expires_at, saved_at").eq("id", 1).maybeSingle();
+    if (error) return resolveApproval({ ok: false }, env);
+    return resolveApproval({ ok: true, row: (data as SavedApproval | null) ?? null }, env);
+  } catch {
+    return resolveApproval({ ok: false }, env);
+  }
+}
+/** The link gate with the effective approval (passkey-saved record over legacy settings). */
+export async function resolvedLinkConfig(): Promise<LinkConfig | null> {
+  const a = await loadEffectiveApproval();
+  return linkConfig({ approvalId: a.approvalId, approvalExpiresAt: a.expiresAt });
+}
+/** Sync gate. Callers must pass the effective approval from `loadEffectiveApproval`; the env
+ * default exists only for tests and is never used by the live link route. */
+export function linkConfig(
+  approval: { approvalId: string; approvalExpiresAt: string } = {
+    approvalId: process.env["OMNI_LINK_APPROVAL_ID"] || "",
+    approvalExpiresAt: process.env["OMNI_LINK_APPROVAL_EXPIRES_AT"] || "",
+  },
+): LinkConfig | null {
   if (process.env["OMNI_LINK_ENABLED"] !== "true") return null;
   const c = {
     clientId: process.env["OMNI_LINK_CLIENT_ID"] || "",
     projectId: process.env["OMNI_LINK_PROJECT_ID"] || "",
     ownerId: process.env["OMNI_LINK_OWNER_ID"] || "",
-    approvalId: process.env["OMNI_LINK_APPROVAL_ID"] || "",
-    approvalExpiresAt: process.env["OMNI_LINK_APPROVAL_EXPIRES_AT"] || "",
+    approvalId: approval.approvalId,
+    approvalExpiresAt: approval.approvalExpiresAt,
     bootstrap: process.env["OMNI_LINK_BOOTSTRAP_KEY"] || "",
     secret: process.env["OMNI_LINK_HMAC_SECRET"] || "",
   };

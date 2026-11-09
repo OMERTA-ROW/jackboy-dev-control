@@ -19,6 +19,44 @@ export async function omniEndpointFingerprint(endpoint: string): Promise<string>
   return hex(await crypto.subtle.digest("SHA-256", te.encode(endpoint)));
 }
 
+/** Bind freshness to endpoint and credentials without storing the credentials in the fingerprint. */
+export async function omniConfigurationFingerprint(
+  endpoint: string,
+  apiKey: string,
+  callbackSecret: string,
+  callbackUrl: string,
+): Promise<string> {
+  const apiKeyHash = hex(await crypto.subtle.digest("SHA-256", te.encode(apiKey)));
+  return hmacHex(callbackSecret, `omni.connection/v1\n${endpoint}\n${apiKeyHash}\n${callbackUrl}`);
+}
+
+export function safeOmniPullRequestUrl(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  try {
+    const url = new URL(value);
+    return url.origin === "https://github.com" &&
+      !url.username &&
+      !url.password &&
+      !url.search &&
+      !url.hash &&
+      /^\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/pull\/\d+$/.test(url.pathname)
+      ? url.href
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+export function safeOmniCallbackOrigin(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && !url.username && !url.password ? url.origin : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Signed string for callbacks: `${timestamp}.${nonce}.${rawBody}` (same as OMNI's Go signer). */
 export const signedString = (ts: string, nonce: string, body: string) => `${ts}.${nonce}.${body}`;
 
@@ -55,6 +93,62 @@ export function isOmniVerificationFresh(
     verifiedAt <= now + 30_000 &&
     now - verifiedAt <= OMNI_VERIFICATION_MAX_AGE_MS
   );
+}
+
+export const OMNI_URL_INVALID_MESSAGE =
+  "OMNI_API_URL is not a usable https address. Re-save it as the plain address, for example https://name.up.railway.app.";
+export const OMNI_URL_FORMATTED_NOTICE =
+  "OMNI_API_URL was saved with chat link formatting ([address](address)). Jackboy reads the address inside it; re-save it as the plain address.";
+
+const OMNI_BARE_HOST = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+(?::\d{1,5})?(?:\/[^\s?#]*)?$/i;
+/**
+ * Reads the OMNI base address. Accepts a plain https URL or bare host, and a chat-formatted
+ * "[X](X)" only when both parts are the same address. Never returns http, credentials, queries
+ * or fragments. The value itself is never placed in messages.
+ */
+export function omniApiUrl(raw: string | undefined): { url: string | null; reformatted: boolean } {
+  let v = (raw ?? "").trim();
+  let reformatted = false;
+  const md = /^\[([^\]\s]+)\]\(([^)\s]+)\)$/.exec(v);
+  if (md) {
+    const strip = (s: string) => s.replace(/\/+$/, "");
+    if (strip(md[1]!) !== strip(md[2]!)) return { url: null, reformatted: true };
+    v = md[1]!;
+    reformatted = true;
+  }
+  if (!v) return { url: null, reformatted };
+  let u: URL;
+  try {
+    u = new URL(OMNI_BARE_HOST.test(v) ? `https://${v}` : v);
+  } catch {
+    return { url: null, reformatted };
+  }
+  if (u.protocol !== "https:" || u.username || u.password || u.search || u.hash)
+    return { url: null, reformatted };
+  return { url: `${u.origin}${u.pathname.replace(/\/+$/, "")}`, reformatted };
+}
+
+/** Remote handshake errors are untrusted; only expose known-safe, useful diagnostics. */
+export function safeOmniDiagnostic(value: unknown): string | null {
+  if (typeof value !== "string" || !value.trim()) return null;
+  const message = value.trim();
+  if (message === "OMNI verification expired; check the link again." ||
+      message === "OMNI configuration changed since it was verified.") return message;
+  const missing = /^Missing secrets: ((?:OMNI_API_URL|OMNI_API_KEY|OMNI_CALLBACK_SECRET)(?:, (?:OMNI_API_URL|OMNI_API_KEY|OMNI_CALLBACK_SECRET))*)$/.exec(message);
+  if (missing?.[1]) return `Missing secrets: ${[...new Set(missing[1].split(", "))].join(", ")}`;
+  const http = /^OMNI answered HTTP (\d{3})(?::.*)?$/.exec(message);
+  if (http) return `OMNI answered HTTP ${http[1]}. Response details withheld.`;
+  if (message === "OMNI proof did not match OMNI_CALLBACK_SECRET") return "OMNI did not prove the configured callback secret.";
+  if (message === "OMNI returned invalid handshake JSON") return message;
+  if (message === OMNI_URL_INVALID_MESSAGE) return message;
+  if (/^OMNI could not be reached \((?:timeout|network error)\)\.$/.test(message)) return message;
+  if (
+    message === "OMNI did not answer with the handshake contract" ||
+    message === "OMNI handshake has no version" ||
+    message === "OMNI handshake has no capability list" ||
+    message === "OMNI handshake has no proof"
+  ) return message;
+  return "OMNI reported an error; response details withheld.";
 }
 
 export type Handshake = { version: string; capabilities: string[]; proof: string };

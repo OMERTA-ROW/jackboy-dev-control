@@ -3,11 +3,17 @@ import {
   dispatchBackoffMs,
   hmacHex,
   nextStatus,
+  omniConfigurationFingerprint,
   omniEndpointFingerprint,
   parseHandshake,
   parseResult,
+  safeOmniCallbackOrigin,
+  safeOmniDiagnostic,
+  safeOmniPullRequestUrl,
   signedString,
   verifyCallback,
+  omniApiUrl,
+  OMNI_URL_INVALID_MESSAGE,
 } from "./omni-link";
 
 const SECRET = "test-secret";
@@ -33,6 +39,29 @@ describe("omni link", () => {
     expect(fingerprint).toBe(await omniEndpointFingerprint("https://omni.example"));
     expect(fingerprint).not.toBe(await omniEndpointFingerprint("https://other.example"));
   });
+  it("binds live verification to endpoint, credentials and callback without returning secret values", async () => {
+    const fingerprint = await omniConfigurationFingerprint(
+      "https://omni.example",
+      "api-key-one",
+      "callback-secret-one",
+      "https://jackboy.example/callback",
+    );
+    expect(fingerprint).toMatch(/^[a-f0-9]{64}$/);
+    expect(fingerprint).not.toContain("api-key-one");
+    expect(fingerprint).not.toContain("callback-secret-one");
+    expect(fingerprint).not.toBe(await omniConfigurationFingerprint(
+      "https://omni.example",
+      "api-key-two",
+      "callback-secret-one",
+      "https://jackboy.example/callback",
+    ));
+    expect(fingerprint).not.toBe(await omniConfigurationFingerprint(
+      "https://omni.example",
+      "api-key-one",
+      "callback-secret-two",
+      "https://jackboy.example/callback",
+    ));
+  });
   it("backs off exponentially up to six hours", () => {
     expect(dispatchBackoffMs(1)).toBe(60_000);
     expect(dispatchBackoffMs(3)).toBe(240_000);
@@ -43,11 +72,50 @@ describe("omni link", () => {
     expect(parseHandshake({ contract: "omni.handshake/v1", version: "0.1.0", capabilities: ["jobs"] })).toBeTypeOf("string");
     expect(parseHandshake({ contract: "omni.handshake/v1", version: "0.1.0", capabilities: ["jobs"], proof: "ab" })).toMatchObject({ version: "0.1.0" });
   });
+  it("withholds untrusted remote error details while preserving safe HTTP diagnostics", () => {
+    expect(safeOmniDiagnostic("OMNI answered HTTP 503: api_key=private-value")).toBe("OMNI answered HTTP 503. Response details withheld.");
+    expect(safeOmniDiagnostic("Missing secrets: OMNI_API_URL, OMNI_CALLBACK_SECRET")).toBe("Missing secrets: OMNI_API_URL, OMNI_CALLBACK_SECRET");
+    expect(safeOmniDiagnostic("Bearer secret-token-value")).toBe("OMNI reported an error; response details withheld.");
+  });
+  it("only exposes exact GitHub pull-request URLs from OMNI results", () => {
+    expect(safeOmniPullRequestUrl("https://github.com/acme/repo/pull/42")).toBe("https://github.com/acme/repo/pull/42");
+    expect(safeOmniPullRequestUrl("https://evil.example/")).toBeNull();
+    expect(safeOmniPullRequestUrl("https://github.com/acme/repo/pull/42?next=https://evil.example")).toBeNull();
+    expect(safeOmniPullRequestUrl(null)).toBeNull();
+  });
+  it("only exposes the HTTPS callback origin, never URL credentials or paths", () => {
+    expect(safeOmniCallbackOrigin("https://jackboy.example/api/callback?token=private")).toBe("https://jackboy.example");
+    expect(safeOmniCallbackOrigin("https://user:password@jackboy.example/callback")).toBeNull();
+    expect(safeOmniCallbackOrigin("http://jackboy.example/callback")).toBeNull();
+    expect(safeOmniCallbackOrigin("not a URL")).toBeNull();
+  });
   it("accepts only GitHub pull request links in results and never reopens finished jobs", () => {
     const r = parseResult({ contract: "omni.job-result/v1", jobId: "11111111-1111-1111-1111-111111111111", status: "completed", prUrl: "https://evil.example/pull/1" });
     expect(typeof r === "string" ? r : r.prUrl).toBeNull();
     expect(nextStatus("completed", "running")).toBeNull();
     expect(nextStatus("queued", "completed")).toBeNull();
     expect(nextStatus("sent", "failed")).toBe("failed");
+  });
+});
+
+describe("omniApiUrl (OMNI_API_URL reader)", () => {
+  it("reads a plain https address and drops a trailing slash", () => {
+    expect(omniApiUrl("https://omni.example.app/")).toEqual({ url: "https://omni.example.app", reformatted: false });
+  });
+  it("reads a bare host name as https", () => {
+    expect(omniApiUrl("omni.example.app").url).toBe("https://omni.example.app");
+  });
+  it("unwraps chat link formatting only when both parts are the same address", () => {
+    expect(omniApiUrl("[https://omni.example.app](https://omni.example.app)")).toEqual({ url: "https://omni.example.app", reformatted: true });
+    expect(omniApiUrl("[https://omni.example.app](https://evil.example)").url).toBeNull();
+  });
+  it("refuses http, credentials, queries and fragments", () => {
+    for (const v of ["http://omni.example.app", "https://u:p@omni.example.app", "https://omni.example.app?k=1", "https://omni.example.app#x", "not a url", ""])
+      expect(omniApiUrl(v).url).toBeNull();
+  });
+  it("lets only the fixed invalid-address and reachability messages through the diagnostic filter", () => {
+    expect(safeOmniDiagnostic(OMNI_URL_INVALID_MESSAGE)).toBe(OMNI_URL_INVALID_MESSAGE);
+    expect(safeOmniDiagnostic("OMNI could not be reached (timeout).")).toBe("OMNI could not be reached (timeout).");
+    expect(safeOmniDiagnostic("Invalid URL: [https://omni.example.app](https://omni.example.app)/jackboy/handshake")).toBe("OMNI reported an error; response details withheld.");
   });
 });

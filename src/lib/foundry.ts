@@ -35,6 +35,14 @@ export function assertTransition(from: State, to: State): void {
   if (!canTransition(from, to)) throw new Error(`Illegal transition ${from} → ${to}.`);
 }
 
+export function assertTaskTransitionClaim(
+  row: { id: string } | null,
+  error: { message: string } | null,
+): void {
+  if (error) throw new Error(error.message);
+  if (!row) throw new Error("Task state changed before the operation could be claimed. Refresh and retry.");
+}
+
 const SENSITIVE = /(^|\/)(\.env|supabase\/|drizzle\/|src\/integrations\/|.*auth.*|.*payment.*|.*billing.*|.*secret.*|.*role.*|.*permission.*|\.github\/workflows\/)/i;
 
 /** Sensitive auth/payment/secrets/permissions/CI paths or deletions → sensitive risk. */

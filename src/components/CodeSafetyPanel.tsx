@@ -15,6 +15,7 @@ import {
 } from "@/lib/code-safety.functions";
 import { meterReasonText } from "@/lib/code-safety";
 
+import { ACCEPTANCE_REPO } from "@/lib/code-acceptance";
 type Settings = Awaited<ReturnType<typeof getCodeSafetySettings>>;
 
 export function CodeSafetyPanel() {
@@ -183,6 +184,20 @@ export function CodeSafetyPanel() {
         busy={busy}
         run={(action) => run(action, "activation")}
         message={messageSource === "activation" ? message : null}
+        acceptance={
+          settings
+            ? {
+                enabled: settings.enabled,
+                killSwitch: settings.killSwitch,
+                globalPaused: gates ? gates.globalPaused : null,
+                activeRequestId: settings.activeRequestId,
+                perTaskReserveUsd: settings.perTaskReserveUsd,
+                allowed:
+                  settings.targets[ACCEPTANCE_REPO]?.ref === "main" &&
+                  !!settings.targets[ACCEPTANCE_REPO]?.workflowSha,
+              }
+            : null
+        }
       />
       <section className="panel mb-4 p-4" aria-labelledby="code-safety-heading">
         <div className="flex flex-wrap items-start justify-between gap-3">

@@ -4,7 +4,14 @@ import { untyped } from "./untyped-db";
 const db = untyped(typedDb);
 import { CODE_ACTION, CODE_WORKFLOW, type CodeScope } from "./code";
 import { codeSafetyBlockReason, getCodeSafetyState } from "./code-safety.server";
-import { classifyPatch, expectedEnvironment, expectedSubject, laneOf, type Lane, type PatchEvidence } from "./code-lane";
+import {
+  classifyPatch,
+  expectedEnvironment,
+  expectedSubject,
+  laneOf,
+  type Lane,
+  type PatchEvidence,
+} from "./code-lane";
 
 const ISSUER = "https://token.actions.githubusercontent.com";
 const AUDIENCE = "jackboy-code-runner";
@@ -281,11 +288,25 @@ export async function handleCodeRunnerClaim(request: Request): Promise<Response>
     const lane = laneOf(scope as { lane?: unknown });
     if (lane === "auto") {
       const { autoLaneAllowed } = await import("./code-lane.server");
-      if (!(await autoLaneAllowed(scope.repo))) return reply({ error: "The automatic lane isn't on for this site." }, 403);
+      if (!(await autoLaneAllowed(scope.repo)))
+        return reply({ error: "The automatic lane isn't on for this site." }, 403);
       if (body.stage === "publish") {
         const check = classifyPatch(body.patch as PatchEvidence);
-        if (!check.lowRisk) return reply({ error: `This patch needs the reviewed lane: ${check.reasons.join(" ")}` }, 409);
+        if (!check.lowRisk)
+          return reply(
+            { error: `This patch needs the reviewed lane: ${check.reasons.join(" ")}` },
+            409,
+          );
       }
+    }
+    const acceptance = (scope as { acceptance?: unknown }).acceptance === true;
+    if (acceptance) {
+      const { acceptanceScopeBlockReason } = await import("./code-acceptance");
+      const blocked = acceptanceScopeBlockReason(scope, controls.perTaskReserveUsd);
+      if (blocked) return reply({ error: blocked }, 403);
+      const guard = await db.rpc("code_acceptance_guard_status");
+      if (guard.error || guard.data !== true)
+        return reply({ error: "The acceptance database guard is unavailable." }, 409);
     }
     await verifyWorkflowRun(
       claims,
@@ -296,6 +317,31 @@ export async function handleCodeRunnerClaim(request: Request): Promise<Response>
       body.stage,
       lane,
     );
+    if (acceptance && body.stage === "publish") {
+      // Fail closed: the exact patch must touch only the acceptance file before any draft PR can open.
+      const { acceptancePublishGate } = await import("./code-acceptance.server");
+      const gate = await acceptancePublishGate(
+        scope.repo,
+        Number(claims.run_id),
+        Number(claims.run_attempt),
+        process.env["CODE_GITHUB_TOKEN"],
+      );
+      const logged = await db.from("audit_logs").insert({
+        actor: row.requested_by,
+        action: gate.ok ? "code.acceptance_publish_allowed" : "code.acceptance_publish_blocked",
+        detail: {
+          request: body.requestId,
+          run_id: Number(claims.run_id),
+          run_attempt: Number(claims.run_attempt),
+          reasons: gate.reasons,
+        },
+        outcome: gate.ok ? "allowed" : "denied",
+      });
+      if (logged.error)
+        return reply({ error: "Acceptance publishing decision could not be audited." }, 409);
+      if (!gate.ok)
+        return reply({ error: `Acceptance test blocked: ${gate.reasons.join(" ")}` }, 409);
+    }
     const { data, error: claimError } = await db.rpc("claim_code_runner", {
       p_request_id: body.requestId,
       p_stage: body.stage,

@@ -2,7 +2,7 @@
 // conversations that were saved only in this browser.
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { Search, Trash2, Upload } from "lucide-react";
+import { Pencil, Search, Trash2, Upload } from "lucide-react";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { searchChatHistory } from "@/lib/chat-threads.functions";
 import { cleanQuery } from "@/lib/chat-threads";
@@ -10,15 +10,19 @@ import { cleanQuery } from "@/lib/chat-threads";
 export type ThreadRow = { id: string; title: string; mode: "chat" | "code"; context_key: string; updated_at: string };
 type Hit = Awaited<ReturnType<typeof searchChatHistory>>[number];
 
-export function ChatHistorySheet({ open, onOpenChange, mode, threads, loadError, activeId, onOpen, onDelete, localCount, onImport, importing }: {
+export function ChatHistorySheet({ open, onOpenChange, mode, threads, loadError, activeId, onOpen, onDelete, onRename, localCount, onImport, importing }: {
   open: boolean; onOpenChange: (o: boolean) => void; mode: "chat" | "code"; threads: ThreadRow[] | null; loadError: string | null; activeId: string;
   onOpen: (id: string) => void; onDelete: (id: string) => void; localCount: number; onImport: () => void; importing: string | null;
+  onRename: (id: string, title: string) => Promise<boolean>;
 }) {
   const search = useServerFn(searchChatHistory);
   const [q, setQ] = useState("");
   const [hits, setHits] = useState<Hit[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<string | null>(null);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [title, setTitle] = useState("");
+  const [saving, setSaving] = useState(false);
   useEffect(() => {
     const query = cleanQuery(q);
     if (!query) { setHits(null); setErr(null); return; }
@@ -54,12 +58,25 @@ export function ChatHistorySheet({ open, onOpenChange, mode, threads, loadError,
             : list.length === 0 ? <li className="px-2 text-sm text-muted-foreground">No saved conversations yet.</li>
             : list.map((c) => (
               <li key={c.id} className={`flex items-center gap-1 rounded-lg ${c.id === activeId ? "bg-muted" : ""}`}>
+                {editing === c.id ? <form className="flex min-w-0 flex-1 gap-1" onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (saving || !title.trim()) return;
+                  setSaving(true);
+                  try { if (await onRename(c.id, title.trim())) setEditing(null); }
+                  finally { setSaving(false); }
+                }}>
+                  <input aria-label="Conversation title" maxLength={120} value={title} onChange={(e) => setTitle(e.target.value)} className="min-w-0 flex-1 rounded border border-border bg-card px-2" />
+                  <button type="submit" disabled={saving || !title.trim()} className="px-2 text-xs">Save</button>
+                  <button type="button" disabled={saving} onClick={() => setEditing(null)} className="text-xs">Cancel</button>
+                </form> : <>
                 <button type="button" onClick={() => onOpen(c.id)} className="min-w-0 flex-1 truncate px-3 py-2 text-left text-sm hover:text-foreground" aria-current={c.id === activeId}>
                   {c.title}<span className="block text-[11px] text-muted-foreground">{new Date(c.updated_at).toLocaleString()}</span>
                 </button>
+                <button type="button" aria-label={`Rename conversation ${c.title}`} onClick={() => { setEditing(c.id); setTitle(c.title); }} className="inline-flex size-8 items-center justify-center rounded-full text-muted-foreground"><Pencil className="size-4" /></button>
                 {confirm === c.id
                   ? <span className="mr-1 flex gap-1 text-xs"><button type="button" onClick={() => { setConfirm(null); onDelete(c.id); }} className="rounded-full px-2 py-1 text-destructive hover:bg-destructive/10">Delete</button><button type="button" onClick={() => setConfirm(null)} className="rounded-full px-2 py-1 hover:bg-muted">Keep</button></span>
                   : <button type="button" onClick={() => setConfirm(c.id)} aria-label={`Delete conversation ${c.title}`} className="mr-1 inline-flex size-8 items-center justify-center rounded-full text-muted-foreground hover:text-destructive"><Trash2 className="size-4" /></button>}
+                </>}
               </li>
             ))}
         </ul>

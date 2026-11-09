@@ -20,7 +20,7 @@ describe("edge-safe fetch options", () => {
   });
 
   it("CODE GitHub calls send a User-Agent, which GitHub requires", () => {
-    for (const file of ["src/lib/code.server.ts", "src/lib/code-safety.functions.ts", "src/lib/code-runner-auth.server.ts"]) {
+    for (const file of ["src/lib/code-github.ts", "src/lib/code-safety.functions.ts", "src/lib/code-runner-auth.server.ts"]) {
       expect(readFileSync(file, "utf8")).toContain('"User-Agent": "Jackboy"');
     }
   });

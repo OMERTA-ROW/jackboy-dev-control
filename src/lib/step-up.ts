@@ -9,6 +9,7 @@ export const STEP_UP_ACTIONS = {
   omni_dispatch: { label: "Approve one OMNI build or test job for receipt only", roles: ["owner"] },
   omni_project_scope: { label: "Let OMNI receive build/test jobs for one project", roles: ["owner"] },
   omni_link_values: { label: "Show the OMNI link values (owner ID, approval ID, expiry) to copy into Railway", roles: ["owner"] },
+  omni_link_approval_save: { label: "Save a new OMNI link approval (ID and expiry) in Jackboy", roles: ["owner"] },
   autonomy_toggle: { label: "Turn on background work or Autopilot", roles: ["owner"] },
   credential_change: { label: "Create or change a stored credential", roles: ["owner"] },
   owner_settings: { label: "Change an owner-only setting", roles: ["owner"] },
@@ -19,6 +20,7 @@ export const STEP_UP_ACTIONS = {
   task_step: { label: "Approve one Task Mode step", roles: ["owner"] },
   code_auto_lane: { label: "Turn the CODE automatic lane on or off for one site", roles: ["owner"] },
   code_undo: { label: "Undo a merged CODE change (Jackboy merges the revert after checks pass)", roles: ["owner"] },
+  code_acceptance_test: { label: "Start the one-time $1 docs-only CODE acceptance test", roles: ["owner"] },
   task_skip_rule: { label: "Change which task steps can skip approval", roles: ["owner"] },
   production_deploy: { label: "Production deployment", roles: ["owner"] },
   privilege_escalation: { label: "Grant or raise a permission", roles: ["owner", "admin"] },
@@ -56,7 +58,7 @@ export function recentEligible(action: string, target: string): boolean {
   return action === "approve_integration" && RECENT_TARGET_PREFIXES.some((p) => target.startsWith(p));
 }
 /** Actions that always need a new device ceremony: never grace-eligible, and reused grants are refused. */
-export const FRESH_ONLY_ACTIONS = ["code_hard_cap", "code_enable", "code_site_pin", "task_step", "task_skip_rule", "code_auto_lane", "code_undo", "omni_dispatch", "omni_project_scope", "omni_link_values"] as const;
+export const FRESH_ONLY_ACTIONS = ["code_hard_cap", "code_enable", "code_site_pin", "task_step", "task_skip_rule", "code_auto_lane", "code_undo", "code_acceptance_test", "omni_dispatch", "omni_project_scope", "omni_link_values", "omni_link_approval_save"] as const;
 /** A grant minted by recent-verification reuse carries a "recent:" credential and is not fresh. */
 export function grantIsFresh(g: { credential_id?: string | null } | null): boolean {
   return !!g && typeof g.credential_id === "string" && g.credential_id.length > 0 && !g.credential_id.startsWith("recent:");

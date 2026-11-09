@@ -13,9 +13,8 @@ export const getOmniLink = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     await requireOwner(context);
-    const { omniConfigState } = await import("./omni-link.server");
-    const [conn, jobs] = await Promise.all([
-      context.supabase.from("omni_connection").select("*").eq("id", true).maybeSingle(),
+    const { isOmniVerified, omniConfigState } = await import("./omni-link.server");
+    const [jobs, live] = await Promise.all([
       context.supabase
         .from("omni_jobs")
         .select(
@@ -23,11 +22,29 @@ export const getOmniLink = createServerFn({ method: "POST" })
         )
         .order("created_at", { ascending: false })
         .limit(25),
+      isOmniVerified(),
     ]);
+    const { data: conn, error: connError } = await context.supabase
+      .from("omni_connection")
+      .select("verified_at, last_checked_at, last_error")
+      .eq("id", true)
+      .maybeSingle();
+    if (jobs.error || connError) throw new Error("OMNI connection diagnostics could not be loaded.");
+    const { safeOmniDiagnostic, safeOmniPullRequestUrl } = await import("./omni-link");
     return {
       config: omniConfigState(),
-      connection: conn.data,
-      jobs: (jobs.data ?? []).map((j) => ({ ...j, instructions: j.instructions.slice(0, 160) })),
+      connection: {
+        verified: live,
+        verified_at: live ? conn?.verified_at ?? null : null,
+        last_checked_at: conn?.last_checked_at ?? null,
+        last_error: live ? null : safeOmniDiagnostic(conn?.last_error),
+      },
+      jobs: (jobs.data ?? []).map((j) => ({
+        ...j,
+        instructions: j.instructions.slice(0, 160),
+        last_error: safeOmniDiagnostic(j.last_error),
+        pr_url: safeOmniPullRequestUrl(j.pr_url),
+      })),
     };
   });
 
@@ -39,15 +56,32 @@ export const runOmniHandshake = createServerFn({ method: "POST" })
     return omniHandshake(context.userId);
   });
 
+/** Read-only status of one chat-sent OMNI job (real GET /jackboy/jobs/{id}). */
+export const checkOmniJob = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { jobId: string }) => z.object({ jobId: z.string().uuid() }).parse(input))
+  .handler(async ({ context, data }) => {
+    await requireOwner(context);
+    const { getOmniJob } = await import("./omni-jobs.server");
+    return getOmniJob(data.jobId);
+  });
+
 /** Read-only check of the reviewed OMNI-initiated link (omni.link/v2, PR #3 design).
  * OMNI calls Jackboy, so Jackboy never calls OMNI here; it never sends work or reads secret values. */
 export const probeOmniConnection = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     await requireOwner(context);
-    const { linkConfig } = await import("./omni-session.server");
+    const { linkConfig, loadEffectiveApproval } = await import("./omni-session.server");
     const { reverseLinkReport, REVERSE_LINK_VARS } = await import("./omni-link-readiness");
-    const env = Object.fromEntries(REVERSE_LINK_VARS.map((n) => [n, process.env[n]]));
+    const { remoteRunnerDiagnostic } = await import("./omni-remote-runner");
+    const { withApproval } = await import("./omni-link-approval");
+    const approval = await loadEffectiveApproval();
+    const env = withApproval(Object.fromEntries(REVERSE_LINK_VARS.map((n) => [n, process.env[n]])), approval);
+    const runnerEnv = Object.fromEntries(
+      ["OMNI_LINK_REMOTE_RUNNER_ENABLED", "OMNI_LINK_REMOTE_RUNNER_URL", "OMNI_LINK_REMOTE_RUNNER_SECRET"]
+        .map((n) => [n, process.env[n]]),
+    );
     const db = (await import("./untyped-db")).untyped(
       (await import("@/integrations/supabase/client.server")).supabaseAdmin,
     );
@@ -60,9 +94,10 @@ export const probeOmniConnection = createServerFn({ method: "POST" })
     const report = reverseLinkReport({
       runner: (await import("./omni-runner-mode.server")).runnerMode(),
       env,
-      configValid: linkConfig() !== null,
+      configValid: linkConfig({ approvalId: approval.approvalId, approvalExpiresAt: approval.expiresAt }) !== null,
       storageReady: !error && Array.isArray(data),
       lastSessionAt: rows[0]?.expires_at ?? null,
+      runnerDiagnostic: remoteRunnerDiagnostic(runnerEnv),
     });
     return { ...report, error: report.verified ? null : report.missing.join(" · ") };
   });

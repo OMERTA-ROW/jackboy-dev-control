@@ -1,9 +1,11 @@
 import { createServerFn } from "@tanstack/react-start";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import type { Database, Json } from "@/integrations/supabase/types";
 import { hashProjectToken, newProjectToken } from "./agent-hub";
 
-type Ctx = { supabase: any; userId: string };
+type Ctx = { supabase: SupabaseClient<Database>; userId: string };
 async function role(ctx: Ctx) {
   const { data } = await ctx.supabase.rpc("my_role");
   if (!data) throw new Error("Forbidden: Jackboy access requires an accepted invitation.");
@@ -14,7 +16,7 @@ async function requireManager(ctx: Ctx) {
   if (r === "member") throw new Error("Forbidden: owner or admin only.");
   return r;
 }
-const audit = (ctx: Ctx, action: string, detail: Record<string, unknown>, outcome = "ok") =>
+const audit = (ctx: Ctx, action: string, detail: Json, outcome = "ok") =>
   ctx.supabase.rpc("write_audit", { _action: action, _detail: detail, _outcome: outcome });
 
 export const getHub = createServerFn({ method: "POST" })
@@ -26,6 +28,9 @@ export const getHub = createServerFn({ method: "POST" })
       context.supabase.from("agent_reports").select("*").in("status", ["open", "acknowledged"]).order("priority", { ascending: false }).order("created_at").limit(100),
       context.supabase.from("agent_proposals").select("*").order("created_at", { ascending: false }).limit(50),
     ]);
+    for (const result of [p, q, pr]) {
+      if (result.error) throw new Error(`Could not load Agent Hub data: ${result.error.message}`);
+    }
     return { role: r, projects: p.data ?? [], queue: q.data ?? [], proposals: pr.data ?? [], omniConfigured: Boolean(process.env["OMNI_API_URL"] && process.env["OMNI_API_KEY"]) };
   });
 

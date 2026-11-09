@@ -292,8 +292,10 @@ async function probe(id: ReadinessId): Promise<Probe> {
         : { status: "PASS", reason: "OMNI pull requests #1–#4 are merged." };
     }
     case "omni_bridge": {
-      const { linkConfig } = await import("./omni-session.server");
+      const { linkConfig, loadEffectiveApproval } = await import("./omni-session.server");
       const { reverseLinkReport, REVERSE_LINK_VARS } = await import("./omni-link-readiness");
+      const { withApproval } = await import("./omni-link-approval");
+      const approval = await loadEffectiveApproval();
       const { data, error } = await db
         .from("omni_link_sessions")
         .select("expires_at")
@@ -302,8 +304,8 @@ async function probe(id: ReadinessId): Promise<Probe> {
       const rows = (data ?? []) as { expires_at: string }[];
       const report = reverseLinkReport({
       runner: (await import("./omni-runner-mode.server")).runnerMode(),
-        env: Object.fromEntries(REVERSE_LINK_VARS.map((n) => [n, process.env[n]])),
-        configValid: linkConfig() !== null,
+        env: withApproval(Object.fromEntries(REVERSE_LINK_VARS.map((n) => [n, process.env[n]])), approval),
+        configValid: linkConfig({ approvalId: approval.approvalId, approvalExpiresAt: approval.expiresAt }) !== null,
         storageReady: !error && Array.isArray(data),
         lastSessionAt: rows[0]?.expires_at ?? null,
       });
@@ -329,6 +331,34 @@ async function probe(id: ReadinessId): Promise<Probe> {
       }
       if (http < 200 || http >= 400)
         return { status: "BLOCKED", reason: `The live site answered HTTP ${http}.` };
+      // Preferred proof: the live build's own version report compared with GitHub main.
+      const { parseBuildInfo, deploymentVerdict } = await import("./build-info");
+      let versionHttp = 0;
+      let live: ReturnType<typeof parseBuildInfo> | null = null;
+      try {
+        const res = await fetch(`${PUBLISHED_URL}api/public/version`, {
+          redirect: "manual",
+          signal: AbortSignal.timeout(10_000),
+        });
+        versionHttp = res.status;
+        if (res.ok && (res.headers.get("content-type") ?? "").includes("application/json"))
+          live = parseBuildInfo(await res.json());
+      } catch {
+        versionHttp = 0;
+      }
+      if (live) {
+        let main: { commit: string; tree: string | null } | null = null;
+        try {
+          const c = await github<{ sha: string; commit?: { tree?: { sha?: string } } }>(
+            JACKBOY_REPO,
+            `/repos/${JACKBOY_REPO}/commits/main`,
+          );
+          main = { commit: c.sha, tree: c.commit?.tree?.sha ?? null };
+        } catch {
+          main = null;
+        }
+        return deploymentVerdict(live, main);
+      }
       const { data } = await supabaseAdmin
         .from("site_log")
         .select("at, commit_sha")
@@ -344,7 +374,7 @@ async function probe(id: ReadinessId): Promise<Probe> {
           }
         : {
             status: "OWNER ACTION",
-            reason: `The live site answers (HTTP ${http}), but no publish record ties it to an exact commit. Publishing from the editor doesn't report the commit to Jackboy.`,
+            reason: `The live site answers (HTTP ${http}), but it has no version report yet (HTTP ${versionHttp || "no answer"}) and no publish record ties it to an exact commit. Publish once so the live site reports its build commit.`,
           };
     }
     case "backup_restore":

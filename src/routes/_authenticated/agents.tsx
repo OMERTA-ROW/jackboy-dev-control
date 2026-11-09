@@ -3,8 +3,23 @@ import { useServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useState } from "react";
 import { Switch } from "@/components/ui/switch";
 import { GuidanceTip, PageHeader } from "@/components/AppShell";
-import { DEMON_CHECKS, ANGEL_KINDS, FORBIDDEN_ACTIONS, PERMISSIVE_LICENSES } from "@/lib/agent-hub";
-import { addProject, createProposal, decideProposal, getHub, issueToken, revokeTokens, triageReport, updateProject } from "@/lib/agent-hub.functions";
+import {
+  DEMON_CHECKS,
+  ANGEL_KINDS,
+  FORBIDDEN_ACTIONS,
+  PERMISSIVE_LICENSES,
+  agentProjectAnchor,
+} from "@/lib/agent-hub";
+import {
+  addProject,
+  createProposal,
+  decideProposal,
+  getHub,
+  issueToken,
+  revokeTokens,
+  triageReport,
+  updateProject,
+} from "@/lib/agent-hub.functions";
 
 export const Route = createFileRoute("/_authenticated/agents")({
   head: () => ({
@@ -31,7 +46,23 @@ function AgentHub() {
   const fns = { add: useServerFn(addProject), upd: useServerFn(updateProject), issue: useServerFn(issueToken), revoke: useServerFn(revokeTokens), triage: useServerFn(triageReport), propose: useServerFn(createProposal), decide: useServerFn(decideProposal) };
 
   const refresh = useCallback(() => load().then(setHub).catch((e) => setErr((e as Error).message)), [load]);
-  useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => {
+    void refresh();
+    const channel = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel("jackboy-approvals") : null;
+    if (channel) channel.onmessage = () => void refresh();
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") void refresh();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    const interval = setInterval(() => {
+      if (document.visibilityState === "visible") void refresh();
+    }, 30_000);
+    return () => {
+      channel?.close();
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      clearInterval(interval);
+    };
+  }, [refresh]);
   const act = async (p: Promise<unknown>) => { setErr(null); try { await p; await refresh(); } catch (e) { setErr((e as Error).message); } };
 
   if (!hub) return <><PageHeader title="Agent Hub" subtitle="Loading…" />{err && <p className="text-destructive text-sm">{err}</p>}</>;
@@ -64,7 +95,11 @@ function AgentHub() {
       {hub.projects.length === 0 && <p className="panel mb-6 p-4 text-sm text-muted-foreground">No projects registered yet.</p>}
       <div className="mb-6 grid gap-3 lg:grid-cols-2">
         {hub.projects.map((p) => (
-          <article key={p.id} className="panel p-4 text-sm">
+          <article
+            key={p.id}
+            id={agentProjectAnchor(p.id)}
+            className="panel scroll-mt-24 p-4 text-sm"
+          >
             <div className="flex items-center justify-between"><span className="font-medium">{p.name}</span><span className="text-xs uppercase text-muted-foreground">{p.enrolled ? `enrolled · ${p.health}` : "not enrolled"}</span></div>
             <p className="mt-1 text-xs text-muted-foreground">{p.last_report_at ? `Last report ${new Date(p.last_report_at).toLocaleString()}` : "No reports received yet"}</p>
             <div className="mt-3 grid gap-2 text-xs">

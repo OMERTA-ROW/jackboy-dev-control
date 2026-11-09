@@ -1,6 +1,6 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, useRouteContext } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { listChatThreads } from "@/lib/chat-threads.functions";
 import { ChatError } from "@/components/chat/ChatPage";
 
@@ -22,6 +22,8 @@ export const Route = createFileRoute("/_authenticated/chat/")({
 /** Opens the latest saved conversation for the current mode, or a fresh one. */
 function ChatIndex() {
   const navigate = useNavigate();
+  const { user } = useRouteContext({ from: "/_authenticated" });
+  const [error, setError] = useState<string | null>(null);
   const list = useServerFn(listChatThreads);
   const started = useRef(false);
   useEffect(() => {
@@ -32,7 +34,12 @@ function ChatIndex() {
     let mode = "chat";
     try { if (sessionStorage.getItem("jackboy.chat.view") === "code") mode = "code"; } catch { /* ignore */ }
     const go = (id: string) => void navigate({ to: "/chat/$threadId", params: { threadId: id }, replace: true });
-    list().then((t) => go(t.find((x) => x.mode === mode)?.id ?? crypto.randomUUID())).catch(() => go(crypto.randomUUID()));
-  }, [list, navigate]);
+    list().then((t) => {
+      let last: string | null = null;
+      try { last = localStorage.getItem(`jackboy.chat.last.${user.id}`); } catch { /* Account history remains available. */ }
+      go(t.find((x) => x.id === last)?.id ?? t.find((x) => x.mode === mode)?.id ?? crypto.randomUUID());
+    }).catch((e) => setError(`Couldn't restore conversations: ${(e as Error).message}`));
+  }, [list, navigate, user.id]);
+  if (error) return <div role="alert" className="p-6"><p>{error}</p><button type="button" onClick={() => window.location.reload()}>Retry</button></div>;
   return <p className="flex min-h-dvh items-center justify-center bg-background text-sm text-muted-foreground">Opening your conversation…</p>;
 }

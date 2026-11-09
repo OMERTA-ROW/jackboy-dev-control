@@ -19,20 +19,79 @@ export function validRunnerSecret(s: string | undefined): s is string {
   return typeof s === "string" && s.length >= 32 && s.length <= 512;
 }
 
+// Runner-only mode is a Railway setting. A host that is clearly the Jackboy dashboard (a Lovable
+// address, or one holding site-only settings such as the database key or the caller-side runner
+// address) ignores it, so a misplaced OMNI_LINK_RUNNER_MODE can never blank the dashboard.
+export type RunnerModeDecision = { on: boolean; ignored?: "lovable_host" | "site_settings" };
+const DASHBOARD_HOST = /(^|\.)(lovable\.app|lovableproject\.com|lovable\.dev)$/i;
+const LOCAL_HOST = /^(localhost|127\.0\.0\.1|\[::1\]|::1)$/i;
+const SITE_ONLY_SETTINGS = ["SUPABASE_SERVICE_ROLE_KEY", "OMNI_LINK_REMOTE_RUNNER_URL"] as const;
+
+export function runnerModeDecision(env: Env, hostname?: string): RunnerModeDecision {
+  if (env["OMNI_LINK_RUNNER_MODE"] !== "true") return { on: false };
+  const host = (hostname ?? "").trim();
+  if (host && (DASHBOARD_HOST.test(host) || (LOCAL_HOST.test(host) && !env["RAILWAY_ENVIRONMENT_ID"])))
+    return { on: false, ignored: "lovable_host" };
+  if (env["OMNI_LINK_REMOTE_RUNNER_ENABLED"] === "true" || SITE_ONLY_SETTINGS.some((k) => !!env[k]))
+    return { on: false, ignored: "site_settings" };
+  return { on: true };
+}
+
+export function remoteRunnerDiagnostic(env: Env): string {
+  if (env["OMNI_LINK_REMOTE_RUNNER_ENABLED"] !== "true")
+    return "Remote self-test runner is disabled; this readiness check does not enable it.";
+  if (!env["OMNI_LINK_REMOTE_RUNNER_URL"])
+    return "OMNI_LINK_REMOTE_RUNNER_URL is missing.";
+  if (!runnerOrigin(env["OMNI_LINK_REMOTE_RUNNER_URL"])) {
+    const v = env["OMNI_LINK_REMOTE_RUNNER_URL"].trim();
+    let u: URL;
+    try {
+      u = new URL(BARE_HOST.test(v) ? `https://${v}` : v);
+    } catch {
+      return "OMNI_LINK_REMOTE_RUNNER_URL is not a valid URL; use the runner's https address (for example https://name.up.railway.app).";
+    }
+    if (u.protocol !== "https:") return "OMNI_LINK_REMOTE_RUNNER_URL must use HTTPS.";
+    if (u.username || u.password || u.search || u.hash)
+      return "OMNI_LINK_REMOTE_RUNNER_URL must not contain credentials, a query, or a fragment.";
+    return "OMNI_LINK_REMOTE_RUNNER_URL must be a bare origin; Jackboy appends /api/public/omni/runner, so remove any configured path to avoid a duplicated endpoint.";
+  }
+  if (!validRunnerSecret(env["OMNI_LINK_REMOTE_RUNNER_SECRET"]))
+    return "OMNI_LINK_REMOTE_RUNNER_SECRET must be configured as a managed secret.";
+  return "Remote runner origin is configured; this read-only check does not test live reachability.";
+}
+
 /** Live-site side: configured only when enabled, an exact https origin and a strong secret exist. */
 export function remoteRunnerConfig(env: Env): RemoteRunnerConfig | null {
   if (env["OMNI_LINK_REMOTE_RUNNER_ENABLED"] !== "true") return null;
   const secret = env["OMNI_LINK_REMOTE_RUNNER_SECRET"];
   if (!validRunnerSecret(secret)) return null;
+  const origin = runnerOrigin(env["OMNI_LINK_REMOTE_RUNNER_URL"]);
+  return origin ? { url: `${origin}${RUNNER_PATH}`, secret } : null;
+}
+
+/** Bare host names (Railway shows "x.up.railway.app") are read as https://; plain http, paths, queries and credentials are refused. */
+const BARE_HOST = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+(?::\d{1,5})?$/i;
+export function runnerOrigin(raw: string | undefined): string | null {
+  const v = (raw || "").trim();
+  if (!v) return null;
   let u: URL;
   try {
-    u = new URL(env["OMNI_LINK_REMOTE_RUNNER_URL"] || "");
+    u = new URL(BARE_HOST.test(v) ? `https://${v}` : v);
   } catch {
     return null;
   }
   if (u.protocol !== "https:" || u.username || u.password || u.search || u.hash || (u.pathname !== "/" && u.pathname !== ""))
     return null;
-  return { url: `${u.origin}${RUNNER_PATH}`, secret };
+  return u.origin;
+}
+
+/** Names which runner setting blocks the remote runner, without ever including a value. */
+export function runnerConfigProblem(env: Env): string | null {
+  if (env["OMNI_LINK_REMOTE_RUNNER_ENABLED"] !== "true") return "OMNI_LINK_REMOTE_RUNNER_ENABLED is not exactly true";
+  if (!validRunnerSecret(env["OMNI_LINK_REMOTE_RUNNER_SECRET"])) return "OMNI_LINK_REMOTE_RUNNER_SECRET is missing or shorter than 32 characters";
+  if (!runnerOrigin(env["OMNI_LINK_REMOTE_RUNNER_URL"]))
+    return "OMNI_LINK_REMOTE_RUNNER_URL must be the runner's https address with no path (for example https://name.up.railway.app)";
+  return null;
 }
 
 export const requestMessage = (ts: string, nonce: string, body: string) =>

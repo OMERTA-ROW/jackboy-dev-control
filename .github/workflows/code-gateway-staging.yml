@@ -28,7 +28,7 @@ jobs:
           export PG_BIN="$(pg_config --bindir)"
           export PGROOT="$RUNNER_TEMP/gateway-pg"
           export STAGING_PG_MODULE_FROM="$RUNNER_TEMP/gateway-pg-driver/package.json"
-          export STAGING_PG_URL=postgres://stg@127.0.0.1:54329/postgres
+          export STAGING_PG_URL=postgres://postgres@127.0.0.1:54329/postgres
           {
             date -u +%FT%TZ
             git rev-parse HEAD
@@ -41,12 +41,12 @@ jobs:
                   echo "Paid-provider egress reachable; refusing tests." >&2
                   exit 1
                 fi
-                runuser -u runner -- "$PG_BIN/initdb" -D "$PGROOT/data" -U stg --auth=trust
+                runuser -u runner -- "$PG_BIN/initdb" -D "$PGROOT/data" -U postgres --auth=trust
                 trap '\''runuser -u runner -- "$PG_BIN/pg_ctl" -D "$PGROOT/data" -m fast stop'\'' EXIT
                 runuser -u runner -- "$PG_BIN/pg_ctl" -D "$PGROOT/data" -l "$PGROOT/postgres.log" \
                   -o "-h 127.0.0.1 -p 54329 -k $PGROOT" -w start
                 runuser -u runner -- node --test --test-concurrency=1 \
-                  tests/code-migration-chain.test.mjs tests/code-spend-staging-pg.test.mjs \
+                  tests/code-migration-chain.test.mjs tests/code-sync-safety-pg.test.mjs tests/code-spend-staging-pg.test.mjs \
                   tests/code-spend-hold-release.test.mjs tests/code-provider-gateway-pg.test.mjs \
                   tests/code-workflow.test.mjs tests/code-gateway-isolation.test.mjs
                 runuser -u runner -- bunx vitest run src/lib/code-gateway.test.ts src/lib/code-gateway.server.test.ts

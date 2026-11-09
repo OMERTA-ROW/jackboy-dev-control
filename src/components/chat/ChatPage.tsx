@@ -3,11 +3,10 @@ import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, isToolUIPart, type UIMessage } from "ai";
 import { useServerFn } from "@tanstack/react-start";
 import { Component, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ArrowDown, ArrowLeft, ArrowUp, ChevronDown, ChevronUp, ExternalLink, Hexagon, History, NotebookText, SlidersHorizontal, Square, SquarePen, Users } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, ChevronDown, ChevronUp, ExternalLink, Hexagon, History, NotebookText, Plus, SlidersHorizontal, Square, Users } from "lucide-react";
 import { getVoiceChatStatus, synthesizeJackboy } from "@/lib/passport.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { MessageResponse } from "@/components/ai-elements/message";
-import { Shimmer } from "@/components/ai-elements/shimmer";
 import { useChatVoice, VoiceButtons } from "@/components/ChatVoice";
 import { LiveCallBar, StartVoiceButton, useLiveCall, type LiveRow } from "@/components/LiveVoiceCall";
 import { CodeTasks, useCodeTasks } from "@/components/CodeTasks";
@@ -23,11 +22,13 @@ import { ACTIVITY_LABEL, deriveActivity } from "@/lib/chat-status";
 import { historyKey, loadConversations, titleFrom, type ChatMode, type StoredMessage } from "@/lib/chat-history";
 import { changedMessages, fingerprint, SAVE_BATCH } from "@/lib/chat-threads";
 import { authorLabel, JACKBOY_KEY, observerLabel, type ContextKind } from "@/lib/chat-context";
-import { deleteChatThread, getChatContextBrief, getChatThread, listChatThreads, saveChatThread } from "@/lib/chat-threads.functions";
+import { deleteChatThread, getChatContextBrief, getChatThread, listChatThreads, renameChatThread, saveChatThread } from "@/lib/chat-threads.functions";
 import { ChatHistorySheet, type ThreadRow } from "@/components/chat/ChatHistorySheet";
 import { ChatContextSheet, ContextNotesCard, type ContextChoice } from "@/components/chat/ChatContextSheet";
 import { ChatStatusLine } from "@/components/chat/ChatStatusLine";
+import { OMNI_TOOLS, OmniToolResult, TestOmniLinkButton } from "@/components/chat/OmniToolResult";
 import { AttachButton, MessageAttachments, PendingChips, usePendingAttachments } from "@/components/chat/ChatAttachments";
+import { ChatActivity } from "@/components/chat/ChatActivity";
 
 /** Page-level recovery: conversations are saved to the account, so reloading keeps them. */
 export function ChatError({ error, reset }: ErrorComponentProps) {
@@ -101,6 +102,7 @@ function OwnerChat({ threadId, userId, role }: { threadId: string; userId: strin
   const getThread = useServerFn(getChatThread);
   const saveThread = useServerFn(saveChatThread);
   const removeThread = useServerFn(deleteChatThread);
+  const renameThread = useServerFn(renameChatThread);
   const getBrief = useServerFn(getChatContextBrief);
   const [repos, setRepos] = useState<{ id: string; name: string }[] | null>(null);
   const [repoErr, setRepoErr] = useState<string | null>(null);
@@ -108,7 +110,7 @@ function OwnerChat({ threadId, userId, role }: { threadId: string; userId: strin
   useEffect(() => {
     if (view !== "code" || repos) return;
     // Only project names reach the browser view; repository paths stay in Projects.
-    hub().then((h) => { const list = h.projects.filter((p) => p.github_repo).map((p) => ({ id: p.id, name: p.name })); setRepos(list); if (list[0]) setTarget((t) => t || (list[0]?.name ?? "")); })
+    hub().then((h) => { const list = h.projects.filter((p) => p.github_repo).map((p) => ({ id: p.id, name: p.name })); setRepos(list); })
       .catch((e) => setRepoErr((e as Error).message));
   }, [view, repos, hub]);
   const [error, setError] = useState<string | null>(null);
@@ -147,6 +149,9 @@ function OwnerChat({ threadId, userId, role }: { threadId: string; userId: strin
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const savedPrints = useRef(new Map<string, string>());
   const savedContext = useRef<string>(JACKBOY_KEY);
+  const savedTitle = useRef<string | null>(null);
+  const saveQueue = useRef<Promise<boolean>>(Promise.resolve(true));
+  const deleting = useRef(false);
   const applyContext = useCallback(async (key: string, fallback?: Partial<Ctx>) => {
     if (key === JACKBOY_KEY) { setCtx(JACKBOY_CTX); return; }
     setCtx({ ...JACKBOY_CTX, key, name: fallback?.name ?? "…", kind: (fallback?.kind as ContextKind) ?? "agent" });
@@ -163,19 +168,21 @@ function OwnerChat({ threadId, userId, role }: { threadId: string; userId: strin
       savedPrints.current = new Map(msgs.map((m) => [m.id, fingerprint(m)]));
       loadedIds.current = new Set(msgs.map((m) => m.id));
       setMessages(msgs);
-      if (r.thread) { setView(r.thread.mode); setStoredMode(r.thread.mode); savedContext.current = r.thread.context_key; await applyContext(r.thread.context_key); }
+      if (r.thread) { savedTitle.current = r.thread.title; setView(r.thread.mode); setStoredMode(r.thread.mode); savedContext.current = r.thread.context_key; await applyContext(r.thread.context_key); }
+      try { localStorage.setItem(`jackboy.chat.last.${userId}`, threadId); } catch { setSaveError("Couldn't remember this conversation on this device."); }
       setLoadState("ready");
     } catch (e) { setLoadErr((e as Error).message); setLoadState("error"); }
     const notice = takeSession(`jackboy.chat.notice.${threadId}`); if (notice) setDraftNotice(notice);
     const draft = takeSession(`jackboy.chat.draft.${threadId}`); if (draft) setText(draft);
-  }, [getThread, threadId, setMessages, applyContext]);
+  }, [getThread, threadId, userId, setMessages, applyContext]);
   useEffect(() => { void loadThread(); }, [loadThread]);
 
   const persist = useCallback(async (list: StoredMessage[], contextKey: string) => {
+    if (deleting.current) return false;
     const changed = changedMessages(list, savedPrints.current);
     if (!changed.length && contextKey === savedContext.current) return true;
     try {
-      const title = titleFrom(list);
+      const title = savedTitle.current ?? titleFrom(list);
       for (let i = 0; i < Math.max(1, changed.length); i += SAVE_BATCH) {
         const batch = changed.slice(i, i + SAVE_BATCH);
         await saveThread({ data: { id: threadId, mode: view, title, contextKey, messages: batch.map((m) => {
@@ -185,28 +192,64 @@ function OwnerChat({ threadId, userId, role }: { threadId: string; userId: strin
         for (const m of batch) savedPrints.current.set(m.id, fingerprint(m));
       }
       savedContext.current = contextKey;
+      savedTitle.current = title;
       setSaveError(null);
       setThreads((cur) => { const row = { id: threadId, title, mode: view, context_key: contextKey, updated_at: new Date().toISOString() }; return [row, ...(cur ?? []).filter((t) => t.id !== threadId)]; });
       return true;
     } catch (e) { setSaveError(`Not saved: ${(e as Error).message}. Your messages are still on screen; it will retry with the next message.`); return false; }
   }, [saveThread, threadId, view]);
+  const saveCurrent = useCallback((list: StoredMessage[], contextKey: string) => {
+    saveQueue.current = saveQueue.current.then(() => persist(list, contextKey));
+    return saveQueue.current;
+  }, [persist]);
   useEffect(() => {
     // Save after the user turn is submitted and after each reply, not on every streamed token.
     if (loadState !== "ready" || !prefs.saveHistory || status === "streaming" || !messages.length) return;
-    const t = setTimeout(() => { void persist(messages as StoredMessage[], ctx.key); }, 400);
+    const t = setTimeout(() => { void saveCurrent(messages as StoredMessage[], ctx.key); }, 400);
     return () => clearTimeout(t);
-  }, [messages, status, loadState, prefs.saveHistory, ctx.key, persist]);
+  }, [messages, status, loadState, prefs.saveHistory, ctx.key, saveCurrent]);
 
-  const openThread = (id: string) => { stop(); setHistoryOpen(false); if (id !== threadId) void navigate({ to: "/chat/$threadId", params: { threadId: id } }); };
-  const newThread = (mode: ChatMode = view) => { stop(); setStoredMode(mode); void navigate({ to: "/chat/$threadId", params: { threadId: crypto.randomUUID() } }); };
-  const switchView = (v: ChatMode) => { if (v === view) return; setStoredMode(v); const latest = threads?.find((t) => t.mode === v); if (latest) openThread(latest.id); else newThread(v); };
+  const openThread = async (id: string, mode?: ChatMode) => {
+    if (busy || code.busy || live.live) { setError("Stop the active reply or call before switching conversations."); return; }
+    if (prefs.saveHistory && loadState === "ready" && messages.length && !(await saveCurrent(messages as StoredMessage[], ctx.key))) return;
+    setHistoryOpen(false);
+    if (mode) setStoredMode(mode);
+    if (id !== threadId) void navigate({ to: "/chat/$threadId", params: { threadId: id } });
+  };
+  const newThread = async (mode: ChatMode = view) => {
+    await openThread(crypto.randomUUID(), mode);
+  };
+  const switchView = (v: ChatMode) => { if (v === view) return; const latest = threads?.find((t) => t.mode === v); if (latest) void openThread(latest.id, v); else void newThread(v); };
   const deleteThread = async (id: string) => {
+    if (busy || code.busy || live.live) { setError("Stop the active reply or call before deleting a conversation."); return; }
     try {
+      await saveQueue.current;
+      if (id === threadId) deleting.current = true;
       const r = await removeThread({ data: { id } });
       if (r.attachmentsLeft) setError(`Conversation deleted; ${r.attachmentsLeft} attachment file(s) couldn't be removed.`);
       await refreshThreads();
-      if (id === threadId) newThread();
-    } catch (e) { setError((e as Error).message); }
+      if (id === threadId) {
+        setStoredMode(view);
+        void navigate({ to: "/chat/$threadId", params: { threadId: crypto.randomUUID() } });
+      }
+    } catch (e) { deleting.current = false; setError((e as Error).message); }
+  };
+  const renameConversation = async (id: string, title: string) => {
+    try {
+      if (id === threadId) {
+        if (!(await saveCurrent(messages as StoredMessage[], ctx.key))) return false;
+        saveQueue.current = saveQueue.current.then(async () => {
+          const result = await renameThread({ data: { id, title } });
+          savedTitle.current = result.title;
+          return true;
+        }).catch((e) => { setError((e as Error).message); return false; });
+        if (!(await saveQueue.current)) return false;
+      } else {
+        await renameThread({ data: { id, title } });
+      }
+      await refreshThreads();
+      return true;
+    } catch (e) { setError((e as Error).message); return false; }
   };
 
   // One-press move of conversations that were saved only in this browser into the account.
@@ -269,16 +312,22 @@ function OwnerChat({ threadId, userId, role }: { threadId: string; userId: strin
   const send = async (t: string) => {
     const withFiles = view === "chat" && attach.hasReady;
     if ((!t.trim() && !withFiles) || busy || code.busy) return;
-    if (attach.busy) { setError("Wait for the attachment to finish uploading."); return; }
+    if (loadState !== "ready") { setError("Open or retry loading this conversation before sending."); return; }
+    if (view === "chat" && attach.busy) { setError("Wait for the attachment to finish uploading."); return; }
     setError(null); setDraftNotice(null); jackboyVoice.stop(); voice.stopSpeaking();
     if (view === "code") {
       // Allow/Deny phrases still go to the pending card; anything else becomes a request for the selected project.
       const direct = /^\s*(CODE\s+[^:\n]+:|(allow|deny)\s+CODE\s)/i.test(t);
       if (!direct && !target) { setError("Pick a project first."); setToolsOpen(true); return; }
-      if (await code.submit(direct ? t : `CODE ${target}: ${t.trim()}`)) { addUser(direct ? t : `${target}: ${t.trim()}`); setText(""); setFromVoice(false); }
+      try {
+        if (await code.submit(direct ? t : `CODE ${target}: ${t.trim()}`)) { addUser(direct ? t : `${target}: ${t.trim()}`); setText(""); setFromVoice(false); }
+        else setError("No matching pending CODE approval. Use the exact request ID shown on its card.");
+      } catch (e) { setError(`CODE blocked: ${(e as Error).message}. Your draft has been kept.`); }
       return;
     }
-    if (!withFiles && await code.submit(t)) { addUser(t); setText(""); setFromVoice(false); return; }
+    try {
+      if (!withFiles && await code.submit(t)) { addUser(t); setText(""); setFromVoice(false); return; }
+    } catch (e) { setError(`CODE blocked: ${(e as Error).message}. Your draft has been kept.`); return; }
     const id = crypto.randomUUID();
     setSubmitAnchor({ id, reserve: 0, pending: true });
     const words = t.trim() || "Please describe what you see in the attachment.";
@@ -432,15 +481,22 @@ function OwnerChat({ threadId, userId, role }: { threadId: string; userId: strin
           <div className="ml-auto flex items-center">
             {view === "chat" && ctx.key !== JACKBOY_KEY && <button type="button" onClick={() => setNotesOpen((o) => !o)} aria-pressed={notesOpen} aria-label={`Stored notes for ${ctx.name}`} title="Stored notes Jackboy uses" className={iconBtn}><NotebookText className="size-5" /></button>}
             <button type="button" onClick={() => setToolsOpen(true)} aria-label={view === "code" ? "Project and connections" : "Shortcuts and chat settings"} title="Projects, links and chat settings" className={iconBtn}><SlidersHorizontal className="size-5" /></button>
-            <button type="button" onClick={() => newThread()} aria-label="New conversation" title="New conversation" className={iconBtn}><SquarePen className="size-5" /></button>
+            <button type="button" onClick={() => void newThread()} aria-label="New conversation" title="New conversation" className={iconBtn}><Plus className="size-5" /></button>
           </div>
+          <label className="mx-4 mb-2 flex items-center gap-2 text-xs text-muted-foreground">
+            Conversation
+            <select aria-label="Saved conversations" value={threads?.some((t) => t.id === activeId) ? activeId : ""} onChange={(e) => { if (e.target.value) void openThread(e.target.value); }} className="min-h-8 min-w-0 max-w-xs rounded border border-border bg-card px-2">
+              <option value="">New conversation</option>
+              {threads?.filter((t) => t.mode === view).map((t) => <option key={t.id} value={t.id}>{t.title}</option>)}
+            </select>
+          </label>
         </div>
         {activity && <p className="-mt-1 px-4 pb-1 text-[11px] text-electric sm:hidden" aria-hidden>{ACTIVITY_LABEL[activity]}</p>}
         {prefs.statusLine && <ChatStatusLine projectId={view === "chat" ? ctx.projectId : null} hasRepo={view === "chat" && ctx.hasRepo} />}
       </header>
 
       <ChatHistorySheet open={historyOpen} onOpenChange={setHistoryOpen} mode={view} threads={threads} loadError={threadsErr} activeId={activeId}
-        onOpen={openThread} onDelete={(id) => void deleteThread(id)} localCount={localCount} onImport={() => void importLocal()} importing={importing} />
+        onOpen={(id) => void openThread(id)} onDelete={(id) => void deleteThread(id)} onRename={renameConversation} localCount={localCount} onImport={() => void importLocal()} importing={importing} />
       <ChatContextSheet open={contextOpen} onOpenChange={setContextOpen} current={ctx.key} onSelect={selectContext} />
 
       <Sheet open={toolsOpen} onOpenChange={setToolsOpen}>
@@ -452,6 +508,7 @@ function OwnerChat({ threadId, userId, role }: { threadId: string; userId: strin
               <p className="text-sm text-muted-foreground">No project has a linked repo yet.</p>
             ) : (
               <select id="code-repo" value={target} onChange={(e) => setTarget(e.target.value)} className="mt-1 block min-h-10 w-full rounded-xl border border-border bg-card px-3 text-sm">
+                <option value="">Choose a project explicitly</option>
                 {repos.map((r) => <option key={r.id} value={r.name}>{r.name}</option>)}
               </select>
             )}
@@ -462,6 +519,11 @@ function OwnerChat({ threadId, userId, role }: { threadId: string; userId: strin
             <Toggle label="Save conversations to my account" on={prefs.saveHistory} onChange={(v) => setPref("saveHistory", v)} />
             <Toggle label="Status line" on={prefs.statusLine} onChange={(v) => setPref("statusLine", v)} />
             {!prefs.saveHistory && <p className="text-xs text-warning">New messages aren't saved while this is off. Earlier saved messages stay.</p>}
+          </section>
+          <section aria-label="OMNI link" className="space-y-2">
+            <h3 className="text-sm font-semibold text-silver">OMNI link</h3>
+            <p className="text-xs text-muted-foreground">Checks the live link to OMNI. Sends no job.</p>
+            <TestOmniLinkButton />
           </section>
           <VoiceSupport />
           <nav aria-label="Secondary" className="flex flex-col gap-1 text-sm">
@@ -548,7 +610,7 @@ function OwnerChat({ threadId, userId, role }: { threadId: string; userId: strin
               aria-multiline="true" className="min-h-9 min-w-0 flex-1 resize-none overflow-y-hidden overscroll-contain [scrollbar-width:thin] bg-transparent [overflow-wrap:anywhere] py-1.5 text-[15px] outline-none placeholder:text-muted-foreground" />
             <VoiceButtons v={voice} />
             {busy ? <button type="button" onClick={stop} aria-label="Stop reply" className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-foreground text-background"><Square className="size-3.5" /></button>
-              : text.trim() || (view === "chat" && attach.hasReady) ? <button type="submit" disabled={attach.busy} aria-label="Send message" className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground disabled:opacity-50"><ArrowUp className="size-4" /></button>
+              : text.trim() || (view === "chat" && attach.hasReady) ? <button type="submit" disabled={code.busy || loadState !== "ready" || (view === "chat" && attach.busy)} aria-label="Send message" className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground disabled:opacity-50"><ArrowUp className="size-4" /></button>
               : !live.live && <StartVoiceButton v={live} />}
           </form>
         </div>
@@ -588,6 +650,7 @@ function Bubble({ m, viewerRole, streaming, disabled, rating, onRate, onRetry, o
   return (
     <li id={`message-${m.id}`} className={user ? "group flex max-w-[90%] min-w-0 flex-col items-end self-end text-[15px] [overflow-wrap:anywhere]" : "group min-w-0 max-w-full text-[15px] leading-relaxed [overflow-wrap:anywhere] [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_pre]:overflow-y-hidden [&_table]:block [&_table]:overflow-x-auto"}>
       <p className={`mb-1 text-[11px] font-medium tracking-wide ${user ? "text-muted-foreground" : "text-silver"}`}>{label}</p>
+      {!user && <ChatActivity parts={m.parts} />}
       {user ? (words.trim() && <div className="whitespace-pre-wrap rounded-3xl bg-muted px-4 py-2.5">{words.replace(/^🎙\s*/, "")}</div>) : m.parts.map((part, i) => {
         if (part.type === "text") return <MessageResponse key={i} components={{ a: ({ children }) => <span>{children}</span> }}>{part.text}</MessageResponse>;
         if (isToolUIPart(part)) return <ToolLine key={i} name={part.type === "dynamic-tool" ? part.toolName : part.type.slice(5)} state={part.state} output={part.output} errorText={part.errorText} />;
@@ -632,20 +695,21 @@ const TOOL_WORDS: Record<string, string> = { authorizationHelp: "Finding the rig
 const human = (n: string) => TOOL_WORDS[n] ?? n.replace(/[_-]+/g, " ").replace(/^./, (c) => c.toUpperCase());
 
 /** Real tool calls appear as one quiet line while running; finished ones vanish unless they failed or need an approval link. */
-function ToolLine({ name, state, output, errorText }: { name: string; state: string; output: unknown; errorText?: string | undefined }) {
+function ToolLine({ name, state, output }: { name: string; state: string; output: unknown; errorText?: string | undefined }) {
   const running = state === "input-streaming" || state === "input-available";
   const failed = state === "output-error" || state === "output-denied";
   const auths = (output as { authorizations?: unknown } | null)?.authorizations;
   const auth = Array.isArray(auths) ? (auths as Authorization[]).find((a) => a && a.state !== "authorized" && Array.isArray(a.links)) : undefined;
   const value = (output && typeof output === "object" ? output : null) as { blocked?: boolean; reason?: unknown; evidence?: unknown } | null;
   const evidence = links(value?.evidence);
-  if (running) return <Shimmer className="my-1 block text-sm">{`${human(name)}…`}</Shimmer>;
+  if (running) return null;
+  if (OMNI_TOOLS.has(name) && !failed) return <OmniToolResult name={name} output={output} />;
   if (auth) {
     const link = auth.links.find((l) => l.primary && l.url.startsWith("https://github.com/")) ?? auth.links.find((l) => l.url.startsWith("https://github.com/"));
     return <p className="my-2 text-sm">{auth.provider} needs your approval{auth.repo ? ` for ${auth.repo}` : ""}.{link && <> <a href={link.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-electric underline"><ExternalLink className="size-3.5" />Approve on {auth.provider}</a></>}</p>;
   }
   if (state === "approval-requested") return <p className="my-1 text-sm text-warning">{human(name)} is waiting for your approval.</p>;
-  if (failed) return <p role="alert" className="my-1 text-sm text-destructive">{human(name)} didn't work{errorText ? `: ${errorText.slice(0, 200)}` : "."}</p>;
+  if (failed) return null;
   if (value?.blocked || evidence.length) return <div className="my-2 text-sm">{value?.blocked && <p role="alert" className="text-destructive">Blocked: {String(value.reason ?? "")}</p>}<div className="flex flex-wrap gap-3">{evidence.map((l) => <a key={l.url} href={l.url} className="inline-flex items-center gap-1 text-xs text-primary underline"><ExternalLink className="size-3.5" />{l.label}</a>)}</div></div>;
   return null;
 }

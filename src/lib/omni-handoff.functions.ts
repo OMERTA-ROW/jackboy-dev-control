@@ -44,14 +44,19 @@ type JobRow = {
 };
 type GrantRow = { id: string; job_id: string; expires_at: string; revoked_at: string | null; created_at: string };
 
-/** Read-only: live link state, project authorizations and every queued build/test job with its blockers. */
+/** Owner diagnostics also reconcile expired authorizations; job handoffs remain unsent until separately approved. */
 export const getOmniHandoffs = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     await requireConfirmedOwner(context as unknown as Ctx);
     const db = await admin();
-    const { isOmniVerified } = await import("./omni-link.server");
-    const live = await isOmniVerified();
+    const { isOmniVerified, omniConfigState } = await import("./omni-link.server");
+    const { safeOmniDiagnostic } = await import("./omni-link");
+    const [live, expiration] = await Promise.all([
+      isOmniVerified(),
+      db.rpc("expire_omni_project_authorizations", { _actor: context.userId }),
+    ]);
+    if (expiration.error) throw new Error("Expired OMNI access could not be reconciled; handoff actions remain unavailable.");
     const [conn, policy, projects, auths, jobs, grants] = await Promise.all([
       db.from("omni_connection").select("verified, verified_at, last_error").eq("id", true).maybeSingle(),
       db.from("automation_policy").select("paused").eq("id", 1).maybeSingle(),
@@ -120,7 +125,17 @@ export const getOmniHandoffs = createServerFn({ method: "POST" })
     });
 
     return {
-      link: { live, lastError: c?.last_error ?? null, verifiedAt: c?.verified_at ?? null },
+      link: {
+        live,
+        lastError: live ? null : safeOmniDiagnostic(c?.last_error),
+        verifiedAt: live ? c?.verified_at ?? null : null,
+        expiresAt: live && c?.verified_at
+          ? new Date(Date.parse(c.verified_at) + 5 * 60_000).toISOString()
+          : null,
+        config: omniConfigState(),
+      },
+      expiredAuthorizations: Number((expiration.data as { expiredAuthorizations?: number } | null)?.expiredAuthorizations ?? 0),
+      expiredJobApprovals: Number((expiration.data as { expiredJobApprovals?: number } | null)?.expiredJobApprovals ?? 0),
       killSwitchOn,
       projects: projectRows.map((p) => {
         const a = currentAuth(p.id);

@@ -1652,6 +1652,62 @@ export type Database = {
         }
         Relationships: []
       }
+      jax_release_manifests: {
+        Row: {
+          archived_at: string | null
+          created_at: string
+          handoff_id: string | null
+          id: string
+          imported_at: string | null
+          manifest: Json
+          name: string
+          original: Json | null
+          owner_id: string
+          simulated: boolean
+          source_local_id: string | null
+          updated_at: string
+          version: string
+        }
+        Insert: {
+          archived_at?: string | null
+          created_at?: string
+          handoff_id?: string | null
+          id?: string
+          imported_at?: string | null
+          manifest: Json
+          name: string
+          original?: Json | null
+          owner_id: string
+          simulated?: boolean
+          source_local_id?: string | null
+          updated_at?: string
+          version?: string
+        }
+        Update: {
+          archived_at?: string | null
+          created_at?: string
+          handoff_id?: string | null
+          id?: string
+          imported_at?: string | null
+          manifest?: Json
+          name?: string
+          original?: Json | null
+          owner_id?: string
+          simulated?: boolean
+          source_local_id?: string | null
+          updated_at?: string
+          version?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jax_release_manifests_handoff_id_fkey"
+            columns: ["handoff_id"]
+            isOneToOne: false
+            referencedRelation: "omni_research_handoffs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       learning_events: {
         Row: {
           created_at: string
@@ -2049,6 +2105,30 @@ export type Database = {
           },
         ]
       }
+      omni_link_approval: {
+        Row: {
+          approval_id: string
+          expires_at: string
+          id: number
+          saved_at: string
+          saved_by: string
+        }
+        Insert: {
+          approval_id: string
+          expires_at: string
+          id?: number
+          saved_at?: string
+          saved_by: string
+        }
+        Update: {
+          approval_id?: string
+          expires_at?: string
+          id?: number
+          saved_at?: string
+          saved_by?: string
+        }
+        Relationships: []
+      }
       omni_link_sessions: {
         Row: {
           approval_id: string
@@ -2124,6 +2204,81 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      omni_research_handoffs: {
+        Row: {
+          approvals: Json
+          archived_at: string | null
+          created_at: string
+          est_cost: number
+          feasibility: number
+          finding_id: string
+          hypothesis: string
+          id: string
+          imported_at: string | null
+          novelty_caveat: string
+          original: Json | null
+          owner_id: string
+          priority: string
+          provenance: Json
+          requirements: string
+          revenue: Json
+          risk: string
+          source_local_id: string | null
+          sources: Json
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          approvals?: Json
+          archived_at?: string | null
+          created_at?: string
+          est_cost?: number
+          feasibility?: number
+          finding_id?: string
+          hypothesis?: string
+          id?: string
+          imported_at?: string | null
+          novelty_caveat?: string
+          original?: Json | null
+          owner_id: string
+          priority?: string
+          provenance?: Json
+          requirements?: string
+          revenue?: Json
+          risk?: string
+          source_local_id?: string | null
+          sources?: Json
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          approvals?: Json
+          archived_at?: string | null
+          created_at?: string
+          est_cost?: number
+          feasibility?: number
+          finding_id?: string
+          hypothesis?: string
+          id?: string
+          imported_at?: string | null
+          novelty_caveat?: string
+          original?: Json | null
+          owner_id?: string
+          priority?: string
+          provenance?: Json
+          requirements?: string
+          revenue?: Json
+          risk?: string
+          source_local_id?: string | null
+          sources?: Json
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       owner_alert_outbox: {
         Row: {
@@ -3463,6 +3618,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      code_acceptance_guard_status: { Args: never; Returns: boolean };
       code_provider_call_holds: {
         Args: { p_request_id: string }
         Returns: number
@@ -3490,6 +3646,10 @@ export type Database = {
           active_request_id: string
           active_run_id: number
         }[]
+      }
+      expire_omni_project_authorizations: {
+        Args: { _actor: string }
+        Returns: Json
       }
       finish_code_runtime_slot: {
         Args: {
@@ -3600,6 +3760,15 @@ export type Database = {
         Returns: boolean
       }
       revoke_invitation: { Args: { _id: string }; Returns: undefined }
+      save_omni_link_approval: {
+        Args: {
+          _actor: string
+          _approval: string
+          _expires: string
+          _grant: string
+        }
+        Returns: Json
+      }
       set_automation_policy: {
         Args: {
           _max_files: number
@@ -3613,6 +3782,10 @@ export type Database = {
         Args: { p_actor: string; p_evidence: string; p_verified: boolean }
         Returns: Json
       }
+      set_guardian_limits: {
+        Args: { _max_files: number; _max_lines: number; _tier: number };
+        Returns: undefined;
+      };
       set_jax_enrollment: {
         Args: { _enroll: boolean; _id: string; _purpose: string }
         Returns: undefined

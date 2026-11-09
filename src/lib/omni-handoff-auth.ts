@@ -48,6 +48,16 @@ export type HandoffFacts = {
 
 export type Blocker = { code: string; message: string };
 export type HandoffVerdict = { allowed: boolean; blockers: Blocker[] };
+export type BlockerNextStep = "check_connection" | "project_access" | "review_project" | "review_settings";
+
+/** Navigation or a transport-only check; this never grants access or sends a job. */
+export function blockerNextStep(code: string): BlockerNextStep | null {
+  if (code === "link" || code === "link_config" || code === "link_stale") return "check_connection";
+  if (code === "authorization" || code === "authorization_expired" || code === "authorization_scope") return "project_access";
+  if (code === "kill_switch") return "review_settings";
+  if (code === "project" || code === "project_enrolled" || code === "project_repo" || code === "job_repo") return "review_project";
+  return null;
+}
 
 export function linkIsLive(link: HandoffFacts["link"], now = Date.now()): boolean {
   if (!link.verified || !link.verifiedAt || !link.configMatches) return false;

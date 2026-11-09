@@ -11,11 +11,10 @@ async function role(ctx: Ctx) {
 const audit = (ctx: Ctx, action: string, detail: Record<string, unknown>, outcome = "ok") =>
   ctx.supabase.rpc("write_audit", { _action: action, _detail: detail, _outcome: outcome });
 
-/** OMNI has no verified authenticated API yet: jobs stay queued locally and are never marked sent. */
-// OMNI counts as verified only after the server handshake proved both shared keys (omni_connection row).
-async function omniVerified(ctx: { supabase: { from: (t: "omni_connection") => any } }): Promise<boolean> {
-  const { data } = await ctx.supabase.from("omni_connection").select("verified").eq("id", true).maybeSingle();
-  return Boolean(data?.verified);
+/** Read current endpoint-and-credential-bound freshness; a stored stale bit is never enough. */
+async function omniVerified(): Promise<boolean> {
+  const { isOmniVerified } = await import("./omni-link.server");
+  return isOmniVerified();
 }
 
 export const getPassport = createServerFn({ method: "POST" })
@@ -53,7 +52,7 @@ export const getPassport = createServerFn({ method: "POST" })
       reports: reports.data ?? [],
       jobs: jobs.data ?? [],
       trail: trail.data ?? [],
-      omniVerified: (await omniVerified(context)),
+      omniVerified: await omniVerified(),
     };
   });
 
@@ -161,7 +160,7 @@ export const requestOmniJob = createServerFn({ method: "POST" })
     await audit(
       context,
       "omni.job.queue",
-      { agent: data.agentId, project: data.projectId, kind: data.kind, omniVerified: await omniVerified(context) },
+      { agent: data.agentId, project: data.projectId, kind: data.kind, omniVerified: await omniVerified() },
       "queued_not_sent",
     );
     return { ok: true, sent: false };
@@ -177,12 +176,18 @@ export const getOmniQueue = createServerFn({ method: "POST" })
       context.supabase.from("agent_projects").select("id,name").order("name"),
       context.supabase
         .from("omni_jobs")
-        .select("id,project_id,kind,instructions,status,sent_at,guardian_verdict,created_at")
+        .select("id,project_id,kind,instructions,status,sent_at,guardian_verdict,created_at,pr_url")
         .order("created_at", { ascending: false })
         .limit(50),
     ]);
     if (projects.error || jobs.error) throw new Error("Could not load the OMNI task queue.");
-    return { role: currentRole, projects: projects.data ?? [], jobs: jobs.data ?? [], omniVerified: (await omniVerified(context)) };
+    const { safeOmniPullRequestUrl } = await import("./omni-link");
+    return {
+      role: currentRole,
+      projects: projects.data ?? [],
+      jobs: (jobs.data ?? []).map((job) => ({ ...job, pr_url: safeOmniPullRequestUrl(job.pr_url) })),
+      omniVerified: await omniVerified(),
+    };
   });
 
 /** Dashboard facts come only from authenticated, RLS-scoped records. */
@@ -218,7 +223,7 @@ export const getDashboardFacts = createServerFn({ method: "POST" })
       reports: reports.data ?? [],
       proposals: proposals.data ?? [],
       events: events.data ?? [],
-      omniVerified: (await omniVerified(context)),
+      omniVerified: await omniVerified(),
     };
   });
 

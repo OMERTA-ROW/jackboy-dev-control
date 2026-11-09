@@ -1,9 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { hmacHex } from "./omni-link";
 import {
   callRemoteRunner,
   nonceCache,
   remoteRunnerConfig,
+  runnerConfigProblem,
+  runnerModeDecision,
+  runnerOrigin,
   requestMessage,
   responseMessage,
   verifyRunnerRequest,
@@ -42,6 +45,29 @@ describe("remote runner config (live site)", () => {
 });
 
 describe("runner endpoint (runner-only host)", () => {
+  it.each(["GET", "PUT", "DELETE"])("rejects %s with JSON and never executes", async (method) => {
+    const execute = vi.fn(async () => true);
+    const response = await handleRunnerRequest(
+      new Request(cfg.url, { method }), env, execute, () => true,
+    );
+    expect(response.status).toBe(405);
+    expect(response.headers.get("allow")).toBe("POST");
+    expect(await response.json()).toEqual({ error: "post_required" });
+    expect(execute).not.toHaveBeenCalled();
+  });
+  it.each(["missing", "invalid"])("rejects %s authentication without executing", async (kind) => {
+    const execute = vi.fn(async () => true);
+    const headers = kind === "invalid" ? {
+      "X-Runner-Timestamp": String(Date.now()),
+      "X-Runner-Nonce": "n".repeat(32),
+      "X-Runner-Signature": "0".repeat(64),
+    } : {};
+    const response = await handleRunnerRequest(
+      new Request(cfg.url, { method: "POST", headers, body }), env, execute, () => true,
+    );
+    expect(response.status).toBe(401);
+    expect(execute).not.toHaveBeenCalled();
+  });
   it("is 404 when runner mode is off", async () => {
     expect((await run(await signed(body), { e: { OMNI_LINK_REMOTE_RUNNER_SECRET: SECRET } })).status).toBe(404);
   });
@@ -90,5 +116,78 @@ describe("round trip", () => {
     const h = (await signed(body)).headers;
     expect("jobId" in (await verifyRunnerRequest(SECRET, h, body, claim))).toBe(true);
     expect(await verifyRunnerRequest(SECRET, h, body, claim)).toEqual({ error: "replayed_request" });
+  });
+});
+
+describe("runnerOrigin (Railway host as shown in Railway)", () => {
+  it("reads a bare Railway host as https and never as http", () => {
+    expect(runnerOrigin("x.up.railway.app")).toBe("https://x.up.railway.app");
+    expect(runnerOrigin(" https://x.up.railway.app/ ")).toBe("https://x.up.railway.app");
+    expect(runnerOrigin("http://x.up.railway.app")).toBeNull();
+    expect(runnerOrigin("x.up.railway.app/api/public/omni/runner")).toBeNull();
+  });
+  it("names the blocking runner setting without values", () => {
+    const ok = { OMNI_LINK_REMOTE_RUNNER_ENABLED: "true", OMNI_LINK_REMOTE_RUNNER_SECRET: "s".repeat(32), OMNI_LINK_REMOTE_RUNNER_URL: "x.up.railway.app" };
+    expect(runnerConfigProblem(ok)).toBeNull();
+    expect(remoteRunnerConfig(ok)?.url).toBe("https://x.up.railway.app/api/public/omni/runner");
+    expect(runnerConfigProblem({ ...ok, OMNI_LINK_REMOTE_RUNNER_URL: "http://x" })).toContain("OMNI_LINK_REMOTE_RUNNER_URL");
+    expect(runnerConfigProblem({ ...ok, OMNI_LINK_REMOTE_RUNNER_SECRET: "zq9-private" })).not.toContain("zq9-private");
+  });
+});
+
+describe("runner-mode guard (dashboard hosts ignore a misplaced OMNI_LINK_RUNNER_MODE)", () => {
+  it("allows dedicated Railway loopback but never Lovable or site-configured hosts", () => {
+    const railway = { ...env, RAILWAY_ENVIRONMENT_ID: "test-environment" };
+    expect(runnerModeDecision(railway, "127.0.0.1").on).toBe(true);
+    expect(runnerModeDecision(railway, "localhost").on).toBe(true);
+    expect(runnerModeDecision(railway, "jackboy-dev-control.lovable.app").on).toBe(false);
+    expect(runnerModeDecision({ ...railway, SUPABASE_SERVICE_ROLE_KEY: "test-only" }, "127.0.0.1").on)
+      .toBe(false);
+  });
+  it("the Node runner flag alone never selects runner-only mode", () => {
+    expect(runnerModeDecision({ OMNI_LINK_NODE_RUNNER_ENABLED: "true" }, "x.up.railway.app"))
+      .toEqual({ on: false });
+  });
+  it.each([
+    "jackboy-dev-control.lovable.app",
+    "id-preview--abc.lovable.app",
+    "abc.lovableproject.com",
+    "lovable.dev",
+  ])("both runner flags leave dashboard host %s non-executing", async (host) => {
+    const flags = { ...env, OMNI_LINK_NODE_RUNNER_ENABLED: "true" };
+    expect(runnerModeDecision(flags, host)).toEqual({ on: false, ignored: "lovable_host" });
+    const execute = vi.fn(async () => true);
+    const response = await handleRunnerRequest(
+      new Request(`https://${host}/api/public/omni/runner`, { method: "POST", body }),
+      flags,
+      execute,
+      () => true,
+    );
+    expect(response.status).toBe(404);
+    expect(execute).not.toHaveBeenCalled();
+  });
+  it("stays on for a plain runner host with only runner settings", () => {
+    expect(runnerModeDecision(env, "jackboy-runner.up.railway.app")).toEqual({ on: true });
+  });
+  it("is off when runner mode is not exactly true", () => {
+    expect(runnerModeDecision({ ...env, OMNI_LINK_RUNNER_MODE: "TRUE" }, "x.up.railway.app").on).toBe(false);
+  });
+  it.each(["jackboy-dev-control.lovable.app", "id-preview--abc.lovable.app", "abc.lovableproject.com", "localhost"])(
+    "is ignored on dashboard host %s",
+    (host) => expect(runnerModeDecision(env, host)).toEqual({ on: false, ignored: "lovable_host" }),
+  );
+  it.each([
+    ["SUPABASE_SERVICE_ROLE_KEY", "k"],
+    ["OMNI_LINK_REMOTE_RUNNER_URL", "https://x.up.railway.app"],
+    ["OMNI_LINK_REMOTE_RUNNER_ENABLED", "true"],
+  ])("is ignored when the site-only setting %s is present", (k, v) => {
+    expect(runnerModeDecision({ ...env, [k]: v }, "x.up.railway.app")).toEqual({ on: false, ignored: "site_settings" });
+  });
+  it("runner endpoint refuses signed requests on a dashboard host", async () => {
+    const req = await signed(body);
+    const onDashboard = new Request("https://jackboy-dev-control.lovable.app/api/public/omni/runner", {
+      method: "POST", headers: req.headers, body,
+    });
+    expect((await run(onDashboard)).status).toBe(404);
   });
 });

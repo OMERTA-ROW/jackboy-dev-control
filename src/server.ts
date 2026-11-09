@@ -3,6 +3,9 @@ import "./lib/error-capture";
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
 import { handleLiveRequest } from "./lib/live-relay.server";
+import { RUNNER_PATH, runnerModeDecision } from "./lib/omni-remote-runner";
+
+let runnerIgnoreWarned = false;
 
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
@@ -50,8 +53,18 @@ export default {
     try {
       const pathname = new URL(request.url).pathname;
       // Runner-only hosts (Railway) answer nothing but the fixed self-test runner.
-      if (process.env["OMNI_LINK_RUNNER_MODE"] === "true" && pathname !== "/api/public/omni/runner") {
+      // Dashboard hosts ignore a misplaced OMNI_LINK_RUNNER_MODE (see runnerModeDecision).
+      const runnerMode = runnerModeDecision(process.env, new URL(request.url).hostname);
+      if (runnerMode.ignored && !runnerIgnoreWarned) {
+        runnerIgnoreWarned = true;
+        console.warn(`OMNI_LINK_RUNNER_MODE ignored on this host (${runnerMode.ignored}); it belongs only on the Railway runner.`);
+      }
+      if (runnerMode.on && pathname !== RUNNER_PATH) {
         return new Response("Not found", { status: 404, headers: { "Cache-Control": "no-store" } });
+      }
+      if (pathname === RUNNER_PATH) {
+        const { handleRunnerRequest } = await import("./lib/omni-remote-runner.server");
+        return handleRunnerRequest(request);
       }
       if (pathname === "/api/live") {
         return handleLiveRequest(request);

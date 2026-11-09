@@ -4,7 +4,9 @@ import { supabaseAdmin as db } from "@/integrations/supabase/client.server";
 import { CODE_ACTION, CODE_PERMISSIONS, CODE_TTL, CODE_WORKFLOW, codeApprovalError, codeLink, codeRunName, type CodeCard, type CodeScope } from "./code";
 import { codeSafetyBlockReason, getCodeSafetyState } from "./code-safety.server";
 import { codeTargetRefusal } from "./code-safety";
+import { createCodeGithubHeaders } from "./code-github";
 import { redactTranscript } from "./voice-guard";
+import { untyped } from "./untyped-db";
 
 type Target = { ref: string; workflowSha: string };
 const hash = (s: string) => createHash("sha256").update(s).digest("hex");
@@ -18,7 +20,7 @@ async function gh<T>(repo: string, path: string, method = "GET", body?: unknown)
   if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) throw new Error("Invalid repository.");
   const response = await fetch(`https://api.github.com/repos/${repo}${path}`, {
     method, redirect: "manual", signal: AbortSignal.timeout(15_000),
-    headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "Jackboy", "Content-Type": "application/json" },
+    headers: createCodeGithubHeaders(token),
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
   if (!response.ok) throw new Error(`CODE GitHub request failed (${response.status}). Check the workflow, Actions scope and provider authorization.`);
@@ -92,6 +94,17 @@ async function row(id: string, userId: string) {
   if (r.error || !r.data) throw new Error("CODE job not found for this owner.");
   return r.data;
 }
+async function assertAcceptanceScope(scope: CodeScope, reserveUsd: number | null) {
+  if (!scope.acceptance) return;
+  const { acceptanceScopeBlockReason } = await import("./code-acceptance");
+  const blocked = acceptanceScopeBlockReason(scope, reserveUsd);
+  if (blocked) throw new Error(blocked);
+  const guard = await untyped(db).rpc("code_acceptance_guard_status");
+  if (guard.error || guard.data !== true)
+    throw new Error(
+      "The acceptance database guard is unavailable. Owner migration review is required.",
+    );
+}
 export async function codeProjectId(name: string): Promise<string> {
   const p = await db.from("owner_projects").select("id").eq("name", name).limit(2);
   if (p.error || p.data?.length !== 1) throw new Error("Use one exact, unambiguous project name for CODE.");
@@ -103,6 +116,7 @@ export async function requestCode(
   userId: string,
   sessionHash: string,
   retry = false,
+  opts: { acceptance?: boolean } = {},
 ) {
   const p = await project(projectId);
   await verify(p); // A real read, never a configured=true claim.
@@ -117,12 +131,15 @@ export async function requestCode(
     correlation: id,
     operation: retry ? "retry" : "dispatch",
     taskBudgetUsd: p.taskBudgetUsd,
+    ...(opts.acceptance ? { acceptance: true as const } : {}),
   };
+  await assertAcceptanceScope(scope, p.taskBudgetUsd);
   // Automatic lane: only when the owner switched it on for this site (passkey) and every low-risk rule holds.
   // Without the staged storage, autoLaneAllowed is false and every request stays in the reviewed lane.
   try {
     const lane = await import("./code-lane.server");
-    if (await lane.autoLaneAllowed(p.repo)) {
+    // The acceptance test always stays in the reviewed lane.
+    if (!opts.acceptance && (await lane.autoLaneAllowed(p.repo))) {
       const { chooseLane, AUTO_HOLD_USD } = await import("./code-lane");
       const { getCodeSafetyState } = await import("./code-safety.server");
       const choice = chooseLane({
@@ -142,7 +159,7 @@ export async function requestCode(
   } catch { /* trial labels never block CODE */ }
   return { ...(await getCode(id, userId)), nonce };
 }
-type Run = { id: number; display_title: string; status: string; conclusion: string | null; html_url: string };
+type Run = { id: number; display_title: string; status: string; conclusion: string | null; html_url: string; updated_at?: string };
 async function findRun(scope: CodeScope): Promise<Run | undefined> {
   if (scope.runId) {
     const run = await gh<Run>(scope.repo, `/actions/runs/${scope.runId}`);
@@ -175,7 +192,82 @@ export async function getCode(id: string, userId: string): Promise<CodeCard> {
   ]);
   const url = codeLink(run.html_url, s.repo);
   if (!url) throw new Error("GitHub returned an invalid CODE run link.");
-  return { ...card, run: { id: run.id, status: run.status, conclusion: run.conclusion, url, jobs: jobs.jobs.map(j => ({ name: j.name, status: j.status, conclusion: j.conclusion })), downloads: artifacts.artifacts.filter(a => !a.expired).flatMap(a => { const u = codeLink(`${url}/artifacts/${a.id}`, s.repo); return u ? [{ name: a.name, url: u }] : []; }), pr: codeLink(prs.find(p => p.draft)?.html_url, s.repo) } };
+  const draft = prs.find((p) => p.draft);
+  if (s.acceptance) {
+    const [gateRows, holdRows, callRows] = await Promise.all([
+      db
+        .from("audit_logs")
+        .select("action, detail, at")
+        .in("action", ["code.acceptance_publish_allowed", "code.acceptance_publish_blocked"])
+        .eq("detail->>request", id)
+        .order("at", { ascending: false })
+        .limit(1),
+      db
+        .from("code_spend_reservations")
+        .select("reserved_usd, released_usd, status")
+        .eq("request_id", id)
+        .order("created_at", { ascending: false })
+        .limit(1),
+      db.from("code_provider_calls").select("model, actual_usd").eq("request_id", id).limit(100),
+    ]);
+    if (gateRows.error || holdRows.error || callRows.error)
+      throw new Error(
+        "Acceptance evidence could not be read; spending and gate results are not verified.",
+      );
+    const g = gateRows.data?.[0] as
+      { action: string; detail: { reasons?: unknown } | null; at: string } | undefined;
+    const h = holdRows.data?.[0];
+    const calls = callRows.data ?? [];
+    card.acceptanceEvidence = {
+      publishGate: g
+        ? {
+            ok: g.action === "code.acceptance_publish_allowed",
+            reasons: Array.isArray(g.detail?.reasons)
+              ? (g.detail!.reasons as unknown[]).map(String)
+              : [],
+            at: g.at,
+          }
+        : null,
+      hold: h
+        ? {
+            reservedUsd: Number(h.reserved_usd),
+            releasedUsd: Number(h.released_usd),
+            status: h.status,
+          }
+        : null,
+      calls: {
+        count: calls.length,
+        actualUsd: calls.reduce((t, c) => t + (Number(c.actual_usd) || 0), 0),
+        models: [...new Set(calls.map((c) => c.model))],
+      },
+    };
+    if (!draft) card.acceptance = { ok: null, reasons: ["No draft PR yet."] };
+    else {
+      const num = /\/pull\/(\d+)/.exec(draft.html_url)?.[1];
+      const files = num
+        ? await gh<{ filename: string; status: string; deletions: number }[]>(
+            s.repo,
+            `/pulls/${num}/files?per_page=100`,
+          )
+        : [];
+      const { acceptanceFilesCheck } = await import("./code-acceptance");
+      card.acceptance = acceptanceFilesCheck(files);
+      if (!card.acceptance.ok) {
+        card.outcome = `Acceptance test FAILED its docs-only check: ${card.acceptance.reasons.join(" ")} Close the draft PR without merging.`;
+        const logged = await db.from("audit_logs").insert({
+          actor: userId,
+          action: "code.acceptance_scope_violation",
+          detail: { request: id, reasons: card.acceptance.reasons } as never,
+          outcome: "denied",
+        });
+        if (logged.error)
+          throw new Error(
+            "Acceptance scope violation could not be audited; owner review is required.",
+          );
+      }
+    }
+  }
+  return { ...card, run: { id: run.id, status: run.status, conclusion: run.conclusion, updatedAt: run.updated_at ?? null, url, jobs: jobs.jobs.map(j => ({ name: j.name, status: j.status, conclusion: j.conclusion })), downloads: artifacts.artifacts.filter(a => !a.expired).flatMap(a => { const u = codeLink(`${url}/artifacts/${a.id}`, s.repo); return u ? [{ name: a.name, url: u }] : []; }), pr: codeLink(prs.find(p => p.draft)?.html_url, s.repo) } };
 }
 export async function decideCode(id: string, nonce: string, decision: "allow" | "deny", userId: string, sessionHash: string) {
   const r = await row(id, userId), scope = r.resources as unknown as CodeScope;
@@ -184,6 +276,7 @@ export async function decideCode(id: string, nonce: string, decision: "allow" | 
   if (r.nonce_hash !== hash(nonce)) throw new Error("CODE approval nonce is invalid.");
   if (decision === "allow") {
     const p = await project(r.project_id!);
+    await assertAcceptanceScope(scope, p.taskBudgetUsd);
     if (
       p.repo !== scope.repo ||
       p.ref !== scope.ref ||
@@ -203,8 +296,13 @@ export async function decideCode(id: string, nonce: string, decision: "allow" | 
     // Re-read immediately before the only dispatch call. Runner claims still enforce
     // the database gate; this read is not an atomic provider spending reservation.
     let blocked: boolean;
-    try { blocked = (await codeSafetyBlockReason(scope.repo)) !== null; }
-    catch { blocked = true; }
+    try {
+      blocked = (await codeSafetyBlockReason(scope.repo)) !== null;
+      if (scope.acceptance)
+        await assertAcceptanceScope(scope, (await getCodeSafetyState()).perTaskReserveUsd);
+    } catch {
+      blocked = true;
+    }
     if (blocked) {
       const saved = await db.from("action_requests").update({ outcome: "Dispatch blocked: safety evidence changed or became unavailable. Request a new approval after review." }).eq("id", id).eq("status", "allowed");
       if (saved.error) throw new Error("CODE dispatch blocked; its outcome could not be recorded.");
@@ -230,6 +328,8 @@ export async function controlCode(id: string, op: "cancel" | "retry", userId: st
   const run = await findRun(scope);
   if (r.status !== "allowed" || !run) throw new Error("No authorized CODE run exists yet.");
   if (op === "retry") {
+    if (scope.acceptance)
+      throw new Error("Acceptance retries require a new fresh-passkey request from Settings.");
     if (run.status !== "completed" || !["failure", "timed_out", "cancelled"].includes(run.conclusion ?? "")) throw new Error("This CODE run cannot be retried.");
     return requestCode(r.project_id!, scope.instruction, userId, sessionHash, true);
   }

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { codeVoiceDecision, parseCodeCommand, type CodeCard } from "@/lib/code";
+import { codeRunProgress, codeVoiceDecision, parseCodeCommand, type CodeCard } from "@/lib/code";
 import { CodeUndoButton } from "./CodeUndoButton";
+import { VerifiedActivity } from "./chat/ChatActivity";
 
 async function call(body?: unknown, id?: string): Promise<CodeCard> {
   const { data } = await supabase.auth.getSession();
@@ -57,10 +58,10 @@ export function useCodeTasks() {
   const submit = useCallback(async (text: string): Promise<boolean> => {
     const command = parseCodeCommand(text);
     if (command) {
-      if (inflight.current) return true;
+      if (inflight.current) throw new Error("CODE is checking another request. Wait before sending again.");
       inflight.current = true; setBusy(true); setError(null);
       try { save(await call({ op: "request", ...command })); }
-      catch (e) { setError(e instanceof Error ? e.message : "CODE is blocked."); }
+      catch (e) { const message = e instanceof Error ? e.message : "CODE is blocked."; setError(message); throw new Error(message); }
       finally { inflight.current = false; setBusy(false); }
       return true;
     }
@@ -100,11 +101,20 @@ export function CodeTasks({ tasks }: { tasks: ReturnType<typeof useCodeTasks> })
     {tasks.cards.map(card => {
       const pending = card.status === "pending", expired = Date.parse(card.expiresAt) <= now;
       const terminal = card.run?.status === "completed";
+      const progress = card.run ? codeRunProgress(card.run.jobs) : null;
       return <article key={card.id} aria-label={`CODE job ${card.id}`} className="rounded-2xl border border-border p-4 text-sm">
         <p className="font-semibold">CODE · {card.repo}</p>
         <p className="mt-1 whitespace-pre-wrap">{card.instruction}</p>
         <p className="mt-2 break-all text-xs text-muted-foreground">Job / approval ID: {card.id}</p>
         <p role="status" className="mt-1">{pending ? expired ? "Approval expired" : "Waiting for your approval" : card.run ? `${card.run.status} · ${card.run.conclusion ?? "in progress"}` : card.status}</p>
+        {progress ? <div className="mt-2">
+          <div className="flex justify-between text-xs text-muted-foreground">
+            <span>GitHub Actions jobs completed</span>
+            <span>{progress.completed} of {progress.total}</span>
+          </div>
+          <progress className="mt-1 h-2 w-full accent-[var(--electric)]" value={progress.completed} max={progress.total} aria-label={`GitHub Actions jobs completed: ${progress.completed} of ${progress.total}`} />
+        </div> : card.run && <p className="mt-2 text-xs text-muted-foreground">Waiting for GitHub Actions job records; no progress estimate is available.</p>}
+        {card.run?.updatedAt && Number.isFinite(Date.parse(card.run.updatedAt)) && <p className="mt-1 text-xs text-muted-foreground">GitHub last updated {new Date(card.run.updatedAt).toLocaleString()}.</p>}
         {pending && <>
           <p className="mt-2">Target: {card.repo}. Permissions: {card.permissions.join("; ")}.</p>
           <p className="mt-1">Configured task spend reservation at request creation: {card.taskBudgetUsd == null ? "unavailable" : `up to $${card.taskBudgetUsd.toFixed(2)}`}. This is a ceiling, not a cost forecast or daily-cap guarantee; runtime admission rechecks current controls.</p>
@@ -115,7 +125,10 @@ export function CodeTasks({ tasks }: { tasks: ReturnType<typeof useCodeTasks> })
           </div>
         </>}
         {card.outcome && <p className="mt-2 text-xs text-muted-foreground">{card.outcome}</p>}
-        {card.run?.jobs.map(job => <p key={job.name} className="mt-1 text-xs">{job.name}: {job.status} {job.conclusion ?? ""}</p>)}
+        {card.run?.jobs.map(job => <VerifiedActivity key={job.name}
+          label={job.name} running={job.status === "in_progress" || job.status === "queued"}
+          failed={["failure", "cancelled", "timed_out", "action_required"].includes(job.conclusion ?? "")}
+          details={[`GitHub job: ${job.name}`, `Status: ${job.status}`, ...(job.conclusion ? [`Conclusion: ${job.conclusion}`] : [])]} />)}
         <div className="mt-3 flex flex-wrap gap-3 text-xs">
           <a href={`/project/${encodeURIComponent(card.projectId)}`} className="text-electric underline">Project</a>
           {card.run && <a href={card.run.url} target="_blank" rel="noopener noreferrer" className="text-electric underline">Progress and logs</a>}

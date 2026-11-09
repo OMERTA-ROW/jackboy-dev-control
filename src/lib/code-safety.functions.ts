@@ -354,6 +354,7 @@ export const getCodeSafetySettings = createServerFn({ method: "POST" })
       activeRequestId: data.active_request_id,
       activeRunId: data.active_run_id,
       consecutiveFailures: data.consecutive_failures,
+      perTaskReserveUsd: data.per_task_reserve_usd === null || data.per_task_reserve_usd === undefined ? null : Number(data.per_task_reserve_usd),
       dailySpendLimitUsd: data.daily_spend_limit_usd,
       spendTodayUsd,
       spendLastHourUsd,

@@ -386,6 +386,55 @@
       "when": 1794098970048,
       "tag": "0054_chat_threads_contexts_attachments",
       "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1794106108764,
+      "tag": "0055_owner_omni_handoffs_jax_manifests",
+      "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1794106131037,
+      "tag": "0056_owner_omni_jax_tighten_grants",
+      "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1794114805000,
+      "tag": "0057_omni_authorization_expiry",
+      "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1794127942788,
+      "tag": "0058_omni_link_approval_save",
+      "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1794199693289,
+      "tag": "0059_sync_safety_guards",
+      "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1794215442298,
+      "tag": "0060_code_acceptance_guard_verification",
+      "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1794234033152,
+      "tag": "0061_verify_0059_0060_install",
+      "breakpoints": true
     }
   ]
 }
