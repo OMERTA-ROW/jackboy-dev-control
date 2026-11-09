@@ -6,6 +6,7 @@ const supabaseAdmin = untyped(typedAdmin);
 import { logSite } from "./site-log.server";
 import {
   DEFAULT_CALLBACK_URL,
+  HANDSHAKE_CONTRACT,
   hmacHex,
   isOmniVerificationFresh,
   omniApiUrl,
@@ -73,6 +74,8 @@ export async function omniHandshake(actor: string) {
     return { verified: false, error: OMNI_URL_INVALID_MESSAGE };
   }
   const challenge = crypto.randomUUID().replace(/-/g, "") + crypto.randomUUID().replace(/-/g, "");
+  // What OMNI actually answered, shown by "Test OMNI link" (contract/version/capabilities only, never the proof).
+  const info: { httpStatus: number | null; contract: string | null; version: string | null; capabilities: string[] } = { httpStatus: null, contract: null, version: null, capabilities: [] };
   try {
     let r: Response;
     try {
@@ -85,6 +88,7 @@ export async function omniHandshake(actor: string) {
       const timeout = e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError");
       throw new Error(`OMNI could not be reached (${timeout ? "timeout" : "network error"}).`);
     }
+    info.httpStatus = r.status;
     if (!r.ok) throw new Error(`OMNI answered HTTP ${r.status}`);
     const text = await r.text();
     let response: unknown;
@@ -95,6 +99,9 @@ export async function omniHandshake(actor: string) {
     }
     const h = parseHandshake(response);
     if (typeof h === "string") throw new Error(h);
+    info.contract = HANDSHAKE_CONTRACT;
+    info.version = h.version;
+    info.capabilities = h.capabilities;
     if (!safeEqual(h.proof, await hmacHex(c.secret!, challenge))) throw new Error("OMNI proof did not match OMNI_CALLBACK_SECRET");
     await setConnection({
       verified: true,
@@ -102,13 +109,13 @@ export async function omniHandshake(actor: string) {
       config_hash: await configHash(c),
       last_error: null,
     });
-    await logSite({ actor, action: "omni.handshake", category: "config", status: "ok", summary: "OMNI handshake verified." });
-    return { verified: true };
+    await logSite({ actor, action: "omni.handshake", category: "config", status: "ok", summary: `OMNI handshake verified (version ${h.version}).` });
+    return { verified: true, ...info };
   } catch (e) {
     const msg = safeOmniDiagnostic(e instanceof Error ? e.message : null) ?? "OMNI handshake failed; response details withheld.";
     await setConnection({ verified: false, verified_at: null, config_hash: null, last_error: msg });
     await logSite({ actor, action: "omni.handshake", category: "config", status: "failed", summary: `OMNI handshake failed: ${msg}` });
-    return { verified: false, error: msg };
+    return { verified: false, error: msg, ...info };
   }
 }
 
