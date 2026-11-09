@@ -13,7 +13,9 @@ import { readFile, readdir } from "node:fs/promises";
 const dir = new URL("../drizzle/migrations/", import.meta.url);
 const journal = JSON.parse(await readFile(new URL("meta/_journal.json", dir), "utf8"));
 const sha = async (tag) =>
-  createHash("sha256").update(await readFile(new URL(`${tag}.sql`, dir), "utf8")).digest("hex");
+  createHash("sha256")
+    .update(await readFile(new URL(`${tag}.sql`, dir), "utf8"))
+    .digest("hex");
 
 // Rows read from production's journal on 2026-11-08 (hash = sha256 of the SQL file).
 const appliedInProduction = [
@@ -50,7 +52,8 @@ test("journal timestamps strictly increase and idx is contiguous", () => {
 test("no two journal entries share a number prefix", () => {
   const prefixes = journal.entries.slice(44).map((e) => e.tag.slice(0, 4));
   assert.equal(new Set(prefixes).size, prefixes.length);
-  for (const e of journal.entries.slice(44)) assert.equal(e.tag.slice(0, 4), String(e.idx).padStart(4, "0"));
+  for (const e of journal.entries.slice(44))
+    assert.equal(e.tag.slice(0, 4), String(e.idx).padStart(4, "0"));
 });
 
 test("every journal entry has its SQL file", async () => {
@@ -74,7 +77,10 @@ test("the access-expiry update stays unchanged and newer than the recorded appli
   assert.equal(entry.when, expiry.when);
   assert.equal(await sha(expiry.tag), expiry.hash);
   assert.equal(entry.idx, 57);
-  assert.equal(journal.entries.filter((e) => e.tag.includes("omni_authorization_expiry")).length, 1);
+  assert.equal(
+    journal.entries.filter((e) => e.tag.includes("omni_authorization_expiry")).length,
+    1,
+  );
 });
 
 test("the approval-save migration is appended after 0057 and links to the preceding snapshot", async () => {
@@ -82,7 +88,9 @@ test("the approval-save migration is appended after 0057 and links to the preced
   assert.ok(entry, "approval-save migration missing from journal");
   assert.equal(entry.idx, 58);
   assert.ok(entry.when > expiry.when);
-  assert.ok(journal.entries.indexOf(entry) > journal.entries.findIndex((e) => e.tag === expiry.tag));
+  assert.ok(
+    journal.entries.indexOf(entry) > journal.entries.findIndex((e) => e.tag === expiry.tag),
+  );
   const [previous, current] = await Promise.all(
     ["0056", "0058"].map(async (n) =>
       JSON.parse(await readFile(new URL(`meta/${n}_snapshot.json`, dir), "utf8")),
@@ -92,7 +100,8 @@ test("the approval-save migration is appended after 0057 and links to the preced
 });
 
 test("snapshot chain for the restored entries links back to 0054", async () => {
-  const snap = async (n) => JSON.parse(await readFile(new URL(`meta/${n}_snapshot.json`, dir), "utf8"));
+  const snap = async (n) =>
+    JSON.parse(await readFile(new URL(`meta/${n}_snapshot.json`, dir), "utf8"));
   const [s54, s55, s56] = await Promise.all(["0054", "0055", "0056"].map(snap));
   assert.equal(s55.prevId, s54.id);
   assert.equal(s56.prevId, s55.id);
@@ -102,5 +111,17 @@ test("sync safety guards append after approval-save without rewriting its histor
   const previous = journal.entries.find((e) => e.tag === "0058_omni_link_approval_save");
   const current = journal.entries.find((e) => e.tag === "0059_sync_safety_guards");
   assert.equal(current?.idx, 59);
+  assert.ok(current.when > previous.when);
+});
+
+test("0060 is forward-only and preserves the reviewed 0059 SQL and timestamp", async () => {
+  const previous = journal.entries.find((e) => e.tag === "0059_sync_safety_guards");
+  const current = journal.entries.find((e) => e.tag === "0060_code_acceptance_guard_verification");
+  assert.equal(previous.when, 1794199693289);
+  assert.equal(
+    await sha(previous.tag),
+    "b8b9c452658a6cd54da7cd8e4866274098b2dfbef7eb05239650ea676cd06fef",
+  );
+  assert.equal(current?.idx, 60);
   assert.ok(current.when > previous.when);
 });

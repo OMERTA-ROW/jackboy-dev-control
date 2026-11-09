@@ -45,6 +45,65 @@ must roll back. After installation, prefer a forward repair; an application
 rollback must keep the database acceptance guard in place, not remove spending
 protection to make a run pass.
 
+### Forward verification repair (migration 0060)
+
+No existing companion 0060 was available in main or the inspected Lovable branch.
+`0060_code_acceptance_guard_verification.sql` is a new, unapplied forward repair,
+not a recovered production migration. The reviewed 0059 SQL and journal timestamp
+remain unchanged.
+
+Isolated full-chain PostgreSQL testing confirmed two gaps: 0059's readiness RPC
+accepted a same-name/same-function trigger attached to UPDATE instead of INSERT;
+database admission could reserve an acceptance task with that trigger disabled.
+The application already refused missing readiness, but that earlier observation
+was not an admission-transaction check. 0060 requires an unconditional, argument-free,
+non-constraint BEFORE INSERT ROW trigger and checks its readiness again in
+`claim_code_runtime_slot`. Rejected admission is audited without a hold or active
+slot. Both RPCs remain service-only. The existing actual-hold trigger, Guardian
+limit-only function, $1 acceptance/$5 daily/$10 cumulative limits, meter, two-failure
+stop, workflow pins and owner/passkey checks are not relaxed.
+
+The full chain replays against synthetic, disposable PostgreSQL with managed
+Supabase objects represented by test stand-ins. This is not a reproduction of
+the owner's PostgreSQL 17.11 restore, a Vault/cron/Realtime recovery, a provider
+hard-cap attestation or production readiness. `tests/code-sync-safety-pg.test.mjs`
+is included in the existing no-egress PostgreSQL gateway and acceptance CI jobs.
+It covers exact limits, concurrent admission, enum-backed roles, service-only
+grants, Stop preservation, audit rollback, trigger drift and transactional failure.
+
+**Deployment prerequisites -- separate owner approvals required:**
+
+1. Reconcile the actual target project/database identity and the complete production
+   migration journal against repository hashes and timestamps. Do not edit or replay
+   any already-applied migration. If another 0060 exists, stop and reconcile the
+   collision; renumber only this unapplied proposal and append a newer journal entry.
+2. Obtain the provider backup identifier, PITR window/retention and an isolated
+   restore rehearsal with roles, grants, audit history and all required dependencies.
+   The reported 322 validated public constraints do not prove Vault, cron or
+   Realtime recovery. Neither those objects nor recovery metadata are repaired here.
+3. Keep schedules and external runners quiescent. Through the existing approved
+   owner controls, disable CODE and engage Emergency Stop; verify no active task,
+   run or reserved hold. Restored `enabled=true`/`kill_switch=false` values are
+   historical data, never authorization. 0060 refuses them rather than clearing
+   them automatically. Reconcile outstanding holds through the approved accounting
+   process; never delete them or refund cumulative history to pass a gate.
+4. After exact-commit CI/review and explicit database-change approval, use the
+   approved transactional migrator for only the verified pending chain (0059 before
+   0060). 0059 alone does not enforce a stopped-state installation precondition;
+   the operator must maintain quiescence throughout. Any schema/permission failure
+   must roll back, not be skipped.
+5. Read back the journal hashes, `code_acceptance_guard_status()`,
+   `code_total_spend_guard_status()`, `code_spend_meter_status()`, function grants
+   and trigger definitions/enabled states using the authorized database operator.
+   Verify CODE remains disabled and stopped, all spending ceilings are unchanged,
+   and no grants or schedules were activated. A true acceptance-guard result alone
+   does not verify the other safety controls or authorize execution.
+6. On installation failure, roll back the transaction. After a successful install,
+   keep CODE stopped and prefer a forward repair; do not drop the guards or restore
+   permissive functions to make work pass. Any backup restore is a separate
+   owner-approved recovery operation. Publication, activation, passkey/pin updates
+   and paid tests each remain separately gated.
+
 Chat-to-OMNI job execution remains disabled until it can reuse the existing
 current project authorization and exact-job passkey approval at dispatch.
 `sendOmniJob` only returns an audited refusal; a typed instruction or successful
