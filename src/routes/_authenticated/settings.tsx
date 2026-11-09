@@ -40,7 +40,12 @@ export const ADVANCED = [
     { to: "/automation", label: "Automation policy", note: "Approval tiers and playbooks" },
   ] },
   { group: "Agents & partners", items: [
-    { to: "/settings", hash: "guardian", label: "Guardian", note: "What Guardian protects, its rules, recent decisions and owner settings" },
+      {
+        to: "/settings",
+        hash: "guardian",
+        label: "Guardian",
+        note: "What Guardian protects, its rules, recent decisions and owner settings",
+      },
     { to: "/agents", label: "Agent Hub", note: "Registered Lovable projects, reports, keys" },
     { to: "/fleet", label: "Agent Fleet", note: "Capabilities and emergency pause" },
     { to: "/omni", label: "OMNI", note: "Build task queue and OMNI link values for Railway (not connected)" },
@@ -79,10 +84,20 @@ function Settings() {
     <>
       <PageHeader title="Settings & Advanced" subtitle="Every advanced Jackboy tool, grouped. Your everyday flow lives on Home and Projects." />
       <nav aria-label="Jump to" className="mb-4 flex flex-wrap gap-2 text-xs">
-        <Link to="/settings" hash="guardian" className="inline-flex items-center gap-1 rounded-md border border-electric px-3 py-1.5 font-medium text-electric hover:bg-muted">
+        <Link
+          to="/settings"
+          hash="guardian"
+          className="inline-flex items-center gap-1 rounded-md border border-electric px-3 py-1.5 font-medium text-electric hover:bg-muted"
+        >
           <ShieldCheck className="h-4 w-4" aria-hidden /> Guardian
         </Link>
-        <Link to="/settings" hash="activation" className="inline-flex items-center rounded-md border border-border px-3 py-1.5 font-medium hover:border-electric">Activation & Kill Switch</Link>
+        <Link
+          to="/settings"
+          hash="activation"
+          className="inline-flex items-center rounded-md border border-border px-3 py-1.5 font-medium hover:border-electric"
+        >
+          Activation & Kill Switch
+        </Link>
       </nav>
       <CodeSafetyPanel />
       <AutonomyStatusPanel />
@@ -109,12 +124,27 @@ function Settings() {
             <ul className="mt-3 space-y-1">
               {g.items.map((i) => {
                 const hash: string = "hash" in i ? i.hash : "";
-                const body = <><span className="text-sm font-medium">{i.label}</span><span className="block text-xs text-muted-foreground">{i.note}</span></>;
+                const body = (
+                  <>
+                    <span className="text-sm font-medium">{i.label}</span>
+                    <span className="block text-xs text-muted-foreground">{i.note}</span>
+                  </>
+                );
                 return (
                   <li key={i.to + hash}>
-                    {hash
-                      ? <Link to="/settings" hash={hash} className="block rounded-md p-2 hover:bg-muted">{body}</Link>
-                      : <Link to={i.to} className="block rounded-md p-2 hover:bg-muted">{body}</Link>}
+                    {hash ? (
+                      <Link
+                        to="/settings"
+                        hash={hash}
+                        className="block rounded-md p-2 hover:bg-muted"
+                      >
+                        {body}
+                      </Link>
+                    ) : (
+                      <Link to={i.to} className="block rounded-md p-2 hover:bg-muted">
+                        {body}
+                      </Link>
+                    )}
                   </li>
                 );
               })}

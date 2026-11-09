@@ -82,7 +82,9 @@ test("the approval-save migration is appended after 0057 and links to the preced
   assert.ok(entry, "approval-save migration missing from journal");
   assert.equal(entry.idx, 58);
   assert.ok(entry.when > expiry.when);
-  assert.ok(journal.entries.indexOf(entry) > journal.entries.findIndex((e) => e.tag === expiry.tag));
+  assert.ok(
+    journal.entries.indexOf(entry) > journal.entries.findIndex((e) => e.tag === expiry.tag),
+  );
   const [previous, current] = await Promise.all(
     ["0056", "0058"].map(async (n) =>
       JSON.parse(await readFile(new URL(`meta/${n}_snapshot.json`, dir), "utf8")),

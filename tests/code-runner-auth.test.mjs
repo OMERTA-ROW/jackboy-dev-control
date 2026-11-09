@@ -138,7 +138,10 @@ globalThis.fetch = async (input) => {
     return Response.json({ keys: [jwk] });
   }
   if (failGithub) return new Response(null, { status: 503 });
-  if (url.pathname === "/repos/owner/repo" || url.pathname === "/repos/OMERTA-ROW/jackboy-dev-control")
+  if (
+    url.pathname === "/repos/owner/repo" ||
+    url.pathname === "/repos/OMERTA-ROW/jackboy-dev-control"
+  )
     return Response.json({ default_branch: "main" });
   if (url.pathname.endsWith("/actions/workflows/code.yml"))
     return Response.json({ state: "active" });
@@ -417,12 +420,13 @@ function acceptanceSetup() {
   row.resources = { ...scope(), repo: acceptanceRepo, acceptance: true, taskBudgetUsd: 1 };
   safetyState.allowedTargets[acceptanceRepo] = { ref: "main", workflowSha };
 }
-const acceptanceToken = (environment = "CODE") => makeToken({
-  repository: acceptanceRepo,
-  workflow_ref: `${acceptanceRepo}/.github/workflows/code.yml@refs/heads/main`,
-  sub: `repo:${acceptanceRepo}:environment:${environment}`,
-  environment,
-});
+const acceptanceToken = (environment = "CODE") =>
+  makeToken({
+    repository: acceptanceRepo,
+    workflow_ref: `${acceptanceRepo}/.github/workflows/code.yml@refs/heads/main`,
+    sub: `repo:${acceptanceRepo}:environment:${environment}`,
+    environment,
+  });
 
 test("acceptance claims require fixed scope, reviewed lane and installed database guard", async () => {
   acceptanceSetup();

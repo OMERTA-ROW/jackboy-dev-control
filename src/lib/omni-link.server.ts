@@ -75,7 +75,12 @@ export async function omniHandshake(actor: string) {
   }
   const challenge = crypto.randomUUID().replace(/-/g, "") + crypto.randomUUID().replace(/-/g, "");
   // What OMNI actually answered, shown by "Test OMNI link" (contract/version/capabilities only, never the proof).
-  const info: { httpStatus: number | null; contract: string | null; version: string | null; capabilities: string[] } = { httpStatus: null, contract: null, version: null, capabilities: [] };
+  const info: {
+    httpStatus: number | null;
+    contract: string | null;
+    version: string | null;
+    capabilities: string[];
+  } = { httpStatus: null, contract: null, version: null, capabilities: [] };
   try {
     let r: Response;
     try {
@@ -109,7 +114,13 @@ export async function omniHandshake(actor: string) {
       config_hash: await configHash(c),
       last_error: null,
     });
-    await logSite({ actor, action: "omni.handshake", category: "config", status: "ok", summary: `OMNI handshake verified (version ${h.version}).` });
+    await logSite({
+      actor,
+      action: "omni.handshake",
+      category: "config",
+      status: "ok",
+      summary: `OMNI handshake verified (version ${h.version}).`,
+    });
     return { verified: true, ...info };
   } catch (e) {
     const msg = safeOmniDiagnostic(e instanceof Error ? e.message : null) ?? "OMNI handshake failed; response details withheld.";
