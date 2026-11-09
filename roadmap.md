@@ -1,5 +1,11 @@
 # Jackboy roadmap
 
+## $1 CODE acceptance test control (Nov 9, 02:00 UTC — owner approved build)
+- [x] Settings → Activation card: fixed docs-only task, reviewed lane, fresh passkey, existing $1/$5/$10 guards, server re-checks gates.
+- [x] Fail-closed publish gate: server reads the run's exact patch before the draft PR opens and refuses anything but added lines in docs/CODE-ACCEPTANCE.md; evidence panel (gate result, hold, AI calls, run, draft PR). 818 tests pass.
+- [ ] Publish dashboard — waits on separate owner approval.
+- [ ] Run the paid $1 test — waits on owner spend approval; GitHub artifact download by the CODE credential unproven until then.
+
 ## Jackboy Chat upgrade (Nov 8, 00:44 UTC)
 - [x] Conversations saved to the owner's account (own page per conversation), searchable, with one-press import of conversations saved only on this device.
 - [x] "Talk to" switcher: Jackboy, OMNI, JAX, Razul, Iggy, other owner-added agents and projects — replies use only stored notes; empty notes are said plainly.
