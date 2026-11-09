@@ -109,7 +109,7 @@ function Settings() {
             <ul className="mt-3 space-y-1">
               {g.items.map((i) => (
                 <li key={i.to + ("hash" in i ? i.hash : "")}>
-                  <Link to={i.to} hash={"hash" in i ? i.hash : undefined} className="block rounded-md p-2 hover:bg-muted">
+                  <Link to={i.to} {...("hash" in i ? { hash: i.hash } : {})} className="block rounded-md p-2 hover:bg-muted">
                     <span className="text-sm font-medium">{i.label}</span>
                     <span className="block text-xs text-muted-foreground">{i.note}</span>
                   </Link>
