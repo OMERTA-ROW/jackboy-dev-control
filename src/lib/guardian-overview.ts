@@ -74,11 +74,12 @@ export const SITE_ACTIONS = [
   "foundry.transition:blocked", "foundry.inspect_blocked", "task.stopped",
 ] as const;
 
-type Detail = Record<string, unknown> | null | undefined;
+type Fields = { name?: unknown; action?: unknown; reason?: unknown; reasons?: unknown; route?: unknown; tool?: unknown; tier?: unknown; max_files?: unknown; max_lines?: unknown; paused?: unknown; title?: unknown };
+type Detail = unknown;
 const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
 
 export function classifyAudit(row: { id: string; at: string; action: string; outcome: string | null; detail: Detail }): GuardianEvent | null {
-  const d = (row.detail ?? {}) as Record<string, unknown>;
+  const d: Fields = row.detail && typeof row.detail === "object" && !Array.isArray(row.detail) ? (row.detail as Fields) : {};
   const base = { id: `a-${row.id}`, at: row.at };
   switch (row.action) {
     case "guardian.check":

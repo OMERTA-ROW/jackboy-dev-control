@@ -29,7 +29,7 @@ export const getGuardianOverview = createServerFn({ method: "POST" })
       policy: p ? { tier: p.tier as 0 | 1 | 2, maxFiles: p.max_files as number, maxLines: p.max_lines as number, guardianVerified: Boolean(p.guardian_verified), killSwitch: Boolean(p.paused), updatedAt: p.updated_at as string | null } : null,
       agents: { total: agents.length, paused: agents.filter((a) => a.paused).length, approved: agents.filter((a) => a.passport_approved).length },
       activity: mergeEvents([(audit.data ?? []).map(classifyAudit), (site.data ?? []).map(classifySite)]),
-      logErrors: [audit.error, site.error].filter(Boolean).map((e: { message: string }) => e.message),
+      logErrors: [audit.error, site.error].flatMap((e) => (e ? [e.message as string] : [])),
       observedAt: new Date().toISOString(),
     };
   });
