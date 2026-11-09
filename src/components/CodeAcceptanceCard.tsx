@@ -50,7 +50,7 @@ export function CodeAcceptanceCard({ gates }: { gates: AcceptanceGates }) {
     if (!card?.nonce) throw new Error("This request can no longer be decided here.");
     setCard(await call({ op: "decide", id: card.id, nonce: card.nonce, decision }));
   });
-  const refresh = () => guard(async () => { if (card) setCard({ ...(await call(undefined, card.id)), nonce: card.nonce }); });
+  const refresh = () => guard(async () => { if (card) const fresh = await call(undefined, card.id); setCard(card.nonce ? { ...fresh, nonce: card.nonce } : fresh); });
 
   return (
     <div className="mt-4 rounded-md border border-border p-3" aria-labelledby="acceptance-heading">
