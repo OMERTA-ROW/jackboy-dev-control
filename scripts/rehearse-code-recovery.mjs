@@ -348,6 +348,13 @@ export async function rehearse() {
     console.log(
       "PASS disposable CODE disabled, Emergency Stop/global pause engaged; no active work; no network/workers",
     );
+    const evidenceSql = await readFile("scripts/code-production-evidence.sql", "utf8");
+    const evidenceSnapshot = query(target, targetDatabase, fingerprint);
+    query(target, targetDatabase, evidenceSql);
+    if (query(target, targetDatabase, fingerprint) !== evidenceSnapshot) {
+      throw new Error("Pre-migration read-only evidence pack changed safety state");
+    }
+    console.log("PASS read-only evidence pack with missing 0059/0060 functions");
     for (const migration of migrations.slice(1)) {
       const record = `INSERT INTO drizzle.__drizzle_migrations(hash,created_at)
         VALUES ('${migration.hash}',${migration.when});`;
@@ -394,6 +401,12 @@ export async function rehearse() {
     console.log(
       "PASS trigger identity, role grants, stopped admission, acceptance hold, cumulative cap and daily ceiling assertions",
     );
+    const installedSnapshot = query(target, targetDatabase, fingerprint);
+    query(target, targetDatabase, evidenceSql);
+    if (query(target, targetDatabase, fingerprint) !== installedSnapshot) {
+      throw new Error("Post-migration read-only evidence pack changed safety state");
+    }
+    console.log("PASS read-only evidence pack after 0059/0060; safety fingerprint unchanged");
     const rows = query(
       target,
       targetDatabase,

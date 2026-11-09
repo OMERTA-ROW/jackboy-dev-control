@@ -102,6 +102,9 @@ safety checks, not a full database/backup checksum.
 
 ## Observed result and outstanding recovery gates
 
+For the provider record requirements, responsible operators and SELECT-only
+production evidence pack, see [production recovery evidence](CODE-PRODUCTION-RECOVERY-EVIDENCE.md).
+
 On November 9, 2026 the rehearsal succeeded using PostgreSQL **17.11** and local
 image `sha256:7bd84e6a1d5322c7b864b9751873a0ac50f48df3f20a776e88114eadb2948fc0`.
 Both migrations and injected failure rollbacks passed. Final disposable settings:
