@@ -1,5 +1,5 @@
 // Shows the stored v3 OMNI job status and result exactly as recorded; a missing result is said plainly.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { getOmniV3Job } from "@/lib/omni-link.functions";
 import { Button } from "@/components/ui/button";
@@ -83,6 +83,11 @@ export function OmniV3JobStatus({ jobId, initial }: { jobId: string; initial?: V
       setBusy(false);
     }
   };
+  useEffect(() => {
+    if (!initial) void refresh();
+    // Load once per mounted job; later reads are owner-pressed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jobId]);
   const done = view?.ok && view.status !== null && TERMINAL.has(view.status) && !view.noResult;
   return (
     <div className="space-y-2 rounded-xl border border-border p-3 text-xs" aria-label="OMNI job status">

@@ -56,6 +56,7 @@ export function OmniDispatchReview({ initialJobId = "", initialGrantId = "" }: {
           value={jobId}
           onChange={(event) => {
             setJobId(event.target.value);
+            setV3Job(null);
             setReview(null);
             setGrant(null);
           }}
