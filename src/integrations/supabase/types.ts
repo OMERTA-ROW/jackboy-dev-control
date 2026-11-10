@@ -1977,6 +1977,63 @@ export type Database = {
           },
         ]
       }
+      omni_dispatch_v3_jobs: {
+        Row: {
+          created_at: string
+          grant_id: string
+          job_id: string
+          last_source: string
+          owner_id: string
+          project_id: string
+          repo: string
+          result: Json | null
+          result_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          grant_id: string
+          job_id: string
+          last_source: string
+          owner_id: string
+          project_id: string
+          repo: string
+          result?: Json | null
+          result_at?: string | null
+          status: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          grant_id?: string
+          job_id?: string
+          last_source?: string
+          owner_id?: string
+          project_id?: string
+          repo?: string
+          result?: Json | null
+          result_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "omni_dispatch_v3_jobs_grant_id_fkey"
+            columns: ["grant_id"]
+            isOneToOne: false
+            referencedRelation: "omni_dispatch_grants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "omni_dispatch_v3_jobs_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "omni_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       omni_inbound_jobs: {
         Row: {
           approval_id: string
@@ -3618,7 +3675,7 @@ export type Database = {
         }
         Returns: boolean
       }
-      code_acceptance_guard_status: { Args: never; Returns: boolean };
+      code_acceptance_guard_status: { Args: never; Returns: boolean }
       code_provider_call_holds: {
         Args: { p_request_id: string }
         Returns: number
@@ -3697,6 +3754,24 @@ export type Database = {
           _project: string
           _repo: string
           _step: string
+        }
+        Returns: Json
+      }
+      omni_dispatch_v3_callback_scope: {
+        Args: { _grant: string; _job: string; _owner: string }
+        Returns: Json
+      }
+      omni_dispatch_v3_record: {
+        Args: {
+          _grant: string
+          _job: string
+          _nonce: string
+          _owner: string
+          _project: string
+          _repo: string
+          _result: Json
+          _source: string
+          _status: string
         }
         Returns: Json
       }
@@ -3783,9 +3858,9 @@ export type Database = {
         Returns: Json
       }
       set_guardian_limits: {
-        Args: { _max_files: number; _max_lines: number; _tier: number };
-        Returns: undefined;
-      };
+        Args: { _max_files: number; _max_lines: number; _tier: number }
+        Returns: undefined
+      }
       set_jax_enrollment: {
         Args: { _enroll: boolean; _id: string; _purpose: string }
         Returns: undefined
