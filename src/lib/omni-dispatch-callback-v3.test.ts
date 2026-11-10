@@ -66,13 +66,22 @@ async function signed(
   });
 }
 
-const recordCalls = () => mocks.rpc.mock.calls.filter(([name]) => name !== "omni_dispatch_grant_action");
+const READS = ["omni_dispatch_grant_action", "omni_dispatch_v3_callback_scope"];
+const recordCalls = () => mocks.rpc.mock.calls.filter(([name]) => !READS.includes(name));
+/** Jobs Jackboy submitted via v3 (mirrors omni_dispatch_v3_jobs rows written by the dispatch path). */
+let submitted = new Set<string>();
 
 beforeEach(async () => {
   digest = await dispatchPayloadDigest({ ...grantRow, kind: "test", grantId: grant });
   const seen = new Set<string>();
-  mocks.rpc.mockReset().mockImplementation((name: string, args: { _nonce?: string }) => {
+  submitted = new Set([job]);
+  mocks.rpc.mockReset().mockImplementation((name: string, args: { _nonce?: string; _job?: string }) => {
     if (name === "omni_dispatch_grant_action") return Promise.resolve({ data: grantRow, error: null });
+    if (name === "omni_dispatch_v3_callback_scope")
+      return Promise.resolve({
+        data: submitted.has(args._job ?? "") ? { found: true, ...grantRow } : { found: false },
+        error: null,
+      });
     // Mirrors the database nonce table: a second use of the same nonce is refused.
     if (args._nonce && seen.has(args._nonce))
       return Promise.resolve({ data: null, error: { message: "Callback replay" } });
@@ -91,9 +100,8 @@ describe("v3 scoped dispatch callback", () => {
     expect(response.headers.get("x-omni-proof")).toBe(
       await hmacHex(settings.secret, `${V3}\nresponse\n${nonce}\n200\n${body}`),
     );
-    expect(mocks.rpc).toHaveBeenCalledWith("omni_dispatch_grant_action", {
-      _op: "check",
-      _actor: owner,
+    expect(mocks.rpc).toHaveBeenCalledWith("omni_dispatch_v3_callback_scope", {
+      _owner: owner,
       _job: job,
       _grant: grant,
     });
@@ -158,7 +166,7 @@ describe("v3 scoped dispatch callback", () => {
     expect(recordCalls()).toHaveLength(0);
   });
 
-  it("rejects an expired grant without storing", async () => {
+  it("rejects a pre-run quarantined callback on an expired grant without storing", async () => {
     mocks.rpc.mockImplementation((name: string) =>
       Promise.resolve(
         name === "omni_dispatch_grant_action"
@@ -166,9 +174,66 @@ describe("v3 scoped dispatch callback", () => {
           : { data: { recorded: true }, error: null },
       ),
     );
-    const response = await handleDispatchCallback(await signed(v3Body()), settings);
+    const { result: _r, ...rest } = v3Body();
+    const response = await handleDispatchCallback(await signed({ ...rest, status: "quarantined" }), settings);
     expect(response.status).toBe(503);
     expect(recordCalls()).toHaveLength(0);
+  });
+
+  describe("result callbacks after the approval window", () => {
+    // The live check would refuse: grant expired 20 minutes ago and the link is stale.
+    const expiredGrant = { ...grantRow, expiresAt: new Date(Date.now() - 20 * 60_000).toISOString() };
+    beforeEach(() => {
+      const fallback = mocks.rpc.getMockImplementation()!;
+      mocks.rpc.mockImplementation((name: string, args: { _job?: string }) => {
+        if (name === "omni_dispatch_grant_action")
+          return Promise.resolve({ data: { valid: false, reason: "grant_expired" }, error: null });
+        if (name === "omni_dispatch_v3_callback_scope")
+          return Promise.resolve({
+            data: submitted.has(args._job ?? "") ? { found: true, ...expiredGrant } : { found: false },
+            error: null,
+          });
+        return fallback(name, args);
+      });
+    });
+
+    it("accepts a completed result 20 minutes after the grant expired", async () => {
+      const response = await handleDispatchCallback(await signed(v3Body()), settings);
+      expect(response.status).toBe(200);
+      expect(mocks.rpc.mock.calls.map(([name]) => name)).not.toContain("omni_dispatch_grant_action");
+      expect(recordCalls()).toEqual([
+        ["omni_dispatch_v3_record", expect.objectContaining({ _status: "completed", _result: result })],
+      ]);
+    });
+
+    it("rejects a result for a job that was never submitted via v3", async () => {
+      submitted.clear();
+      const response = await handleDispatchCallback(await signed(v3Body()), settings);
+      expect(response.status).toBe(503);
+      expect(response.headers.get("x-omni-proof")).toBeNull();
+      expect(recordCalls()).toHaveLength(0);
+    });
+
+    it("rejects a wrong payload digest", async () => {
+      const response = await handleDispatchCallback(
+        await signed({ ...v3Body(), payloadDigest: "a".repeat(64) }),
+        settings,
+      );
+      expect(response.status).toBe(503);
+      expect(recordCalls()).toHaveLength(0);
+    });
+
+    it("rejects a changed scope (project, repo, job or grant)", async () => {
+      for (const change of [
+        { projectId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" },
+        { repo: "other/repo" },
+        { jobId: "55555555-5555-4555-8555-555555555555" },
+      ]) {
+        const response = await handleDispatchCallback(await signed({ ...v3Body(), ...change }), settings);
+        expect(response.status).toBe(503);
+      }
+      expect(recordCalls()).toHaveLength(0);
+    });
   });
 
   it("refuses a replayed nonce", async () => {
