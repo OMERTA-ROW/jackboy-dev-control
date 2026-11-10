@@ -8,6 +8,7 @@ import {
   sendOmniReceipt,
 } from "@/lib/omni-link.functions";
 import { useStepUp } from "@/lib/step-up-client";
+import { OmniV3JobStatus } from "@/components/OmniV3JobStatus";
 
 type Preview = Awaited<ReturnType<typeof previewOmniReceipt>>;
 type Grant = Awaited<ReturnType<typeof approveOmniReceipt>>;
@@ -25,6 +26,7 @@ export function OmniDispatchReview({ initialJobId = "", initialGrantId = "" }: {
   const [grant, setGrant] = useState<Grant | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [v3Job, setV3Job] = useState<string | null>(null);
 
   async function act(work: () => Promise<void>) {
     if (busy) return;
@@ -184,6 +186,37 @@ export function OmniDispatchReview({ initialJobId = "", initialGrantId = "" }: {
                 {action}
               </button>
             ))}
+          </div>
+          <p className="text-muted-foreground">
+            Scoped v3 sends these exact instructions and the approval's expiry, signed, so OMNI can
+            run the job and report back. Kill Switch, Emergency Stop, spending limits and the
+            allowed repository list are checked again right before sending.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {(["submit", "status", "cancel"] as const).map((action) => (
+              <button
+                key={`v3-${action}`}
+                className="rounded border px-3 py-1"
+                disabled={busy}
+                onClick={() =>
+                  void act(async () => {
+                    const result = await send({
+                      data: {
+                        jobId: grant.jobId,
+                        grantId: grant.id,
+                        action,
+                        confirm: true,
+                        version: "v3",
+                      },
+                    });
+                    setV3Job(grant.jobId);
+                    setMessage(`OMNI's verified reply: ${result.status}.`);
+                  })
+                }
+              >
+                {action} (v3)
+              </button>
+            ))}
             <button
               className="rounded border px-3 py-1"
               disabled={busy}
@@ -201,6 +234,12 @@ export function OmniDispatchReview({ initialJobId = "", initialGrantId = "" }: {
         </div>
       )}
       {message && <p role="status">{message}</p>}
+      {v3Job && <OmniV3JobStatus key={`${v3Job}-${message}`} jobId={v3Job} />}
+      {!v3Job && jobId && /^[0-9a-f-]{36}$/i.test(jobId) && (
+        <button className="rounded border px-3 py-1" onClick={() => setV3Job(jobId)}>
+          Show OMNI status for this job
+        </button>
+      )}
     </section>
   );
 }
