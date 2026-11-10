@@ -1977,7 +1977,121 @@ export type Database = {
           },
         ]
       }
+      omni_dispatch_v3_callback_events: {
+        Row: {
+          id: number
+          job_id: string
+          received_at: string
+          result: Json | null
+          status: string
+        }
+        Insert: {
+          id?: never
+          job_id: string
+          received_at?: string
+          result?: Json | null
+          status: string
+        }
+        Update: {
+          id?: never
+          job_id?: string
+          received_at?: string
+          result?: Json | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "omni_dispatch_v3_callback_events_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "omni_dispatch_v3_jobs"
+            referencedColumns: ["job_id"]
+          },
+        ]
+      }
+      omni_dispatch_v3_callback_nonces: {
+        Row: {
+          nonce: string
+          received_at: string
+        }
+        Insert: {
+          nonce: string
+          received_at?: string
+        }
+        Update: {
+          nonce?: string
+          received_at?: string
+        }
+        Relationships: []
+      }
       omni_dispatch_v3_jobs: {
+        Row: {
+          created_at: string
+          expires_at: string
+          grant_id: string
+          job_id: string
+          kind: string
+          owner_id: string
+          payload_digest: string
+          project_id: string
+          repo: string
+          result: Json | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          grant_id: string
+          job_id: string
+          kind: string
+          owner_id: string
+          payload_digest: string
+          project_id: string
+          repo: string
+          result?: Json | null
+          status: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          grant_id?: string
+          job_id?: string
+          kind?: string
+          owner_id?: string
+          payload_digest?: string
+          project_id?: string
+          repo?: string
+          result?: Json | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "omni_dispatch_v3_jobs_grant_id_fkey1"
+            columns: ["grant_id"]
+            isOneToOne: false
+            referencedRelation: "omni_dispatch_grants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "omni_dispatch_v3_jobs_job_id_fkey1"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "omni_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "omni_dispatch_v3_jobs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "agent_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      omni_dispatch_v3_jobs_legacy_lovable: {
         Row: {
           created_at: string
           grant_id: string
@@ -3757,11 +3871,44 @@ export type Database = {
         }
         Returns: Json
       }
-      omni_dispatch_v3_callback_scope: {
+      omni_dispatch_v3_action: {
+        Args: {
+          _action: string
+          _actor: string
+          _digest: string
+          _expires: string
+          _grant: string
+          _job: string
+          _kind: string
+          _op: string
+          _project: string
+          _repo: string
+        }
+        Returns: Json
+      }
+      omni_dispatch_v3_callback_record: {
+        Args: {
+          _digest: string
+          _grant: string
+          _job: string
+          _nonce: string
+          _owner: string
+          _project: string
+          _repo: string
+          _result: Json
+          _status: string
+        }
+        Returns: Json
+      }
+      omni_dispatch_v3_callback_scope_legacy_lovable: {
         Args: { _grant: string; _job: string; _owner: string }
         Returns: Json
       }
-      omni_dispatch_v3_record: {
+      omni_dispatch_v3_pending_cancellations: {
+        Args: { _actor: string }
+        Returns: Json
+      }
+      omni_dispatch_v3_record_legacy_lovable: {
         Args: {
           _grant: string
           _job: string
