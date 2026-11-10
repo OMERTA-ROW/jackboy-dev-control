@@ -12,9 +12,9 @@ const audit = (ctx: Ctx, action: string, detail: Record<string, unknown>, outcom
   ctx.supabase.rpc("write_audit", { _action: action, _detail: detail, _outcome: outcome });
 
 /** Read current endpoint-and-credential-bound freshness; a stored stale bit is never enough. */
-async function omniVerified(): Promise<boolean> {
+async function omniVerified(actor?: string): Promise<boolean> {
   const { isOmniVerified } = await import("./omni-link.server");
-  return isOmniVerified();
+  return isOmniVerified(actor);
 }
 
 export const getPassport = createServerFn({ method: "POST" })
@@ -52,7 +52,7 @@ export const getPassport = createServerFn({ method: "POST" })
       reports: reports.data ?? [],
       jobs: jobs.data ?? [],
       trail: trail.data ?? [],
-      omniVerified: await omniVerified(),
+      omniVerified: await omniVerified(r === "owner" ? context.userId : undefined),
     };
   });
 
@@ -116,7 +116,8 @@ export const requestOmniJob = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    if ((await role(context)) === "member") throw new Error("Owner or admin only.");
+    const currentRole = await role(context);
+    if (currentRole === "member") throw new Error("Owner or admin only.");
     const { data: project, error: projectError } = await context.supabase
       .from("agent_projects")
       .select("id, repo_url")
@@ -160,7 +161,12 @@ export const requestOmniJob = createServerFn({ method: "POST" })
     await audit(
       context,
       "omni.job.queue",
-      { agent: data.agentId, project: data.projectId, kind: data.kind, omniVerified: await omniVerified() },
+      {
+        agent: data.agentId,
+        project: data.projectId,
+        kind: data.kind,
+        omniVerified: await omniVerified(currentRole === "owner" ? context.userId : undefined),
+      },
       "queued_not_sent",
     );
     return { ok: true, sent: false };
@@ -186,7 +192,7 @@ export const getOmniQueue = createServerFn({ method: "POST" })
       role: currentRole,
       projects: projects.data ?? [],
       jobs: (jobs.data ?? []).map((job) => ({ ...job, pr_url: safeOmniPullRequestUrl(job.pr_url) })),
-      omniVerified: await omniVerified(),
+      omniVerified: await omniVerified(currentRole === "owner" ? context.userId : undefined),
     };
   });
 
@@ -223,7 +229,7 @@ export const getDashboardFacts = createServerFn({ method: "POST" })
       reports: reports.data ?? [],
       proposals: proposals.data ?? [],
       events: events.data ?? [],
-      omniVerified: await omniVerified(),
+      omniVerified: await omniVerified(currentRole === "owner" ? context.userId : undefined),
     };
   });
 
