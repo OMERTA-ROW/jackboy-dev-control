@@ -1,0 +1,269 @@
+\set ON_ERROR_STOP on
+-- Operator-only alternate entrypoint for pending 0062, never a later migration.
+-- See docs/OMNI-DISPATCH-V3.md. Run in a new psql connection, not inside a transaction.
+BEGIN;
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
+SET LOCAL search_path = pg_catalog, public;
+SET LOCAL lock_timeout = '5s';
+SET LOCAL statement_timeout = '60s';
+
+DO $reconcile$
+DECLARE
+  legacy oid;
+  f record;
+  obj record;
+  expected_name text;
+  suffix constant text := '_legacy_lovable';
+BEGIN
+  legacy := pg_catalog.to_regclass('public.omni_dispatch_v3_jobs');
+  IF legacy IS NULL OR NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_class
+    WHERE oid = legacy AND relkind = 'r' AND NOT relispartition
+  ) THEN
+    RAISE EXCEPTION 'Reconciliation requires the ordinary legacy public.omni_dispatch_v3_jobs table';
+  END IF;
+
+  -- Hold the emptiness check, dependency inspection and rename under one lock
+  -- until all of 0062 commits; concurrent inserts/DDL cannot slip between them.
+  LOCK TABLE ONLY public.omni_dispatch_v3_jobs IN ACCESS EXCLUSIVE MODE;
+  IF legacy IS DISTINCT FROM pg_catalog.to_regclass('public.omni_dispatch_v3_jobs') THEN
+    RAISE EXCEPTION 'Legacy table changed while acquiring the lock';
+  END IF;
+  -- RLS must not turn a nonempty table into an apparently empty one.
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = current_user
+      AND (rolsuper OR rolbypassrls)
+  ) THEN
+    RAISE EXCEPTION 'Reconciliation requires an operator that bypasses RLS';
+  END IF;
+  IF EXISTS (SELECT 1 FROM public.omni_dispatch_v3_jobs) THEN
+    RAISE EXCEPTION 'Legacy omni_dispatch_v3_jobs is not empty; reconciliation refused';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM pg_catalog.pg_inherits WHERE inhrelid = legacy OR inhparent = legacy
+  ) OR EXISTS (
+    SELECT 1 FROM pg_catalog.pg_attribute
+    WHERE attrelid = legacy AND attnum > 0 AND attisdropped
+  ) OR (
+    SELECT array_agg(attname::text ORDER BY attname)
+    FROM pg_catalog.pg_attribute
+    WHERE attrelid = legacy AND attnum > 0 AND NOT attisdropped
+  ) IS DISTINCT FROM ARRAY[
+    'created_at', 'grant_id', 'job_id', 'last_source', 'owner_id', 'project_id',
+    'repo', 'result', 'result_at', 'status', 'updated_at'
+  ]::text[] THEN
+    RAISE EXCEPTION 'Unsupported legacy table columns or inheritance';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM pg_catalog.pg_attribute
+    WHERE attrelid = legacy AND attnum > 0 AND (
+      atttypid <> CASE
+        WHEN attname IN ('job_id', 'grant_id', 'owner_id', 'project_id') THEN 'uuid'::regtype
+        WHEN attname IN ('created_at', 'updated_at', 'result_at') THEN 'timestamptz'::regtype
+        WHEN attname = 'result' THEN 'jsonb'::regtype
+        ELSE 'text'::regtype END
+      OR atttypmod <> -1 OR attgenerated <> '' OR attidentity <> ''
+    )
+  ) THEN
+    RAISE EXCEPTION 'Unsupported legacy column types, generated columns or identity';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_constraint c
+    WHERE c.conrelid = legacy AND c.contype = 'p'
+      AND c.conkey = ARRAY[(
+        SELECT attnum FROM pg_catalog.pg_attribute
+        WHERE attrelid = legacy AND attname = 'job_id'
+      )]::smallint[]
+  ) THEN
+    RAISE EXCEPTION 'Unsupported legacy primary key';
+  END IF;
+  IF pg_catalog.to_regclass('public.omni_dispatch_v3_jobs_legacy_lovable') IS NOT NULL
+    OR EXISTS (
+      SELECT 1 FROM pg_catalog.pg_type t JOIN pg_catalog.pg_namespace n ON n.oid = t.typnamespace
+      WHERE n.nspname = 'public'
+        AND t.typname IN ('omni_dispatch_v3_jobs_legacy_lovable', '_omni_dispatch_v3_jobs_legacy_lovable')
+    )
+  THEN
+    RAISE EXCEPTION 'Legacy table/type suffix collision';
+  END IF;
+  -- PostgreSQL can silently pick a different identity sequence/index name on
+  -- collision. 0062 grants the exact sequence name, so refuse instead.
+  FOREACH expected_name IN ARRAY ARRAY[
+    'omni_dispatch_v3_callback_nonces', 'omni_dispatch_v3_callback_nonces_pkey',
+    'omni_dispatch_v3_callback_events', 'omni_dispatch_v3_callback_events_pkey',
+    'omni_dispatch_v3_callback_events_job_id_status_key', 'omni_dispatch_v3_callback_events_id_seq'
+  ] LOOP
+    IF pg_catalog.to_regclass(pg_catalog.format('public.%I', expected_name)) IS NOT NULL THEN
+      RAISE EXCEPTION '0062 relation name collision: %', expected_name;
+    END IF;
+  END LOOP;
+  IF EXISTS (
+    SELECT 1 FROM pg_catalog.pg_type t JOIN pg_catalog.pg_namespace n ON n.oid = t.typnamespace
+    WHERE n.nspname = 'public' AND t.typname IN (
+      'omni_dispatch_v3_callback_nonces', '_omni_dispatch_v3_callback_nonces',
+      'omni_dispatch_v3_callback_events', '_omni_dispatch_v3_callback_events'
+    )
+  ) THEN
+    RAISE EXCEPTION '0062 type name collision';
+  END IF;
+
+  -- Catalog-bound dependencies would keep pointing at the archived table.
+  -- Textual/dynamic callers cannot be established here; operator review is required.
+  IF EXISTS (
+    SELECT 1 FROM pg_catalog.pg_trigger WHERE tgrelid = legacy AND NOT tgisinternal
+  ) OR EXISTS (
+    SELECT 1 FROM pg_catalog.pg_constraint WHERE confrelid = legacy
+  ) OR EXISTS (
+    SELECT 1 FROM pg_catalog.pg_rewrite WHERE ev_class = legacy
+  ) OR EXISTS (
+    SELECT 1 FROM pg_catalog.pg_depend
+    WHERE classid IN ('pg_catalog.pg_rewrite'::regclass, 'pg_catalog.pg_proc'::regclass)
+      AND (
+        (refclassid = 'pg_catalog.pg_class'::regclass AND refobjid = legacy)
+        OR (refclassid = 'pg_catalog.pg_type'::regclass AND refobjid IN (
+          SELECT t.oid FROM pg_catalog.pg_type t
+          WHERE t.typrelid = legacy OR t.typelem = (SELECT reltype FROM pg_catalog.pg_class WHERE oid = legacy)
+        ))
+      )
+  ) OR EXISTS (
+    SELECT 1 FROM pg_catalog.pg_depend d JOIN pg_catalog.pg_class c ON c.oid = d.objid
+    WHERE d.refclassid = 'pg_catalog.pg_class'::regclass AND d.refobjid = legacy
+      AND d.classid = 'pg_catalog.pg_class'::regclass AND c.relkind = 'S'
+  ) THEN
+    RAISE EXCEPTION 'Unsupported legacy trigger, incoming FK, rule, dependent function/view or owned sequence';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM pg_catalog.pg_depend
+    WHERE classid = 'pg_catalog.pg_class'::regclass AND objid = legacy AND deptype = 'e'
+  ) THEN
+    RAISE EXCEPTION 'Extension-owned legacy table is unsupported';
+  END IF;
+
+  FOR obj IN SELECT * FROM (VALUES
+    ('omni_jobs', ARRAY['id']),
+    ('agent_projects', ARRAY['id']),
+    ('user_roles', ARRAY['user_id', 'role']),
+    ('omni_dispatch_grants', ARRAY[
+      'id', 'job_id', 'owner_id', 'project_id', 'repo', 'kind', 'expires_at', 'revoked_at', 'authorization_id'
+    ]),
+    ('omni_project_authorizations', ARRAY['id', 'expires_at', 'revoked_at'])
+  ) AS prerequisites(table_name, columns) LOOP
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public' AND c.relname = obj.table_name AND c.relkind = 'r'
+    ) OR EXISTS (
+      SELECT 1 FROM unnest(obj.columns) AS required(column_name)
+      WHERE NOT EXISTS (
+        SELECT 1 FROM pg_catalog.pg_attribute
+        WHERE attrelid = pg_catalog.to_regclass(pg_catalog.format('public.%I', obj.table_name))
+          AND attname = required.column_name AND attnum > 0 AND NOT attisdropped
+          AND (
+            (required.column_name = 'role' AND (
+              atttypid = 'text'::regtype OR atttypid = pg_catalog.to_regtype('public.app_role')
+            ))
+            OR (required.column_name <> 'role' AND atttypid = CASE
+              WHEN required.column_name IN ('repo', 'kind') THEN 'text'::regtype
+              WHEN required.column_name IN ('expires_at', 'revoked_at') THEN 'timestamptz'::regtype
+              ELSE 'uuid'::regtype END)
+          )
+      )
+    ) THEN
+      RAISE EXCEPTION 'Missing or incompatible 0062 prerequisite columns: public.%', obj.table_name;
+    END IF;
+  END LOOP;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_proc
+    WHERE oid = pg_catalog.to_regprocedure('public.omni_link_live()')
+      AND prokind = 'f' AND prorettype = 'boolean'::regtype AND NOT proretset
+  ) OR NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_proc
+    WHERE oid = pg_catalog.to_regprocedure('public.omni_dispatch_grant_action(text,uuid,uuid,uuid)')
+      AND prokind = 'f' AND prorettype = 'jsonb'::regtype AND NOT proretset
+  ) THEN
+    RAISE EXCEPTION 'Missing or incompatible 0062 prerequisite functions';
+  END IF;
+
+  FOREACH expected_name IN ARRAY ARRAY[
+    'omni_dispatch_v3_record', 'omni_dispatch_v3_callback_scope'
+  ] LOOP
+    IF (
+      SELECT count(*) FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
+      WHERE n.nspname = 'public' AND p.proname = expected_name
+    ) <> 1 THEN
+      RAISE EXCEPTION 'Missing or ambiguous legacy function public.%', expected_name;
+    END IF;
+    SELECT p.*, pg_catalog.pg_get_function_identity_arguments(p.oid) AS identity_args
+      INTO STRICT f
+      FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
+      WHERE n.nspname = 'public' AND p.proname = expected_name;
+    -- Signatures are evidenced by Lovable source 8312c3e (historical 0064).
+    IF f.prokind <> 'f' OR f.prorettype <> 'jsonb'::regtype OR f.proretset
+      OR f.oid IS DISTINCT FROM pg_catalog.to_regprocedure(
+        CASE expected_name
+          WHEN 'omni_dispatch_v3_record'
+            THEN 'public.omni_dispatch_v3_record(text,text,uuid,uuid,uuid,uuid,text,text,jsonb)'
+          ELSE 'public.omni_dispatch_v3_callback_scope(uuid,uuid,uuid)' END
+      )
+      OR EXISTS (
+        SELECT 1 FROM pg_catalog.pg_depend
+        WHERE classid = 'pg_catalog.pg_proc'::regclass AND objid = f.oid AND deptype = 'e'
+      )
+    THEN
+      RAISE EXCEPTION 'Incompatible legacy function public.%', expected_name;
+    END IF;
+    IF EXISTS (
+      SELECT 1 FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
+      WHERE n.nspname = 'public' AND p.proname = expected_name || suffix
+    ) THEN
+      RAISE EXCEPTION 'Legacy function suffix collision: %', expected_name;
+    END IF;
+  END LOOP;
+
+  -- Table renames do not rename indexes. Move only the two names needed by
+  -- 0062, and only if they belong to this legacy table; never touch unrelated objects.
+  FOREACH expected_name IN ARRAY ARRAY[
+    'omni_dispatch_v3_jobs_pkey', 'omni_dispatch_v3_jobs_grant_id_job_id_key'
+  ] LOOP
+    IF pg_catalog.to_regclass('public.' || expected_name) IS NOT NULL THEN
+      SELECT c.oid, c.relname, con.oid AS constraint_oid, con.conname INTO obj
+      FROM pg_catalog.pg_class c
+      JOIN pg_catalog.pg_index i ON i.indexrelid = c.oid AND i.indrelid = legacy
+      LEFT JOIN pg_catalog.pg_constraint con ON con.conindid = c.oid AND con.conrelid = legacy
+      WHERE c.oid = pg_catalog.to_regclass('public.' || expected_name);
+      IF NOT FOUND THEN
+        RAISE EXCEPTION '0062 index name belongs to an unrelated object: %', expected_name;
+      END IF;
+      IF pg_catalog.to_regclass(pg_catalog.format('public.%I', expected_name || suffix)) IS NOT NULL
+        OR EXISTS (
+          SELECT 1 FROM pg_catalog.pg_constraint
+          WHERE conrelid = legacy AND conname = expected_name || suffix
+        )
+      THEN
+        RAISE EXCEPTION 'Legacy index/constraint suffix collision: %', expected_name;
+      END IF;
+      IF obj.constraint_oid IS NOT NULL THEN
+        EXECUTE pg_catalog.format('ALTER TABLE public.omni_dispatch_v3_jobs RENAME CONSTRAINT %I TO %I',
+          obj.conname, expected_name || suffix);
+      ELSE
+        EXECUTE pg_catalog.format('ALTER INDEX public.%I RENAME TO %I', expected_name, expected_name || suffix);
+      END IF;
+    END IF;
+  END LOOP;
+
+  ALTER TABLE public.omni_dispatch_v3_jobs RENAME TO omni_dispatch_v3_jobs_legacy_lovable;
+  FOREACH expected_name IN ARRAY ARRAY[
+    'omni_dispatch_v3_record', 'omni_dispatch_v3_callback_scope'
+  ] LOOP
+    SELECT p.proname, pg_catalog.pg_get_function_identity_arguments(p.oid) AS identity_args INTO STRICT f
+    FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public' AND p.proname = expected_name;
+    EXECUTE pg_catalog.format('ALTER FUNCTION public.%I(%s) RENAME TO %I',
+      f.proname, f.identity_args, f.proname || suffix);
+  END LOOP;
+END
+$reconcile$;
+
+-- psql resolves this relative to THIS file, not the caller's working directory.
+-- Include the canonical bytes: no duplicated or modified 0062 schema.
+\ir ../drizzle/migrations/0062_omni_dispatch_v3.sql
+COMMIT;
