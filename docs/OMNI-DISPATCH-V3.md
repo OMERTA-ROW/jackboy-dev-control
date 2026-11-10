@@ -193,6 +193,20 @@ quiescent before a separately approved application.
    again after the wrapper**, which already executed it. Leave all settings,
    dispatch, execution, deployment and merge gates unchanged.
 
+### Recording an already-applied 0062 (Lovable SQL runner)
+
+If 0062 was applied through `scripts/reconcile-omni-dispatch-v3.sql` and Drizzle
+history still lists it as unapplied, run the whole
+`scripts/record-omni-dispatch-v3-0062-history.sql` once in a fresh session (one
+BEGIN/COMMIT, no psql commands). It inserts the canonical 0062 row (sha256 of the
+checked-in file, journal `when` 1794285308000) only if the hash is absent, no
+history row is at or after that timestamp, and the three tables, their
+12-column jobs shape, the four functions and the identity sequence exist;
+otherwise it raises and rolls back. It also runs
+`REVOKE ALL ON SEQUENCE public.omni_dispatch_v3_callback_events_id_seq FROM PUBLIC, anon, authenticated`.
+It never reruns 0062 or rewrites existing history, and is not a migration.
+Merging this file does not execute it; running it needs separate owner approval.
+
 ### Checked-in legacy caller inventory (2026-11-10)
 
 Full tracked-tree searches on main `e76b7fe` found **no old function callers or
