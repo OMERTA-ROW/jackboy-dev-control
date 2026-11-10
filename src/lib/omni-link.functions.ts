@@ -321,6 +321,14 @@ export const sendOmniReceipt = createServerFn({ method: "POST" })
     return { id: job.id, status: String(job.status) };
   });
 
+export const listOmniV3JobStatuses = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await requireOwner(context);
+    const { listOmniV3Jobs } = await import("./omni-dispatch-v3-read");
+    return listOmniV3Jobs(context.supabase);
+  });
+
 /** Owner read of the stored v3 status/result (written only after a verified response or callback). */
 export const getOmniV3Job = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

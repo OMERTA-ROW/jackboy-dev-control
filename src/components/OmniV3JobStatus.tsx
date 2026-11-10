@@ -1,7 +1,7 @@
 // Shows the stored v3 OMNI job status and result exactly as recorded; a missing result is said plainly.
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { getOmniV3Job } from "@/lib/omni-link.functions";
+import { getOmniV3Job, listOmniV3JobStatuses } from "@/lib/omni-link.functions";
 import { Button } from "@/components/ui/button";
 
 export type V3JobView = Awaited<ReturnType<typeof getOmniV3Job>>;
@@ -62,6 +62,54 @@ export function V3JobDetails({ view }: { view: V3JobView }) {
         <p className="text-muted-foreground">OMNI shortened this output before sending it.</p>
       )}
       {view.noResult && <p className="text-muted-foreground">{view.noResult}</p>}
+    </div>
+  );
+}
+
+/** Recent scoped (v3) jobs on the OMNI page, refreshed every 30 seconds while visible. */
+export function OmniV3JobList() {
+  const list = useServerFn(listOmniV3JobStatuses);
+  const [rows, setRows] = useState<V3JobView[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let stop = false;
+    const load = () =>
+      list()
+        .then((r) => !stop && (setRows(r), setError(null)))
+        .catch((e: Error) => !stop && setError(e.message));
+    void load();
+    const timer = window.setInterval(() => {
+      if (!document.hidden) void load();
+    }, 30_000);
+    return () => {
+      stop = true;
+      window.clearInterval(timer);
+    };
+  }, [list]);
+  return (
+    <div aria-label="Scoped OMNI job results">
+      <h3 className="text-xs font-semibold uppercase tracking-wider text-silver">
+        Scoped job results from OMNI
+      </h3>
+      {error && (
+        <p role="alert" className="mt-1 text-xs text-destructive">
+          {error}
+        </p>
+      )}
+      {rows && rows.length === 0 && (
+        <p className="mt-1 text-xs text-muted-foreground">
+          No scoped job has been sent yet, so OMNI has reported nothing.
+        </p>
+      )}
+      {rows && rows.length > 0 && (
+        <ul className="mt-2 space-y-2">
+          {rows.map((r) => (
+            <li key={r.jobId} className="rounded-xl border border-border p-3 text-xs">
+              <V3JobDetails view={r} />
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
