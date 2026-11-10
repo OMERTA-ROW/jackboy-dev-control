@@ -5,7 +5,7 @@ import { dispatchPayloadDigest } from "./omni-dispatch-digest";
 import { logSiteStrict } from "./site-log.server";
 import { isOmniVerified } from "./omni-link.server";
 import { wireKind } from "./omni-handoff-auth";
-import { allowedOmniRepos } from "./omni-jobs";
+import { parseAllowedRepos } from "./omni-jobs";
 import { v3ExpiresAt, v3Payload, v3SafetyGate, type DispatchVersion } from "./omni-dispatch-v3";
 
 const grantSchema = z.object({
@@ -46,7 +46,7 @@ async function v3Safety(db: Db, repo: string) {
     paused,
     controls: controls.error ? null : ((controls.data as never) ?? null),
     todaySpendUsd,
-    allowedRepos: allowedOmniRepos(process.env["OMNI_ALLOWED_REPOS"]),
+    allowedRepos: parseAllowedRepos(process.env["OMNI_ALLOWED_REPOS"]),
     repo,
   });
   if (reason) throw new Error(reason);
