@@ -8,8 +8,8 @@ const net = vi.hoisted(() => ({
 }));
 const SECRET = "s".repeat(64);
 
-vi.mock("node:https", () => ({
-  request: (
+vi.mock("node:https", () => {
+  const request = (
     _url: URL,
     opts: { headers: Record<string, string> },
     cb: (res: unknown) => void,
@@ -45,8 +45,9 @@ vi.mock("node:https", () => ({
       },
     };
     return req;
-  },
-}));
+  };
+  return { request, default: { request } };
+});
 
 import { OmniDispatchClient } from "./omni-dispatch-client.server";
 import { hmacHex } from "./omni-link";
