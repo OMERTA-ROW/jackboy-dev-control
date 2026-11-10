@@ -78,7 +78,8 @@ async function databaseStore(nonce: string, input: Callback) {
   if (grant.error) throw new Error("Callback authorization unavailable.");
   const row = z
     .object({
-      id: z.string().uuid(),
+      // Live check answers `valid: true`; the v3 result-scope read answers `found: true`.
+      ...(isV3ResultCallback(input) ? { found: z.literal(true) } : { valid: z.literal(true) }),
       id: z.string().uuid(),
       ownerId: z.string().uuid(),
       projectId: z.string().uuid(),
@@ -90,6 +91,9 @@ async function databaseStore(nonce: string, input: Callback) {
     .parse(grant.data);
   const digest = await dispatchPayloadDigest({ ...row, kind: wireKind(row.kind), grantId: row.id });
   if (
+    row.id !== input.grantId ||
+    row.ownerId !== input.ownerId ||
+    row.jobId !== input.jobId ||
     row.projectId !== input.projectId ||
     row.repo !== input.repo ||
     !safeEqual(digest, input.payloadDigest)
