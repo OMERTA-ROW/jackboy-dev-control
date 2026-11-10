@@ -296,6 +296,7 @@ export const sendOmniReceipt = createServerFn({ method: "POST" })
         grantId: z.string().uuid(),
         action: z.enum(["submit", "status", "cancel"]),
         confirm: z.literal(true),
+        version: z.enum(["v2", "v3"]).optional(),
       })
       .strict()
       .parse(input),
@@ -310,5 +311,22 @@ export const sendOmniReceipt = createServerFn({ method: "POST" })
     )
       throw new Error("A confirmed owner session is required.");
     const { executeOmniReceipt } = await import("./omni-dispatch-execute.server");
-    return executeOmniReceipt(context.userId, data.jobId, data.grantId, data.action);
+    const job = await executeOmniReceipt(
+      context.userId,
+      data.jobId,
+      data.grantId,
+      data.action,
+      data.version ?? "v2",
+    );
+    return { id: job.id, status: String(job.status) };
+  });
+
+/** Owner read of the stored v3 status/result (written only after a verified response or callback). */
+export const getOmniV3Job = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => z.object({ jobId: z.string().uuid() }).strict().parse(input))
+  .handler(async ({ context, data }) => {
+    await requireOwner(context);
+    const { readOmniV3Job } = await import("./omni-dispatch-v3-read");
+    return readOmniV3Job(context.supabase, data.jobId);
   });
