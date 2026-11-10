@@ -71,8 +71,9 @@ zero legacy rows and absence of the new 0062 tables. These are owner-supplied
 observations, not live checks performed by this PR. Actual migration-manager
 bookkeeping remains unverified.
 
-`scripts/reconcile-omni-dispatch-v3.psql` is a **standalone alternate
-entrypoint for 0062**, not a 0063 migration or a post-failure cleanup. It is
+`scripts/reconcile-omni-dispatch-v3.psql` and the self-contained SQL alternative
+`scripts/reconcile-omni-dispatch-v3.sql` are **alternate entrypoints for 0062**,
+not a 0063 migration or a post-failure cleanup. Each is
 deliberately absent from `drizzle/migrations/meta/_journal.json`. It starts
 one transaction, obtains `ACCESS EXCLUSIVE` on the legacy table, requires an
 RLS-bypassing operator, checks emptiness under that lock, then renames:
@@ -83,11 +84,13 @@ RLS-bypassing operator, checks emptiness under that lock, then renames:
 | `public.omni_dispatch_v3_record(text,text,uuid,uuid,uuid,uuid,text,text,jsonb)` | `omni_dispatch_v3_record_legacy_lovable` (same arguments)         |
 | `public.omni_dispatch_v3_callback_scope(uuid,uuid,uuid)`                        | `omni_dispatch_v3_callback_scope_legacy_lovable` (same arguments) |
 
-It then uses psql's file-relative `\ir` to execute **all of the unchanged
+The psql entrypoint uses its file-relative `\ir` to execute **all of the unchanged
 `drizzle/migrations/0062_omni_dispatch_v3.sql`**, and commits only when that
 entire file succeeds. Its SHA-256 remains
 `3d9e882b8cec18835456220c126d08d489037a61a5cc5bdf1b218bc06af3a3bf`.
-There is no duplicated new schema. The three new tables, callback-event identity
+The SQL alternative inlines the exact same transaction preflight/DO block and
+0062 bytes, with automated equality checks against both source files; it has
+no psql commands or external includes. The three new tables, callback-event identity
 sequence, guard function/trigger, three RPCs, constraints, RLS and grants all
 come from that exact file. An error anywhere, including a late function or
 object collision in 0062, leaves the transaction aborted; no rename commits.
@@ -150,8 +153,11 @@ quiescent before a separately approved application.
    manager's exact schema/history reconciliation and registration procedure.
    If it cannot record the canonical 0062 as fulfilled without rewriting
    history or replaying it, stop; no general journal-repair script is supplied.
-3. For an explicitly approved **standalone schema-only** operation, use a fresh
-   psql connection and the reviewed wrapper, **instead of** running 0062 directly.
+3. For an explicitly approved **standalone schema-only** operation, choose
+   **one** reviewed entrypoint, **instead of** running 0062 directly. Neither
+   entrypoint is idempotent or safe to rerun.
+
+   **psql route:** use a fresh connection with the reviewed psql wrapper.
    The following is an operator template, not an instruction executed here:
 
    ```sh
@@ -163,13 +169,23 @@ quiescent before a separately approved application.
    service configuration. Do not paste this psql file into a SQL editor:
    `\ir` is a psql command. Do not use `--single-transaction`, an enclosing
    `BEGIN`, an unattended migration runner, or execute only the renames.
-   For another approved runner, expand the include with the canonical file's
-   exact bytes, retaining one transaction for checks, locks, renames and all
-   0062 statements; rehearse that runner's bookkeeping/transaction behavior
-   independently before approval.
+
+   **Lovable Cloud SQL runner route (no psql required):** use the entire
+   `scripts/reconcile-omni-dispatch-v3.sql` file unchanged. It already contains
+   the checks, locks, renames and all of original 0062 in **one BEGIN/COMMIT**,
+   with explicit READ COMMITTED isolation. The runner must execute the
+   **whole file in a single fresh session**, preserve its transaction statements
+   and stop on any error, rolling back the whole transaction. Do not select
+   individual statements, run statements independently, add an enclosing
+   transaction, or strip transaction statements. Verify/rehearse the runner's
+   transaction and error behavior independently before approval; if it cannot
+   guarantee these requirements, stop. This file is not proof that Lovable's
+   runner meets them. The same backup, quiescent-writer, flags-off, operator
+   approval and bookkeeping requirements above apply to both routes.
 
 4. On failure, stop and inspect read-only; a fresh noninteractive psql connection
-   rolls back the aborted transaction when it exits. On uncertain connection
+   rolls back the aborted transaction when it exits. A SQL runner must likewise
+   roll back on error, not continue with independent statements. On uncertain connection
    loss, verify actual state rather than retrying. On success, verify the archived
    OIDs/definitions/grants/policies and all canonical objects read-only. Complete
    only the previously approved manager-specific bookkeeping. **Do not resume a
@@ -250,6 +266,15 @@ their presence does not prove installation or confer database access.
 The reconciliation suite is named
 `tests/code-omni-dispatch-v3-reconciliation.test.mjs` so the existing Verify
 workflow's `tests/code-*.test.mjs` selector runs it without a workflow change.
+Both entrypoints run the same synthetic success, fail-closed, RLS,
+non-rerunnable and atomic-rollback cases. Tests compare their complete public
+catalogs: relation/column definitions and defaults, constraints, indexes,
+function bodies, triggers, RLS policies, owners/grants and sequence definitions/
+ownership, including archived legacy objects. These isolated checks establish
+schema equivalence, not production readiness or live runner compatibility.
+Native validation also compared complete schema-only dumps after the actual
+psql wrapper and a whole-file SQL request; both routes passed nonempty,
+late-error rollback and concurrent-writer checks on disposable local fixtures.
 Local validation also used the actual wrapper in disposable native PostgreSQL
 via psql, and a concurrent uncommitted insert: the wrapper waited on the lock,
 then rejected the newly committed row without renaming anything, even with a

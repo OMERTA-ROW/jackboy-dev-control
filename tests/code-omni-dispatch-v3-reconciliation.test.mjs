@@ -16,6 +16,19 @@ const wrapper = await readFile(
 const include = "\\ir ../drizzle/migrations/0062_omni_dispatch_v3.sql";
 // Model psql's single relative include in an in-memory PostgreSQL engine only.
 const sql = wrapper.replace("\\set ON_ERROR_STOP on\n", "").replace(include, () => original);
+const standalone = await readFile(
+  new URL("../scripts/reconcile-omni-dispatch-v3.sql", import.meta.url),
+  "utf8",
+);
+const entrypoints = [
+  ["psql", sql],
+  ["standalone SQL", standalone],
+];
+const entrypointTest = (name, fn) => {
+  for (const [label, sql] of entrypoints) {
+    test(`${label}: ${name}`, () => fn(sql));
+  }
+};
 const suffix = "_legacy_lovable";
 const names = ["omni_dispatch_v3_record", "omni_dispatch_v3_callback_scope"];
 const historical = await readFile(
@@ -33,12 +46,79 @@ const withDb = async (fn) => {
   try {
     await db.exec(setup);
     await db.exec(historical);
-    await fn(db);
+    return await fn(db);
   } finally {
     await db.close();
   }
 };
 const query = async (db, text) => (await db.query(text)).rows;
+// Compare definitions rather than database-local OIDs, including archived objects.
+const catalog = (db) =>
+  query(
+    db,
+    `
+  SELECT * FROM (
+  SELECT 'relation' AS kind, c.relname AS name,
+    jsonb_build_object('kind', c.relkind, 'owner', pg_get_userbyid(c.relowner),
+      'acl', c.relacl, 'rls', c.relrowsecurity, 'force_rls', c.relforcerowsecurity,
+      'persistence', c.relpersistence, 'replica_identity', c.relreplident,
+      'options', c.reloptions) AS detail
+  FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public'
+  UNION ALL
+  SELECT 'column', c.relname || '.' || a.attname,
+    jsonb_build_object('position', a.attnum, 'type', format_type(a.atttypid, a.atttypmod),
+      'not_null', a.attnotnull, 'default', pg_get_expr(d.adbin, d.adrelid),
+      'identity', a.attidentity, 'generated', a.attgenerated, 'acl', a.attacl,
+      'collation', a.attcollation::regcollation::text, 'dropped', a.attisdropped)
+  FROM pg_attribute a JOIN pg_class c ON c.oid = a.attrelid
+  JOIN pg_namespace n ON n.oid = c.relnamespace
+  LEFT JOIN pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum
+  WHERE n.nspname = 'public' AND a.attnum > 0
+  UNION ALL
+  SELECT 'constraint', c.conrelid::regclass::text || '.' || c.conname,
+    jsonb_build_object('definition', pg_get_constraintdef(c.oid),
+      'validated', c.convalidated, 'deferrable', c.condeferrable, 'deferred', c.condeferred)
+  FROM pg_constraint c JOIN pg_namespace n ON n.oid = c.connamespace WHERE n.nspname = 'public'
+  UNION ALL
+  SELECT 'index', c.relname,
+    jsonb_build_object('definition', pg_get_indexdef(c.oid), 'valid', i.indisvalid,
+      'ready', i.indisready, 'clustered', i.indisclustered, 'replica_identity', i.indisreplident)
+  FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid
+  JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public'
+  UNION ALL
+  SELECT 'function', p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')',
+    jsonb_build_object('definition', pg_get_functiondef(p.oid),
+      'owner', pg_get_userbyid(p.proowner), 'acl', p.proacl)
+  FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public'
+  UNION ALL
+  SELECT 'trigger', c.relname || '.' || regexp_replace(t.tgname, '(RI_ConstraintTrigger_[ac]_)[0-9]+', '\\1'),
+    jsonb_build_object('definition',
+      regexp_replace(pg_get_triggerdef(t.oid), '(RI_ConstraintTrigger_[ac]_)[0-9]+', '\\1'),
+      'enabled', t.tgenabled, 'internal', t.tgisinternal)
+  FROM pg_trigger t JOIN pg_class c ON c.oid = t.tgrelid
+  JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public'
+  UNION ALL
+  SELECT 'policy', c.relname || '.' || p.polname,
+    jsonb_build_object('command', p.polcmd, 'permissive', p.polpermissive,
+      'roles', ARRAY(SELECT CASE WHEN r = 0 THEN 'public' ELSE pg_get_userbyid(r) END
+        FROM unnest(p.polroles) AS r ORDER BY 1),
+      'using', pg_get_expr(p.polqual, p.polrelid), 'check', pg_get_expr(p.polwithcheck, p.polrelid))
+  FROM pg_policy p JOIN pg_class c ON c.oid = p.polrelid
+  JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public'
+  UNION ALL
+  SELECT 'sequence', c.relname,
+    jsonb_build_object('type', format_type(s.seqtypid, NULL), 'start', s.seqstart,
+      'increment', s.seqincrement, 'min', s.seqmin, 'max', s.seqmax,
+      'cache', s.seqcache, 'cycle', s.seqcycle,
+      'owned_by', ARRAY(SELECT d.refobjid::regclass::text || '.' || a.attname || ':' || d.deptype::text
+        FROM pg_depend d JOIN pg_attribute a ON a.attrelid = d.refobjid AND a.attnum = d.refobjsubid
+        WHERE d.classid = 'pg_class'::regclass AND d.objid = c.oid
+          AND d.refclassid = 'pg_class'::regclass AND d.deptype IN ('a', 'i') ORDER BY 1))
+  FROM pg_sequence s JOIN pg_class c ON c.oid = s.seqrelid
+  JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public'
+  ) AS objects ORDER BY kind, name, detail::text
+`,
+  );
 const fingerprint = (db) =>
   query(
     db,
@@ -100,7 +180,55 @@ test("operator wrapper includes exactly the immutable main 0062 bytes, outside t
   assert.equal(journal.entries.at(-1).when, 1794285308000);
 });
 
-test("empty legacy objects retain OIDs, definitions, grants, constraints and RLS; exact 0062 is installed", async () => {
+test("standalone SQL embeds the exact transaction preflight and original 0062 bytes without psql commands", () => {
+  const preflight = wrapper.slice(wrapper.indexOf("BEGIN;"), wrapper.indexOf("-- psql resolves"));
+  const body = standalone.slice(standalone.indexOf("BEGIN;"));
+  assert.equal(body.slice(0, preflight.length), preflight);
+  assert.equal(body.slice(preflight.length, -"COMMIT;\n".length), original);
+  assert.equal(body, preflight + original + "COMMIT;\n");
+  assert.doesNotMatch(standalone, /^\s*\\/m);
+  assert.match(preflight, /^BEGIN;\nSET TRANSACTION ISOLATION LEVEL READ COMMITTED;/);
+  assert.equal(standalone.match(/^BEGIN;/gm)?.length, 1);
+  assert.equal(standalone.match(/^COMMIT;/gm)?.length, 1);
+});
+
+test("both entrypoints produce identical complete catalogs, including archived objects", async () => {
+  const snapshots = [];
+  for (const [, entrypoint] of entrypoints) {
+    snapshots.push(
+      await withDb(async (db) => {
+        await db.exec(entrypoint);
+        return catalog(db);
+      }),
+    );
+  }
+  assert.deepEqual(snapshots[1], snapshots[0]);
+  for (const kind of [
+    "relation",
+    "column",
+    "constraint",
+    "index",
+    "function",
+    "trigger",
+    "policy",
+    "sequence",
+  ]) {
+    assert.ok(
+      snapshots[0].some((row) => row.kind === kind),
+      `missing catalog coverage: ${kind}`,
+    );
+  }
+  assert.ok(
+    snapshots[0].some(
+      (row) => row.kind === "column" && row.name.endsWith("_legacy_lovable.result_at"),
+    ),
+  );
+  assert.ok(
+    snapshots[0].some((row) => row.kind === "function" && row.name.includes("_legacy_lovable(")),
+  );
+});
+
+entrypointTest("empty legacy objects retain OIDs, definitions, grants, constraints and RLS; exact 0062 is installed", async (sql) => {
   await withDb(async (db) => {
     const before = await fingerprint(db);
     const oldColumns = await columns(db, "omni_dispatch_v3_jobs");
@@ -359,13 +487,16 @@ const cases = [
 ];
 
 for (const [label, change, error] of cases) {
-  test(`${label} aborts atomically without changing any existing object`, async () => {
+  entrypointTest(`${label} aborts atomically without changing any existing object`, async (sql) => {
     await withDb(async (db) => {
       await db.exec(change);
       const before = await fingerprint(db);
+      const beforeCatalog = await catalog(db);
       await assert.rejects(db.exec(sql), error);
+      await assert.rejects(db.query("SELECT 1"), /current transaction is aborted/);
       await db.exec("ROLLBACK");
       assert.deepEqual(await fingerprint(db), before);
+      assert.deepEqual(await catalog(db), beforeCatalog);
       if (label === "nonempty") {
         assert.equal(
           (await query(db, "SELECT count(*)::int AS n FROM public.omni_dispatch_v3_jobs"))[0].n,
@@ -376,7 +507,7 @@ for (const [label, change, error] of cases) {
   });
 }
 
-test("legacy unique constraints and standalone colliding indexes are preserved with suffixed names", async () => {
+entrypointTest("legacy unique constraints and standalone colliding indexes are preserved with suffixed names", async (sql) => {
   await withDb(async (db) => {
     await db.exec(`
       ALTER TABLE public.omni_dispatch_v3_jobs ADD UNIQUE(grant_id,job_id);
@@ -414,7 +545,7 @@ test("legacy unique constraints and standalone colliding indexes are preserved w
   });
 });
 
-test("RLS cannot hide old rows from an unprivileged operator", async () => {
+entrypointTest("RLS cannot hide old rows from an unprivileged operator", async (sql) => {
   await withDb(async (db) => {
     await db.exec(`
       GRANT USAGE ON SCHEMA public TO authenticated;
@@ -429,7 +560,7 @@ test("RLS cannot hide old rows from an unprivileged operator", async () => {
   });
 });
 
-test("an index not owned by the legacy table is never renamed", async () => {
+entrypointTest("an index not owned by the legacy table is never renamed", async (sql) => {
   await withDb(async (db) => {
     await db.exec(`
       ALTER TABLE public.omni_dispatch_v3_jobs RENAME CONSTRAINT omni_dispatch_v3_jobs_pkey TO old_pk;
@@ -443,7 +574,7 @@ test("an index not owned by the legacy table is never renamed", async () => {
   });
 });
 
-test("successful reconciliation is not rerunnable over the new schema", async () => {
+entrypointTest("successful reconciliation is not rerunnable over the new schema", async (sql) => {
   await withDb(async (db) => {
     await db.exec(sql);
     const before = await fingerprint(db);
@@ -453,7 +584,7 @@ test("successful reconciliation is not rerunnable over the new schema", async ()
   });
 });
 
-test("generated v3 types match the reconciled catalog, including legacy names and FK identities", async () => {
+entrypointTest("generated v3 types match the reconciled catalog, including legacy names and FK identities", async (sql) => {
   const source = ts.createSourceFile(
     "types.ts",
     await readFile(new URL("../src/integrations/supabase/types.ts", import.meta.url), "utf8"),
