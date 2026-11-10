@@ -8,6 +8,7 @@ import { probeOmniConnection } from "@/lib/omni-link.functions";
 import { useStepUp } from "@/lib/step-up-client";
 import { HANDOFF_KIND_LABEL, isHandoffKind, type HandoffKind } from "@/lib/omni-handoff-auth";
 import { OmniDispatchReview } from "./OmniDispatchReview";
+import { OmniV3JobList } from "./OmniV3JobStatus";
 
 type Data = Awaited<ReturnType<typeof getOmniHandoffs>>;
 const when = (iso: string) => new Date(iso).toLocaleString();
@@ -252,6 +253,8 @@ export function OmniHandoffPanel() {
           ))}
         </ul>
       </div>
+
+      <OmniV3JobList />
 
       {d && d.recentRevocations.length > 0 && (
         <details className="text-xs text-muted-foreground">

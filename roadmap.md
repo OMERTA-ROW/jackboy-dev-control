@@ -6,6 +6,13 @@
 - Acceptance is bound to Jackboy/main, reviewed lane and its approved <=$1 actual hold, with a required database guard and fail-closed publish audit. Retries need a new Settings passkey request.
 - No migration application, paid execution, merge, publishing, deployment or autonomous activation is authorized by these repairs.
 
+## Scoped dispatch v3 (Nov 10, 00:41 UTC)
+- [x] v3 send path next to v2 (signed instructions + approval expiry on submit, 7 job states); v2 unchanged.
+- [x] v3 callbacks accepted with grant + digest check, replay guard, bounded result; stored per job.
+- [x] Live status, pass/fail, summary and output on the OMNI page and in chat (`omniDispatchResult`); no result = said plainly.
+- [x] Kill Switch, Emergency Stop, spending limits and allowed repos re-checked before every v3 send. 937 + 17 database tests pass.
+- [ ] First real v3 job — waits on OMNI's matching v3 deploy, OMNI_DISPATCH_* / callback settings, owner releasing Emergency Stop, and owner approval.
+
 ## Chat routes OMNI jobs to OMNI (Nov 9, 02:16 UTC)
 - [x] Typed chat requests to run something on OMNI send a real job (POST /jackboy/jobs); the card shows job ID, HTTP status, status, OMNI's output, and the exact error with "did not run" on failure. Kill Switch and repo list checked; voice can't send. 833 tests pass.
 - [x] "Test OMNI link" (chat Shortcuts panel + chat tool) shows OMNI's contract, version and capabilities. Verified live: v0.1.0; test job f8ba1f5a completed, tests passed.

@@ -2,27 +2,45 @@ import { z } from "zod";
 import { hmacHex, safeEqual } from "./omni-link";
 import { dispatchPayloadDigest } from "./omni-dispatch-digest";
 import { wireKind } from "./omni-handoff-auth";
+import { CALLBACK_V2, CALLBACK_V3, V3_CALLBACK_STATUSES, v3ResultSchema } from "./omni-dispatch-v3";
 
-const CONTRACT = "jackboy.dispatch-callback/v2";
 const PATH = "/api/public/omni/callback";
+const scopeFields = {
+  ownerId: z.string().uuid(),
+  projectId: z.string().uuid(),
+  grantId: z.string().uuid(),
+  jobId: z.string().uuid(),
+  repo: z
+    .string()
+    .regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/)
+    .max(200),
+  payloadDigest: z.string().regex(/^[a-f0-9]{64}$/),
+};
 const callbackSchema = z
   .object({
-    contract: z.literal(CONTRACT),
-    ownerId: z.string().uuid(),
-    projectId: z.string().uuid(),
-    grantId: z.string().uuid(),
-    jobId: z.string().uuid(),
-    repo: z
-      .string()
-      .regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/)
-      .max(200),
-    payloadDigest: z.string().regex(/^[a-f0-9]{64}$/),
+    contract: z.literal(CALLBACK_V2),
+    ...scopeFields,
     status: z.enum(["quarantined", "cancelled"]),
   })
   .strict();
-type Callback = z.infer<typeof callbackSchema>;
+const callbackV3Schema = z
+  .object({
+    contract: z.literal(CALLBACK_V3),
+    ...scopeFields,
+    status: z.enum(V3_CALLBACK_STATUSES),
+    result: v3ResultSchema.optional(),
+  })
+  .strict()
+  .refine((c) => c.result === undefined || c.status === "completed" || c.status === "failed", {
+    message: "A result is only allowed for completed or failed jobs.",
+  });
+type CallbackV2 = z.infer<typeof callbackSchema>;
+type CallbackV3 = z.infer<typeof callbackV3Schema>;
+export type Callback = CallbackV2 | CallbackV3;
 type Store = (nonce: string, callback: Callback) => Promise<void>;
 type Settings = { clientId: string; secret: string };
+/** v3 carries up to 6 KB of output plus a 500-character summary; JSON escaping can grow it. */
+const BODY_LIMIT = { [CALLBACK_V2]: 8192, [CALLBACK_V3]: 40960 } as const;
 
 function config(): Settings | null {
   if (process.env["OMNI_DISPATCH_CALLBACK_ENABLED"] !== "true") return null;
@@ -32,6 +50,7 @@ function config(): Settings | null {
   return { clientId, secret };
 }
 
+/** Same grant + digest verification for v2 and v3, before anything is stored. */
 async function databaseStore(nonce: string, input: Callback) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { untyped } = await import("./untyped-db");
@@ -62,6 +81,21 @@ async function databaseStore(nonce: string, input: Callback) {
     !safeEqual(digest, input.payloadDigest)
   )
     throw new Error("Callback scope mismatch.");
+  if (input.contract === CALLBACK_V3) {
+    const result = await db.rpc("omni_dispatch_v3_record", {
+      _source: "callback",
+      _nonce: nonce,
+      _owner: input.ownerId,
+      _project: input.projectId,
+      _job: input.jobId,
+      _grant: input.grantId,
+      _repo: input.repo,
+      _status: input.status,
+      _result: input.result ?? null,
+    });
+    if (result.error || !result.data) throw new Error("Callback transaction failed.");
+    return;
+  }
   const result = await db.rpc("omni_dispatch_callback_record", {
     _nonce: nonce,
     _owner: input.ownerId,
@@ -74,7 +108,7 @@ async function databaseStore(nonce: string, input: Callback) {
   if (result.error || !result.data) throw new Error("Callback transaction failed.");
 }
 
-async function readBody(request: Request) {
+async function readBody(request: Request, limit: number) {
   const reader = request.body?.getReader();
   if (!reader) throw new Error("Missing body");
   let bytes = 0,
@@ -89,7 +123,7 @@ async function readBody(request: Request) {
       const { done, value } = await reader.read();
       if (done) break;
       bytes += value.length;
-      if (bytes > 8192) {
+      if (bytes > limit) {
         await reader.cancel();
         throw new Error("Body too large");
       }
@@ -116,8 +150,9 @@ export async function handleDispatchCallback(
 ): Promise<Response> {
   const deny = (status: number, error: string) =>
     Response.json({ error }, { status, headers: { "Cache-Control": "no-store" } });
-  if (request.headers.get("x-omni-contract") !== CONTRACT)
-    return deny(410, "legacy_callback_disabled");
+  const header = request.headers.get("x-omni-contract");
+  if (header !== CALLBACK_V2 && header !== CALLBACK_V3) return deny(410, "legacy_callback_disabled");
+  const CONTRACT = header;
   if (!settings) return deny(503, "callback_disabled");
   const url = new URL(request.url);
   if (request.method !== "POST" || url.protocol !== "https:" || url.pathname !== PATH || url.search)
@@ -135,7 +170,7 @@ export async function handleDispatchCallback(
     return deny(401, "authentication_failed");
   let raw: string;
   try {
-    raw = await readBody(request);
+    raw = await readBody(request, BODY_LIMIT[CONTRACT]);
   } catch {
     return deny(400, "invalid_body");
   }
@@ -147,7 +182,8 @@ export async function handleDispatchCallback(
     return deny(401, "authentication_failed");
   let input: Callback;
   try {
-    input = callbackSchema.parse(JSON.parse(raw));
+    const json: unknown = JSON.parse(raw);
+    input = CONTRACT === CALLBACK_V3 ? callbackV3Schema.parse(json) : callbackSchema.parse(json);
   } catch {
     return deny(400, "invalid_request");
   }

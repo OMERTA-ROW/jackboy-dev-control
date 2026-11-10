@@ -12,7 +12,11 @@ export const Route = createFileRoute("/api/public/omni/callback")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        if (request.headers.get("x-omni-contract") !== "jackboy.dispatch-callback/v2")
+        const contract = request.headers.get("x-omni-contract");
+        if (
+          contract !== "jackboy.dispatch-callback/v2" &&
+          contract !== "jackboy.dispatch-callback/v3"
+        )
           return rejectLegacyOmniCallback();
         const { handleDispatchCallback } = await import("@/lib/omni-dispatch-callback.server");
         return handleDispatchCallback(request);

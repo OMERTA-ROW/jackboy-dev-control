@@ -87,6 +87,12 @@ export async function handleChat(request: Request) {
     inputSchema: z.object({ jobId: z.string().uuid() }),
     execute: async ({ jobId }) => (await import("./omni-jobs.server")).getOmniJob(jobId),
   });
+  (tools as Record<string, unknown>)["omniDispatchResult"] = tool({
+    description:
+      "Read the stored live status, pass/fail, summary and output of a passkey-approved scoped (v3) OMNI job by Jackboy job ID. Read-only; sends nothing. If no result is stored, say so — never guess.",
+    inputSchema: z.object({ jobId: z.string().uuid() }),
+    execute: async ({ jobId }) => (await import("./omni-dispatch-v3-read")).readOmniV3Job(owner.sb, jobId),
+  });
   (tools as Record<string, unknown>)["testOmniLink"] = tool({
     description:
       "Run the OMNI link handshake (POST /jackboy/handshake) and return OMNI's contract, version and capabilities, or the real error with HTTP status. Sends no job.",
@@ -113,7 +119,7 @@ export async function handleChat(request: Request) {
       "For the durable work queue use foundryQueue/foundryInspect/foundryDecide (same as the Code Foundry buttons); for site reachability use checkSite; for repo connection use connectionStatus — connecting needs the passkey button. Workflow for any fix: recallMemory -> inspect -> writeFile -> showDiff -> checkStatus -> openDraftPR -> saveMemory (outcome + next_action). Pick low-risk changes; never touch auth, payments, secrets, migrations or permissions without the owner asking.", "For what can you do / what is missing / what next, call capabilities and answer in three short parts. For \"fix it\", use the next actions (scan → fix → draft PR) within approval rules. Before saying you can build/edit/test anything, call capabilities. Never merge, deploy or write to the base branch; the owner approves pull requests.",
       "Messages from the microphone may be misheard. Generic spoken yes/confirm never authorizes change tools. Use scoped approval cards. For CODE instruct the owner to say or type CODE exact-project-name: task, then review and allow the specific pending CODE card. Spoken approval never covers Autopilot or repo-link changes — ask the owner to type those. Never repeat passwords, tokens or keys aloud or in text. ",
       "Site scans read static HTML only and do not run JavaScript; say so when relevant. Report failures exactly.",
-      "OMNI: never run, predict or simulate OMNI jobs. Chat execution is disabled until the existing project and exact-job passkey approvals are enforced at dispatch. sendOmniJob only explains that block; report it and direct the owner to /omni, without retrying. A typed request or successful handshake grants no execution authority. omniJobStatus reads an existing job; testOmniLink checks transport only.",
+      "OMNI: never run, predict or simulate OMNI jobs. Chat execution is disabled until the existing project and exact-job passkey approvals are enforced at dispatch. sendOmniJob only explains that block; report it and direct the owner to /omni, without retrying. A typed request or successful handshake grants no execution authority. omniJobStatus reads an existing job; omniDispatchResult reads the stored status/result of a passkey-approved scoped job and must be reported as-is (no result stored = say no result came back); testOmniLink checks transport only.",
       VISUAL_POLICY,
       contextInstructions(brief),
     ].filter(Boolean).join(" "),

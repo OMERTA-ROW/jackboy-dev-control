@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { checkOmniJob, runOmniHandshake } from "@/lib/omni-link.functions";
 import { Button } from "@/components/ui/button";
+import { OmniV3JobStatus, type V3JobView } from "@/components/OmniV3JobStatus";
 
 type JobResult = {
   status: string;
@@ -40,7 +41,12 @@ type Handshake = {
   capabilities?: string[];
 };
 
-export const OMNI_TOOLS = new Set(["sendOmniJob", "omniJobStatus", "testOmniLink"]);
+export const OMNI_TOOLS = new Set([
+  "sendOmniJob",
+  "omniJobStatus",
+  "omniDispatchResult",
+  "testOmniLink",
+]);
 
 function Output({ result }: { result: JobResult }) {
   if (!result) return <p className="text-muted-foreground">OMNI has not reported output yet.</p>;
@@ -192,6 +198,14 @@ export function OmniToolResult({ name, output }: { name: string; output: unknown
           Job <code>{o.job.id}</code> · HTTP {o.httpStatus} · status <strong>{o.job.status}</strong>
         </p>
         <Output result={o.job.result} />
+      </div>
+    );
+  }
+  if (name === "omniDispatchResult") {
+    const o = output as V3JobView;
+    return (
+      <div className="my-2">
+        <OmniV3JobStatus jobId={o.jobId} initial={o} />
       </div>
     );
   }
