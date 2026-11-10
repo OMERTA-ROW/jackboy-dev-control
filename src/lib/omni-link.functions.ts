@@ -22,8 +22,12 @@ export const getOmniLink = createServerFn({ method: "POST" })
         )
         .order("created_at", { ascending: false })
         .limit(25),
-      isOmniVerified(),
+      isOmniVerified(context.userId),
     ]);
+    if (process.env["JACKBOY_DISPATCH_V3_ENABLED"] === "true") {
+      const { cancelRevokedOmniV3Receipts } = await import("./omni-dispatch-v3.server");
+      await cancelRevokedOmniV3Receipts(context.userId);
+    }
     const { data: conn, error: connError } = await context.supabase
       .from("omni_connection")
       .select("verified_at, last_checked_at, last_error")
@@ -53,7 +57,12 @@ export const runOmniHandshake = createServerFn({ method: "POST" })
   .handler(async ({ context }) => {
     await requireOwner(context);
     const { omniHandshake } = await import("./omni-link.server");
-    return omniHandshake(context.userId);
+    const result = await omniHandshake(context.userId);
+    if (process.env["JACKBOY_DISPATCH_V3_ENABLED"] === "true") {
+      const { cancelRevokedOmniV3Receipts } = await import("./omni-dispatch-v3.server");
+      await cancelRevokedOmniV3Receipts(context.userId);
+    }
+    return result;
   });
 
 /** Read-only status of one chat-sent OMNI job (real GET /jackboy/jobs/{id}). */
@@ -134,8 +143,12 @@ export const approveOmniReceipt = createServerFn({ method: "POST" })
     )
       throw new Error("A confirmed owner session is required.");
     const { isOmniVerified } = await import("./omni-link.server");
-    if (!(await isOmniVerified()))
+    if (!(await isOmniVerified(context.userId)))
       throw new Error("OMNI's live link is not verified right now. Check the connection, then approve.");
+    if (process.env["JACKBOY_DISPATCH_V3_ENABLED"] === "true") {
+      const { cancelRevokedOmniV3Receipts } = await import("./omni-dispatch-v3.server");
+      await cancelRevokedOmniV3Receipts(context.userId);
+    }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { untyped } = await import("./untyped-db");
     const result = await untyped(supabaseAdmin).rpc("omni_dispatch_issue_reviewed", {
@@ -232,6 +245,14 @@ export const revokeOmniReceipt = createServerFn({ method: "POST" })
       _grant: data.grantId,
     });
     if (result.error || !result.data) throw new Error("Receipt grant could not be revoked.");
+    if (process.env["JACKBOY_DISPATCH_V3_ENABLED"] === "true") {
+      try {
+        const { cancelRevokedOmniV3Receipts } = await import("./omni-dispatch-v3.server");
+        await cancelRevokedOmniV3Receipts(context.userId);
+      } catch {
+        throw new Error("Jackboy grant was revoked, but signed OMNI cancellation could not be confirmed.");
+      }
+    }
     return z.object({ revoked: z.literal(true) }).parse(result.data);
   });
 
@@ -309,6 +330,14 @@ export const sendOmniReceipt = createServerFn({ method: "POST" })
       !identity.data.user.email_confirmed_at
     )
       throw new Error("A confirmed owner session is required.");
+    if (process.env["JACKBOY_DISPATCH_V3_ENABLED"] === "true") {
+      const { cancelRevokedOmniV3Receipts } = await import("./omni-dispatch-v3.server");
+      await cancelRevokedOmniV3Receipts(context.userId);
+    }
     const { executeOmniReceipt } = await import("./omni-dispatch-execute.server");
+    if (process.env["JACKBOY_DISPATCH_V3_ENABLED"] === "true") {
+      const { executeOmniV3Receipt } = await import("./omni-dispatch-v3.server");
+      return executeOmniV3Receipt(context.userId, data.jobId, data.grantId, data.action);
+    }
     return executeOmniReceipt(context.userId, data.jobId, data.grantId, data.action);
   });

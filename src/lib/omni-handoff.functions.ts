@@ -53,10 +53,14 @@ export const getOmniHandoffs = createServerFn({ method: "POST" })
     const { isOmniVerified, omniConfigState } = await import("./omni-link.server");
     const { safeOmniDiagnostic } = await import("./omni-link");
     const [live, expiration] = await Promise.all([
-      isOmniVerified(),
+      isOmniVerified(context.userId),
       db.rpc("expire_omni_project_authorizations", { _actor: context.userId }),
     ]);
     if (expiration.error) throw new Error("Expired OMNI access could not be reconciled; handoff actions remain unavailable.");
+    if (process.env["JACKBOY_DISPATCH_V3_ENABLED"] === "true") {
+      const { cancelRevokedOmniV3Receipts } = await import("./omni-dispatch-v3.server");
+      await cancelRevokedOmniV3Receipts(context.userId);
+    }
     const [conn, policy, projects, auths, jobs, grants] = await Promise.all([
       db.from("omni_connection").select("verified, verified_at, last_error").eq("id", true).maybeSingle(),
       db.from("automation_policy").select("paused").eq("id", 1).maybeSingle(),
@@ -191,7 +195,7 @@ export const authorizeOmniProject = createServerFn({ method: "POST" })
     const invalid = validateAuthorizationRequest({ kinds: data.kinds, days: data.days });
     if (invalid) throw new Error(invalid);
     const { isOmniVerified } = await import("./omni-link.server");
-    if (!(await isOmniVerified()))
+    if (!(await isOmniVerified(context.userId)))
       throw new Error("OMNI's live link is not verified right now. Check the connection, then authorize.");
     const db = await admin();
     const result = await db.rpc("omni_project_authorization_action", {
@@ -230,5 +234,14 @@ export const revokeOmniProject = createServerFn({ method: "POST" })
       _reason: data.reason ?? null,
     });
     if (result.error || !result.data) throw new Error("OMNI access could not be revoked.");
-    return z.object({ revoked: z.literal(true), revokedJobApprovals: z.number() }).parse(result.data);
+    const revoked = z.object({ revoked: z.literal(true), revokedJobApprovals: z.number() }).parse(result.data);
+    if (process.env["JACKBOY_DISPATCH_V3_ENABLED"] === "true") {
+      try {
+        const { cancelRevokedOmniV3Receipts } = await import("./omni-dispatch-v3.server");
+        await cancelRevokedOmniV3Receipts(context.userId);
+      } catch {
+        throw new Error("OMNI project access was revoked, but signed cancellation of its v3 jobs could not be confirmed.");
+      }
+    }
+    return revoked;
   });

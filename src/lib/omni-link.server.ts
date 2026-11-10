@@ -51,9 +51,13 @@ async function configHash(c = config()) {
   return omniConfigurationFingerprint(c.url!, c.key!, c.secret!, c.callbackUrl);
 }
 
-async function setConnection(patch: Record<string, unknown>) {
+async function setConnection(patch: Record<string, unknown>, actor?: string) {
   const { error } = await supabaseAdmin.from("omni_connection").update({ last_checked_at: new Date().toISOString(), ...patch }).eq("id", true);
   if (error) throw new Error("OMNI verification state could not be updated.");
+  if (patch["verified"] === false && actor && process.env["JACKBOY_DISPATCH_V3_ENABLED"] === "true") {
+    const { cancelRevokedOmniV3Receipts } = await import("./omni-dispatch-v3.server");
+    await cancelRevokedOmniV3Receipts(actor);
+  }
 }
 
 /** Proves OMNI holds both keys: bearer accepted AND it returns HMAC(secret, challenge). Only success sets verified. */
@@ -65,11 +69,11 @@ export async function omniHandshake(actor: string) {
       verified_at: null,
       config_hash: null,
       last_error: `Missing secrets: ${c.missing.join(", ")}`,
-    });
+    }, actor);
     return { verified: false, error: `Missing secrets: ${c.missing.join(", ")}` };
   }
   if (c.urlInvalid || !c.url) {
-    await setConnection({ verified: false, verified_at: null, config_hash: null, last_error: OMNI_URL_INVALID_MESSAGE });
+    await setConnection({ verified: false, verified_at: null, config_hash: null, last_error: OMNI_URL_INVALID_MESSAGE }, actor);
     await logSite({ actor, action: "omni.handshake", category: "config", status: "failed", summary: `OMNI handshake failed: ${OMNI_URL_INVALID_MESSAGE}` });
     return { verified: false, error: OMNI_URL_INVALID_MESSAGE };
   }
@@ -113,7 +117,7 @@ export async function omniHandshake(actor: string) {
     return { verified: true, ...info };
   } catch (e) {
     const msg = safeOmniDiagnostic(e instanceof Error ? e.message : null) ?? "OMNI handshake failed; response details withheld.";
-    await setConnection({ verified: false, verified_at: null, config_hash: null, last_error: msg });
+    await setConnection({ verified: false, verified_at: null, config_hash: null, last_error: msg }, actor);
     await logSite({ actor, action: "omni.handshake", category: "config", status: "failed", summary: `OMNI handshake failed: ${msg}` });
     return { verified: false, error: msg, ...info };
   }
@@ -146,12 +150,12 @@ export async function applyOmniResult(nonce: string, r: JobResult) {
   return { status: 200, body: "ok" };
 }
 
-export async function isOmniVerified() {
+export async function isOmniVerified(actor?: string) {
   const c = config(), expectedHash = await configHash(c);
   if (!expectedHash) {
     // Missing settings count as a lost link: the DB trigger revokes live OMNI job approvals.
     const missing = `Missing secrets: ${c.missing.join(", ")}`;
-    await setConnection({ verified: false, verified_at: null, config_hash: null, last_error: missing });
+    await setConnection({ verified: false, verified_at: null, config_hash: null, last_error: missing }, actor);
     return false;
   }
   const { data, error } = await supabaseAdmin
@@ -169,7 +173,10 @@ export async function isOmniVerified() {
       verified_at: null,
       config_hash: null,
       last_error: changed ? LINK_CONFIG_CHANGED_MESSAGE : LINK_AGED_MESSAGE,
-    });
+    }, actor);
+  } else if (actor && process.env["JACKBOY_DISPATCH_V3_ENABLED"] === "true") {
+    const { cancelRevokedOmniV3Receipts } = await import("./omni-dispatch-v3.server");
+    await cancelRevokedOmniV3Receipts(actor);
   }
   return false;
 }
