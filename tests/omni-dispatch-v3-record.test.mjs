@@ -21,7 +21,7 @@ await db.exec(`
   CREATE TABLE site_log(actor text, action text, category text, status text,
     summary text, project_id uuid, detail jsonb);
 `);
-for (const file of ["0045_omni_dispatch_grants.sql", "0062_omni_dispatch_v3.sql"])
+for (const file of ["0045_omni_dispatch_grants.sql", "0062_omni_dispatch_v3.sql", "0063_omni_dispatch_v3_late_updates.sql"])
   await db.exec(await readFile(new URL(`../drizzle/migrations/${file}`, import.meta.url), "utf8"));
 
 const owner = "11111111-1111-4111-8111-111111111111";
