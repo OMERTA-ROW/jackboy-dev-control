@@ -32,7 +32,7 @@ export async function executeOmniReceipt(
   const caFile = process.env["OMNI_DISPATCH_CA_FILE"];
   const clientId = process.env["OMNI_DISPATCH_CLIENT_ID"];
   const secret = process.env["OMNI_DISPATCH_HMAC_SECRET"];
-  if (!origin || !caFile || !clientId || !secret)
+  if (!origin || !clientId || !secret)
     throw new Error("Scoped OMNI dispatch configuration is incomplete.");
   const db = untyped(supabaseAdmin);
   const load = async () => {
@@ -69,7 +69,7 @@ export async function executeOmniReceipt(
   const { readFile } = await import("node:fs/promises");
   const { OmniDispatchClient } = await import("./omni-dispatch-client.server");
   const client = new OmniDispatchClient(
-    { origin, ca: await readFile(caFile), clientId, secret },
+    { origin, ...(caFile ? { ca: await readFile(caFile) } : {}), clientId, secret },
     async (candidate) => {
       const current = await load();
       return Object.keys(current).every(

@@ -32,8 +32,12 @@ replace a terminal state.
 The new database migration is `0062_omni_dispatch_v3.sql`; it is not applied by
 this change. Jackboy's sender configuration names are
 `JACKBOY_DISPATCH_V3_ENABLED`, `OMNI_DISPATCH_ORIGIN`,
-`OMNI_DISPATCH_CA_FILE`, `OMNI_DISPATCH_CLIENT_ID`, and
-`OMNI_DISPATCH_HMAC_SECRET`. The callback receiver additionally requires
+`OMNI_DISPATCH_CLIENT_ID`, and `OMNI_DISPATCH_HMAC_SECRET`.
+`OMNI_DISPATCH_CA_FILE` is optional: when unset or empty, HTTPS uses Node's
+normal trusted certificates (including standard Railway HTTPS). When set, the
+file supplies the custom CA; file or TLS errors fail the request without
+falling back to system trust. Certificate verification remains enabled.
+The callback receiver additionally requires
 `OMNI_DISPATCH_CALLBACK_CLIENT_ID` and `OMNI_DISPATCH_CALLBACK_SECRET`.
 The OMNI inbox continues to require its own `OMNI_DISPATCH_ENABLED` gate and,
 only for separately approved execution, `OMNI_WORKER_ENABLED`. These flags and

@@ -57,14 +57,14 @@ type Callback = Omit<Scope, "kind"> & {
 };
 type ClientConfig = {
   origin: string;
-  ca: string | Buffer;
+  ca?: string | Buffer;
   clientId: string;
   secret: string;
 };
 type DispatchResponse = { status: number; body: string; proof: string };
 type DispatchTransport = (
   url: URL,
-  options: { ca: string | Buffer; headers: Record<string, string>; timeout: number },
+  options: { ca?: string | Buffer; headers: Record<string, string>; timeout: number },
   body: string,
 ) => Promise<DispatchResponse>;
 type Grant = Scope & { instructions: string; expiresAt: string };
@@ -211,7 +211,6 @@ function dispatchConfig(): ClientConfig {
   if (process.env["JACKBOY_DISPATCH_V3_ENABLED"] !== "true")
     throw new Error("Scoped OMNI dispatch v3 is disabled.");
   const origin = process.env["OMNI_DISPATCH_ORIGIN"] || "";
-  const caFile = process.env["OMNI_DISPATCH_CA_FILE"] || "";
   const clientId = process.env["OMNI_DISPATCH_CLIENT_ID"] || "";
   const secret = process.env["OMNI_DISPATCH_HMAC_SECRET"] || "";
   const url = new URL(origin);
@@ -222,23 +221,27 @@ function dispatchConfig(): ClientConfig {
     url.pathname !== "/" ||
     url.search ||
     url.hash ||
-    !caFile ||
     !/^[A-Za-z0-9_-]{1,64}$/.test(clientId) ||
     secret.length < 32
   )
     throw new Error("Scoped OMNI dispatch v3 configuration is incomplete.");
-  return { origin, ca: Buffer.alloc(0), clientId, secret };
+  return { origin, clientId, secret };
 }
 
 function sendHttps(
   url: URL,
-  options: { ca: string | Buffer; headers: Record<string, string>; timeout: number },
+  options: { ca?: string | Buffer; headers: Record<string, string>; timeout: number },
   body: string,
 ): Promise<DispatchResponse> {
   return new Promise((resolve, reject) => {
     const request = httpsRequest(
       url,
-      { method: "POST", ca: options.ca, timeout: options.timeout, headers: options.headers },
+      {
+        method: "POST",
+        ...(options.ca !== undefined ? { ca: options.ca } : {}),
+        timeout: options.timeout,
+        headers: options.headers,
+      },
       (res) => {
         const chunks: Buffer[] = [];
         let size = 0;
@@ -290,7 +293,7 @@ export class OmniDispatchV3Client {
       url.pathname !== "/" ||
       url.search ||
       url.hash ||
-      !config.ca.length ||
+      (config.ca !== undefined && !config.ca.length) ||
       !/^[A-Za-z0-9_-]{1,64}$/.test(config.clientId) ||
       config.secret.length < 32
     )
@@ -332,7 +335,7 @@ export class OmniDispatchV3Client {
     const response = await this.transport(
       new URL(DISPATCH_PATH, this.config.origin),
       {
-        ca: this.config.ca,
+        ...(this.config.ca !== undefined ? { ca: this.config.ca } : {}),
         timeout: 5000,
         headers: {
           "content-type": "application/json",
@@ -463,9 +466,9 @@ export async function executeOmniV3Receipt(
   } else {
     scope = await loadExistingScope(actor, jobId, grantId);
   }
-  const ca = await readFile(process.env["OMNI_DISPATCH_CA_FILE"] || "");
+  const caFile = process.env["OMNI_DISPATCH_CA_FILE"];
   const client = new OmniDispatchV3Client(
-    { ...config, ca },
+    { ...config, ...(caFile ? { ca: await readFile(caFile) } : {}) },
     async (candidate, intent, expiry) => {
       if (intent === "submit") {
         const response = await db.rpc("omni_dispatch_v3_action", {

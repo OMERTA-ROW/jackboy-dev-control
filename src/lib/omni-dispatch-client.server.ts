@@ -20,7 +20,7 @@ const requestSchema = z
   .strict();
 export type DispatchScope = z.infer<typeof requestSchema>;
 type Action = "submit" | "status" | "cancel";
-type Config = { origin: string; ca: string | Buffer; clientId: string; secret: string };
+type Config = { origin: string; ca?: string | Buffer; clientId: string; secret: string };
 type Authorization = (scope: DispatchScope, action: Action) => Promise<boolean>;
 type Audit = (event: string, scope: DispatchScope) => Promise<void>;
 
@@ -41,7 +41,7 @@ export class OmniDispatchClient {
       url.pathname !== "/" ||
       url.search ||
       url.hash ||
-      !config.ca.length ||
+      (config.ca !== undefined && !config.ca.length) ||
       !/^[A-Za-z0-9_-]{1,64}$/.test(config.clientId) ||
       config.secret.length < 32
     )
@@ -66,7 +66,7 @@ export class OmniDispatchClient {
           new URL(PATH, this.config.origin),
           {
             method: "POST",
-            ca: this.config.ca,
+            ...(this.config.ca !== undefined ? { ca: this.config.ca } : {}),
             timeout: 5000,
             headers: {
               "content-type": "application/json",

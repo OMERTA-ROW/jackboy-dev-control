@@ -28,8 +28,12 @@ callback's separately scoped client ID and HMAC secret must remain unset until
 reviewed staging configuration is approved.
 
 For a future approved staging setup only, Jackboy's sender requires
-`OMNI_DISPATCH_ENABLED`, `OMNI_DISPATCH_ORIGIN`, `OMNI_DISPATCH_CA_FILE`,
-`OMNI_DISPATCH_CLIENT_ID`, and `OMNI_DISPATCH_HMAC_SECRET`. Its callback receiver
+`OMNI_DISPATCH_ENABLED`, `OMNI_DISPATCH_ORIGIN`,
+`OMNI_DISPATCH_CLIENT_ID`, and `OMNI_DISPATCH_HMAC_SECRET`.
+`OMNI_DISPATCH_CA_FILE` is optional: unset or empty uses Node's normal trusted
+certificates (including standard Railway HTTPS); a configured file supplies
+the custom CA. File or TLS errors fail the request without falling back to
+system trust, and certificate verification remains enabled. Its callback receiver
 requires `OMNI_DISPATCH_CALLBACK_ENABLED`, `OMNI_DISPATCH_CALLBACK_CLIENT_ID`,
 and `OMNI_DISPATCH_CALLBACK_SECRET`. Use separate managed secrets for each
 direction and exact HTTPS names covered by the server certificates. These
