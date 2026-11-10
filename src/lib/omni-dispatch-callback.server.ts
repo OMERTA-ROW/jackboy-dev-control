@@ -50,21 +50,36 @@ function config(): Settings | null {
   return { clientId, secret };
 }
 
-/** Same grant + digest verification for v2 and v3, before anything is stored. */
+/**
+ * v3 result states may arrive after the approval window closes. For these, the grant must exist,
+ * match owner/project/job/repo/digest and belong to a job Jackboy itself submitted via v3 — but it
+ * need not be unexpired, and the live link need not be fresh. Pre-run "quarantined" keeps the full check.
+ */
+export const isV3ResultCallback = (input: Callback) =>
+  input.contract === CALLBACK_V3 && input.status !== "quarantined";
+
+/** Grant + digest verification before anything is stored. */
 async function databaseStore(nonce: string, input: Callback) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { untyped } = await import("./untyped-db");
   const db = untyped(supabaseAdmin);
-  const grant = await db.rpc("omni_dispatch_grant_action", {
-    _op: "check",
-    _actor: input.ownerId,
-    _job: input.jobId,
-    _grant: input.grantId,
-  });
+  const grant = isV3ResultCallback(input)
+    ? await db.rpc("omni_dispatch_v3_callback_scope", {
+        _owner: input.ownerId,
+        _job: input.jobId,
+        _grant: input.grantId,
+      })
+    : await db.rpc("omni_dispatch_grant_action", {
+        _op: "check",
+        _actor: input.ownerId,
+        _job: input.jobId,
+        _grant: input.grantId,
+      });
   if (grant.error) throw new Error("Callback authorization unavailable.");
   const row = z
     .object({
-      valid: z.literal(true),
+      // Live check answers `valid: true`; the v3 result-scope read answers `found: true`.
+      ...(isV3ResultCallback(input) ? { found: z.literal(true) } : { valid: z.literal(true) }),
       id: z.string().uuid(),
       ownerId: z.string().uuid(),
       projectId: z.string().uuid(),
@@ -76,6 +91,9 @@ async function databaseStore(nonce: string, input: Callback) {
     .parse(grant.data);
   const digest = await dispatchPayloadDigest({ ...row, kind: wireKind(row.kind), grantId: row.id });
   if (
+    row.id !== input.grantId ||
+    row.ownerId !== input.ownerId ||
+    row.jobId !== input.jobId ||
     row.projectId !== input.projectId ||
     row.repo !== input.repo ||
     !safeEqual(digest, input.payloadDigest)

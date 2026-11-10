@@ -3757,6 +3757,10 @@ export type Database = {
         }
         Returns: Json
       }
+      omni_dispatch_v3_callback_scope: {
+        Args: { _grant: string; _job: string; _owner: string }
+        Returns: Json
+      }
       omni_dispatch_v3_record: {
         Args: {
           _grant: string
