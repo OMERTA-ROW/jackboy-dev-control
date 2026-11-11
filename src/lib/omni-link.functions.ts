@@ -248,7 +248,7 @@ export const revokeOmniReceipt = createServerFn({ method: "POST" })
     if (process.env["JACKBOY_DISPATCH_V3_ENABLED"] === "true") {
       try {
         const { cancelRevokedOmniV3Receipts } = await import("./omni-dispatch-v3.server");
-        await cancelRevokedOmniV3Receipts(context.userId);
+        await cancelRevokedOmniV3Receipts(context.userId, undefined, { strict: true });
       } catch {
         throw new Error("Jackboy grant was revoked, but signed OMNI cancellation could not be confirmed.");
       }

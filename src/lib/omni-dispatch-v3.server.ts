@@ -6,7 +6,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { dispatchPayloadDigest } from "./omni-dispatch-digest";
 import { wireKind } from "./omni-handoff-auth";
 import { hmacHex, safeEqual } from "./omni-link";
-import { logSiteStrict } from "./site-log.server";
+import { logSite, logSiteStrict } from "./site-log.server";
 import { untyped } from "./untyped-db";
 
 const CONTRACT = "jackboy.dispatch/v3";
@@ -541,21 +541,64 @@ type CancellationSender = (
   action: "cancel",
 ) => Promise<unknown>;
 
+export type CancellationSweep = { attempted: number; failed: string[]; lookupFailed: boolean };
+
+/**
+ * Sends signed cancels for expired/revoked v3 jobs. Best-effort by default: one failed cancel
+ * (OMNI offline, job unknown to OMNI) is logged and left queued for the next sweep instead of
+ * blocking status loads, handshakes or dispatch. Revoke actions pass `strict` so they still
+ * refuse to report success without confirmed cancellation.
+ */
 export async function cancelRevokedOmniV3Receipts(
   actor: string,
   send: CancellationSender = executeOmniV3Receipt,
-) {
-  if (process.env["JACKBOY_DISPATCH_V3_ENABLED"] !== "true") return;
+  options: { strict?: boolean } = {},
+): Promise<CancellationSweep> {
+  const sweep: CancellationSweep = { attempted: 0, failed: [], lookupFailed: false };
+  if (process.env["JACKBOY_DISPATCH_V3_ENABLED"] !== "true") return sweep;
   const db = untyped(supabaseAdmin);
   const pending = await db.rpc("omni_dispatch_v3_pending_cancellations", { _actor: actor });
-  if (pending.error)
-    throw new Error("Revoked v3 jobs could not be identified for signed cancellation.");
-  const rows = z
-    .array(z.object({ jobId: z.string().uuid(), grantId: z.string().uuid() }).strict())
-    .parse(pending.data);
-  for (const row of rows) {
-    await send(actor, row.jobId, row.grantId, "cancel");
+  const parsed = pending.error
+    ? null
+    : z
+        .array(z.object({ jobId: z.string().uuid(), grantId: z.string().uuid() }).strict())
+        .safeParse(pending.data);
+  if (!parsed?.success) {
+    sweep.lookupFailed = true;
+    await logSite({
+      actor,
+      action: "omni.dispatch.v3.cancel_lookup_failed",
+      category: "delivery",
+      status: "failed",
+      summary: "Revoked v3 jobs could not be identified for signed cancellation; will retry later.",
+    });
+    if (options.strict)
+      throw new Error("Revoked v3 jobs could not be identified for signed cancellation.");
+    return sweep;
   }
+  for (const row of parsed.data) {
+    sweep.attempted += 1;
+    try {
+      await send(actor, row.jobId, row.grantId, "cancel");
+    } catch (error) {
+      sweep.failed.push(row.jobId);
+      await logSite({
+        actor,
+        action: "omni.dispatch.v3.cancel_failed",
+        category: "delivery",
+        status: "failed",
+        summary: "Signed OMNI cancel for an expired or revoked v3 job failed; it stays queued for retry.",
+        detail: {
+          jobId: row.jobId,
+          grantId: row.grantId,
+          error: error instanceof Error ? error.message.slice(0, 300) : "unknown error",
+        },
+      });
+    }
+  }
+  if (options.strict && sweep.failed.length)
+    throw new Error(`Signed OMNI cancellation failed for ${sweep.failed.length} v3 job(s).`);
+  return sweep;
 }
 
 async function databaseCallbackStore(nonce: string, input: Callback) {

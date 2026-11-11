@@ -238,7 +238,7 @@ export const revokeOmniProject = createServerFn({ method: "POST" })
     if (process.env["JACKBOY_DISPATCH_V3_ENABLED"] === "true") {
       try {
         const { cancelRevokedOmniV3Receipts } = await import("./omni-dispatch-v3.server");
-        await cancelRevokedOmniV3Receipts(context.userId);
+        await cancelRevokedOmniV3Receipts(context.userId, undefined, { strict: true });
       } catch {
         throw new Error("OMNI project access was revoked, but signed cancellation of its v3 jobs could not be confirmed.");
       }

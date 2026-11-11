@@ -5,7 +5,7 @@ import { hmacHex } from "./omni-link";
 const mocks = vi.hoisted(() => ({ rpc: vi.fn() }));
 vi.mock("@/integrations/supabase/client.server", () => ({ supabaseAdmin: {} }));
 vi.mock("./untyped-db", () => ({ untyped: () => ({ rpc: mocks.rpc }) }));
-vi.mock("./site-log.server", () => ({ logSiteStrict: vi.fn() }));
+vi.mock("./site-log.server", () => ({ logSiteStrict: vi.fn(), logSite: vi.fn() }));
 
 import {
   cancelRevokedOmniV3Receipts,
@@ -135,6 +135,46 @@ describe("Jackboy scoped dispatch v3", () => {
       "66666666-6666-4666-8666-666666666666",
       "cancel",
     );
+  });
+
+  it("keeps sweeping and does not throw when one signed cancel fails", async () => {
+    vi.stubEnv("JACKBOY_DISPATCH_V3_ENABLED", "true");
+    const second = "55555555-5555-4555-8555-555555555555";
+    mocks.rpc.mockResolvedValue({
+      data: [
+        { jobId: scope.jobId, grantId: scope.grantId },
+        { jobId: second, grantId: "66666666-6666-4666-8666-666666666666" },
+      ],
+      error: null,
+    });
+    const send = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("Dispatch timed out."))
+      .mockResolvedValueOnce({ status: "cancelled" });
+    const sweep = await cancelRevokedOmniV3Receipts(scope.ownerId, send);
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(sweep).toEqual({ attempted: 2, failed: [scope.jobId], lookupFailed: false });
+  });
+
+  it("does not throw when pending cancellations cannot be listed", async () => {
+    vi.stubEnv("JACKBOY_DISPATCH_V3_ENABLED", "true");
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: "boom" } });
+    const send = vi.fn();
+    const sweep = await cancelRevokedOmniV3Receipts(scope.ownerId, send);
+    expect(send).not.toHaveBeenCalled();
+    expect(sweep.lookupFailed).toBe(true);
+  });
+
+  it("strict mode still refuses to report success when a cancel fails", async () => {
+    vi.stubEnv("JACKBOY_DISPATCH_V3_ENABLED", "true");
+    mocks.rpc.mockResolvedValue({
+      data: [{ jobId: scope.jobId, grantId: scope.grantId }],
+      error: null,
+    });
+    const send = vi.fn().mockRejectedValue(new Error("Dispatch failed with HTTP 404."));
+    await expect(
+      cancelRevokedOmniV3Receipts(scope.ownerId, send, { strict: true }),
+    ).rejects.toThrow("Signed OMNI cancellation failed for 1 v3 job(s).");
   });
 
   it.each([
