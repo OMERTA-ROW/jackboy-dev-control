@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import {
   approveOmniReceipt,
@@ -8,11 +8,22 @@ import {
   sendOmniReceipt,
 } from "@/lib/omni-link.functions";
 import { useStepUp } from "@/lib/step-up-client";
+import { linkExpiresAt } from "@/lib/omni-handoff-auth";
 
 type Preview = Awaited<ReturnType<typeof previewOmniReceipt>>;
 type Grant = Awaited<ReturnType<typeof approveOmniReceipt>>;
 
-export function OmniDispatchReview({ initialJobId = "", initialGrantId = "" }: { initialJobId?: string; initialGrantId?: string } = {}) {
+export function OmniDispatchReview({
+  initialJobId = "",
+  initialGrantId = "",
+  linkVerifiedAt = null,
+  onRecheckLink,
+}: {
+  initialJobId?: string;
+  initialGrantId?: string;
+  linkVerifiedAt?: string | null;
+  onRecheckLink?: () => void;
+} = {}) {
   const preview = useServerFn(previewOmniReceipt);
   const approve = useServerFn(approveOmniReceipt);
   const loadGrant = useServerFn(loadOmniReceiptGrant);
@@ -25,28 +36,69 @@ export function OmniDispatchReview({ initialJobId = "", initialGrantId = "" }: {
   const [grant, setGrant] = useState<Grant | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const [now, setNow] = useState(() => Date.now());
+  const root = useRef<HTMLElement>(null);
+  const expiresAt = linkExpiresAt(linkVerifiedAt);
+  const linkFresh = expiresAt !== null && Date.parse(expiresAt) > now;
+  const hm = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+
+  useEffect(() => {
+    const t = window.setInterval(() => setNow(Date.now()), 5_000);
+    return () => window.clearInterval(t);
+  }, []);
+  // "Review this job" opens straight into the review: scroll here and load the exact job once.
+  useEffect(() => {
+    root.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (initialJobId && !initialGrantId) void act(async () => setReview(await preview({ data: { jobId: initialJobId } })));
+    else if (initialJobId && initialGrantId)
+      void act(async () => setGrant(await loadGrant({ data: { jobId: initialJobId, grantId: initialGrantId } })));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once per opened job
+  }, []);
 
   async function act(work: () => Promise<void>) {
     if (busy) return;
     setBusy(true);
     setMessage("");
+    setError("");
     try {
       await work();
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Request not confirmed.");
+    } catch (e) {
+      const text = e instanceof Error ? e.message : "";
+      setError(
+        /cancel|abort|NotAllowed|timed out/i.test(text) || !text
+          ? "Passkey not completed — nothing was approved."
+          : text,
+      );
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <section className="panel mb-4 space-y-3 p-4 text-sm">
+    <section ref={root} id="omni-review" className="panel mb-4 space-y-3 p-4 text-sm">
       <h2 className="font-semibold">Receive-only handoff review</h2>
       <p>
         One reviewed build or test job can be handed to OMNI for receipt only. Each step re-checks
         OMNI's live link, your project access and whether anything was revoked. No job execution is
         enabled. OMNI needs its own approval too; revoking one does not revoke the other.
       </p>
+      {expiresAt ? (
+        <p className={linkFresh ? "text-success" : "text-warning"}>
+          {linkFresh
+            ? `Link verified at ${hm(linkVerifiedAt!)} — approve before ${hm(expiresAt)}.`
+            : `Link check from ${hm(linkVerifiedAt!)} has expired (5-minute limit).`}
+        </p>
+      ) : (
+        <p className="text-warning">OMNI's link is not verified right now.</p>
+      )}
+      {!linkFresh && onRecheckLink && (
+        <button type="button" className="rounded border px-3 py-1" disabled={busy} onClick={onRecheckLink}>
+          Re-check link
+        </button>
+      )}
+      <details>
+      <summary className="cursor-pointer text-xs text-muted-foreground">Advanced: look up by ID</summary>
       <label className="block">
         Job UUID
         <input
@@ -106,6 +158,7 @@ export function OmniDispatchReview({ initialJobId = "", initialGrantId = "" }: {
           Revoke existing grant
         </button>
       </div>
+      </details>
       {review && !grant && (
         <div className="space-y-2">
           <p>
@@ -123,7 +176,8 @@ export function OmniDispatchReview({ initialJobId = "", initialGrantId = "" }: {
           </pre>
           <button
             className="rounded border px-3 py-1"
-            disabled={busy}
+            disabled={busy || !linkFresh}
+            title={linkFresh ? undefined : "Re-check the link first"}
             onClick={() =>
               void act(async () => {
                 const grantId = await stepUp("omni_dispatch", `omni-job:${review.jobId}`);
@@ -200,7 +254,15 @@ export function OmniDispatchReview({ initialJobId = "", initialGrantId = "" }: {
           </div>
         </div>
       )}
-      {message && <p role="status">{message}</p>}
+      {error && (
+        <div role="alert" className="flex items-start gap-2 rounded border border-destructive/60 bg-destructive/10 p-2 text-destructive">
+          <span className="flex-1">{error}</span>
+          <button type="button" className="text-xs underline" onClick={() => setError("")}>
+            Dismiss
+          </button>
+        </div>
+      )}
+      {message && <p role="status" className="text-success">{message}</p>}
     </section>
   );
 }

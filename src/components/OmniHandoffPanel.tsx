@@ -214,7 +214,7 @@ export function OmniHandoffPanel() {
                             disabled={busy}
                             onClick={checkConnection}
                           >
-                            Verify latest link (read-only)
+                            Re-check link
                           </button>
                         )}
                         {nextStep === "project_access" && (
@@ -239,6 +239,11 @@ export function OmniHandoffPanel() {
                     );
                   })}
                 </ul>
+              )}
+              {h.blockers.some((b) => b.code === "link_stale") && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  The 5-minute approval window starts when the link check passes — re-check, then approve right away.
+                </p>
               )}
               {h.grant && <p className="mt-1 text-xs text-muted-foreground">Approval expires {when(h.grant.expiresAt)}</p>}
               <button
@@ -271,7 +276,7 @@ export function OmniHandoffPanel() {
           {msg.text}
         </p>
       )}
-      {review && <OmniDispatchReview key={`${review.jobId}:${review.grantId}`} initialJobId={review.jobId} initialGrantId={review.grantId} />}
+      {review && <OmniDispatchReview key={`${review.jobId}:${review.grantId}`} initialJobId={review.jobId} initialGrantId={review.grantId} linkVerifiedAt={d?.link.verifiedAt ?? null} onRecheckLink={checkConnection} />}
     </section>
   );
 }

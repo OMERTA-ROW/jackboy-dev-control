@@ -139,3 +139,22 @@ export function validateAuthorizationRequest(input: { kinds: string[]; days: num
     return `Access lasts 1–${MAX_PROJECT_AUTH_DAYS} days.`;
   return null;
 }
+
+/** When a link check stops counting for approvals (the same 5-minute rule as `linkIsLive`). */
+export function linkExpiresAt(verifiedAt: string | null): string | null {
+  const at = verifiedAt ? Date.parse(verifiedAt) : NaN;
+  return Number.isFinite(at) ? new Date(at + OMNI_VERIFICATION_MAX_AGE_MS).toISOString() : null;
+}
+
+/** Site-log entry for a refused/failed review or approval. Never includes secrets; the message is trimmed. */
+export function receiptFailureEntry(stage: "preview" | "approve", actor: string, jobId: string, error: unknown) {
+  const reason = (error instanceof Error ? error.message : String(error)).slice(0, 300);
+  return {
+    actor,
+    action: `omni.receipt.${stage}_failed`,
+    summary: `OMNI job ${stage === "preview" ? "review" : "approval"} refused: ${reason}`,
+    category: "approval" as const,
+    status: "blocked" as const,
+    detail: { jobId, stage, reason },
+  };
+}

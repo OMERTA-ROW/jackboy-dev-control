@@ -2,6 +2,15 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { z } from "zod";
 
+async function logReceiptFailure(stage: "preview" | "approve", actor: string, jobId: string, error: unknown) {
+  try {
+    const [{ receiptFailureEntry }, { logSite }] = await Promise.all([import("./omni-handoff-auth"), import("./site-log.server")]);
+    await logSite(receiptFailureEntry(stage, actor, jobId, error));
+  } catch {
+    // Logging must never hide the original refusal shown to the owner.
+  }
+}
+
 async function requireOwner(ctx: {
   supabase: { rpc: (f: "my_role") => PromiseLike<{ data: unknown }> };
 }) {
@@ -134,6 +143,16 @@ export const approveOmniReceipt = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ context, data }) => {
+    try {
+      return await approveOmniReceiptWork(context, data);
+    } catch (error) {
+      await logReceiptFailure("approve", context.userId, data.jobId, error);
+      throw error;
+    }
+  });
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- validated input/context from the wrapping server function
+async function approveOmniReceiptWork(context: any, data: any) {
     await requireOwner(context);
     const identity = await context.supabase.auth.getUser();
     if (
@@ -184,12 +203,22 @@ export const approveOmniReceipt = createServerFn({ method: "POST" })
       grantId: issued.id,
     });
     return { ...issued, payloadDigest };
-  });
+}
 
 export const previewOmniReceipt = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => z.object({ jobId: z.string().uuid() }).strict().parse(input))
   .handler(async ({ context, data }) => {
+    try {
+      return await previewOmniReceiptWork(context, data);
+    } catch (error) {
+      await logReceiptFailure("preview", context.userId, data.jobId, error);
+      throw error;
+    }
+  });
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- validated input/context from the wrapping server function
+async function previewOmniReceiptWork(context: any, data: any) {
     await requireOwner(context);
     const identity = await context.supabase.auth.getUser();
     if (
@@ -220,7 +249,7 @@ export const previewOmniReceipt = createServerFn({ method: "POST" })
       kind: j.kind,
       instructions: j.instructions,
     };
-  });
+}
 
 export const revokeOmniReceipt = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
