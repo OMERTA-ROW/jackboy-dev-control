@@ -12,9 +12,11 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as InviteRouteImport } from './routes/invite'
+import { Route as McpRouteImport } from './routes/mcp'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as RecoverRouteImport } from './routes/recover'
 import { Route as SetPasswordRouteImport } from './routes/set-password'
+import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as AuthenticatedAccessRouteImport } from './routes/_authenticated/access'
 import { Route as AuthenticatedAccountRouteImport } from './routes/_authenticated/account'
@@ -53,6 +55,7 @@ import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as ApiCodeRouteImport } from './routes/api/code'
 import { Route as ApiSafetyStatusRouteImport } from './routes/api/safety-status'
 import { Route as ApiTranscribeRouteImport } from './routes/api/transcribe'
+import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
 import { Route as AuthenticatedChatIndexRouteImport } from './routes/_authenticated/chat.index'
 import { Route as AuthenticatedChatThreadIdRouteImport } from './routes/_authenticated/chat.$threadId'
 import { Route as AuthenticatedPassportAgentIdRouteImport } from './routes/_authenticated/passport.$agentId'
@@ -96,6 +99,11 @@ const InviteRoute = InviteRouteImport.update({
   path: '/invite',
   getParentRoute: () => rootRouteImport,
 } as any)
+const McpRoute = McpRouteImport.update({
+  id: '/mcp',
+  path: '/mcp',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OnboardingRoute = OnboardingRouteImport.update({
   id: '/onboarding',
   path: '/onboarding',
@@ -111,6 +119,12 @@ const SetPasswordRoute = SetPasswordRouteImport.update({
   path: '/set-password',
   getParentRoute: () => rootRouteImport,
 } as any)
+const Char91DotwellKnownChar93OauthProtectedResourceRoute =
+  Char91DotwellKnownChar93OauthProtectedResourceRouteImport.update({
+    id: '/.well-known/oauth-protected-resource',
+    path: '/.well-known/oauth-protected-resource',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -305,6 +319,11 @@ const ApiTranscribeRoute = ApiTranscribeRouteImport.update({
   path: '/api/transcribe',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DotlovableOauthConsentRoute = DotlovableOauthConsentRouteImport.update({
+  id: '/.lovable/oauth/consent',
+  path: '/.lovable/oauth/consent',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedChatIndexRoute = AuthenticatedChatIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -459,9 +478,11 @@ export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
   '/auth': typeof AuthRoute
   '/invite': typeof InviteRoute
+  '/mcp': typeof McpRoute
   '/onboarding': typeof OnboardingRoute
   '/recover': typeof RecoverRoute
   '/set-password': typeof SetPasswordRoute
+  '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/access': typeof AuthenticatedAccessRoute
   '/account': typeof AuthenticatedAccountRoute
   '/accounts': typeof AuthenticatedAccountsRoute
@@ -499,6 +520,7 @@ export interface FileRoutesByFullPath {
   '/api/code': typeof ApiCodeRoute
   '/api/safety-status': typeof ApiSafetyStatusRoute
   '/api/transcribe': typeof ApiTranscribeRoute
+  '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/chat/$threadId': typeof AuthenticatedChatThreadIdRoute
   '/passport/$agentId': typeof AuthenticatedPassportAgentIdRoute
   '/project/$id': typeof AuthenticatedProjectIdRoute
@@ -531,9 +553,11 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/invite': typeof InviteRoute
+  '/mcp': typeof McpRoute
   '/onboarding': typeof OnboardingRoute
   '/recover': typeof RecoverRoute
   '/set-password': typeof SetPasswordRoute
+  '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/access': typeof AuthenticatedAccessRoute
   '/account': typeof AuthenticatedAccountRoute
   '/accounts': typeof AuthenticatedAccountsRoute
@@ -571,6 +595,7 @@ export interface FileRoutesByTo {
   '/api/safety-status': typeof ApiSafetyStatusRoute
   '/api/transcribe': typeof ApiTranscribeRoute
   '/': typeof AuthenticatedIndexRoute
+  '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/chat/$threadId': typeof AuthenticatedChatThreadIdRoute
   '/passport/$agentId': typeof AuthenticatedPassportAgentIdRoute
   '/project/$id': typeof AuthenticatedProjectIdRoute
@@ -605,9 +630,11 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/invite': typeof InviteRoute
+  '/mcp': typeof McpRoute
   '/onboarding': typeof OnboardingRoute
   '/recover': typeof RecoverRoute
   '/set-password': typeof SetPasswordRoute
+  '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/_authenticated/access': typeof AuthenticatedAccessRoute
   '/_authenticated/account': typeof AuthenticatedAccountRoute
   '/_authenticated/accounts': typeof AuthenticatedAccountsRoute
@@ -646,6 +673,7 @@ export interface FileRoutesById {
   '/api/safety-status': typeof ApiSafetyStatusRoute
   '/api/transcribe': typeof ApiTranscribeRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
+  '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/_authenticated/chat/$threadId': typeof AuthenticatedChatThreadIdRoute
   '/_authenticated/passport/$agentId': typeof AuthenticatedPassportAgentIdRoute
   '/_authenticated/project/$id': typeof AuthenticatedProjectIdRoute
@@ -681,9 +709,11 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/invite'
+    | '/mcp'
     | '/onboarding'
     | '/recover'
     | '/set-password'
+    | '/.well-known/oauth-protected-resource'
     | '/access'
     | '/account'
     | '/accounts'
@@ -721,6 +751,7 @@ export interface FileRouteTypes {
     | '/api/code'
     | '/api/safety-status'
     | '/api/transcribe'
+    | '/.lovable/oauth/consent'
     | '/chat/$threadId'
     | '/passport/$agentId'
     | '/project/$id'
@@ -753,9 +784,11 @@ export interface FileRouteTypes {
   to:
     | '/auth'
     | '/invite'
+    | '/mcp'
     | '/onboarding'
     | '/recover'
     | '/set-password'
+    | '/.well-known/oauth-protected-resource'
     | '/access'
     | '/account'
     | '/accounts'
@@ -793,6 +826,7 @@ export interface FileRouteTypes {
     | '/api/safety-status'
     | '/api/transcribe'
     | '/'
+    | '/.lovable/oauth/consent'
     | '/chat/$threadId'
     | '/passport/$agentId'
     | '/project/$id'
@@ -826,9 +860,11 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/auth'
     | '/invite'
+    | '/mcp'
     | '/onboarding'
     | '/recover'
     | '/set-password'
+    | '/.well-known/oauth-protected-resource'
     | '/_authenticated/access'
     | '/_authenticated/account'
     | '/_authenticated/accounts'
@@ -867,6 +903,7 @@ export interface FileRouteTypes {
     | '/api/safety-status'
     | '/api/transcribe'
     | '/_authenticated/'
+    | '/.lovable/oauth/consent'
     | '/_authenticated/chat/$threadId'
     | '/_authenticated/passport/$agentId'
     | '/_authenticated/project/$id'
@@ -901,13 +938,16 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   InviteRoute: typeof InviteRoute
+  McpRoute: typeof McpRoute
   OnboardingRoute: typeof OnboardingRoute
   RecoverRoute: typeof RecoverRoute
   SetPasswordRoute: typeof SetPasswordRoute
+  Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   ApiChatRoute: typeof ApiChatRoute
   ApiCodeRoute: typeof ApiCodeRoute
   ApiSafetyStatusRoute: typeof ApiSafetyStatusRoute
   ApiTranscribeRoute: typeof ApiTranscribeRoute
+  DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
   ApiAgentManifestRoute: typeof ApiAgentManifestRoute
   ApiPublicAgentIngestRoute: typeof ApiPublicAgentIngestRoute
   ApiPublicVersionRoute: typeof ApiPublicVersionRoute
@@ -957,6 +997,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof InviteRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/mcp': {
+      id: '/mcp'
+      path: '/mcp'
+      fullPath: '/mcp'
+      preLoaderRoute: typeof McpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/onboarding': {
       id: '/onboarding'
       path: '/onboarding'
@@ -976,6 +1023,13 @@ declare module '@tanstack/react-router' {
       path: '/set-password'
       fullPath: '/set-password'
       preLoaderRoute: typeof SetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/.well-known/oauth-protected-resource': {
+      id: '/.well-known/oauth-protected-resource'
+      path: '/.well-known/oauth-protected-resource'
+      fullPath: '/.well-known/oauth-protected-resource'
+      preLoaderRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/': {
@@ -1242,6 +1296,13 @@ declare module '@tanstack/react-router' {
       path: '/api/transcribe'
       fullPath: '/api/transcribe'
       preLoaderRoute: typeof ApiTranscribeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/.lovable/oauth/consent': {
+      id: '/.lovable/oauth/consent'
+      path: '/.lovable/oauth/consent'
+      fullPath: '/.lovable/oauth/consent'
+      preLoaderRoute: typeof DotlovableOauthConsentRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/chat/': {
@@ -1541,13 +1602,17 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   InviteRoute: InviteRoute,
+  McpRoute: McpRoute,
   OnboardingRoute: OnboardingRoute,
   RecoverRoute: RecoverRoute,
   SetPasswordRoute: SetPasswordRoute,
+  Char91DotwellKnownChar93OauthProtectedResourceRoute:
+    Char91DotwellKnownChar93OauthProtectedResourceRoute,
   ApiChatRoute: ApiChatRoute,
   ApiCodeRoute: ApiCodeRoute,
   ApiSafetyStatusRoute: ApiSafetyStatusRoute,
   ApiTranscribeRoute: ApiTranscribeRoute,
+  DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
   ApiAgentManifestRoute: ApiAgentManifestRoute,
   ApiPublicAgentIngestRoute: ApiPublicAgentIngestRoute,
   ApiPublicVersionRoute: ApiPublicVersionRoute,

@@ -6,6 +6,7 @@
 // You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
 import { execSync } from "node:child_process";
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
+import { mcpPlugin } from "@lovable.dev/mcp-js/stacks/tanstack/vite";
 import { liveVoiceDev } from "./live-vite-plugin";
 
 // Stamp the build with its git identity for /api/public/version. Missing git → nulls, never a guess.
@@ -34,7 +35,7 @@ export default defineConfig({
     server: { entry: "server" },
   },
   vite: {
-    plugins: [liveVoiceDev()],
+    plugins: [liveVoiceDev(), mcpPlugin()],
     define: { __JACKBOY_BUILD__: JSON.stringify(buildIdentity()) },
   },
 });

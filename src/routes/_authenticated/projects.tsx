@@ -15,6 +15,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { AddSiteButton, ProjectConnectButtons, ProjectResyncIcon } from "@/components/ProjectCardActions";
 import { restoreProject } from "@/lib/project-resync.functions";
 import { ProjectCleanup } from "@/components/ProjectCleanup";
+import { useWebMCP } from "use-webmcp-tool";
+import { runWebMCPTool } from "@/lib/webmcp-telemetry";
 
 export const Route = createFileRoute("/_authenticated/projects")({
   head: () => ({
@@ -104,6 +106,33 @@ function Projects() {
   }
 
   const waitingSel = hub ? hub.waiting.filter((w) => sel.includes(w.project_id)).length : 0;
+
+  // Browser assistant tools: read the list on screen and change the search box. No scans, repairs or PRs.
+  useWebMCP({
+    name: "list_shown_projects",
+    description: "List the active projects currently shown on the Projects page (respects the search box), with site, repo and connection status.",
+    annotations: { readOnlyHint: true, untrustedContentHint: true },
+    enabled: Boolean(hub),
+    execute: () => runWebMCPTool("list_shown_projects", () => {
+      if (!hub) return "Projects are still loading.";
+      if (list.length === 0) return q ? `No project matches "${q}".` : "No projects connected.";
+      return list.map((p) => `${p.id}: ${p.name} · ${p.site_url ?? "no site"} · ${p.github_repo ?? "no repo"} · ${cardConnection(p, hub.checks[p.id]).label}${sel.includes(p.id) ? " · selected" : ""}`).join("\n");
+    }),
+  });
+  useWebMCP({
+    name: "search_projects",
+    description: "Change the Projects page search box to show only projects whose name matches the text. Use an empty string to show all.",
+    inputSchema: {
+      type: "object",
+      properties: { text: { type: "string", description: "Text to search project names for; empty shows all." } },
+      required: ["text"],
+    },
+    execute: ({ text }: { text: string }) => runWebMCPTool("search_projects", () => {
+      if (typeof text !== "string") throw new Error("text must be a string.");
+      setQ(text);
+      return text ? `Searching projects for "${text}".` : "Showing all projects.";
+    }),
+  });
 
   return (
     <>

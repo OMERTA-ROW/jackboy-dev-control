@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getSetupState, requestOwnerSetup } from "@/lib/account.functions";
 import { redeemRecoveryCode } from "@/lib/recovery.functions";
 import { Button } from "@/components/ui/button";
+import { oauthReturnPath } from "@/lib/oauth-return-path";
 import {
   OWNER_SETUP_REQUIRED, signInVerified, signupErrorMessage,
   mfaChallengeRequired, cooldownRemaining, passwordProblem,
@@ -14,6 +15,12 @@ import {
 
 export const Route = createFileRoute("/auth")({
   ssr: false,
+  // Optional same-origin return path (e.g. an assistant's connection approval page).
+  validateSearch: (s: Record<string, unknown>): { next?: string } => {
+    // Always set the key: an omitted key would let the raw, unvalidated value pass through.
+    const next = oauthReturnPath(s["next"]);
+    return { next: next === "/" ? undefined : next };
+  },
   head: () => ({
     meta: [
       { title: "Sign in — Jackboy" },
@@ -43,6 +50,14 @@ const AUTH0_OIDC_READY = true;
 
 function AuthPage() {
   const nav = useNavigate();
+  const rawNext = Route.useSearch().next;
+  const next = rawNext && oauthReturnPath(rawNext) !== "/" ? oauthReturnPath(rawNext) : undefined;
+  // Continue to the validated return path when present; otherwise the normal destination.
+  function finish(fallback: "/onboarding" | "/security" = "/onboarding") {
+    if (next) window.location.assign(next);
+    else nav({ to: fallback });
+  }
+  const authReturnUrl = () => `${window.location.origin}/auth${next ? `?next=${encodeURIComponent(next)}` : ""}`;
   const setupFn = useServerFn(getSetupState);
   const ownerFn = useServerFn(requestOwnerSetup);
   const redeemFn = useServerFn(redeemRecoveryCode);
@@ -78,7 +93,7 @@ function AuthPage() {
     void supabase.auth.getUser().then(async ({ data }) => {
       if (!data.user) return;
       const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-      if (mfaChallengeRequired(aal)) setMode("mfa"); else nav({ to: "/onboarding" });
+      if (mfaChallengeRequired(aal)) setMode("mfa"); else finish();
     });
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
@@ -94,11 +109,11 @@ function AuthPage() {
         await signInVerified(supabase.auth, email, password);
         const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
         if (mfaChallengeRequired(aal)) { go("mfa"); return; }
-        nav({ to: "/onboarding" });
+        finish();
       } else if (mode === "mfa") {
         if (useBackup) {
           await redeemFn({ data: { code } });
-          nav({ to: "/security" });
+          finish("/security");
           return;
         }
         const { data: f, error: fe } = await supabase.auth.mfa.listFactors();
@@ -107,12 +122,12 @@ function AuthPage() {
         if (!factor) throw new Error("No verified authenticator found. Sign out and contact the owner.");
         const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId: factor.id, code: code.trim() });
         if (error) throw new Error(/invalid|expired/i.test(error.message) ? "That code is incorrect or expired. Enter the current 6-digit code." : error.message);
-        nav({ to: "/onboarding" });
+        finish();
       } else if (mode === "up") {
         const p = passwordProblem(password, confirm);
         if (p) throw new Error(p);
         if (wait) throw new Error(`Please wait ${wait}s before trying again.`);
-        const { error } = await supabase.auth.signUp({ email: email.trim(), password, options: { emailRedirectTo: `${window.location.origin}/onboarding` } });
+        const { error } = await supabase.auth.signUp({ email: email.trim(), password, options: { emailRedirectTo: next ? new URL(next, window.location.origin).href : `${window.location.origin}/onboarding` } });
         setLastSent(Date.now());
         if (error) throw new Error(signupErrorMessage(error));
         setMsg({ ok: true, t: "Check your email to confirm your address. Confirmed accounts have no access until the owner grants it by invitation." });
@@ -152,16 +167,16 @@ function AuthPage() {
                 onClick={async () => {
                   setBusy(true); setMsg(null);
                   if (p.id === "github") {
-                    const { error } = await supabase.auth.signInWithOAuth({ provider: "custom:app-oidc" as never, options: { redirectTo: `${window.location.origin}/auth` } });
+                    const { error } = await supabase.auth.signInWithOAuth({ provider: "custom:app-oidc" as never, options: { redirectTo: authReturnUrl() } });
                     if (error) { setMsg({ ok: false, t: `GitHub sign-in failed: ${error.message}` }); setBusy(false); }
                     return;
                   }
-                  const r = await lovable.auth.signInWithOAuth(p.id as "google" | "microsoft", { redirect_uri: `${window.location.origin}/auth` });
+                  const r = await lovable.auth.signInWithOAuth(p.id as "google" | "microsoft", { redirect_uri: authReturnUrl() });
                   if (r.error) { setMsg({ ok: false, t: `${p.label} sign-in failed: ${r.error.message}` }); setBusy(false); return; }
                   if (r.redirected) return;
                   const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
                   setBusy(false);
-                  if (mfaChallengeRequired(aal)) setMode("mfa"); else nav({ to: "/onboarding" });
+                  if (mfaChallengeRequired(aal)) setMode("mfa"); else finish();
                 }}>
                 <span>Continue with {p.label}</span>
                 {!enabled && <span id={`${p.id}-why`} className="text-[10px] text-muted-foreground">{why}</span>}

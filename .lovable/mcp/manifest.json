@@ -1,0 +1,187 @@
+{
+  "version": 1,
+  "sdk_version": "3.5.0",
+  "path": "/mcp",
+  "auth": {
+    "type": "oauth",
+    "issuer": "https://hjrpqygyaluaurrzbqry.supabase.co/auth/v1",
+    "accepted_audiences": [
+      "authenticated"
+    ]
+  },
+  "mcp": {
+    "server": {
+      "name": "jackboy-dev-control",
+      "version": "0.1.0",
+      "title": "Jackboy Dev Control"
+    },
+    "tools": [
+      {
+        "name": "get_my_access",
+        "title": "Get my access",
+        "description": "Show which Jackboy account is connected and its role (owner, admin, member, or none).",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_safety_settings",
+        "title": "Get safety settings",
+        "description": "Read the Kill Switch, Guardian verification, approval level and file/line limits. CODE and Emergency Stop state are not available here.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_projects",
+        "title": "List projects",
+        "description": "List the projects registered in Jackboy with enrollment, repository and health, optionally filtered by name.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "search": {
+              "description": "Only projects whose name contains this text.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_recent_activity",
+        "title": "List recent activity",
+        "description": "Read the newest entries from Jackboy's activity log (owner only), optionally filtered by category.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "limit": {
+              "description": "How many entries to return (default 20).",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50
+            },
+            "category": {
+              "description": "Only entries in this category.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 60
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_omni_jobs",
+        "title": "List OMNI jobs",
+        "description": "List build and test jobs handed to OMNI with their recorded status. A job is only 'sent' if Jackboy recorded a send time.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "limit": {
+              "description": "How many jobs to return (default 20).",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_tasks",
+        "title": "List tasks",
+        "description": "List Task Mode runs (owner only) with status, failure count and stop reason.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "limit": {
+              "description": "How many tasks to return (default 20).",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_approval_requests",
+        "title": "List approval requests",
+        "description": "List recent approval requests (owner only) and their decisions. Read-only: approving still requires the owner's passkey in Jackboy.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "status": {
+              "description": "Only requests with this status, e.g. pending, allowed, denied or expired.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 30
+            },
+            "limit": {
+              "description": "How many requests to return (default 20).",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputSchema": null
+      }
+    ]
+  }
+}
