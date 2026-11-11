@@ -16,7 +16,7 @@ import {
 export const Route = createFileRoute("/auth")({
   ssr: false,
   // Optional same-origin return path (e.g. an assistant's connection approval page).
-  validateSearch: (s: Record<string, unknown>): { next?: string } => {
+  validateSearch: (s: Record<string, unknown>): { next?: string | undefined } => {
     // Always set the key: an omitted key would let the raw, unvalidated value pass through.
     const next = oauthReturnPath(s["next"]);
     return { next: next === "/" ? undefined : next };

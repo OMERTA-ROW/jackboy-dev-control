@@ -30,6 +30,7 @@
 - The Connect picker lists only stored inventory (`agent_projects.lovable_project_ref`) labelled as a snapshot; live Lovable discovery appears only after a real linked, tested connection.
 - Jackboy is the research/evaluation/idea-routing agent; OMNI is the build/test/deploy engine. Handoffs, monetization estimates and provenance live in `src/lib/omni-handoff.ts` + `src/routes/omni.tsx`; publish/pricing/sell stay locked by `canApprove` until the handoff is approved and provenance is cleared. Never show OMNI as connected without verification.
 
+- Agent integrations (MCP, `src/lib/mcp/`, `/mcp`, consent `/.lovable/oauth/consent`): read-only tools only, each querying as the OAuth caller so RLS decides access; never service-role, never approve/dispatch/settings. `/auth?next=` must pass `oauthReturnPath` (root search passthrough leaks raw values).
 - Subdirectories have their own `AGENTS.md` (feature rules in `src/lib/AGENTS.md`); read it before changing files there.
 - Frontend conversation forks copy historical text/files without executable tools or grants; retries restore unsent drafts because the chat transport can perform external side effects and has no enforced tool-free regeneration mode.
 - Live voice runs through `src/lib/live-relay.server.ts` at `/api/live` (dispatched in `src/server.ts`, dev via `live-vite-plugin.ts`): owner session verified before any paid voice session, and legacy voice change tools stay blocked; opt-in CODE requests use scoped session-bound cards, while sensitive actions keep their passkey/provider-native path.
