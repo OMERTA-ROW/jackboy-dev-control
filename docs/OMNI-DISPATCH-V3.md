@@ -16,6 +16,13 @@ new work. Manual grant revocation, project revocation, owner diagnostics, and
 owner-initiated handshake/link-loss checks reconcile revoked or expired v3 jobs
 through signed cancellation when v3 is enabled.
 
+The global Kill Switch blocks v3 approval and submission, including when its
+state cannot be read. Refusals are logged without dispatch credentials.
+Status and cancellation remain available while paused. The owner-only results
+panel on `/omni` reads the latest 20 records without sending or changing jobs;
+it shows selected result fields and redacted, bounded output, not stored
+dispatch digests, signatures, or nonces.
+
 Outgoing request JSON is limited to 8192 UTF-8 bytes, with payload strings
 limited to 6144 UTF-8 bytes and expiry strictly future, no more than 30 minutes
 ahead, and no later than the owner grant expiry. JSON escaping can make an

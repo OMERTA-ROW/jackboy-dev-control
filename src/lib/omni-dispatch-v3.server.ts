@@ -8,6 +8,7 @@ import { wireKind } from "./omni-handoff-auth";
 import { hmacHex, safeEqual } from "./omni-link";
 import { logSiteStrict } from "./site-log.server";
 import { untyped } from "./untyped-db";
+import { assertOmniV3SubmitAllowed } from "./omni-v3-pause.server";
 
 const CONTRACT = "jackboy.dispatch/v3";
 const CALLBACK_CONTRACT = "jackboy.dispatch-callback/v3";
@@ -433,6 +434,7 @@ export async function executeOmniV3Receipt(
   grantId: string,
   action: Action,
 ) {
+  await assertOmniV3SubmitAllowed(actor, jobId, action);
   const { readFile } = await import("node:fs/promises");
   const config = dispatchConfig();
   const db = untyped(supabaseAdmin);
@@ -471,6 +473,7 @@ export async function executeOmniV3Receipt(
     { ...config, ...(caFile ? { ca: await readFile(caFile) } : {}) },
     async (candidate, intent, expiry) => {
       if (intent === "submit") {
+        await assertOmniV3SubmitAllowed(actor, jobId, intent);
         const response = await db.rpc("omni_dispatch_v3_action", {
           _op: "prepare",
           _actor: actor,
@@ -485,6 +488,7 @@ export async function executeOmniV3Receipt(
         });
         if (response.error || !response.data)
           throw new Error("Current owner grant could not be revalidated for v3 signing.");
+        await assertOmniV3SubmitAllowed(actor, jobId, intent);
         return;
       }
       const response = await db.rpc("omni_dispatch_v3_action", {
