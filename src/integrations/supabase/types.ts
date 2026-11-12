@@ -2148,6 +2148,72 @@ export type Database = {
           },
         ]
       }
+      omni_handoff_nonces: {
+        Row: {
+          client_id: string
+          nonce: string
+          received_at: string
+        }
+        Insert: {
+          client_id: string
+          nonce: string
+          received_at?: string
+        }
+        Update: {
+          client_id?: string
+          nonce?: string
+          received_at?: string
+        }
+        Relationships: []
+      }
+      omni_handoff_tasks: {
+        Row: {
+          client_id: string
+          created_at: string
+          digest: string
+          job_id: string
+          kind: string
+          project_id: string
+          repo: string
+          task_id: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          digest: string
+          job_id: string
+          kind: string
+          project_id: string
+          repo: string
+          task_id: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          digest?: string
+          job_id?: string
+          kind?: string
+          project_id?: string
+          repo?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "omni_handoff_tasks_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "omni_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "omni_handoff_tasks_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "agent_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       omni_inbound_jobs: {
         Row: {
           approval_id: string
@@ -3919,6 +3985,18 @@ export type Database = {
           _result: Json
           _source: string
           _status: string
+        }
+        Returns: Json
+      }
+      omni_handoff_create: {
+        Args: {
+          _client: string
+          _digest: string
+          _instructions: string
+          _kind: string
+          _project: string
+          _repo: string
+          _task: string
         }
         Returns: Json
       }
