@@ -142,6 +142,10 @@ export const approveOmniReceipt = createServerFn({ method: "POST" })
       !identity.data.user.email_confirmed_at
     )
       throw new Error("A confirmed owner session is required.");
+    if (process.env["JACKBOY_DISPATCH_V3_ENABLED"] === "true") {
+      const { assertOmniV3SubmitAllowed } = await import("./omni-v3-pause.server");
+      await assertOmniV3SubmitAllowed(context.userId, data.jobId, "submit");
+    }
     const { isOmniVerified } = await import("./omni-link.server");
     if (!(await isOmniVerified(context.userId)))
       throw new Error("OMNI's live link is not verified right now. Check the connection, then approve.");
@@ -151,6 +155,10 @@ export const approveOmniReceipt = createServerFn({ method: "POST" })
     }
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { untyped } = await import("./untyped-db");
+    if (process.env["JACKBOY_DISPATCH_V3_ENABLED"] === "true") {
+      const { assertOmniV3SubmitAllowed } = await import("./omni-v3-pause.server");
+      await assertOmniV3SubmitAllowed(context.userId, data.jobId, "submit");
+    }
     const result = await untyped(supabaseAdmin).rpc("omni_dispatch_issue_reviewed", {
       _actor: context.userId,
       _job: data.jobId,
@@ -331,6 +339,8 @@ export const sendOmniReceipt = createServerFn({ method: "POST" })
     )
       throw new Error("A confirmed owner session is required.");
     if (process.env["JACKBOY_DISPATCH_V3_ENABLED"] === "true") {
+      const { assertOmniV3SubmitAllowed } = await import("./omni-v3-pause.server");
+      await assertOmniV3SubmitAllowed(context.userId, data.jobId, data.action);
       const { cancelRevokedOmniV3Receipts } = await import("./omni-dispatch-v3.server");
       await cancelRevokedOmniV3Receipts(context.userId);
     }
