@@ -8,6 +8,7 @@ import { probeOmniConnection } from "@/lib/omni-link.functions";
 import { useStepUp } from "@/lib/step-up-client";
 import { HANDOFF_KIND_LABEL, isHandoffKind, type HandoffKind } from "@/lib/omni-handoff-auth";
 import { OmniDispatchReview } from "./OmniDispatchReview";
+import { OmniV3Results } from "./OmniV3Results";
 
 type Data = Awaited<ReturnType<typeof getOmniHandoffs>>;
 const when = (iso: string) => new Date(iso).toLocaleString();
@@ -272,6 +273,7 @@ export function OmniHandoffPanel() {
         </p>
       )}
       {review && <OmniDispatchReview key={`${review.jobId}:${review.grantId}`} initialJobId={review.jobId} initialGrantId={review.grantId} />}
+      <OmniV3Results />
     </section>
   );
 }
