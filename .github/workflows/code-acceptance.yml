@@ -14,6 +14,8 @@ env:
   # Public companion repository, pinned so the interop result is reproducible.
   OMNI_REPOSITORY: OMERTA-ROW/Omni
   OMNI_REF: cc083d8e51e0135f536e01f08000de7d8660acbe
+  MOTHERSHIP_REPOSITORY: OMERTA-ROW/orbiting-minds-mothership
+  MOTHERSHIP_REF: 5876c6ba7573823d1d3cc721fe4b33c55b1735b6
 jobs:
   acceptance:
     runs-on: ubuntu-latest
@@ -27,6 +29,12 @@ jobs:
           repository: ${{ env.OMNI_REPOSITORY }}
           ref: ${{ env.OMNI_REF }}
           path: omni
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ env.MOTHERSHIP_REPOSITORY }}
+          ref: ${{ env.MOTHERSHIP_REF }}
+          path: mothership
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
@@ -50,6 +58,7 @@ jobs:
           date -u +%FT%TZ
           git rev-parse HEAD
           git -C omni rev-parse HEAD
+          git -C mothership rev-parse HEAD
           node --version && go version && bun --version
       - name: Prove the sandbox has no outbound network
         run: |
@@ -61,6 +70,7 @@ jobs:
       - name: CODE safety and OMNI interoperability suites (no network)
         env:
           OMNI_INBOX_DIR: ${{ github.workspace }}/omni/inbox
+          MOTHERSHIP_TEST_ROOT: ${{ github.workspace }}/mothership
           GOTOOLCHAIN: local
           GOFLAGS: -mod=mod
         run: |
@@ -69,7 +79,7 @@ jobs:
           export PGROOT="$RUNNER_TEMP/acceptance-pg"
           export STAGING_PG_MODULE_FROM="$RUNNER_TEMP/acceptance-pg-driver/package.json"
           export STAGING_PG_URL=postgres://postgres@127.0.0.1:54329/postgres
-          sudo --preserve-env=PATH,PG_BIN,PGROOT,STAGING_PG_MODULE_FROM,STAGING_PG_URL,OMNI_INBOX_DIR,GOTOOLCHAIN,GOFLAGS \
+          sudo --preserve-env=PATH,PG_BIN,PGROOT,STAGING_PG_MODULE_FROM,STAGING_PG_URL,OMNI_INBOX_DIR,MOTHERSHIP_TEST_ROOT,GOTOOLCHAIN,GOFLAGS \
             unshare -n bash -euo pipefail -c '
               ip link set lo up
               if curl --noproxy "*" -sS -m 3 https://api.openai.com/v1/models; then
