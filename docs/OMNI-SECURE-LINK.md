@@ -147,13 +147,13 @@ npx tsc --noEmit
 npm run build
 ```
 
-For the cross-repository TLS test, set `OMNI_INBOX_DIR` to the companion checkout's absolute `inbox/` directory when running the first command. Without it only that test is explicitly skipped. OpenSSL creates a short-lived local test certificate; Go trusts only that certificate for the test. TLS verification is never disabled. The test uses the real Node HTTPS adapter, real TypeScript handler, actual SQL migration in local PGlite PostgreSQL, and real restricted subprocess. It makes no production/provider calls.
+For the cross-repository tests, set `OMNI_INBOX_DIR` to the Go companion checkout's absolute `inbox/` directory and `MOTHERSHIP_TEST_ROOT` to the Mothership checkout containing the signed configuration client when running the first command. An omitted reference explicitly skips its corresponding test. CODE acceptance checks out both public companions at pinned commits and supplies both references inside the existing network-isolated suite; its zero-skipped-tests gate remains enforced. OpenSSL creates a short-lived local test certificate; Go trusts only that certificate for the test. TLS verification is never disabled. The tests use the real Node HTTPS adapter, real TypeScript handlers, actual SQL migrations in local PGlite PostgreSQL, and a real restricted subprocess. The configuration chain verifies both signed metadata hops with zero executor calls. No production/provider calls are made.
 
 PGlite verifies SQL behavior and concurrent application requests but is a single embedded PostgreSQL instance; production multi-replica load, Cloud RLS deployment and real-host operations still need owner-approved staging validation. Supabase transport is replaced by the direct SQL adapter in integration tests. Tests do not prove live production connectivity.
 
 ### Local review results
 
-- Secure-link integration: **16/16 passed**, including the Go client over verified local TLS and lost acknowledgements after job submission/completion (one execution only).
+- Secure-link integration: **19/19 passed**, including the Go client over verified local TLS, lost acknowledgements after job submission/completion (one execution only), and signed configuration metadata without execution.
 - Existing CODE Node security/runtime/contract/patch tests: **16/16 passed**; fixture repair unchanged.
 - Existing application suite: **317/317 passed**.
 - TypeScript and production web build: passed; the build is not a deployment or proof of Cloudflare subprocess support.
