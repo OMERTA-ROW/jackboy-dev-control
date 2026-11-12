@@ -1985,7 +1985,6 @@ export type Database = {
           result: Json | null
           status: string
         }
-        ComputedFields: never
         Insert: {
           id?: never
           job_id: string
@@ -2015,7 +2014,6 @@ export type Database = {
           nonce: string
           received_at: string
         }
-        ComputedFields: never
         Insert: {
           nonce: string
           received_at?: string
@@ -2041,7 +2039,6 @@ export type Database = {
           status: string
           updated_at: string
         }
-        ComputedFields: never
         Insert: {
           created_at?: string
           expires_at: string
@@ -2108,7 +2105,6 @@ export type Database = {
           status: string
           updated_at: string
         }
-        ComputedFields: never
         Insert: {
           created_at?: string
           grant_id: string
@@ -3793,7 +3789,7 @@ export type Database = {
         }
         Returns: boolean
       }
-      code_acceptance_guard_status: { Args: never; Returns: boolean };
+      code_acceptance_guard_status: { Args: never; Returns: boolean }
       code_provider_call_holds: {
         Args: { p_request_id: string }
         Returns: number
@@ -4009,9 +4005,9 @@ export type Database = {
         Returns: Json
       }
       set_guardian_limits: {
-        Args: { _max_files: number; _max_lines: number; _tier: number };
-        Returns: undefined;
-      };
+        Args: { _max_files: number; _max_lines: number; _tier: number }
+        Returns: undefined
+      }
       set_jax_enrollment: {
         Args: { _enroll: boolean; _id: string; _purpose: string }
         Returns: undefined
