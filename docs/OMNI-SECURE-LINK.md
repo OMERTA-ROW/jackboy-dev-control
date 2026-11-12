@@ -41,6 +41,40 @@ settings are not configured by this change.
 
 ## Protocol and storage
 
+### Read-only Railway configuration attestation
+
+`action: "configuration"` on the same signed HTTPS link is a metadata-only
+bootstrap request containing only `action` and `projectId`. It checks the
+existing client identity/keys and uses migration `0063_omni_configuration_probe`
+to verify the active owned project, owner role, global pause, single-use nonce
+and an atomic Site Log insert. Probes are capped at 60 per client/10 minutes.
+No sessions, jobs, execution grants, provider calls or switches are created.
+Because this is configuration evidence before activation, execution approval
+expiry and `OMNI_LINK_ENABLED` are not prerequisites; the existing execution
+route's approval, passkey and switch gates are unchanged.
+
+Jackboy on Lovable relays the probe using its existing
+`OMNI_LINK_REMOTE_RUNNER_ENABLED`, `OMNI_LINK_REMOTE_RUNNER_URL` and managed
+`OMNI_LINK_REMOTE_RUNNER_SECRET`. The runner receives signed
+`kind: "runner.configuration"` with a correlation UUID (not a stored job),
+returns nonce-bound boolean mode/flag/secret-presence/runtime metadata, and
+**never calls `runProtocolSelfTest`** for this kind. Both response proofs must
+verify before configuration is reported. Missing configuration, transport,
+signature, owner, pause or audit evidence fails closed.
+
+The Railway service `Evolution / production / jackboy-dev-control` already
+contains `OMNI_LINK_RUNNER_MODE=true`, `OMNI_LINK_NODE_RUNNER_ENABLED=true`,
+and the runner secret (read-only audit, 2026-11-12). Do not repeat this setup.
+The runner owns no database or scoped link credentials. Mothership needs only
+the nonsecret expected `JACKBOY_LINK_RUNNER_ORIGIN` in addition to its existing
+Jackboy link identity; it must **not** receive the runner secret. The live
+Lovable caller is outside Railway's private mesh, so use the runner's public
+HTTPS origin, not private HTTP. Publication of this code and application of
+the metadata-authorization migration remain separate owner decisions.
+
+This probe is not live self-test proof and never sets `omni_connection.verified`.
+The ordinary job/session protocol below continues to require execution grants.
+
 Single route: `POST /api/public/omni/link`, HTTPS only, no query string or redirects.
 
 Body: `{ "action": "handshake|submit|run|status|cancel", "projectId": "uuid", "jobId": "uuid", "kind": "protocol.self-test" }`. Omit `jobId` for handshake; `kind` is required only for submit. Other fields and actions are rejected. Bodies are limited to 8 KiB and two seconds of reading.

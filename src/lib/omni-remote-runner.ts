@@ -6,6 +6,7 @@ import { hmacHex, safeEqual } from "./omni-link";
 export const RUNNER_CONTRACT = "omni.runner/v1";
 export const RUNNER_PATH = "/api/public/omni/runner";
 export const RUNNER_KIND = "protocol.self-test";
+export const RUNNER_CONFIGURATION_KIND = "runner.configuration";
 export const RUNNER_SKEW_MS = 60_000;
 export const RUNNER_NONCE_TTL_MS = 10 * 60_000;
 export const RUNNER_TIMEOUT_MS = 5_000;
@@ -30,7 +31,10 @@ const SITE_ONLY_SETTINGS = ["SUPABASE_SERVICE_ROLE_KEY", "OMNI_LINK_REMOTE_RUNNE
 export function runnerModeDecision(env: Env, hostname?: string): RunnerModeDecision {
   if (env["OMNI_LINK_RUNNER_MODE"] !== "true") return { on: false };
   const host = (hostname ?? "").trim();
-  if (host && (DASHBOARD_HOST.test(host) || (LOCAL_HOST.test(host) && !env["RAILWAY_ENVIRONMENT_ID"])))
+  if (
+    host &&
+    (DASHBOARD_HOST.test(host) || (LOCAL_HOST.test(host) && !env["RAILWAY_ENVIRONMENT_ID"]))
+  )
     return { on: false, ignored: "lovable_host" };
   if (env["OMNI_LINK_REMOTE_RUNNER_ENABLED"] === "true" || SITE_ONLY_SETTINGS.some((k) => !!env[k]))
     return { on: false, ignored: "site_settings" };
@@ -40,8 +44,7 @@ export function runnerModeDecision(env: Env, hostname?: string): RunnerModeDecis
 export function remoteRunnerDiagnostic(env: Env): string {
   if (env["OMNI_LINK_REMOTE_RUNNER_ENABLED"] !== "true")
     return "Remote self-test runner is disabled; this readiness check does not enable it.";
-  if (!env["OMNI_LINK_REMOTE_RUNNER_URL"])
-    return "OMNI_LINK_REMOTE_RUNNER_URL is missing.";
+  if (!env["OMNI_LINK_REMOTE_RUNNER_URL"]) return "OMNI_LINK_REMOTE_RUNNER_URL is missing.";
   if (!runnerOrigin(env["OMNI_LINK_REMOTE_RUNNER_URL"])) {
     const v = env["OMNI_LINK_REMOTE_RUNNER_URL"].trim();
     let u: URL;
@@ -70,7 +73,8 @@ export function remoteRunnerConfig(env: Env): RemoteRunnerConfig | null {
 }
 
 /** Bare host names (Railway shows "x.up.railway.app") are read as https://; plain http, paths, queries and credentials are refused. */
-const BARE_HOST = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+(?::\d{1,5})?$/i;
+const BARE_HOST =
+  /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+(?::\d{1,5})?$/i;
 export function runnerOrigin(raw: string | undefined): string | null {
   const v = (raw || "").trim();
   if (!v) return null;
@@ -80,15 +84,24 @@ export function runnerOrigin(raw: string | undefined): string | null {
   } catch {
     return null;
   }
-  if (u.protocol !== "https:" || u.username || u.password || u.search || u.hash || (u.pathname !== "/" && u.pathname !== ""))
+  if (
+    u.protocol !== "https:" ||
+    u.username ||
+    u.password ||
+    u.search ||
+    u.hash ||
+    (u.pathname !== "/" && u.pathname !== "")
+  )
     return null;
   return u.origin;
 }
 
 /** Names which runner setting blocks the remote runner, without ever including a value. */
 export function runnerConfigProblem(env: Env): string | null {
-  if (env["OMNI_LINK_REMOTE_RUNNER_ENABLED"] !== "true") return "OMNI_LINK_REMOTE_RUNNER_ENABLED is not exactly true";
-  if (!validRunnerSecret(env["OMNI_LINK_REMOTE_RUNNER_SECRET"])) return "OMNI_LINK_REMOTE_RUNNER_SECRET is missing or shorter than 32 characters";
+  if (env["OMNI_LINK_REMOTE_RUNNER_ENABLED"] !== "true")
+    return "OMNI_LINK_REMOTE_RUNNER_ENABLED is not exactly true";
+  if (!validRunnerSecret(env["OMNI_LINK_REMOTE_RUNNER_SECRET"]))
+    return "OMNI_LINK_REMOTE_RUNNER_SECRET is missing or shorter than 32 characters";
   if (!runnerOrigin(env["OMNI_LINK_REMOTE_RUNNER_URL"]))
     return "OMNI_LINK_REMOTE_RUNNER_URL must be the runner's https address with no path (for example https://name.up.railway.app)";
   return null;
@@ -99,19 +112,31 @@ export const requestMessage = (ts: string, nonce: string, body: string) =>
 export const responseMessage = (nonce: string, body: string) =>
   `${RUNNER_CONTRACT}\nresponse\n${nonce}\n${body}`;
 
-export type RemoteRunResult = { passed: boolean; error?: "runner_unreachable" | "runner_proof_invalid" };
+export type RemoteRunResult = {
+  passed: boolean;
+  error?: "runner_unreachable" | "runner_proof_invalid";
+};
+export type RunnerConfiguration = {
+  runnerMode: boolean;
+  nodeRunnerEnabled: boolean;
+  remoteRunnerSecretConfigured: boolean;
+  runtimeAvailable: boolean;
+};
+type RunnerReply =
+  { data: Record<string, unknown> } | { error: "runner_unreachable" | "runner_proof_invalid" };
 
 /** Calls the runner once. Any transport, timeout or proof problem is a failure, never a pass. */
-export async function callRemoteRunner(
+async function callRunner(
   cfg: RemoteRunnerConfig,
   jobId: string,
+  kind: typeof RUNNER_KIND | typeof RUNNER_CONFIGURATION_KIND,
   signal: AbortSignal,
   fetcher: typeof fetch = fetch,
   now = Date.now(),
-): Promise<RemoteRunResult> {
+): Promise<RunnerReply> {
   const nonce = crypto.randomUUID().replaceAll("-", "") + crypto.randomUUID().replaceAll("-", "");
   const ts = String(now);
-  const body = JSON.stringify({ kind: RUNNER_KIND, jobId });
+  const body = JSON.stringify({ kind, jobId });
   const timeout = AbortSignal.timeout(RUNNER_TIMEOUT_MS);
   let res: Response;
   try {
@@ -129,27 +154,89 @@ export async function callRemoteRunner(
       signal: AbortSignal.any([signal, timeout]),
     });
   } catch {
-    return { passed: false, error: "runner_unreachable" };
+    return { error: "runner_unreachable" };
   }
-  if (res.status !== 200) return { passed: false, error: "runner_unreachable" };
+  if (res.status !== 200) return { error: "runner_unreachable" };
   let text: string;
   try {
     text = await res.text();
   } catch {
-    return { passed: false, error: "runner_unreachable" };
+    return { error: "runner_unreachable" };
   }
-  if (text.length > 1024) return { passed: false, error: "runner_proof_invalid" };
+  if (text.length > 1024) return { error: "runner_proof_invalid" };
   const proof = res.headers.get("x-runner-proof") || "";
   if (!safeEqual(proof, await hmacHex(cfg.secret, responseMessage(nonce, text))))
-    return { passed: false, error: "runner_proof_invalid" };
+    return { error: "runner_proof_invalid" };
   try {
     const out = JSON.parse(text) as Record<string, unknown>;
-    if (out["jobId"] !== jobId || out["nonce"] !== nonce || typeof out["passed"] !== "boolean")
-      return { passed: false, error: "runner_proof_invalid" };
-    return { passed: out["passed"] === true };
+    if (
+      !out ||
+      typeof out !== "object" ||
+      Array.isArray(out) ||
+      out["jobId"] !== jobId ||
+      out["nonce"] !== nonce
+    )
+      return { error: "runner_proof_invalid" };
+    return { data: out };
   } catch {
-    return { passed: false, error: "runner_proof_invalid" };
+    return { error: "runner_proof_invalid" };
   }
+}
+
+export async function callRemoteRunner(
+  cfg: RemoteRunnerConfig,
+  jobId: string,
+  signal: AbortSignal,
+  fetcher: typeof fetch = fetch,
+  now = Date.now(),
+): Promise<RemoteRunResult> {
+  const reply = await callRunner(cfg, jobId, RUNNER_KIND, signal, fetcher, now);
+  if ("error" in reply) return { passed: false, error: reply.error };
+  if (typeof reply.data["passed"] !== "boolean")
+    return { passed: false, error: "runner_proof_invalid" };
+  return { passed: reply.data["passed"] };
+}
+
+export async function callRemoteRunnerConfiguration(
+  cfg: RemoteRunnerConfig,
+  signal: AbortSignal,
+  fetcher: typeof fetch = fetch,
+): Promise<
+  { configuration: RunnerConfiguration } | { error: "runner_unreachable" | "runner_proof_invalid" }
+> {
+  const reply = await callRunner(
+    cfg,
+    crypto.randomUUID(),
+    RUNNER_CONFIGURATION_KIND,
+    signal,
+    fetcher,
+  );
+  if ("error" in reply) return reply;
+  const c = reply.data["configuration"];
+  if (
+    reply.data["kind"] !== RUNNER_CONFIGURATION_KIND ||
+    reply.data["execution"] !== "none" ||
+    !c ||
+    typeof c !== "object" ||
+    Array.isArray(c) ||
+    !("runnerMode" in c) ||
+    typeof c.runnerMode !== "boolean" ||
+    !("nodeRunnerEnabled" in c) ||
+    typeof c.nodeRunnerEnabled !== "boolean" ||
+    !("remoteRunnerSecretConfigured" in c) ||
+    typeof c.remoteRunnerSecretConfigured !== "boolean" ||
+    !("runtimeAvailable" in c) ||
+    typeof c.runtimeAvailable !== "boolean"
+  )
+    return { error: "runner_proof_invalid" };
+  return {
+    configuration: {
+      runnerMode: c.runnerMode,
+      nodeRunnerEnabled: c.nodeRunnerEnabled,
+      remoteRunnerSecretConfigured: c.remoteRunnerSecretConfigured,
+      runtimeAvailable: c.runtimeAvailable,
+    },
+  };
 }
 
 /** Runner side: in-memory one-time nonce memory (stateless otherwise). */
@@ -171,13 +258,18 @@ export async function verifyRunnerRequest(
   body: string,
   claimNonce: (n: string, now?: number) => boolean,
   now = Date.now(),
-): Promise<{ jobId: string; nonce: string } | { error: string }> {
+): Promise<
+  | { jobId: string; nonce: string; kind: typeof RUNNER_KIND | typeof RUNNER_CONFIGURATION_KIND }
+  | { error: string }
+> {
   const ts = headers.get("x-runner-timestamp") || "";
   const nonce = headers.get("x-runner-nonce") || "";
   const sig = headers.get("x-runner-signature") || "";
-  if (!/^\d{10,16}$/.test(ts) || !NONCE.test(nonce) || !/^[0-9a-f]{64}$/.test(sig)) return { error: "authentication_failed" };
+  if (!/^\d{10,16}$/.test(ts) || !NONCE.test(nonce) || !/^[0-9a-f]{64}$/.test(sig))
+    return { error: "authentication_failed" };
   if (Math.abs(now - Number(ts)) > RUNNER_SKEW_MS) return { error: "stale_request" };
-  if (!safeEqual(sig, await hmacHex(secret, requestMessage(ts, nonce, body)))) return { error: "authentication_failed" };
+  if (!safeEqual(sig, await hmacHex(secret, requestMessage(ts, nonce, body))))
+    return { error: "authentication_failed" };
   let input: Record<string, unknown>;
   try {
     input = JSON.parse(body);
@@ -185,12 +277,15 @@ export async function verifyRunnerRequest(
     return { error: "invalid_request" };
   }
   if (
-    !input || typeof input !== "object" || Array.isArray(input) ||
+    !input ||
+    typeof input !== "object" ||
+    Array.isArray(input) ||
     Object.keys(input).sort().join(",") !== "jobId,kind" ||
-    input["kind"] !== RUNNER_KIND ||
-    typeof input["jobId"] !== "string" || !UUID.test(input["jobId"])
+    (input["kind"] !== RUNNER_KIND && input["kind"] !== RUNNER_CONFIGURATION_KIND) ||
+    typeof input["jobId"] !== "string" ||
+    !UUID.test(input["jobId"])
   )
     return { error: "invalid_request" };
   if (!claimNonce(nonce, now)) return { error: "replayed_request" };
-  return { jobId: input["jobId"], nonce };
+  return { jobId: input["jobId"], nonce, kind: input["kind"] };
 }
