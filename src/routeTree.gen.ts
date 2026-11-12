@@ -71,6 +71,7 @@ import { Route as ApiPublicJobsOwnerAlertsRouteImport } from './routes/api/publi
 import { Route as ApiPublicJobsReleasesRouteImport } from './routes/api/public/jobs/releases'
 import { Route as ApiPublicJobsSiteMonitorRouteImport } from './routes/api/public/jobs/site-monitor'
 import { Route as ApiPublicJobsUpdateWriterRouteImport } from './routes/api/public/jobs/update-writer'
+import { Route as ApiPublicOmniHandoffV1RouteImport } from './routes/api/public/omni-handoff/v1'
 import { Route as ApiPublicOmniCallbackRouteImport } from './routes/api/public/omni/callback'
 import { Route as ApiPublicOmniLinkRouteImport } from './routes/api/public/omni/link'
 import { Route as ApiPublicOmniRunnerRouteImport } from './routes/api/public/omni/runner'
@@ -400,6 +401,11 @@ const ApiPublicJobsUpdateWriterRoute =
     path: '/api/public/jobs/update-writer',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicOmniHandoffV1Route = ApiPublicOmniHandoffV1RouteImport.update({
+  id: '/api/public/omni-handoff/v1',
+  path: '/api/public/omni-handoff/v1',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicOmniCallbackRoute = ApiPublicOmniCallbackRouteImport.update({
   id: '/api/public/omni/callback',
   path: '/api/public/omni/callback',
@@ -517,6 +523,7 @@ export interface FileRoutesByFullPath {
   '/api/public/jobs/releases': typeof ApiPublicJobsReleasesRoute
   '/api/public/jobs/site-monitor': typeof ApiPublicJobsSiteMonitorRoute
   '/api/public/jobs/update-writer': typeof ApiPublicJobsUpdateWriterRoute
+  '/api/public/omni-handoff/v1': typeof ApiPublicOmniHandoffV1Route
   '/api/public/omni/callback': typeof ApiPublicOmniCallbackRoute
   '/api/public/omni/link': typeof ApiPublicOmniLinkRoute
   '/api/public/omni/runner': typeof ApiPublicOmniRunnerRoute
@@ -589,6 +596,7 @@ export interface FileRoutesByTo {
   '/api/public/jobs/releases': typeof ApiPublicJobsReleasesRoute
   '/api/public/jobs/site-monitor': typeof ApiPublicJobsSiteMonitorRoute
   '/api/public/jobs/update-writer': typeof ApiPublicJobsUpdateWriterRoute
+  '/api/public/omni-handoff/v1': typeof ApiPublicOmniHandoffV1Route
   '/api/public/omni/callback': typeof ApiPublicOmniCallbackRoute
   '/api/public/omni/link': typeof ApiPublicOmniLinkRoute
   '/api/public/omni/runner': typeof ApiPublicOmniRunnerRoute
@@ -664,6 +672,7 @@ export interface FileRoutesById {
   '/api/public/jobs/releases': typeof ApiPublicJobsReleasesRoute
   '/api/public/jobs/site-monitor': typeof ApiPublicJobsSiteMonitorRoute
   '/api/public/jobs/update-writer': typeof ApiPublicJobsUpdateWriterRoute
+  '/api/public/omni-handoff/v1': typeof ApiPublicOmniHandoffV1Route
   '/api/public/omni/callback': typeof ApiPublicOmniCallbackRoute
   '/api/public/omni/link': typeof ApiPublicOmniLinkRoute
   '/api/public/omni/runner': typeof ApiPublicOmniRunnerRoute
@@ -739,6 +748,7 @@ export interface FileRouteTypes {
     | '/api/public/jobs/releases'
     | '/api/public/jobs/site-monitor'
     | '/api/public/jobs/update-writer'
+    | '/api/public/omni-handoff/v1'
     | '/api/public/omni/callback'
     | '/api/public/omni/link'
     | '/api/public/omni/runner'
@@ -811,6 +821,7 @@ export interface FileRouteTypes {
     | '/api/public/jobs/releases'
     | '/api/public/jobs/site-monitor'
     | '/api/public/jobs/update-writer'
+    | '/api/public/omni-handoff/v1'
     | '/api/public/omni/callback'
     | '/api/public/omni/link'
     | '/api/public/omni/runner'
@@ -885,6 +896,7 @@ export interface FileRouteTypes {
     | '/api/public/jobs/releases'
     | '/api/public/jobs/site-monitor'
     | '/api/public/jobs/update-writer'
+    | '/api/public/omni-handoff/v1'
     | '/api/public/omni/callback'
     | '/api/public/omni/link'
     | '/api/public/omni/runner'
@@ -922,6 +934,7 @@ export interface RootRouteChildren {
   ApiPublicJobsReleasesRoute: typeof ApiPublicJobsReleasesRoute
   ApiPublicJobsSiteMonitorRoute: typeof ApiPublicJobsSiteMonitorRoute
   ApiPublicJobsUpdateWriterRoute: typeof ApiPublicJobsUpdateWriterRoute
+  ApiPublicOmniHandoffV1Route: typeof ApiPublicOmniHandoffV1Route
   ApiPublicOmniCallbackRoute: typeof ApiPublicOmniCallbackRoute
   ApiPublicOmniLinkRoute: typeof ApiPublicOmniLinkRoute
   ApiPublicOmniRunnerRoute: typeof ApiPublicOmniRunnerRoute
@@ -1370,6 +1383,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicJobsUpdateWriterRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/omni-handoff/v1': {
+      id: '/api/public/omni-handoff/v1'
+      path: '/api/public/omni-handoff/v1'
+      fullPath: '/api/public/omni-handoff/v1'
+      preLoaderRoute: typeof ApiPublicOmniHandoffV1RouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/omni/callback': {
       id: '/api/public/omni/callback'
       path: '/api/public/omni/callback'
@@ -1562,6 +1582,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicJobsReleasesRoute: ApiPublicJobsReleasesRoute,
   ApiPublicJobsSiteMonitorRoute: ApiPublicJobsSiteMonitorRoute,
   ApiPublicJobsUpdateWriterRoute: ApiPublicJobsUpdateWriterRoute,
+  ApiPublicOmniHandoffV1Route: ApiPublicOmniHandoffV1Route,
   ApiPublicOmniCallbackRoute: ApiPublicOmniCallbackRoute,
   ApiPublicOmniLinkRoute: ApiPublicOmniLinkRoute,
   ApiPublicOmniRunnerRoute: ApiPublicOmniRunnerRoute,
