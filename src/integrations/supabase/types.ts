@@ -4001,6 +4001,15 @@ export type Database = {
         Returns: Json
       }
       omni_link_action: { Args: { _a: Json; _op: string }; Returns: Json }
+      omni_link_configuration_authorize: {
+        Args: {
+          _client_id: string
+          _nonce: string
+          _owner_id: string
+          _project_id: string
+        }
+        Returns: boolean
+      }
       omni_link_live: { Args: never; Returns: boolean }
       omni_project_authorization_action: {
         Args: {
