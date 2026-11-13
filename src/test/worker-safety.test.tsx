@@ -17,7 +17,7 @@ afterEach(cleanup);
 it("Home shows the live Kill Switch state and links to the one control section", async () => {
   render(<WorkerSafetyBar />);
   expect(await screen.findByText("Kill Switch: on — work paused")).toBeInTheDocument();
-  expect(screen.getByRole("link", { name: /Kill Switch, stop & activation/ })).toHaveAttribute(
+  expect(screen.getByRole("link", { name: /Kill Switch, CODE & Emergency Stop/ })).toHaveAttribute(
     "href",
     "/settings#activation",
   );

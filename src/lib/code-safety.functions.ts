@@ -71,7 +71,52 @@ export const stopJackboyWork = createServerFn({ method: "POST" })
     const { error: foundryError } = await db.from("foundry_schedule").update({ paused: true, updated_at: new Date().toISOString() }).eq("id", 1);
     const { error: codeError } = await db.rpc("engage_code_kill_switch", { p_actor: context.userId });
     const { error: auditError } = await context.supabase.rpc("write_audit", { _action: "worker.kill_switch", _detail: { global_paused: true, foundry_paused: !foundryError, code_stop_saved: !codeError }, _outcome: foundryError || codeError ? "partial" : "ok" });
-    return { paused: true, warning: foundryError || codeError || auditError ? "Global pause saved. Some worker controls or audit storage are unavailable; CODE stays blocked. Any external run must be cancelled and confirmed in GitHub." : "New work is blocked. Any already-running external job must be cancelled and confirmed in GitHub." };
+    // CODE runner admission checks the CODE Emergency Stop, not the Kill Switch, so never claim CODE is
+    // blocked unless that stop was actually saved.
+    return {
+      paused: true,
+      codeStopSaved: !codeError,
+      warning: codeError
+        ? "Kill Switch saved, but the CODE Emergency Stop could NOT be saved. Press Engage emergency stop now and confirm any running job is cancelled in GitHub."
+        : foundryError || auditError
+          ? "Kill Switch and CODE Emergency Stop saved. Some other worker controls or audit storage are unavailable. Any external run must be cancelled and confirmed in GitHub."
+          : "New work is blocked and the CODE Emergency Stop is engaged. Any already-running external job must be cancelled and confirmed in GitHub.",
+    };
+  });
+
+/** One light, owner-only read of the three safety controls for live refresh. Read-only; never changes
+ * anything and never calls GitHub. Unreadable parts come back null so the page shows them as unknown. */
+export const getSafetyControlState = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await requireOwner(context);
+    const db = (await import("./untyped-db")).untyped((await import("@/integrations/supabase/client.server")).supabaseAdmin);
+    const [policy, controls] = await Promise.all([
+      db.from("automation_policy").select("paused, updated_at").eq("id", 1).maybeSingle(),
+      db.from("code_runtime_controls")
+        .select("enabled, kill_switch, active_request_id, active_run_id, cancellation_status, paused_reason, stop_requested_at, updated_at")
+        .eq("singleton", true)
+        .maybeSingle(),
+    ]);
+    const p = policy.error ? null : policy.data;
+    const c = controls.error ? null : controls.data;
+    return {
+      checkedAt: new Date().toISOString(),
+      globalPaused: p && typeof p.paused === "boolean" ? p.paused : null,
+      globalPauseUpdatedAt: p?.updated_at ?? null,
+      code: c && typeof c.enabled === "boolean" && typeof c.kill_switch === "boolean"
+        ? {
+            enabled: c.enabled as boolean,
+            killSwitch: c.kill_switch as boolean,
+            activeRequestId: (c.active_request_id as string | null) ?? null,
+            activeRunId: (c.active_run_id as number | null) ?? null,
+            cancellationStatus: String(c.cancellation_status ?? "unknown"),
+            pausedReason: (c.paused_reason as string | null) ?? null,
+            stopRequestedAt: (c.stop_requested_at as string | null) ?? null,
+            updatedAt: (c.updated_at as string | null) ?? null,
+          }
+        : null,
+    };
   });
 
 /** Turns the global pause OFF after a passkey. The CODE kill switch stays engaged; CODE still needs its own unlock path. */

@@ -88,7 +88,7 @@ describe("owner CODE on-switch gates", () => {
   });
 
   it("explains database refusals in plain words, and never reports an empty refusal as success", () => {
-    expect(enableRefusalText(["global_pause", "spend_meter"])).toBe("the global pause is on; the live spending meter is not healthy");
+    expect(enableRefusalText(["global_pause", "spend_meter"])).toBe("the Kill Switch is on; the live spending meter is not healthy");
     expect(enableRefusalText([])).toMatch(/refused/);
     expect(enableRefusalText(null)).toMatch(/refused/);
   });

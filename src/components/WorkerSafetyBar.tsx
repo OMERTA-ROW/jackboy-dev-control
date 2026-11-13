@@ -36,7 +36,7 @@ export function WorkerSafetyBar() {
           className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm text-silver hover:bg-muted"
         >
           <Power className="size-4" aria-hidden />
-          Kill Switch, stop &amp; activation
+          Kill Switch, CODE &amp; Emergency Stop
         </Link>
       </div>
     </section>

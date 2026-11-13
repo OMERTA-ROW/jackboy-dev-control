@@ -1,5 +1,5 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   stop: vi.fn(),
   pauseAll: vi.fn(),
@@ -79,7 +79,7 @@ it("turning CODE on uses the same fresh passkey action and stays disabled until 
     screen.getByRole("button", { name: "Release CODE stop and turn CODE on with passkey" }),
   ).toBeDisabled();
   rerender(
-    <ActivationPanel state={OFF} gates={gates()} gatesError={null} busy={false} run={run} />,
+    <ActivationPanel state={OFF} gates={gates()} globalPaused={false} gatesError={null} busy={false} run={run} />,
   );
   fireEvent.click(
     screen.getByRole("button", { name: "Release CODE stop and turn CODE on with passkey" }),
@@ -129,6 +129,7 @@ it("a cancelled passkey changes nothing", async () => {
     <ActivationPanel
       state={OFF}
       gates={gates()}
+      globalPaused={false}
       gatesError={null}
       busy={false}
       run={(a) =>
@@ -198,9 +199,10 @@ it("a blocked walkthrough step explains why and how to fix it, offering only Che
     />,
   );
   fireEvent.click(screen.getByRole("button", { name: "Start activation" }));
-  expect(screen.getByText("Status: blocked")).toBeInTheDocument();
-  expect(screen.getByText("Why: Pins differ; resync first.")).toBeInTheDocument();
-  expect(screen.getByText(/How to fix: .*pin resync/)).toBeInTheDocument();
+  const walkthrough = within(screen.getByLabelText("Activation walkthrough"));
+  expect(walkthrough.getByText("Status: blocked")).toBeInTheDocument();
+  expect(walkthrough.getByText("Why: Pins differ; resync first.")).toBeInTheDocument();
+  expect(walkthrough.getByText(/How to fix: .*pin resync/)).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Check again" })).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: /turn CODE on/ })).toBeNull();
 });
@@ -247,4 +249,74 @@ it("an unreadable Kill Switch state cannot be toggled", () => {
     />,
   );
   expect(screen.getByRole("button", { name: "Turn Kill Switch on" })).toBeDisabled();
+});
+
+describe("three separate safety controls", () => {
+  it("shows Kill Switch, CODE and Emergency Stop as separate statuses; CODE switch is visible but locked while the Kill Switch is on", () => {
+    render(
+      <ActivationPanel state={OFF} gates={gates(["global_pause"])} globalPaused gatesError={null} busy={false} run={run} />,
+    );
+    const controls = within(screen.getByLabelText("Safety controls"));
+    expect(controls.getByRole("heading", { name: /System Kill Switch/ })).toBeInTheDocument();
+    expect(controls.getByRole("heading", { name: /^2\. CODE$/ })).toBeInTheDocument();
+    expect(controls.getByRole("heading", { name: /CODE Emergency Stop/ })).toBeInTheDocument();
+    const codeSwitch = controls.getByRole("switch", { name: "CODE enabled" });
+    expect(codeSwitch).toBeDisabled();
+    expect(codeSwitch).toHaveAttribute("aria-checked", "false");
+    expect(controls.getByText(/Locked: the Kill Switch is on/)).toBeInTheDocument();
+    expect(controls.getByRole("button", { name: "Emergency stop engaged" })).toBeDisabled();
+    fireEvent.click(codeSwitch);
+    expect(mocks.stepUp).not.toHaveBeenCalled();
+    expect(mocks.enable).not.toHaveBeenCalled();
+  });
+
+  it("the CODE switch uses the fresh code_enable passkey only once every requirement passes", async () => {
+    mocks.enable.mockResolvedValue({ codeEnabled: true, emergencyStop: false });
+    render(
+      <ActivationPanel state={OFF} gates={gates()} globalPaused={false} gatesError={null} busy={false} run={run} />,
+    );
+    const codeSwitch = within(screen.getByLabelText("Safety controls")).getByRole("switch", { name: "CODE enabled" });
+    expect(codeSwitch).toBeEnabled();
+    fireEvent.click(codeSwitch);
+    await waitFor(() => expect(mocks.enable).toHaveBeenCalledWith({ data: { grantId: GRANT } }));
+    expect(mocks.stepUp).toHaveBeenCalledWith("code_enable", CODE_ENABLE_TARGET, expect.objectContaining({ apply: expect.any(Function) }));
+    expect(mocks.resume).not.toHaveBeenCalled();
+  });
+
+  it("turning the CODE switch off engages the Emergency Stop with its passkey", async () => {
+    render(
+      <ActivationPanel state={{ ...OFF, enabled: true, killSwitch: false }} gates={gates(["stopped"])} globalPaused={false} gatesError={null} busy={false} run={run} />,
+    );
+    const codeSwitch = within(screen.getByLabelText("Safety controls")).getByRole("switch", { name: "CODE enabled" });
+    expect(codeSwitch).toHaveAttribute("aria-checked", "true");
+    fireEvent.click(codeSwitch);
+    await waitFor(() => expect(mocks.stop).toHaveBeenCalledWith({ data: { grantId: GRANT } }));
+    expect(mocks.stepUp).toHaveBeenCalledWith("global_pause", "global_pause:on", expect.anything());
+    expect(mocks.enable).not.toHaveBeenCalled();
+  });
+
+  it("turning the Kill Switch off never calls the CODE enable action", async () => {
+    render(
+      <ActivationPanel state={OFF} gates={gates(["global_pause"])} globalPaused gatesError={null} busy={false} run={run} />,
+    );
+    fireEvent.click(within(screen.getByLabelText("Safety controls")).getByRole("button", { name: "Turn Kill Switch off" }));
+    await waitFor(() => expect(mocks.resume).toHaveBeenCalled());
+    expect(mocks.enable).not.toHaveBeenCalled();
+    expect(mocks.stop).not.toHaveBeenCalled();
+  });
+
+  it("the Emergency Stop stays pressable when the CODE state cannot be read", () => {
+    render(<ActivationPanel state={null} gates={null} globalPaused={null} gatesError={null} busy={false} run={run} />);
+    const controls = within(screen.getByLabelText("Safety controls"));
+    expect(controls.getByRole("button", { name: "Engage emergency stop" })).toBeEnabled();
+    expect(controls.getByRole("switch", { name: "CODE enabled" })).toBeDisabled();
+    expect(controls.getByRole("button", { name: "Turn Kill Switch on" })).toBeDisabled();
+  });
+
+  it("failures are shown as alerts, not as success", () => {
+    render(
+      <ActivationPanel state={OFF} gates={gates()} globalPaused={false} gatesError={null} busy={false} run={run} message="The database refused to turn CODE on; nothing changed." messageTone="error" />,
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent("Not done: The database refused");
+  });
 });

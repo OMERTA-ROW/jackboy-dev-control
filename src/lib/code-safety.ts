@@ -135,7 +135,7 @@ export function codeEnableGates(i: CodeEnableInput): CodeEnableGate[] {
     { id: "hard_cap", label: "Provider hard cap marked verified by you", ok: i.providerBudgetEnforced === true, detail: i.providerBudgetEnforced ? "Marked verified." : "Mark it first (needs a passkey)." },
     { id: "total_guard", label: "$10 total spending guard active with room for one task", ok: guardOk, detail: !guard ? "Guard not installed or unreadable." : `$${guard.committedUsd.toFixed(2)} of $${guard.limitUsd.toFixed(2)} used.` },
     { id: "meter", label: "Live spending meter healthy", ok: meter?.ok === true, detail: !meter ? "Meter not installed or unreadable." : meter.ok ? `$${meter.measuredTodayUsd.toFixed(2)} measured today.` : meter.reasons.map(meterReasonText).join("; ") + "." },
-    { id: "global_pause", label: "Global pause is off", ok: i.globalPaused === false, detail: i.globalPaused === null ? "Global pause state unreadable." : i.globalPaused ? "Turn the global pause off first (needs a passkey)." : "Off." },
+    { id: "global_pause", label: "Kill Switch is off", ok: i.globalPaused === false, detail: i.globalPaused === null ? "Kill Switch state unreadable." : i.globalPaused ? "Turn the Kill Switch off first (needs a passkey)." : "Off." },
     { id: "pins", label: "Workflow pins match (database, CODE_TARGETS, GitHub main)", ok: i.pinsMatch === true, detail: i.pinsMatch === null ? "Could not verify against GitHub." : i.pinsMatch ? "All three match." : "Pins differ; resync first." },
     { id: "gateway", label: "Gateway settings present", ok: i.gatewayConfigured, detail: i.gatewayConfigured ? "Provider key, prices and per-call cap are set." : "Provider key, price table or per-call cap missing or invalid." },
     { id: "cost_check", label: "OpenAI cost cross-check settings present", ok: i.costCheckConfigured, detail: i.costCheckConfigured ? "Admin key, project and key IDs are set." : "OpenAI cost-report settings missing." },
@@ -157,7 +157,7 @@ const ENABLE_DB_REASONS: Record<string, string> = {
   total_guard: "the $10 total spending guard is not enforced",
   total_limit: "the $10 total has no room for another task",
   spend_meter: "the live spending meter is not healthy",
-  global_pause: "the global pause is on",
+  global_pause: "the Kill Switch is on",
   target_allowlist: "the repository allowlist is not exactly Jackboy on main",
 };
 export function enableRefusalText(reasons: unknown): string {

@@ -1,9 +1,11 @@
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Check, Circle, CircleDot, OctagonX, Power } from "lucide-react";
+import { Check, Circle, CircleDot } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ReadinessChecks } from "./ReadinessChecks";
 import { CodeAcceptanceCard } from "./CodeAcceptanceCard";
+import { SafetyControls } from "./SafetyControls";
+import { safetyControlsView } from "@/lib/safety-controls";
 import type { AcceptanceGates } from "@/lib/code-acceptance";
 import { useStepUp } from "@/lib/step-up-client";
 import {
@@ -52,6 +54,12 @@ type Props = {
   evidence?: ReactNode;
   /** Live gates for the one-time $1 acceptance test; null while loading. */
   acceptance?: AcceptanceGates | null;
+  /** Tone of `message`: success, error or neutral information. */
+  messageTone?: "success" | "error" | "info";
+  /** ISO time of the last live safety read. */
+  checkedAt?: string | null | undefined;
+  /** Re-reads the live safety state and requirement checks. */
+  onRefresh?: (() => void) | undefined;
 };
 
 /** One place for every CODE activation step, in order. All buttons call the same server functions with
@@ -66,6 +74,9 @@ export function ActivationPanel({
   message,
   evidence,
   acceptance = null,
+  messageTone = "info",
+  checkedAt = null,
+  onRefresh,
 }: Props) {
   const stepUp = useStepUp();
   const stop = useServerFn(engageCodeKillSwitch);
@@ -124,82 +135,44 @@ export function ActivationPanel({
         doneText: () => "CODE emergency stop engaged.",
       }),
     );
-  const emergencyStop = (
-    <Button
-      variant="destructive"
-      size="sm"
-      disabled={busy || !state || state.killSwitch}
-      onClick={engageStop}
-    >
-      <OctagonX aria-hidden />
-      {state?.killSwitch ? "Emergency stop engaged" : "Engage emergency stop"}
-    </Button>
-  );
+  const turnKillSwitchOff = () =>
+    void run(() =>
+      stepUp("global_pause", "global_pause:off", {
+        applyingText: "Turning the Kill Switch off…",
+        apply: (grantId) => resume({ data: { grantId } }),
+        doneText: () => "Kill Switch is off. CODE was not changed.",
+      }),
+    );
+  const turnKillSwitchOn = () =>
+    void run(() =>
+      stepUp("global_pause", "global_pause:on", {
+        applyingText: "Turning the Kill Switch on…",
+        apply: (grantId) => pauseAll({ data: { grantId } }),
+        doneText: (r) => `Kill Switch is on. ${r.warning}`,
+      }),
+    );
+  const turnCodeOn = () =>
+    void run(() =>
+      stepUp("code_enable", CODE_ENABLE_TARGET, {
+        applyingText: "Re-checking every gate and turning CODE on…",
+        apply: (grantId) => enableCode({ data: { grantId } }),
+        doneText: (r) => (r.codeEnabled ? "CODE is on." : "The request finished, but CODE still reads as off. Check the steps below."),
+      }),
+    );
 
-  // Same passkey actions and server functions the Home bar used; the server re-checks each grant.
-  const killSwitch = (
-    <Button
-      variant="outline"
-      size="sm"
-      disabled={busy || globalPaused === null}
-      aria-pressed={globalPaused === true}
-      onClick={() =>
-        void run(() =>
-          globalPaused
-            ? stepUp("global_pause", "global_pause:off", {
-                applyingText: "Turning the Kill Switch off…",
-                apply: (grantId) => resume({ data: { grantId } }),
-                doneText: () => "Kill Switch is off. Work can run again.",
-              })
-            : stepUp("global_pause", "global_pause:on", {
-                applyingText: "Turning the Kill Switch on…",
-                apply: (grantId) => pauseAll({ data: { grantId } }),
-                doneText: (r) => `Kill Switch is on. ${r.warning}`,
-              }),
-        )
-      }
-    >
-      <Power aria-hidden />
-      {globalPaused ? "Turn Kill Switch off" : "Turn Kill Switch on"}
-    </Button>
-  );
-
+  const view = safetyControlsView({ globalPaused, code: state, gates });
   const safetyControls = (
-    <div
-      className="mt-3 grid gap-3 rounded-md border border-border p-3 sm:grid-cols-2"
-      aria-label="Pause and stop controls"
-    >
-      <div>
-        <p className="text-sm font-medium">
-          Kill Switch:{" "}
-          <span
-            className={globalPaused === false ? "text-success" : "text-warning"}
-            aria-live="polite"
-          >
-            {globalPaused === null ? "unknown" : globalPaused ? "on — all work paused" : "off"}
-          </span>
-        </p>
-        <p className="mb-2 text-xs text-muted-foreground">
-          Pauses or resumes all Jackboy work. Needs your passkey.
-        </p>
-        {killSwitch}
-      </div>
-      <div>
-        <p className="text-sm font-medium">
-          CODE emergency stop:{" "}
-          <span
-            className={state?.killSwitch === false ? "text-success" : "text-warning"}
-            aria-live="polite"
-          >
-            {!state ? "unknown" : state.killSwitch ? "engaged — CODE off" : "released"}
-          </span>
-        </p>
-        <p className="mb-2 text-xs text-muted-foreground">
-          Turns CODE off at once and cancels a running job. Never blocked.
-        </p>
-        {emergencyStop}
-      </div>
-    </div>
+    <SafetyControls
+      view={view}
+      busy={busy}
+      onKillSwitchOn={turnKillSwitchOn}
+      onKillSwitchOff={turnKillSwitchOff}
+      onCodeOn={turnCodeOn}
+      onCodeOff={engageStop}
+      onEngageStop={engageStop}
+      checkedAt={checkedAt}
+      onRefresh={onRefresh}
+    />
   );
 
   const control = (step: ActivationStep): ReactNode => {
@@ -278,15 +251,7 @@ export function ActivationPanel({
           size="sm"
           className="mt-2"
           disabled={busy || step.status !== "current"}
-          onClick={() =>
-            void run(() =>
-              stepUp("global_pause", "global_pause:off", {
-                applyingText: "Turning the Kill Switch off…",
-                apply: (grantId) => resume({ data: { grantId } }),
-                doneText: () => "Kill Switch is off. Work can run again.",
-              }),
-            )
-          }
+          onClick={turnKillSwitchOff}
         >
           Turn Kill Switch off with passkey
         </Button>
@@ -298,16 +263,8 @@ export function ActivationPanel({
           variant="outline"
           size="sm"
           className="mt-2"
-          disabled={busy || !allGatesPass}
-          onClick={() =>
-            void run(() =>
-              stepUp("code_enable", CODE_ENABLE_TARGET, {
-                applyingText: "Re-checking every gate and turning CODE on…",
-                apply: (grantId) => enableCode({ data: { grantId } }),
-                doneText: (r) => (r.codeEnabled ? "CODE is on." : "The request finished, but CODE still reads as off. Check the steps below."),
-              }),
-            )
-          }
+          disabled={busy || !allGatesPass || !view.code.canTurnOn}
+          onClick={turnCodeOn}
         >
           Release CODE stop and turn CODE on with passkey
         </Button>
@@ -498,13 +455,17 @@ export function ActivationPanel({
               ? "Checking each step…"
               : progress.complete
                 ? "Activation complete · CODE is on. Each run still needs your approval in GitHub."
-                : `${progress.done} of ${progress.total} steps done · CODE is off.`}
+                : `${progress.done} of ${progress.total} steps done · CODE is off. Three separate controls below: Kill Switch, CODE and CODE Emergency Stop.`}
           </p>
         </div>
       </div>
       {safetyControls}
       {message && (
-        <p role="status" className="mt-3 text-sm text-warning">
+        <p
+          role={messageTone === "error" ? "alert" : "status"}
+          className={`mt-3 text-sm ${messageTone === "error" ? "text-destructive" : messageTone === "success" ? "text-success" : "text-warning"}`}
+        >
+          {messageTone === "error" ? "Not done: " : messageTone === "success" ? "Done: " : ""}
           {message}
         </p>
       )}
