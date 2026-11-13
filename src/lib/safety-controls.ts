@@ -54,6 +54,8 @@ export type SafetyControlsView = {
   execution: { allowed: boolean; blockedBy: string[] };
 };
 
+const KILL_FIX =
+  "Use \"Turn Kill Switch off\" in control 1 and confirm with your passkey. Leave it on to keep all work paused.";
 const KILL_ON_EFFECT =
   "All Jackboy work is paused. Turning it on also engages the CODE Emergency Stop (so CODE turns off too). Turning it off does NOT turn CODE back on.";
 const KILL_OFF_EFFECT =
@@ -86,7 +88,11 @@ export function safetyControlsView(input: SafetyControlsInput): SafetyControlsVi
       unmet.push({ id: "gates", label: "Requirement checks readable", detail: "The server's requirement checks could not be read.", fix: "Press Refresh. Missing checks never count as passed." });
     } else {
       unmet = unmet.concat(
-        gates.filter((g) => !g.ok).map((g) => ({ id: g.id, label: g.label, detail: g.detail, fix: gateFix(g.id) })),
+        gates.filter((g) => !g.ok).map((g) =>
+          g.id === "global_pause"
+            ? { id: g.id, label: "Kill Switch is off", detail: globalPaused === null ? "Kill Switch state unreadable." : "The Kill Switch is on.", fix: KILL_FIX }
+            : { id: g.id, label: g.label, detail: g.detail, fix: gateFix(g.id) },
+        ),
       );
       if (gates.length === 0) {
         unmet.push({ id: "gates", label: "Requirement checks reported", detail: "The server reported no checks.", fix: "Press Refresh. Missing checks never count as passed." });
@@ -98,7 +104,7 @@ export function safetyControlsView(input: SafetyControlsInput): SafetyControlsVi
         id: "global_pause",
         label: "Kill Switch is off",
         detail: globalPaused === null ? "Kill Switch state unreadable." : "The Kill Switch is on.",
-        fix: gateFix("global_pause"),
+        fix: KILL_FIX,
       });
     }
     // Lead with the Kill Switch so the first reason matches the first control on screen.

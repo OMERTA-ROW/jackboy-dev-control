@@ -101,8 +101,7 @@ export function SafetyControls({ view, busy, onKillSwitchOn, onKillSwitchOff, on
                 <li key={u.id}>
                   <span className="text-warning">
                     <span aria-hidden>✗ </span>
-                    {u.label}
-                    {u.detail ? ` — ${u.detail}` : ""}
+                    Needs: {u.label}.{u.detail ? ` Now: ${u.detail}` : ""}
                   </span>
                   <span className="block text-muted-foreground">How to fix: {u.fix}</span>
                 </li>

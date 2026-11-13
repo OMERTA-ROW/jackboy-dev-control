@@ -1,5 +1,10 @@
 # Jackboy roadmap
 
+## Three separate safety controls (Nov 13, 21:31 UTC)
+- [x] Settings → Activation shows System Kill Switch, CODE switch and CODE Emergency Stop separately, with live refresh, lock reasons and done/not-done messages. Safety state unchanged (Kill Switch on, Stop engaged, CODE off).
+- [ ] Keep a saved CODE preference through a Kill Switch press — needs owner approval for a database change (runner/provider admission must check the Kill Switch first).
+- [ ] Publish — waits on owner approval.
+
 ## Synchronization safety repair
 - Chat OMNI execution is disabled: typed text and a handshake do not replace project authorization and an exact-job passkey grant. Status reads remain available.
 - Guardian limit saves use a limit-only atomic RPC; Stop is never copied from a prior read. Migration 0059 requires separate production review and approval.
