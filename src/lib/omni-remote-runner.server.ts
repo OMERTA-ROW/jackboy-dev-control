@@ -1,7 +1,14 @@
 // Runner-only mode (Railway): runs the fixed protocol self-test for the live site. No database,
 // no OMNI link secrets, no caller code. Every other page on a runner-mode host is refused.
 import { hmacHex } from "./omni-link";
-import { nonceCache, responseMessage, runnerModeDecision, verifyRunnerRequest, validRunnerSecret } from "./omni-remote-runner";
+import {
+  nonceCache,
+  responseMessage,
+  runnerModeDecision,
+  verifyRunnerRequest,
+  validRunnerSecret,
+  RUNNER_CONFIGURATION_KIND,
+} from "./omni-remote-runner";
 import { protocolRunnerAvailable, runProtocolSelfTest } from "./omni-session-runner.server";
 
 type Env = Record<string, string | undefined>;
@@ -21,14 +28,14 @@ export async function handleRunnerRequest(
   const plain = (status: number, error: string) =>
     Response.json({ error }, { status, headers: { "Cache-Control": "no-store" } });
   const secret = env["OMNI_LINK_REMOTE_RUNNER_SECRET"];
-  if (!runnerModeOn(env, new URL(request.url).hostname) || !validRunnerSecret(secret)) return plain(404, "not_found");
+  if (!runnerModeOn(env, new URL(request.url).hostname) || !validRunnerSecret(secret))
+    return plain(404, "not_found");
   if (request.method !== "POST") {
     const response = plain(405, "post_required");
     response.headers.set("Allow", "POST");
     return response;
   }
   if (new URL(request.url).search) return plain(400, "post_required");
-  if (!available()) return plain(503, "runner_unavailable");
   const len = Number(request.headers.get("content-length") || "0");
   if (len > 1024) return plain(413, "body_limit");
   let body: string;
@@ -40,6 +47,29 @@ export async function handleRunnerRequest(
   if (body.length > 1024) return plain(413, "body_limit");
   const v = await verifyRunnerRequest(secret, request.headers, body, claimNonce);
   if ("error" in v) return plain(v.error === "invalid_request" ? 400 : 401, v.error);
+  const runtimeAvailable = available();
+  if (v.kind === RUNNER_CONFIGURATION_KIND) {
+    const out = JSON.stringify({
+      jobId: v.jobId,
+      nonce: v.nonce,
+      kind: v.kind,
+      execution: "none",
+      configuration: {
+        runnerMode: true,
+        nodeRunnerEnabled: env["OMNI_LINK_NODE_RUNNER_ENABLED"] === "true",
+        remoteRunnerSecretConfigured: true,
+        runtimeAvailable,
+      },
+    });
+    return new Response(out, {
+      headers: {
+        "Content-Type": "application/json",
+        "Cache-Control": "no-store",
+        "X-Runner-Proof": await hmacHex(secret, responseMessage(v.nonce, out)),
+      },
+    });
+  }
+  if (!runtimeAvailable) return plain(503, "runner_unavailable");
   const abort = new AbortController();
   const timer = setTimeout(() => abort.abort(), 3500);
   let passed = false;

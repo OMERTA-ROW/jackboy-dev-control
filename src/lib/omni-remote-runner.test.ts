@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { hmacHex } from "./omni-link";
 import {
   callRemoteRunner,
+  callRemoteRunnerConfiguration,
   nonceCache,
   remoteRunnerConfig,
   runnerConfigProblem,
@@ -18,7 +19,12 @@ const JOB = "11111111-2222-4333-8444-555555555555";
 const env = { OMNI_LINK_RUNNER_MODE: "true", OMNI_LINK_REMOTE_RUNNER_SECRET: SECRET };
 const cfg = { url: "https://runner.example/api/public/omni/runner", secret: SECRET };
 
-async function signed(body: string, ts = String(Date.now()), nonce = "n".repeat(32), secret = SECRET) {
+async function signed(
+  body: string,
+  ts = String(Date.now()),
+  nonce = "n".repeat(32),
+  secret = SECRET,
+) {
   return new Request(cfg.url, {
     method: "POST",
     headers: {
@@ -30,25 +36,104 @@ async function signed(body: string, ts = String(Date.now()), nonce = "n".repeat(
   });
 }
 const body = JSON.stringify({ kind: "protocol.self-test", jobId: JOB });
-const run = (req: Request, opts: { passed?: boolean; claim?: ReturnType<typeof nonceCache>; e?: Record<string, string> } = {}) =>
-  handleRunnerRequest(req, opts.e ?? env, async () => opts.passed ?? true, () => true, opts.claim ?? nonceCache());
+const run = (
+  req: Request,
+  opts: {
+    passed?: boolean;
+    claim?: ReturnType<typeof nonceCache>;
+    e?: Record<string, string>;
+  } = {},
+) =>
+  handleRunnerRequest(
+    req,
+    opts.e ?? env,
+    async () => opts.passed ?? true,
+    () => true,
+    opts.claim ?? nonceCache(),
+  );
 
 describe("remote runner config (live site)", () => {
   it("requires enabled flag, https origin and a strong secret", () => {
-    const ok = { OMNI_LINK_REMOTE_RUNNER_ENABLED: "true", OMNI_LINK_REMOTE_RUNNER_URL: "https://x.up.railway.app", OMNI_LINK_REMOTE_RUNNER_SECRET: SECRET };
+    const ok = {
+      OMNI_LINK_REMOTE_RUNNER_ENABLED: "true",
+      OMNI_LINK_REMOTE_RUNNER_URL: "https://x.up.railway.app",
+      OMNI_LINK_REMOTE_RUNNER_SECRET: SECRET,
+    };
     expect(remoteRunnerConfig(ok)?.url).toBe("https://x.up.railway.app/api/public/omni/runner");
     expect(remoteRunnerConfig({ ...ok, OMNI_LINK_REMOTE_RUNNER_ENABLED: "false" })).toBeNull();
-    expect(remoteRunnerConfig({ ...ok, OMNI_LINK_REMOTE_RUNNER_URL: "http://x.up.railway.app" })).toBeNull();
-    expect(remoteRunnerConfig({ ...ok, OMNI_LINK_REMOTE_RUNNER_URL: "https://x.app/other" })).toBeNull();
+    expect(
+      remoteRunnerConfig({ ...ok, OMNI_LINK_REMOTE_RUNNER_URL: "http://x.up.railway.app" }),
+    ).toBeNull();
+    expect(
+      remoteRunnerConfig({ ...ok, OMNI_LINK_REMOTE_RUNNER_URL: "https://x.app/other" }),
+    ).toBeNull();
     expect(remoteRunnerConfig({ ...ok, OMNI_LINK_REMOTE_RUNNER_SECRET: "short" })).toBeNull();
   });
 });
 
 describe("runner endpoint (runner-only host)", () => {
+  it("attests effective flags without executing, including an unavailable Node runner", async () => {
+    const execute = vi.fn(async () => true);
+    const flags = { ...env, OMNI_LINK_NODE_RUNNER_ENABLED: "true" };
+    const fetcher: typeof fetch = async (url, init) =>
+      handleRunnerRequest(new Request(url, init), flags, execute, () => true, nonceCache());
+    expect(await callRemoteRunnerConfiguration(cfg, new AbortController().signal, fetcher)).toEqual(
+      {
+        configuration: {
+          runnerMode: true,
+          nodeRunnerEnabled: true,
+          remoteRunnerSecretConfigured: true,
+          runtimeAvailable: true,
+        },
+      },
+    );
+    const unavailable: typeof fetch = async (url, init) =>
+      handleRunnerRequest(new Request(url, init), env, execute, () => false, nonceCache());
+    expect(
+      await callRemoteRunnerConfiguration(cfg, new AbortController().signal, unavailable),
+    ).toEqual({
+      configuration: {
+        runnerMode: true,
+        nodeRunnerEnabled: false,
+        remoteRunnerSecretConfigured: true,
+        runtimeAvailable: false,
+      },
+    });
+    expect(execute).not.toHaveBeenCalled();
+  });
+  it("does not accept an unsigned, replayed, or forged configuration probe", async () => {
+    const execute = vi.fn(async () => true);
+    const raw = JSON.stringify({ kind: "runner.configuration", jobId: JOB });
+    const cache = nonceCache();
+    const request = await signed(raw);
+    expect(
+      (
+        await handleRunnerRequest(
+          new Request(cfg.url, { method: "POST", body: raw }),
+          env,
+          execute,
+          () => true,
+          cache,
+        )
+      ).status,
+    ).toBe(401);
+    expect(
+      (await handleRunnerRequest(request.clone(), env, execute, () => true, cache)).status,
+    ).toBe(200);
+    expect((await handleRunnerRequest(request, env, execute, () => true, cache)).status).toBe(401);
+    const forged: typeof fetch = async () => Response.json({ configuration: { runnerMode: true } });
+    expect(await callRemoteRunnerConfiguration(cfg, new AbortController().signal, forged)).toEqual({
+      error: "runner_proof_invalid",
+    });
+    expect(execute).not.toHaveBeenCalled();
+  });
   it.each(["GET", "PUT", "DELETE"])("rejects %s with JSON and never executes", async (method) => {
     const execute = vi.fn(async () => true);
     const response = await handleRunnerRequest(
-      new Request(cfg.url, { method }), env, execute, () => true,
+      new Request(cfg.url, { method }),
+      env,
+      execute,
+      () => true,
     );
     expect(response.status).toBe(405);
     expect(response.headers.get("allow")).toBe("POST");
@@ -57,19 +142,27 @@ describe("runner endpoint (runner-only host)", () => {
   });
   it.each(["missing", "invalid"])("rejects %s authentication without executing", async (kind) => {
     const execute = vi.fn(async () => true);
-    const headers = kind === "invalid" ? {
-      "X-Runner-Timestamp": String(Date.now()),
-      "X-Runner-Nonce": "n".repeat(32),
-      "X-Runner-Signature": "0".repeat(64),
-    } : {};
+    const headers =
+      kind === "invalid"
+        ? {
+            "X-Runner-Timestamp": String(Date.now()),
+            "X-Runner-Nonce": "n".repeat(32),
+            "X-Runner-Signature": "0".repeat(64),
+          }
+        : {};
     const response = await handleRunnerRequest(
-      new Request(cfg.url, { method: "POST", headers, body }), env, execute, () => true,
+      new Request(cfg.url, { method: "POST", headers, body }),
+      env,
+      execute,
+      () => true,
     );
     expect(response.status).toBe(401);
     expect(execute).not.toHaveBeenCalled();
   });
   it("is 404 when runner mode is off", async () => {
-    expect((await run(await signed(body), { e: { OMNI_LINK_REMOTE_RUNNER_SECRET: SECRET } })).status).toBe(404);
+    expect(
+      (await run(await signed(body), { e: { OMNI_LINK_REMOTE_RUNNER_SECRET: SECRET } })).status,
+    ).toBe(404);
   });
   it("rejects a bad signature", async () => {
     expect((await run(await signed(body, undefined, undefined, "x".repeat(40)))).status).toBe(401);
@@ -83,39 +176,70 @@ describe("runner endpoint (runner-only host)", () => {
     expect((await run(await signed(body), { claim })).status).toBe(401);
   });
   it("rejects other kinds or extra fields", async () => {
-    expect((await run(await signed(JSON.stringify({ kind: "shell", jobId: JOB })))).status).toBe(400);
-    expect((await run(await signed(JSON.stringify({ kind: "protocol.self-test", jobId: JOB, cmd: "x" })))).status).toBe(400);
+    expect((await run(await signed(JSON.stringify({ kind: "shell", jobId: JOB })))).status).toBe(
+      400,
+    );
+    expect(
+      (
+        await run(
+          await signed(JSON.stringify({ kind: "protocol.self-test", jobId: JOB, cmd: "x" })),
+        )
+      ).status,
+    ).toBe(400);
   });
 });
 
 describe("round trip", () => {
   const viaRunner = (passed: boolean, claim = nonceCache()): typeof fetch =>
-    (async (_u: string, init: RequestInit) => run(new Request(cfg.url, init as RequestInit), { passed, claim })) as unknown as typeof fetch;
+    (async (_u: string, init: RequestInit) =>
+      run(new Request(cfg.url, init as RequestInit), { passed, claim })) as unknown as typeof fetch;
   it("records a real pass", async () => {
-    expect(await callRemoteRunner(cfg, JOB, new AbortController().signal, viaRunner(true))).toEqual({ passed: true });
+    expect(await callRemoteRunner(cfg, JOB, new AbortController().signal, viaRunner(true))).toEqual(
+      { passed: true },
+    );
   });
   it("records a real fail", async () => {
-    expect(await callRemoteRunner(cfg, JOB, new AbortController().signal, viaRunner(false))).toEqual({ passed: false });
+    expect(
+      await callRemoteRunner(cfg, JOB, new AbortController().signal, viaRunner(false)),
+    ).toEqual({ passed: false });
   });
   it("unreachable runner is a failure, never a pass", async () => {
-    const down = (async () => { throw new Error("down"); }) as unknown as typeof fetch;
-    expect(await callRemoteRunner(cfg, JOB, new AbortController().signal, down)).toEqual({ passed: false, error: "runner_unreachable" });
+    const down = (async () => {
+      throw new Error("down");
+    }) as unknown as typeof fetch;
+    expect(await callRemoteRunner(cfg, JOB, new AbortController().signal, down)).toEqual({
+      passed: false,
+      error: "runner_unreachable",
+    });
   });
   it("forged or wrong-job proof is rejected", async () => {
     const forged = (async (_u: string, init: RequestInit) => {
       const nonce = new Headers(init.headers).get("x-runner-nonce")!;
-      const out = JSON.stringify({ jobId: "99999999-2222-4333-8444-555555555555", nonce, passed: true });
-      return new Response(out, { headers: { "X-Runner-Proof": await hmacHex(SECRET, responseMessage(nonce, out)) } });
+      const out = JSON.stringify({
+        jobId: "99999999-2222-4333-8444-555555555555",
+        nonce,
+        passed: true,
+      });
+      return new Response(out, {
+        headers: { "X-Runner-Proof": await hmacHex(SECRET, responseMessage(nonce, out)) },
+      });
     }) as unknown as typeof fetch;
-    expect((await callRemoteRunner(cfg, JOB, new AbortController().signal, forged)).error).toBe("runner_proof_invalid");
-    const unsigned = (async () => new Response(JSON.stringify({ passed: true }))) as unknown as typeof fetch;
-    expect((await callRemoteRunner(cfg, JOB, new AbortController().signal, unsigned)).error).toBe("runner_proof_invalid");
+    expect((await callRemoteRunner(cfg, JOB, new AbortController().signal, forged)).error).toBe(
+      "runner_proof_invalid",
+    );
+    const unsigned = (async () =>
+      new Response(JSON.stringify({ passed: true }))) as unknown as typeof fetch;
+    expect((await callRemoteRunner(cfg, JOB, new AbortController().signal, unsigned)).error).toBe(
+      "runner_proof_invalid",
+    );
   });
   it("verifier refuses replays directly", async () => {
     const claim = nonceCache();
     const h = (await signed(body)).headers;
     expect("jobId" in (await verifyRunnerRequest(SECRET, h, body, claim))).toBe(true);
-    expect(await verifyRunnerRequest(SECRET, h, body, claim)).toEqual({ error: "replayed_request" });
+    expect(await verifyRunnerRequest(SECRET, h, body, claim)).toEqual({
+      error: "replayed_request",
+    });
   });
 });
 
@@ -127,11 +251,19 @@ describe("runnerOrigin (Railway host as shown in Railway)", () => {
     expect(runnerOrigin("x.up.railway.app/api/public/omni/runner")).toBeNull();
   });
   it("names the blocking runner setting without values", () => {
-    const ok = { OMNI_LINK_REMOTE_RUNNER_ENABLED: "true", OMNI_LINK_REMOTE_RUNNER_SECRET: "s".repeat(32), OMNI_LINK_REMOTE_RUNNER_URL: "x.up.railway.app" };
+    const ok = {
+      OMNI_LINK_REMOTE_RUNNER_ENABLED: "true",
+      OMNI_LINK_REMOTE_RUNNER_SECRET: "s".repeat(32),
+      OMNI_LINK_REMOTE_RUNNER_URL: "x.up.railway.app",
+    };
     expect(runnerConfigProblem(ok)).toBeNull();
     expect(remoteRunnerConfig(ok)?.url).toBe("https://x.up.railway.app/api/public/omni/runner");
-    expect(runnerConfigProblem({ ...ok, OMNI_LINK_REMOTE_RUNNER_URL: "http://x" })).toContain("OMNI_LINK_REMOTE_RUNNER_URL");
-    expect(runnerConfigProblem({ ...ok, OMNI_LINK_REMOTE_RUNNER_SECRET: "zq9-private" })).not.toContain("zq9-private");
+    expect(runnerConfigProblem({ ...ok, OMNI_LINK_REMOTE_RUNNER_URL: "http://x" })).toContain(
+      "OMNI_LINK_REMOTE_RUNNER_URL",
+    );
+    expect(
+      runnerConfigProblem({ ...ok, OMNI_LINK_REMOTE_RUNNER_SECRET: "zq9-private" }),
+    ).not.toContain("zq9-private");
   });
 });
 
@@ -141,12 +273,14 @@ describe("runner-mode guard (dashboard hosts ignore a misplaced OMNI_LINK_RUNNER
     expect(runnerModeDecision(railway, "127.0.0.1").on).toBe(true);
     expect(runnerModeDecision(railway, "localhost").on).toBe(true);
     expect(runnerModeDecision(railway, "jackboy-dev-control.lovable.app").on).toBe(false);
-    expect(runnerModeDecision({ ...railway, SUPABASE_SERVICE_ROLE_KEY: "test-only" }, "127.0.0.1").on)
-      .toBe(false);
+    expect(
+      runnerModeDecision({ ...railway, SUPABASE_SERVICE_ROLE_KEY: "test-only" }, "127.0.0.1").on,
+    ).toBe(false);
   });
   it("the Node runner flag alone never selects runner-only mode", () => {
-    expect(runnerModeDecision({ OMNI_LINK_NODE_RUNNER_ENABLED: "true" }, "x.up.railway.app"))
-      .toEqual({ on: false });
+    expect(
+      runnerModeDecision({ OMNI_LINK_NODE_RUNNER_ENABLED: "true" }, "x.up.railway.app"),
+    ).toEqual({ on: false });
   });
   it.each([
     "jackboy-dev-control.lovable.app",
@@ -170,24 +304,38 @@ describe("runner-mode guard (dashboard hosts ignore a misplaced OMNI_LINK_RUNNER
     expect(runnerModeDecision(env, "jackboy-runner.up.railway.app")).toEqual({ on: true });
   });
   it("is off when runner mode is not exactly true", () => {
-    expect(runnerModeDecision({ ...env, OMNI_LINK_RUNNER_MODE: "TRUE" }, "x.up.railway.app").on).toBe(false);
+    expect(
+      runnerModeDecision({ ...env, OMNI_LINK_RUNNER_MODE: "TRUE" }, "x.up.railway.app").on,
+    ).toBe(false);
   });
-  it.each(["jackboy-dev-control.lovable.app", "id-preview--abc.lovable.app", "abc.lovableproject.com", "localhost"])(
-    "is ignored on dashboard host %s",
-    (host) => expect(runnerModeDecision(env, host)).toEqual({ on: false, ignored: "lovable_host" }),
+  it.each([
+    "jackboy-dev-control.lovable.app",
+    "id-preview--abc.lovable.app",
+    "abc.lovableproject.com",
+    "localhost",
+  ])("is ignored on dashboard host %s", (host) =>
+    expect(runnerModeDecision(env, host)).toEqual({ on: false, ignored: "lovable_host" }),
   );
   it.each([
     ["SUPABASE_SERVICE_ROLE_KEY", "k"],
     ["OMNI_LINK_REMOTE_RUNNER_URL", "https://x.up.railway.app"],
     ["OMNI_LINK_REMOTE_RUNNER_ENABLED", "true"],
   ])("is ignored when the site-only setting %s is present", (k, v) => {
-    expect(runnerModeDecision({ ...env, [k]: v }, "x.up.railway.app")).toEqual({ on: false, ignored: "site_settings" });
+    expect(runnerModeDecision({ ...env, [k]: v }, "x.up.railway.app")).toEqual({
+      on: false,
+      ignored: "site_settings",
+    });
   });
   it("runner endpoint refuses signed requests on a dashboard host", async () => {
     const req = await signed(body);
-    const onDashboard = new Request("https://jackboy-dev-control.lovable.app/api/public/omni/runner", {
-      method: "POST", headers: req.headers, body,
-    });
+    const onDashboard = new Request(
+      "https://jackboy-dev-control.lovable.app/api/public/omni/runner",
+      {
+        method: "POST",
+        headers: req.headers,
+        body,
+      },
+    );
     expect((await run(onDashboard)).status).toBe(404);
   });
 });

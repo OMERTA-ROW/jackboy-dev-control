@@ -35,6 +35,9 @@ CREATE TABLE site_log(id uuid default gen_random_uuid(),actor text,action text,c
 CREATE FUNCTION site_log_immutable() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'append-only'; END $$;
 CREATE TRIGGER site_log_no_change BEFORE UPDATE OR DELETE ON site_log FOR EACH ROW EXECUTE FUNCTION site_log_immutable();`);
 await db.exec(await readFile(join(root, "drizzle/migrations/0030_omni_sessions.sql"), "utf8"));
+await db.exec(
+  await readFile(join(root, "drizzle/migrations/0063_omni_configuration_probe.sql"), "utf8"),
+);
 const project = "11111111-1111-4111-8111-111111111111",
   owner = "22222222-2222-4222-8222-222222222222",
   approval = "33333333-3333-4333-8333-333333333333";
@@ -312,10 +315,163 @@ test("database function and tables are inaccessible to browser roles", async () 
   for (const role of ["anon", "authenticated"]) {
     await db.exec("SET ROLE " + role);
     await assert.rejects(db.query("SELECT omni_link_action('handshake','{}')"));
+    await assert.rejects(
+      db.query("SELECT omni_link_configuration_authorize('client', $1, $2, $3)", [
+        project,
+        owner,
+        "a".repeat(32),
+      ]),
+    );
     await assert.rejects(db.query("SELECT * FROM omni_link_sessions"));
     await assert.rejects(db.query("SELECT * FROM omni_inbound_jobs"));
     await db.exec("RESET ROLE");
   }
+});
+test("configuration authorization consumes a scoped nonce and audit but creates no jobs or execution grants", async () => {
+  const allow = async (client = "mothership-test", nonce = "a".repeat(32)) =>
+    (
+      await db.query("SELECT omni_link_configuration_authorize($1,$2,$3,$4) AS allowed", [
+        client,
+        project,
+        owner,
+        nonce,
+      ])
+    ).rows[0].allowed;
+  assert.equal(await allow(), true);
+  assert.equal(await allow(), false);
+  assert.equal((await db.query("SELECT count(*)::int AS n FROM omni_link_sessions")).rows[0].n, 0);
+  assert.equal((await db.query("SELECT count(*)::int AS n FROM omni_inbound_jobs")).rows[0].n, 0);
+  assert.equal(
+    (
+      await db.query(
+        "SELECT count(*)::int AS n FROM site_log WHERE action='omni.link.configuration_check'",
+      )
+    ).rows[0].n,
+    1,
+  );
+  await db.exec("UPDATE automation_policy SET paused=true");
+  assert.equal(await allow("mothership-test", "b".repeat(32)), false);
+  await db.exec(
+    "UPDATE automation_policy SET paused=false; UPDATE owner_projects SET active=false",
+  );
+  assert.equal(await allow("mothership-test", "c".repeat(32)), false);
+  await db.exec("UPDATE owner_projects SET active=true; DELETE FROM user_roles");
+  assert.equal(await allow("mothership-test", "d".repeat(32)), false);
+});
+test("configuration nonce prefixes are literal, rate bounded, and rolled back with failed audits", async () => {
+  const call = async (client, nonce) =>
+    (
+      await db.query("SELECT omni_link_configuration_authorize($1,$2,$3,$4) AS allowed", [
+        client,
+        project,
+        owner,
+        nonce,
+      ])
+    ).rows[0].allowed;
+  await db.query("INSERT INTO omni_callback_nonces VALUES ($1,now()-interval '20 minutes')", [
+    "link-config:clientXtest:" + "a".repeat(32),
+  ]);
+  assert.equal(await call("client_test", "a".repeat(32)), true);
+  assert.equal(
+    (
+      await db.query(
+        "SELECT count(*)::int AS n FROM omni_callback_nonces WHERE nonce LIKE 'link-config:clientXtest:%'",
+      )
+    ).rows[0].n,
+    1,
+  );
+  for (let n = 1; n < 60; n++)
+    assert.equal(await call("client_test", n.toString(16).padStart(32, "0")), true);
+  assert.equal(await call("client_test", "b".repeat(32)), false);
+  await db.exec(
+    "ALTER TABLE site_log ADD CONSTRAINT fixture_deny_configuration CHECK (action <> 'omni.link.configuration_check') NOT VALID",
+  );
+  try {
+    await assert.rejects(call("audit-test", "c".repeat(32)));
+    assert.equal(
+      (
+        await db.query(
+          "SELECT count(*)::int AS n FROM omni_callback_nonces WHERE nonce LIKE 'link-config:audit-test:%'",
+        )
+      ).rows[0].n,
+      0,
+    );
+  } finally {
+    await db.exec("ALTER TABLE site_log DROP CONSTRAINT fixture_deny_configuration");
+  }
+});
+test("Mothership verifies both real signed metadata hops without executing the runner", async (t) => {
+  const mothership = process.env["MOTHERSHIP_TEST_ROOT"];
+  if (!mothership) return t.skip("Set MOTHERSHIP_TEST_ROOT for the cross-repository metadata test");
+  const { checkJackboyRunnerConfiguration } = await import(
+    pathToFileURL(join(mothership, "src/lib/jackboy-link.server.ts")).href
+  );
+  const { handleOmniConfiguration } = await import("../src/lib/omni-configuration.server.ts");
+  const { handleRunnerRequest } = await import("../src/lib/omni-remote-runner.server.ts");
+  const { nonceCache } = await import("../src/lib/omni-remote-runner.ts");
+  const runnerSecret = "r".repeat(64);
+  const runnerOrigin = "https://runner.example";
+  const siteEnv = {
+    OMNI_LINK_CLIENT_ID: config.clientId,
+    OMNI_LINK_PROJECT_ID: project,
+    OMNI_LINK_OWNER_ID: owner,
+    OMNI_LINK_BOOTSTRAP_KEY: config.bootstrap,
+    OMNI_LINK_HMAC_SECRET: config.secret,
+    OMNI_LINK_REMOTE_RUNNER_ENABLED: "true",
+    OMNI_LINK_REMOTE_RUNNER_URL: runnerOrigin,
+    OMNI_LINK_REMOTE_RUNNER_SECRET: runnerSecret,
+  };
+  const runnerEnv = {
+    OMNI_LINK_RUNNER_MODE: "true",
+    OMNI_LINK_NODE_RUNNER_ENABLED: "true",
+    OMNI_LINK_REMOTE_RUNNER_SECRET: runnerSecret,
+  };
+  const claim = nonceCache();
+  let executions = 0;
+  let corruptProof = false;
+  const toRunner = async (url, init) => {
+    const reply = await handleRunnerRequest(
+      new Request(url, init),
+      runnerEnv,
+      async () => {
+        executions++;
+        return true;
+      },
+      () => true,
+      claim,
+    );
+    if (corruptProof) reply.headers.set("x-runner-proof", "0".repeat(64));
+    return reply;
+  };
+  const allow = async (c, nonce) =>
+    (
+      await db.query("SELECT omni_link_configuration_authorize($1,$2,$3,$4) AS allowed", [
+        c.clientId,
+        c.projectId,
+        c.ownerId,
+        nonce,
+      ])
+    ).rows[0].allowed;
+  const toJackboy = async (url, init) =>
+    handleOmniConfiguration(new Request(url, init), String(init.body), siteEnv, allow, toRunner);
+  const c = { ...config, origin: "https://jackboy.example", runnerOrigin };
+  const result = await checkJackboyRunnerConfiguration(c, async () => {}, { fetch: toJackboy });
+  assert.deepEqual(result, {
+    runnerOrigin,
+    runnerMode: true,
+    nodeRunnerEnabled: true,
+    remoteRunnerSecretConfigured: true,
+    runtimeAvailable: true,
+  });
+  corruptProof = true;
+  assert.equal(
+    await checkJackboyRunnerConfiguration(c, async () => {}, { fetch: toJackboy }),
+    null,
+  );
+  assert.equal(executions, 0);
+  assert.equal((await db.query("SELECT count(*)::int AS n FROM omni_link_sessions")).rows[0].n, 0);
+  assert.equal((await db.query("SELECT count(*)::int AS n FROM omni_inbound_jobs")).rows[0].n, 0);
+  assert(!JSON.stringify(result).includes(runnerSecret));
 });
 test("subprocess has no inherited credentials and a cancelled signal fails", async () => {
   process.env["OMNI_TEST_SENTINEL"] = "do-not-inherit";

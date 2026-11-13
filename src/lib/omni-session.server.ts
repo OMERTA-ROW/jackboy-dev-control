@@ -89,7 +89,7 @@ export const databaseStore: LinkStore = async (op, args) => {
   if (error || !data) throw new Error("link_store_unavailable");
   return data;
 };
-async function boundedBody(request: Request) {
+export async function boundedBody(request: Request) {
   const reader = request.body?.getReader();
   if (!reader) return "";
   let expired = false;

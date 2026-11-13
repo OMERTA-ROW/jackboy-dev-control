@@ -176,8 +176,9 @@ test("operator wrapper includes exactly the immutable main 0062 bytes, outside t
   const journal = JSON.parse(
     await readFile(new URL("../drizzle/migrations/meta/_journal.json", import.meta.url), "utf8"),
   );
-  assert.equal(journal.entries.at(-1).tag, "0062_omni_dispatch_v3");
-  assert.equal(journal.entries.at(-1).when, 1794285308000);
+  const dispatchMigration = journal.entries.find((entry) => entry.tag === "0062_omni_dispatch_v3");
+  assert.ok(dispatchMigration);
+  assert.equal(dispatchMigration.when, 1794285308000);
 });
 
 test("standalone SQL embeds the exact transaction preflight and original 0062 bytes without psql commands", () => {
