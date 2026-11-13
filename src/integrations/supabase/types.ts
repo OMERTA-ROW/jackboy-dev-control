@@ -3856,6 +3856,7 @@ export type Database = {
         Returns: boolean
       }
       code_acceptance_guard_status: { Args: never; Returns: boolean }
+      code_independent_controls_installed: { Args: never; Returns: boolean }
       code_provider_call_holds: {
         Args: { p_request_id: string }
         Returns: number
@@ -4049,6 +4050,7 @@ export type Database = {
         Returns: undefined
       }
       refresh_code_spend_meter: { Args: never; Returns: Json }
+      release_code_emergency_stop: { Args: { p_actor: string }; Returns: Json }
       release_code_spend_holds: {
         Args: { p_actor: string; p_reason: string; p_request_ids: string[] }
         Returns: number
@@ -4086,6 +4088,10 @@ export type Database = {
           _tier: number
         }
         Returns: undefined
+      }
+      set_code_enabled: {
+        Args: { p_actor: string; p_enabled: boolean }
+        Returns: Json
       }
       set_code_provider_hard_cap_verified: {
         Args: { p_actor: string; p_evidence: string; p_verified: boolean }

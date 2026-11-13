@@ -142,3 +142,18 @@ test("installed 0063 handoff keeps its bytes; runner check is 0064 and newer", a
   assert.equal(probe.idx, 64);
   assert.ok(probe.when > handoff.when, "runner check would be skipped by the migrator");
 });
+
+// Production recorded 0065_code_independent_controls (history row 72, 2026-11-13 23:23 UTC) with the
+// reviewed script's exact bytes; its bytes and `when` must never change.
+test("installed 0065 independent CODE controls keeps its bytes and timestamp", async () => {
+  const controls = journal.entries.find((e) => e.tag === "0065_code_independent_controls");
+  assert.ok(controls, "journal lost 0065_code_independent_controls");
+  assert.equal(controls.idx, 65);
+  assert.equal(controls.when, 1794612192018);
+  assert.equal(
+    await sha("0065_code_independent_controls"),
+    "426073b4596ad5c796d20c4a7708e517b33cf480271f4a3aca6362bc9bb7e0d0",
+  );
+  const probe = journal.entries.find((e) => e.tag === "0064_omni_configuration_probe");
+  assert.ok(controls.when > probe.when, "0065 would be skipped by the migrator");
+});

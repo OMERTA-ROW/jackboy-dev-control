@@ -3,7 +3,8 @@
 ## Three separate safety controls (Nov 13, 21:31 UTC)
 - [x] Settings → Activation shows System Kill Switch, CODE switch and CODE Emergency Stop separately, with live refresh, lock reasons and done/not-done messages. Safety state unchanged (Kill Switch on, Stop engaged, CODE off).
 - [x] Independent controls built (Nov 13, 22:43 UTC): separate CODE on/off and Emergency Stop release actions with their own passkeys and audit; CODE start checks the Kill Switch; Settings shows the saved CODE setting separately from "Can CODE run right now?". Staged database change tested (all 8 combinations, fail-closed). Production unchanged.
-- [ ] Install `scripts/code-independent-controls-draft.sql` on the live database — needs separate owner approval. Until then the Kill Switch still engages the CODE stop and the new on/off/release buttons stay locked.
+- [x] Installed independent CODE safety controls on the live database (0065, history row 72, 2026-11-13 23:23 UTC) with CODE OFF and Emergency Stop engaged; nothing released or enabled.
+- [ ] Publish the updated Settings screens — needs separate owner approval (live site still runs the older screens).
 - [ ] Publish — waits on owner approval.
 
 ## Synchronization safety repair

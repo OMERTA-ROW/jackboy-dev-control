@@ -1,6 +1,7 @@
 // Real PostgreSQL engine (PGlite) over the full migration chain (which matches production's CODE
 // functions byte-for-byte). Tests the DRAFT that makes the System Kill Switch, the CODE enabled setting
-// and the CODE Emergency Stop independent. The draft is NOT installed and NOT journaled.
+// and the CODE Emergency Stop independent. Installed on production 2026-11-13 as
+// 0065_code_independent_controls (history row 72), byte-identical to the reviewed script.
 import { after, before, beforeEach, test } from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
@@ -12,8 +13,9 @@ const owner = "11111111-1111-4111-8111-111111111111";
 const member = "22222222-2222-4222-8222-222222222222";
 const repo = "OMERTA-ROW/jackboy-dev-control";
 const sha = "a".repeat(40);
-let chain; // production-equivalent chain, draft NOT applied
-let base; // chain + draft
+const INSTALLED = "0065_code_independent_controls.sql";
+let chain; // production chain as it was before 0065 was installed
+let base; // chain + 0065
 let db; // fresh clone of base for each test
 const draft = await readFile(DRAFT, "utf8");
 
@@ -41,12 +43,14 @@ async function seed(d, { enabled = false, stop = true, paused = true, ...extra }
 before(async () => {
   chain = new PGlite();
   await chain.exec(supabaseStubs);
-  for (const f of await migrationFiles()) await chain.exec(await readFile(`drizzle/migrations/${f}`, "utf8"));
+  for (const f of await migrationFiles()) {
+    if (f !== INSTALLED) await chain.exec(await readFile(`drizzle/migrations/${f}`, "utf8"));
+  }
   await chain.query("INSERT INTO auth.users(id,email) VALUES ($1,'o@x.test'),($2,'m@x.test')", [owner, member]);
   await chain.query("INSERT INTO public.user_roles(user_id, role) VALUES ($1,'owner'),($2,'member')", [owner, member]);
   await chain.exec("INSERT INTO public.automation_policy(id, paused) VALUES (1, true) ON CONFLICT (id) DO NOTHING");
   base = await chain.clone();
-  await base.exec(draft);
+  await base.exec(await readFile(`drizzle/migrations/${INSTALLED}`, "utf8"));
 });
 after(async () => {
   await db?.close();
@@ -262,9 +266,10 @@ test("new functions are service-role only", async () => {
   }
 });
 
-test("the draft is not journaled and never writes the Kill Switch", async () => {
-  const journal = await readFile("drizzle/migrations/meta/_journal.json", "utf8");
-  assert.ok(!journal.includes("independent-controls"));
+test("installed 0065 is byte-identical to the reviewed script, journaled once, and never writes the Kill Switch", async () => {
+  const installed = await readFile(`drizzle/migrations/${INSTALLED}`, "utf8");
+  assert.equal(installed, draft);
+  const { entries } = JSON.parse(await readFile("drizzle/migrations/meta/_journal.json", "utf8"));
+  assert.equal(entries.filter((e) => e.tag === "0065_code_independent_controls").length, 1);
   assert.ok(!/UPDATE\s+public\.automation_policy/i.test(draft));
-  assert.match(draft, /^-- DRAFT — NOT INSTALLED/);
 });
