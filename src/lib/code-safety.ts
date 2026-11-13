@@ -19,6 +19,8 @@ export function classifyGithubCancellationState(
 
 export type CodeTarget = { ref: string; workflowSha: string };
 export type CodeSafetyState = {
+  /** System Kill Switch (automation_policy.paused); null when unreadable. Anything but false blocks CODE. */
+  globalPaused: boolean | null;
   enabled: boolean;
   killSwitch: boolean;
   allowedTargets: Record<string, CodeTarget>;
@@ -91,8 +93,10 @@ export function closedDayToReconcile(unreportedDays: string[], now: Date): strin
   return new Date(now.getTime() - 86_400_000).toISOString().slice(0, 10);
 }
 
-/** Passkey target for the owner switch that releases the CODE stop and turns CODE on. */
+/** Passkey targets, one per direction/control, so a grant can never be used for another change. */
 export const CODE_ENABLE_TARGET = "code_runtime:enable";
+export const CODE_DISABLE_TARGET = "code_runtime:disable";
+export const CODE_STOP_RELEASE_TARGET = "code_runtime:release_stop";
 
 export type CodeEnableInput = {
   enabled: boolean;
@@ -117,7 +121,10 @@ export type CodeEnableInput = {
 };
 export type CodeEnableGate = { id: string; label: string; ok: boolean; detail: string };
 
-/** Every gate the owner switch checks, in order. All must pass; the database re-checks its share. */
+/** Requirements for turning the saved CODE enabled setting ON, in order. All must pass; the database
+ * re-checks its share. The System Kill Switch and the CODE Emergency Stop are separate controls, so they
+ * are NOT requirements here: CODE can be saved as ON while either is on, and execution stays blocked
+ * until both are off (see safety-controls.ts and the database admission checks). */
 export function codeEnableGates(i: CodeEnableInput): CodeEnableGate[] {
   const guard = i.totalSpendGuard;
   const reserve = i.perTaskReserveUsd;
@@ -127,19 +134,42 @@ export function codeEnableGates(i: CodeEnableInput): CodeEnableGate[] {
     Math.round((guard.committedUsd + reserve) * 100) <= Math.round(guard.limitUsd * 100);
   const meter = i.spendMeter;
   return [
-    { id: "stopped", label: "CODE is off and the Emergency Stop is on", ok: !i.enabled && i.killSwitch, detail: i.enabled || !i.killSwitch ? "CODE is already on or the stop is released." : "Ready to switch." },
-    { id: "no_task", label: "No CODE task is running", ok: !i.activeRequestId && !i.activeRunId, detail: i.activeRequestId ? "A task is still recorded as active." : "None active." },
-    { id: "failures", label: "Two-failure stop is clear", ok: Number.isInteger(i.consecutiveFailures) && i.consecutiveFailures >= 0 && i.consecutiveFailures < CODE_MAX_CONSECUTIVE_FAILURES, detail: `${i.consecutiveFailures}/${CODE_MAX_CONSECUTIVE_FAILURES} consecutive failures.` },
-    { id: "spike", label: "No usage spike recorded", ok: !i.usageSpike, detail: i.usageSpike ? "A spike pause is recorded." : "None recorded." },
-    { id: "cancellation", label: "Any stopped run is confirmed finished", ok: ["not_needed", "confirmed", "completed"].includes(i.cancellationStatus), detail: `Status: ${i.cancellationStatus}.` },
+    ...emergencyGates(i),
     { id: "hard_cap", label: "Provider hard cap marked verified by you", ok: i.providerBudgetEnforced === true, detail: i.providerBudgetEnforced ? "Marked verified." : "Mark it first (needs a passkey)." },
     { id: "total_guard", label: "$10 total spending guard active with room for one task", ok: guardOk, detail: !guard ? "Guard not installed or unreadable." : `$${guard.committedUsd.toFixed(2)} of $${guard.limitUsd.toFixed(2)} used.` },
     { id: "meter", label: "Live spending meter healthy", ok: meter?.ok === true, detail: !meter ? "Meter not installed or unreadable." : meter.ok ? `$${meter.measuredTodayUsd.toFixed(2)} measured today.` : meter.reasons.map(meterReasonText).join("; ") + "." },
-    { id: "global_pause", label: "Kill Switch is off", ok: i.globalPaused === false, detail: i.globalPaused === null ? "Kill Switch state unreadable." : i.globalPaused ? "Turn the Kill Switch off first (needs a passkey)." : "Off." },
     { id: "pins", label: "Workflow pins match (database, CODE_TARGETS, GitHub main)", ok: i.pinsMatch === true, detail: i.pinsMatch === null ? "Could not verify against GitHub." : i.pinsMatch ? "All three match." : "Pins differ; resync first." },
     { id: "gateway", label: "Gateway settings present", ok: i.gatewayConfigured, detail: i.gatewayConfigured ? "Provider key, prices and per-call cap are set." : "Provider key, price table or per-call cap missing or invalid." },
     { id: "cost_check", label: "OpenAI cost cross-check settings present", ok: i.costCheckConfigured, detail: i.costCheckConfigured ? "Admin key, project and key IDs are set." : "OpenAI cost-report settings missing." },
   ];
+}
+
+/** Emergency protections shared by "turn CODE on" and "release the Emergency Stop". */
+function emergencyGates(i: CodeEnableInput): CodeEnableGate[] {
+  return [
+    { id: "no_task", label: "No CODE task is running", ok: !i.activeRequestId && !i.activeRunId, detail: i.activeRequestId || i.activeRunId ? "A task is still recorded as active." : "None active." },
+    { id: "failures", label: "Two-failure stop is clear", ok: Number.isInteger(i.consecutiveFailures) && i.consecutiveFailures >= 0 && i.consecutiveFailures < CODE_MAX_CONSECUTIVE_FAILURES, detail: `${i.consecutiveFailures}/${CODE_MAX_CONSECUTIVE_FAILURES} consecutive failures.` },
+    { id: "spike", label: "No usage spike recorded", ok: !i.usageSpike, detail: i.usageSpike ? "A spike pause is recorded." : "None recorded." },
+    { id: "cancellation", label: "Any stopped run is confirmed finished", ok: ["not_needed", "confirmed", "completed"].includes(i.cancellationStatus), detail: `Status: ${i.cancellationStatus}.` },
+  ];
+}
+
+/** Requirements for releasing the CODE Emergency Stop. Releasing never turns CODE on or changes the
+ * Kill Switch, and it never bypasses an emergency protection or the spending caps. Mirrors
+ * release_code_emergency_stop() in the database. */
+export function stopReleaseGates(i: CodeEnableInput): CodeEnableGate[] {
+  const guard = i.totalSpendGuard;
+  const guardOk = !!guard && guard.enforced === true && guard.limitUsd > 0 && guard.limitUsd <= CODE_TOTAL_SPEND_LIMIT_USD;
+  return [
+    ...emergencyGates(i),
+    { id: "hard_cap", label: "Provider hard cap marked verified by you", ok: i.providerBudgetEnforced === true, detail: i.providerBudgetEnforced ? "Marked verified." : "Mark it first (needs a passkey)." },
+    { id: "total_guard", label: "$10 total spending guard active", ok: guardOk, detail: !guard ? "Guard not installed or unreadable." : guard.enforced ? `$${guard.committedUsd.toFixed(2)} of $${guard.limitUsd.toFixed(2)} used.` : "Guard not enforced." },
+  ];
+}
+
+export function stopReleaseBlockReason(i: CodeEnableInput): string | null {
+  const failed = stopReleaseGates(i).find((gate) => !gate.ok);
+  return failed ? `${failed.label}: ${failed.detail}` : null;
 }
 
 export function codeEnableBlockReason(i: CodeEnableInput): string | null {
@@ -196,6 +226,10 @@ export function codeStartBlockReason(
   repo: string,
   now = Date.now(),
 ): string | null {
+  if (state.globalPaused !== false)
+    return state.globalPaused === null
+      ? "CODE is blocked because the System Kill Switch state could not be read."
+      : "The System Kill Switch is on, so CODE cannot start.";
   if (state.killSwitch) return "CODE emergency kill switch is engaged.";
   if (!state.enabled) return "Supervised CODE mode is disabled.";
   if (!Object.hasOwn(state.allowedTargets, repo))

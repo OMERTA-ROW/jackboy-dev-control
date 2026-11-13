@@ -4,13 +4,16 @@ import { gateFix } from "./activation-steps";
 /**
  * Pure view rules for the three owner safety controls on Settings → Activation.
  *
- * Backend facts these rules describe (they never change them):
- * - Kill Switch = `automation_policy.paused`. Turning it ON (stopJackboyWork) also engages the CODE
- *   Emergency Stop, because CODE runner/provider admission checks the Emergency Stop, not the Kill
- *   Switch. Turning it OFF (resumeJackboyWork) never touches CODE.
- * - CODE enabled and CODE Emergency Stop are separate columns but move together: only
- *   `enable_code_runtime` turns CODE on, and it releases the stop in the same locked step after every
- *   gate passes. Engaging the stop always turns CODE off. There is no separate "release" path.
+ * Each control is its own saved setting with its own action; changing one never changes the other two:
+ * - System Kill Switch = `automation_policy.paused`.
+ * - Saved CODE setting = `code_runtime_controls.enabled` (set_code_enabled).
+ * - CODE Emergency Stop = `code_runtime_controls.kill_switch` (engage_code_kill_switch / release_code_emergency_stop).
+ * CODE can actually run only when the Kill Switch is off, the Emergency Stop is released, CODE is saved
+ * as ON and every requirement passes. The database enforces that at every CODE start and AI call.
+ *
+ * `independent` says whether that database change is installed. Until it is (null/false), the old
+ * coupled behaviour still applies (Kill Switch ON also engages the CODE stop, and the stop turns CODE
+ * off), the new CODE and release actions are locked, and the Emergency Stop stays usable.
  * Unknown state always reads as blocked; nothing here can make a control look usable when it is not.
  */
 export type SafetyControlsInput = {
@@ -23,13 +26,18 @@ export type SafetyControlsInput = {
     activeRequestId: string | null;
     activeRunId: string | number | null;
   } | null;
-  /** Server on-switch gates; null when they could not be read. */
+  /** Server requirements for turning the saved CODE setting on; null when unreadable. */
   gates: CodeEnableGate[] | null;
+  /** Server requirements for releasing the Emergency Stop; null when unreadable. */
+  releaseGates?: CodeEnableGate[] | null | undefined;
+  /** True only when the database keeps the three controls separate. */
+  independent?: boolean | null | undefined;
 };
 
 export type UnmetRequirement = { id: string; label: string; detail: string; fix: string };
 
 export type SafetyControlsView = {
+  independent: boolean;
   killSwitch: {
     status: "on" | "off" | "unknown";
     canToggle: boolean;
@@ -37,6 +45,7 @@ export type SafetyControlsView = {
     effect: string;
   };
   code: {
+    /** The saved setting only, never combined with the other controls. */
     status: "on" | "off" | "unknown";
     canTurnOn: boolean;
     canTurnOff: boolean;
@@ -47,22 +56,29 @@ export type SafetyControlsView = {
   emergencyStop: {
     status: "engaged" | "released" | "unknown";
     canEngage: boolean;
+    canRelease: boolean;
+    releaseUnmet: UnmetRequirement[];
     lockReason: string | null;
     effect: string;
   };
-  /** Whether CODE work may start right now according to the live reads. */
+  /** Whether CODE work may start right now according to the live reads (separate from the saved setting). */
   execution: { allowed: boolean; blockedBy: string[] };
 };
 
-const KILL_FIX =
-  "Use \"Turn Kill Switch off\" in control 1 and confirm with your passkey. Leave it on to keep all work paused.";
-const KILL_ON_EFFECT =
-  "All Jackboy work is paused. Turning it on also engages the CODE Emergency Stop (so CODE turns off too). Turning it off does NOT turn CODE back on.";
-const KILL_OFF_EFFECT =
-  "Jackboy work may run. Turning it on pauses all work and also engages the CODE Emergency Stop, which turns CODE off.";
+export const NOT_INSTALLED_LOCK =
+  "Locked: the database update that keeps CODE, the Emergency Stop and the Kill Switch separate is not installed yet (it waits for owner approval). The Emergency Stop still works.";
+
+const unmetFrom = (gates: CodeEnableGate[] | null | undefined): UnmetRequirement[] => {
+  if (!gates) return [{ id: "gates", label: "Requirement checks readable", detail: "The server's requirement checks could not be read.", fix: "Press Refresh. Missing checks never count as passed." }];
+  if (gates.length === 0) return [{ id: "gates", label: "Requirement checks reported", detail: "The server reported no checks.", fix: "Press Refresh. Missing checks never count as passed." }];
+  return gates.filter((g) => !g.ok).map((g) => ({ id: g.id, label: g.label, detail: g.detail, fix: gateFix(g.id) }));
+};
+
+const countText = (n: number) => `${n} requirement${n === 1 ? " is" : "s are"} not met`;
 
 export function safetyControlsView(input: SafetyControlsInput): SafetyControlsView {
   const { globalPaused, code, gates } = input;
+  const independent = input.independent === true;
 
   const killStatus = globalPaused === null ? "unknown" : globalPaused ? "on" : "off";
   const killSwitch = {
@@ -72,73 +88,65 @@ export function safetyControlsView(input: SafetyControlsInput): SafetyControlsVi
       globalPaused === null
         ? "The Kill Switch state could not be read. It cannot be changed until a fresh read succeeds."
         : null,
-    effect: globalPaused === false ? KILL_OFF_EFFECT : KILL_ON_EFFECT,
+    effect: independent
+      ? globalPaused === false
+        ? "Jackboy work may run. Turning it on pauses all work and blocks every CODE start and AI call. It does not change the saved CODE setting or the Emergency Stop."
+        : "All Jackboy work is paused and CODE cannot start or make AI calls. Turning it off does not turn CODE on or release the Emergency Stop."
+      : globalPaused === false
+        ? "Jackboy work may run. Turning it on pauses all work and, until the database update is installed, also engages the CODE Emergency Stop (which turns CODE off)."
+        : "All Jackboy work is paused. Turning it off does NOT turn CODE back on or release the Emergency Stop.",
   } as const;
 
-  const codeOn = code !== null && code.enabled === true && code.killSwitch === false;
-  const codeStatus = code === null ? "unknown" : codeOn ? "on" : "off";
-
-  // A CODE that is already on has nothing to "turn on"; the "stopped" gate is expected to fail then.
+  const codeStatus = code === null ? "unknown" : code.enabled ? "on" : "off";
   let unmet: UnmetRequirement[] = [];
-  if (!codeOn) {
-    if (code === null) {
-      unmet.push({ id: "state", label: "CODE state readable", detail: "The CODE switch state could not be read.", fix: "Press Refresh. Nothing can be turned on until the state reads again." });
-    }
-    if (gates === null) {
-      unmet.push({ id: "gates", label: "Requirement checks readable", detail: "The server's requirement checks could not be read.", fix: "Press Refresh. Missing checks never count as passed." });
-    } else {
-      unmet = unmet.concat(
-        gates.filter((g) => !g.ok).map((g) =>
-          g.id === "global_pause"
-            ? { id: g.id, label: "Kill Switch is off", detail: globalPaused === null ? "Kill Switch state unreadable." : "The Kill Switch is on.", fix: KILL_FIX }
-            : { id: g.id, label: g.label, detail: g.detail, fix: gateFix(g.id) },
-        ),
-      );
-      if (gates.length === 0) {
-        unmet.push({ id: "gates", label: "Requirement checks reported", detail: "The server reported no checks.", fix: "Press Refresh. Missing checks never count as passed." });
-      }
-    }
-    // The Kill Switch read is authoritative here even if a gate list was read slightly earlier.
-    if (globalPaused !== false && !unmet.some((u) => u.id === "global_pause")) {
-      unmet.unshift({
-        id: "global_pause",
-        label: "Kill Switch is off",
-        detail: globalPaused === null ? "Kill Switch state unreadable." : "The Kill Switch is on.",
-        fix: KILL_FIX,
-      });
-    }
-    // Lead with the Kill Switch so the first reason matches the first control on screen.
-    unmet.sort((a, b) => Number(b.id === "global_pause") - Number(a.id === "global_pause"));
+  if (codeStatus !== "on") {
+    if (code === null) unmet.push({ id: "state", label: "CODE state readable", detail: "The CODE setting could not be read.", fix: "Press Refresh. Nothing can be turned on until the state reads again." });
+    unmet = unmet.concat(unmetFrom(gates));
   }
-  const canTurnOn = codeStatus === "off" && unmet.length === 0;
   const codeView = {
     status: codeStatus,
-    canTurnOn,
-    canTurnOff: codeOn,
+    canTurnOn: independent && codeStatus === "off" && unmet.length === 0,
+    canTurnOff: independent && codeStatus === "on",
     unmet,
-    lockReason: codeOn
-      ? null
-      : unmet.length === 0
-        ? null
-        : unmet[0]?.id === "global_pause"
-          ? `Locked: the Kill Switch is ${globalPaused === null ? "unreadable" : "on"}${unmet.length > 1 ? ` and ${unmet.length - 1} other requirement${unmet.length - 1 === 1 ? " is" : "s are"} not met` : ""}.`
-          : `Locked: ${unmet.length} requirement${unmet.length === 1 ? " is" : "s are"} not met.`,
-    effect: codeOn
-      ? "CODE may start supervised tasks. Each run still waits for your approval in GitHub. Turning CODE off engages the Emergency Stop."
-      : "CODE cannot start any task. Turning it on needs a new passkey and releases the Emergency Stop in the same step, only if every requirement passes.",
+    lockReason: !independent
+      ? NOT_INSTALLED_LOCK
+      : codeStatus === "unknown"
+        ? "Locked: the CODE setting could not be read."
+        : codeStatus === "off" && unmet.length > 0
+          ? `Locked: ${countText(unmet.length)}.`
+          : null,
+    effect:
+      codeStatus === "on"
+        ? "Saved as ON. CODE runs only while the Kill Switch is off and the Emergency Stop is released. Turning it off needs a new passkey and never touches the other two controls."
+        : "Saved as OFF. Turning it on needs a new passkey and every requirement. It does not release the Emergency Stop or change the Kill Switch.",
   } as const;
 
   const stopStatus = code === null ? "unknown" : code.killSwitch ? "engaged" : "released";
+  const releaseUnmet = stopStatus === "engaged" ? unmetFrom(input.releaseGates) : [];
+  const canRelease = independent && stopStatus === "engaged" && releaseUnmet.length === 0;
   // Engaging is the safe direction: allowed whenever it is not already engaged, including when the
-  // state is unreadable or CODE is already disabled.
+  // state is unreadable, CODE is disabled or the Kill Switch is on.
   const emergencyStop = {
     status: stopStatus,
     canEngage: stopStatus !== "engaged",
-    lockReason: stopStatus === "engaged" ? "Already engaged." : null,
+    canRelease,
+    releaseUnmet,
+    lockReason:
+      stopStatus !== "engaged"
+        ? null
+        : !independent
+          ? NOT_INSTALLED_LOCK
+          : releaseUnmet.length > 0
+            ? `Release locked: ${countText(releaseUnmet.length)}.`
+            : null,
     effect:
       stopStatus === "engaged"
-        ? "CODE is blocked and any running CODE job was asked to cancel. It is released only by turning CODE on with a new passkey after every requirement passes; there is no separate release button."
-        : "Engaging it turns CODE off at once and asks GitHub to cancel any running CODE job. It can always be engaged.",
+        ? independent
+          ? "CODE is blocked and any running CODE job was asked to cancel. Releasing it needs a new passkey and does not turn CODE on or change the Kill Switch."
+          : "CODE is blocked and any running CODE job was asked to cancel. A separate release needs the database update first."
+        : independent
+          ? "Engaging it blocks CODE at once and asks GitHub to cancel any running CODE job. It keeps the saved CODE setting. It can always be engaged."
+          : "Engaging it blocks CODE at once, asks GitHub to cancel any running CODE job and (until the database update) turns CODE off. It can always be engaged.",
   } as const;
 
   const blockedBy: string[] = [];
@@ -146,10 +154,13 @@ export function safetyControlsView(input: SafetyControlsInput): SafetyControlsVi
   if (code === null) blockedBy.push("CODE state unreadable");
   else {
     if (code.killSwitch) blockedBy.push("CODE Emergency Stop is engaged");
-    if (!code.enabled) blockedBy.push("CODE is off");
+    if (!code.enabled) blockedBy.push("CODE is saved as OFF");
   }
+  // Requirements still apply even when all three controls allow work.
+  for (const u of unmetFrom(gates)) blockedBy.push(u.label === "No CODE task is running" ? "A CODE task is already running" : `Not met: ${u.label}`);
 
   return {
+    independent,
     killSwitch,
     code: codeView,
     emergencyStop,

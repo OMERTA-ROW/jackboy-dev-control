@@ -9,14 +9,17 @@ import { safetyControlsView } from "@/lib/safety-controls";
 import type { AcceptanceGates } from "@/lib/code-acceptance";
 import { useStepUp } from "@/lib/step-up-client";
 import {
-  enableCodeRuntime,
   engageCodeKillSwitch,
+  releaseCodeEmergencyStop,
   resumeJackboyWork,
+  setCodeEnabled,
   setCodeHardCapVerified,
   stopJackboyWork,
 } from "@/lib/code-safety.functions";
 import {
+  CODE_DISABLE_TARGET,
   CODE_ENABLE_TARGET,
+  CODE_STOP_RELEASE_TARGET,
   HARD_CAP_EVIDENCE_MAX,
   HARD_CAP_TARGET,
   hardCapChangeBlockReason,
@@ -26,7 +29,6 @@ import {
 import {
   activationProgress,
   activationSteps,
-  codeIsOn,
   gateFix,
   type ActivationStep,
 } from "@/lib/activation-steps";
@@ -43,6 +45,10 @@ export type ActivationState = {
 type Props = {
   state: ActivationState | null;
   gates: CodeEnableGate[] | null;
+  /** Server requirements for releasing the Emergency Stop; null when unreadable. */
+  releaseGates?: CodeEnableGate[] | null;
+  /** True only when the database keeps the three controls separate. */
+  independent?: boolean | null;
   gatesError: string | null;
   busy: boolean;
   run: (action: () => Promise<unknown>) => Promise<void>;
@@ -67,6 +73,8 @@ type Props = {
 export function ActivationPanel({
   state,
   gates,
+  releaseGates = null,
+  independent = null,
   globalPaused = null,
   gatesError,
   busy,
@@ -83,17 +91,16 @@ export function ActivationPanel({
   const resume = useServerFn(resumeJackboyWork);
   const pauseAll = useServerFn(stopJackboyWork);
   const setHardCap = useServerFn(setCodeHardCapVerified);
-  const enableCode = useServerFn(enableCodeRuntime);
+  const setEnabled = useServerFn(setCodeEnabled);
+  const releaseStop = useServerFn(releaseCodeEmergencyStop);
   const [capNote, setCapNote] = useState("");
   const [guided, setGuided] = useState(false);
   const [justDone, setJustDone] = useState<string | null>(null);
   const stepHeading = useRef<HTMLHeadingElement>(null);
   const lastIndex = useRef<number | null>(null);
 
-  const steps = gates && state ? activationSteps(gates, state) : null;
+  const steps = gates && state ? activationSteps(gates, state, globalPaused) : null;
   const progress = steps ? activationProgress(steps) : null;
-  const on = state ? codeIsOn(state) : false;
-  const allGatesPass = !!gates && gates.every((gate) => gate.ok);
   const currentIndex = steps ? steps.findIndex((step) => step.status !== "done") : -1;
 
   // Auto-advance only moves what is shown: when a fresh server read marks the step done, the next one
@@ -154,13 +161,29 @@ export function ActivationPanel({
   const turnCodeOn = () =>
     void run(() =>
       stepUp("code_enable", CODE_ENABLE_TARGET, {
-        applyingText: "Re-checking every gate and turning CODE on…",
-        apply: (grantId) => enableCode({ data: { grantId } }),
-        doneText: (r) => (r.codeEnabled ? "CODE is on." : "The request finished, but CODE still reads as off. Check the steps below."),
+        applyingText: "Re-checking every requirement and saving CODE as ON…",
+        apply: (grantId) => setEnabled({ data: { grantId, enabled: true } }),
+        doneText: (r) => r.message,
+      }),
+    );
+  const turnCodeOff = () =>
+    void run(() =>
+      stepUp("code_enable", CODE_DISABLE_TARGET, {
+        applyingText: "Saving CODE as OFF…",
+        apply: (grantId) => setEnabled({ data: { grantId, enabled: false } }),
+        doneText: (r) => r.message,
+      }),
+    );
+  const releaseEmergencyStop = () =>
+    void run(() =>
+      stepUp("code_stop_release", CODE_STOP_RELEASE_TARGET, {
+        applyingText: "Re-checking the emergency protections and releasing the Emergency Stop…",
+        apply: (grantId) => releaseStop({ data: { grantId } }),
+        doneText: (r) => r.message,
       }),
     );
 
-  const view = safetyControlsView({ globalPaused, code: state, gates });
+  const view = safetyControlsView({ globalPaused, code: state, gates, releaseGates, independent });
   const safetyControls = (
     <SafetyControls
       view={view}
@@ -168,8 +191,9 @@ export function ActivationPanel({
       onKillSwitchOn={turnKillSwitchOn}
       onKillSwitchOff={turnKillSwitchOff}
       onCodeOn={turnCodeOn}
-      onCodeOff={engageStop}
+      onCodeOff={turnCodeOff}
       onEngageStop={engageStop}
+      onReleaseStop={releaseEmergencyStop}
       checkedAt={checkedAt}
       onRefresh={onRefresh}
     />
@@ -257,16 +281,29 @@ export function ActivationPanel({
         </Button>
       ) : null;
     }
-    if (step.id === "turn_on" && !on) {
+    if (step.id === "release_stop" && step.status !== "done") {
       return (
         <Button
           variant="outline"
           size="sm"
           className="mt-2"
-          disabled={busy || !allGatesPass || !view.code.canTurnOn}
+          disabled={busy || !view.emergencyStop.canRelease}
+          onClick={releaseEmergencyStop}
+        >
+          Release emergency stop with passkey
+        </Button>
+      );
+    }
+    if (step.id === "turn_on" && step.status !== "done") {
+      return (
+        <Button
+          variant="outline"
+          size="sm"
+          className="mt-2"
+          disabled={busy || !view.code.canTurnOn}
           onClick={turnCodeOn}
         >
-          Release CODE stop and turn CODE on with passkey
+          Turn CODE on with passkey
         </Button>
       );
     }
@@ -315,21 +352,10 @@ export function ActivationPanel({
             <p className="text-xs text-muted-foreground">{step.hint}</p>
             <ul className="mt-1 space-y-0.5 text-xs" aria-label={`${step.title} checks`}>
               {step.gates.map((gate) => (
-                <li
-                  key={gate.id}
-                  className={
-                    gate.ok || (step.id === "turn_on" && on)
-                      ? "text-muted-foreground"
-                      : "text-warning"
-                  }
-                >
-                  <span aria-hidden="true">
-                    {gate.ok || (step.id === "turn_on" && on) ? "✓" : "✗"}
-                  </span>{" "}
+                <li key={gate.id} className={gate.ok ? "text-muted-foreground" : "text-warning"}>
+                  <span aria-hidden="true">{gate.ok ? "✓" : "✗"}</span>{" "}
                   <span className="sr-only">{gate.ok ? "Passed:" : "Not passed:"}</span>
-                  {step.id === "turn_on" && on
-                    ? "CODE is on and its stop is released."
-                    : `${gate.label} — ${gate.detail}`}
+                  {`${gate.label} — ${gate.detail}`}
                 </li>
               ))}
             </ul>
@@ -392,22 +418,26 @@ export function ActivationPanel({
           <p className="mt-1 text-sm text-muted-foreground">{guideStep.hint}</p>
           {(() => {
             const failing = guideStep.gates.filter((gate) => !gate.ok);
+            const controlLock =
+              guideStep.id === "release_stop" ? view.emergencyStop.lockReason : guideStep.id === "turn_on" ? view.code.lockReason : null;
             const waitingOnYou =
               guideStep.id === "hard_cap" ||
               (guideStep.id === "global_pause" && guideAction !== null) ||
-              (guideStep.id === "turn_on" && failing.length === 0);
+              (guideStep.id === "release_stop" && view.emergencyStop.canRelease) ||
+              (guideStep.id === "turn_on" && view.code.canTurnOn);
             if (waitingOnYou)
               return (
                 <p className="mt-3 text-sm">
                   <span className="font-medium text-warning">Status: ready for you.</span>{" "}
-                  {guideStep.id === "turn_on"
-                    ? "Every check passes. Turning CODE on is your choice; nothing happens until you press."
+                  {guideStep.id === "turn_on" || guideStep.id === "release_stop"
+                    ? "Every check passes. This is your choice; nothing happens until you press."
                     : gateFix(guideStep.gates[0]?.id ?? "")}
                 </p>
               );
             return (
               <div className="mt-3 text-sm" role="alert">
                 <p className="font-medium text-warning">Status: blocked</p>
+                {controlLock && <p className="mt-1">Why: {controlLock}</p>}
                 <ul className="mt-1 space-y-2">
                   {failing.map((gate) => (
                     <li key={gate.id}>
@@ -455,7 +485,7 @@ export function ActivationPanel({
               ? "Checking each step…"
               : progress.complete
                 ? "Activation complete · CODE is on. Each run still needs your approval in GitHub."
-                : `${progress.done} of ${progress.total} steps done · CODE is off. Three separate controls below: Kill Switch, CODE and CODE Emergency Stop.`}
+                : `${progress.done} of ${progress.total} steps done · CODE cannot run yet. Three separate controls below: Kill Switch, CODE enabled and CODE Emergency Stop.`}
           </p>
         </div>
       </div>

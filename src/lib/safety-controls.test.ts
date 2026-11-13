@@ -1,88 +1,111 @@
 import { describe, expect, it } from "vitest";
-import { safetyControlsView, type SafetyControlsInput } from "./safety-controls";
+import { NOT_INSTALLED_LOCK, safetyControlsView, type SafetyControlsInput } from "./safety-controls";
 
-const IDS = ["stopped", "no_task", "failures", "spike", "cancellation", "hard_cap", "total_guard", "meter", "global_pause", "pins", "gateway", "cost_check"];
-const gates = (failing: string[] = []) => IDS.map((id) => ({ id, label: id, ok: !failing.includes(id), detail: `${id} detail` }));
-const STOPPED = { enabled: false, killSwitch: true, activeRequestId: null, activeRunId: null };
-const ON = { enabled: true, killSwitch: false, activeRequestId: null, activeRunId: null };
+const IDS = ["no_task", "failures", "spike", "cancellation", "hard_cap", "total_guard", "meter", "pins", "gateway", "cost_check"];
+const RELEASE_IDS = ["no_task", "failures", "spike", "cancellation", "hard_cap", "total_guard"];
+const gates = (failing: string[] = [], ids = IDS) => ids.map((id) => ({ id, label: id, ok: !failing.includes(id), detail: `${id} detail` }));
+const code = (enabled: boolean, killSwitch: boolean) => ({ enabled, killSwitch, activeRequestId: null, activeRunId: null });
+const STOPPED = code(false, true);
 const view = (patch: Partial<SafetyControlsInput>) =>
-  safetyControlsView({ globalPaused: true, code: STOPPED, gates: gates(["global_pause"]), ...patch });
+  safetyControlsView({ globalPaused: true, code: STOPPED, gates: gates(), releaseGates: gates([], RELEASE_IDS), independent: true, ...patch });
 
-describe("three separate safety controls", () => {
-  it("current founder state: Kill Switch on, Emergency Stop engaged, CODE off — and nothing can run", () => {
+describe("three independent safety controls", () => {
+  it("current founder state: Kill Switch on, Emergency Stop engaged, CODE saved OFF — nothing can run", () => {
     const v = view({});
     expect(v.killSwitch.status).toBe("on");
     expect(v.emergencyStop.status).toBe("engaged");
     expect(v.code.status).toBe("off");
-    expect(v.execution.allowed).toBe(false);
-    expect(v.execution.blockedBy).toEqual(["Kill Switch is on", "CODE Emergency Stop is engaged", "CODE is off"]);
+    expect(v.execution).toEqual({ allowed: false, blockedBy: ["Kill Switch is on", "CODE Emergency Stop is engaged", "CODE is saved as OFF"] });
   });
 
-  it("CODE switch is locked while the Kill Switch is on, and the Kill Switch is the first reason", () => {
-    const v = view({ gates: gates(["global_pause", "pins"]) });
-    expect(v.code.canTurnOn).toBe(false);
-    expect(v.code.unmet.map((u) => u.id)).toEqual(["global_pause", "pins"]);
-    expect(v.code.lockReason).toBe("Locked: the Kill Switch is on and 1 other requirement is not met.");
-  });
-
-  it("the live Kill Switch read locks CODE even if an older gate list said the pause was off", () => {
-    const v = view({ globalPaused: true, gates: gates() });
-    expect(v.code.canTurnOn).toBe(false);
-    expect(v.code.unmet[0]?.id).toBe("global_pause");
-  });
-
-  it("releasing the Kill Switch alone does not turn CODE on", () => {
-    const v = view({ globalPaused: false, gates: gates() });
-    expect(v.killSwitch.status).toBe("off");
-    expect(v.code.status).toBe("off");
-    expect(v.execution.allowed).toBe(false);
-    expect(v.execution.blockedBy).toEqual(["CODE Emergency Stop is engaged", "CODE is off"]);
-    // Only now does the CODE switch become usable, and only because every gate passes.
-    expect(v.code.canTurnOn).toBe(true);
-    expect(v.code.unmet).toEqual([]);
-  });
-
-  it("any single failing requirement keeps the CODE switch locked and is listed with a fix", () => {
-    for (const id of IDS.filter((i) => i !== "global_pause")) {
-      const v = view({ globalPaused: false, gates: gates([id]) });
-      expect(v.code.canTurnOn).toBe(false);
-      expect(v.code.unmet.map((u) => u.id)).toEqual([id]);
-      expect(v.code.unmet[0]?.fix.length).toBeGreaterThan(0);
+  it("each control's actions do not depend on the other two controls", () => {
+    for (const globalPaused of [true, false]) for (const killSwitch of [true, false]) {
+      const off = view({ globalPaused, code: code(false, killSwitch) });
+      expect(off.code.canTurnOn).toBe(true);
+      expect(off.code.unmet).toEqual([]);
+      const on = view({ globalPaused, code: code(true, killSwitch) });
+      expect(on.code.canTurnOff).toBe(true);
+    }
+    for (const globalPaused of [true, false]) for (const enabled of [true, false]) {
+      expect(view({ globalPaused, code: code(enabled, true) }).emergencyStop.canRelease).toBe(true);
+      expect(view({ globalPaused, code: code(enabled, false) }).emergencyStop.canEngage).toBe(true);
+      expect(view({ globalPaused, code: code(enabled, true) }).killSwitch.canToggle).toBe(true);
     }
   });
 
-  it("unreadable checks or CODE state never unlock the CODE switch", () => {
-    expect(view({ globalPaused: false, gates: null }).code.canTurnOn).toBe(false);
-    expect(view({ globalPaused: false, gates: [] }).code.canTurnOn).toBe(false);
-    const unknown = view({ globalPaused: false, code: null, gates: gates() });
+  it("shows the saved CODE setting separately from whether CODE can run", () => {
+    const v = view({ globalPaused: true, code: code(true, true) });
+    expect(v.code.status).toBe("on");
+    expect(v.execution.allowed).toBe(false);
+    expect(v.execution.blockedBy).toEqual(["Kill Switch is on", "CODE Emergency Stop is engaged"]);
+  });
+
+  it("all 8 combinations: CODE can run only with Kill Switch off, stop released and CODE saved ON", () => {
+    for (const globalPaused of [true, false]) for (const killSwitch of [true, false]) for (const enabled of [true, false]) {
+      expect(view({ globalPaused, code: code(enabled, killSwitch) }).execution.allowed).toBe(!globalPaused && !killSwitch && enabled);
+    }
+  });
+
+  it("execution also stays blocked when any requirement fails, even with all three controls allowing work", () => {
+    for (const id of IDS) {
+      const v = view({ globalPaused: false, code: code(true, false), gates: gates([id]) });
+      expect(v.execution.allowed).toBe(false);
+      expect(v.execution.blockedBy.length).toBe(1);
+    }
+  });
+
+  it("any failing requirement keeps the CODE switch locked and is listed with a fix", () => {
+    for (const id of IDS) {
+      const v = view({ gates: gates([id]) });
+      expect(v.code.canTurnOn).toBe(false);
+      expect(v.code.unmet.map((u) => u.id)).toEqual([id]);
+      expect(v.code.unmet[0]?.fix.length).toBeGreaterThan(0);
+      expect(v.code.lockReason).toBe("Locked: 1 requirement is not met.");
+    }
+  });
+
+  it("any failing release requirement keeps the release locked, but engaging is never blocked", () => {
+    for (const id of RELEASE_IDS) {
+      const v = view({ releaseGates: gates([id], RELEASE_IDS) });
+      expect(v.emergencyStop.canRelease).toBe(false);
+      expect(v.emergencyStop.releaseUnmet.map((u) => u.id)).toEqual([id]);
+      expect(v.emergencyStop.lockReason).toMatch(/Release locked/);
+    }
+    expect(view({ code: code(true, false), releaseGates: null, gates: null }).emergencyStop.canEngage).toBe(true);
+  });
+
+  it("unreadable checks or state fail closed", () => {
+    expect(view({ gates: null }).code.canTurnOn).toBe(false);
+    expect(view({ gates: [] }).code.canTurnOn).toBe(false);
+    expect(view({ releaseGates: null }).emergencyStop.canRelease).toBe(false);
+    expect(view({ releaseGates: undefined }).emergencyStop.canRelease).toBe(false);
+    const unknown = view({ globalPaused: false, code: null });
     expect(unknown.code.status).toBe("unknown");
     expect(unknown.code.canTurnOn).toBe(false);
+    expect(unknown.code.canTurnOff).toBe(false);
+    expect(unknown.emergencyStop.canEngage).toBe(true);
+    expect(unknown.emergencyStop.canRelease).toBe(false);
     expect(unknown.execution.allowed).toBe(false);
+    const k = view({ globalPaused: null, code: code(true, false) });
+    expect(k.killSwitch.canToggle).toBe(false);
+    expect(k.execution.blockedBy).toContain("Kill Switch state unreadable");
+    expect(view({ globalPaused: false, code: code(true, false), gates: null }).execution.allowed).toBe(false);
   });
 
-  it("an unreadable Kill Switch cannot be toggled and blocks execution", () => {
-    const v = view({ globalPaused: null });
-    expect(v.killSwitch.canToggle).toBe(false);
-    expect(v.killSwitch.lockReason).not.toBeNull();
-    expect(v.code.canTurnOn).toBe(false);
-    expect(v.execution.blockedBy).toContain("Kill Switch state unreadable");
-  });
-
-  it("the Emergency Stop can be engaged whenever it is not already engaged, even with CODE disabled or state unknown", () => {
-    expect(view({}).emergencyStop.canEngage).toBe(false);
-    expect(view({ code: { ...STOPPED, killSwitch: false } }).emergencyStop.canEngage).toBe(true);
-    expect(view({ code: null }).emergencyStop.canEngage).toBe(true);
-    expect(view({ globalPaused: false, code: ON, gates: gates(["stopped"]) }).emergencyStop.canEngage).toBe(true);
-  });
-
-  it("CODE counts as running-allowed only with Kill Switch off, CODE enabled and stop released", () => {
-    const v = view({ globalPaused: false, code: ON, gates: gates(["stopped"]) });
-    expect(v.code.status).toBe("on");
-    expect(v.code.canTurnOff).toBe(true);
-    expect(v.code.canTurnOn).toBe(false);
-    expect(v.code.unmet).toEqual([]);
-    expect(v.execution.allowed).toBe(true);
-    expect(view({ globalPaused: true, code: ON, gates: gates(["stopped"]) }).execution.allowed).toBe(false);
-    expect(view({ globalPaused: false, code: { ...ON, killSwitch: true }, gates: gates() }).execution.allowed).toBe(false);
+  it("until the database change is installed, the new CODE and release actions are locked but the stop still engages", () => {
+    for (const independent of [false, null, undefined]) {
+      const v = view({ independent, globalPaused: false });
+      expect(v.independent).toBe(false);
+      expect(v.code.canTurnOn).toBe(false);
+      expect(v.code.lockReason).toBe(NOT_INSTALLED_LOCK);
+      expect(v.emergencyStop.canRelease).toBe(false);
+      expect(v.emergencyStop.lockReason).toBe(NOT_INSTALLED_LOCK);
+      expect(view({ independent, code: code(true, false) }).code.canTurnOff).toBe(false);
+      expect(view({ independent, code: code(true, false) }).emergencyStop.canEngage).toBe(true);
+      expect(v.killSwitch.canToggle).toBe(true);
+      expect(view({ independent }).killSwitch.effect).toMatch(/Turning it off does NOT turn CODE back on/);
+    }
+    expect(view({ independent: false, globalPaused: false }).killSwitch.effect).toMatch(/also engages the CODE Emergency Stop/);
+    expect(view({ independent: true, globalPaused: false }).killSwitch.effect).toMatch(/does not change the saved CODE setting/);
   });
 });

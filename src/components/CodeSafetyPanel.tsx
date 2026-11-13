@@ -120,14 +120,22 @@ export function CodeSafetyPanel() {
             ? "info"
             : "success",
       );
-      if (result && typeof result === "object" && "cancellation" in result) {
+      if (result && typeof result === "object" && "control" in result && "message" in result) {
+        // Separate CODE on/off and stop release: the server reports the read-back of all three controls.
+        setMessage(String(result.message));
+        if ("ok" in result && result.ok !== true) setMessageTone("error");
+      } else if (result && typeof result === "object" && "cancellation" in result) {
         const cancellation = result.cancellation;
+        const saved =
+          "codeEnabled" in result && typeof result.codeEnabled === "boolean"
+            ? ` Saved CODE setting reads ${result.codeEnabled ? "ON" : "OFF"}.`
+            : "";
         setMessage(
-          cancellation === "requested"
+          (cancellation === "requested"
             ? "Emergency stop engaged and GitHub accepted the active-run cancellation request. Verify the run reaches cancelled status."
             : cancellation === "unavailable"
               ? "Emergency stop engaged. Active-run cancellation could not be confirmed; inspect GitHub Actions immediately."
-              : "Emergency stop engaged; no active CODE run was recorded.",
+              : "Emergency stop engaged; no active CODE run was recorded.") + saved,
         );
       } else if (result && typeof result === "object" && "status" in result) {
         const status = result.status;
@@ -185,7 +193,7 @@ export function CodeSafetyPanel() {
         setMessage(
           result.paused
             ? "Kill Switch is on."
-            : "Kill Switch is off. CODE was not changed: it stays off until you turn on the CODE switch.",
+            : "Kill Switch is off. The saved CODE setting and the Emergency Stop were not changed.",
         );
       } else if (
         result &&
@@ -225,6 +233,8 @@ export function CodeSafetyPanel() {
       <ActivationPanel
         state={activationState}
         gates={gates?.gates ?? null}
+        releaseGates={gates?.releaseGates ?? null}
+        independent={live ? live.independentControls : gates ? gates.independentControls : null}
         globalPaused={liveError ? null : live ? live.globalPaused : gates ? gates.globalPaused : null}
         gatesError={liveError ? "The live safety state could not be read; controls show as unknown until it reads again." : gatesError}
         busy={busy}
@@ -258,7 +268,7 @@ export function CodeSafetyPanel() {
               CODE safety details
             </h2>
             <p className="mt-1 text-xs text-muted-foreground">
-              Supervised execution is {settings?.enabled ? "ON" : "off"}. The live meter counts the
+              Saved CODE setting is {settings?.enabled ? "ON" : "OFF"}. The live meter counts the
               gateway's own record of every provider call; OpenAI's delayed reports are checked
               against it afterwards. This panel never dispatches execution.
             </p>
@@ -273,14 +283,18 @@ export function CodeSafetyPanel() {
           </p>
         )}
         <p className="mt-3 text-sm">
-          Worker 1 · supervised mode (owner only):{" "}
-          <span className={activationState?.enabled && !activationState.killSwitch ? "text-success" : "text-warning"}>
-            {!activationState ? "unknown" : activationState.enabled && !activationState.killSwitch ? "CODE enabled" : "CODE disabled"}
+          Worker 1 · supervised mode (owner only): saved CODE setting{" "}
+          <span className={activationState?.enabled ? "text-success" : "text-warning"}>
+            {!activationState ? "unknown" : activationState.enabled ? "ON" : "OFF"}
+          </span>
+          {" · "}Emergency Stop{" "}
+          <span className={activationState && !activationState.killSwitch ? "text-success" : "text-warning"}>
+            {!activationState ? "unknown" : activationState.killSwitch ? "engaged" : "released"}
           </span>
         </p>
         <p className="mt-1 text-xs text-muted-foreground">
-          Change it with the CODE switch in Autonomous Activation above. Each run still requires owner
-          approval in GitHub. No autonomous distribution.
+          Change each with its own control in Autonomous Activation above; whether CODE can run right now is
+          shown there. Each run still requires owner approval in GitHub. No autonomous distribution.
         </p>
         {prerequisites && (
           <div className="mt-3 text-sm">
