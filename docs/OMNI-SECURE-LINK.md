@@ -45,7 +45,7 @@ settings are not configured by this change.
 
 `action: "configuration"` on the same signed HTTPS link is a metadata-only
 bootstrap request containing only `action` and `projectId`. It checks the
-existing client identity/keys and uses migration `0063_omni_configuration_probe`
+existing client identity/keys and uses migration `0064_omni_configuration_probe`
 to verify the active owned project, owner role, global pause, single-use nonce
 and an atomic Site Log insert. Probes are capped at 60 per client/10 minutes.
 No sessions, jobs, execution grants, provider calls or switches are created.

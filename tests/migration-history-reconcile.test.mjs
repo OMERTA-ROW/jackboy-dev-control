@@ -125,3 +125,20 @@ test("0060 is forward-only and preserves the reviewed 0059 SQL and timestamp", a
   assert.equal(current?.idx, 60);
   assert.ok(current.when > previous.when);
 });
+
+// Production recorded 0063_omni_handoff_v1 (history row 70, read 2026-11-13). The later
+// runner configuration check was renumbered to 0064 and must stay newer so it is not skipped.
+test("installed 0063 handoff keeps its bytes; runner check is 0064 and newer", async () => {
+  const handoff = journal.entries.find((e) => e.tag === "0063_omni_handoff_v1");
+  assert.ok(handoff, "journal lost 0063_omni_handoff_v1");
+  assert.equal(handoff.idx, 63);
+  assert.equal(handoff.when, 1794461154900);
+  assert.equal(
+    await sha("0063_omni_handoff_v1"),
+    "30c0378cd5255a82bf6bc0dc206739662b573ec395850cace5cb739e88696bfa",
+  );
+  const probe = journal.entries.find((e) => e.tag === "0064_omni_configuration_probe");
+  assert.ok(probe, "runner check missing from journal");
+  assert.equal(probe.idx, 64);
+  assert.ok(probe.when > handoff.when, "runner check would be skipped by the migrator");
+});

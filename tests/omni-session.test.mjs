@@ -36,7 +36,7 @@ CREATE FUNCTION site_log_immutable() RETURNS trigger LANGUAGE plpgsql AS $$ BEGI
 CREATE TRIGGER site_log_no_change BEFORE UPDATE OR DELETE ON site_log FOR EACH ROW EXECUTE FUNCTION site_log_immutable();`);
 await db.exec(await readFile(join(root, "drizzle/migrations/0030_omni_sessions.sql"), "utf8"));
 await db.exec(
-  await readFile(join(root, "drizzle/migrations/0063_omni_configuration_probe.sql"), "utf8"),
+  await readFile(join(root, "drizzle/migrations/0064_omni_configuration_probe.sql"), "utf8"),
 );
 const project = "11111111-1111-4111-8111-111111111111",
   owner = "22222222-2222-4222-8222-222222222222",

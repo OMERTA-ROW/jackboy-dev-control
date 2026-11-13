@@ -33,7 +33,7 @@ function probeConfig(env: Env): ProbeConfig | null {
 
 const authorize: Authorize = async (c, nonce) => {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  // Function comes from migration 0063_omni_configuration_probe, which is not yet
+  // Function comes from migration 0064_omni_configuration_probe, which is not yet
   // installed in the live database, so generated types do not list it. Until the
   // owner approves installing it, this call errors and the probe fails closed.
   const rpc = supabaseAdmin.rpc.bind(supabaseAdmin) as unknown as (
