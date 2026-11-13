@@ -33,14 +33,10 @@ function probeConfig(env: Env): ProbeConfig | null {
 
 const authorize: Authorize = async (c, nonce) => {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  // Function comes from migration 0064_omni_configuration_probe, which is not yet
-  // installed in the live database, so generated types do not list it. Until the
-  // owner approves installing it, this call errors and the probe fails closed.
-  const rpc = supabaseAdmin.rpc.bind(supabaseAdmin) as unknown as (
-    fn: "omni_link_configuration_authorize",
-    args: { _client_id: string; _project_id: string; _owner_id: string; _nonce: string },
-  ) => Promise<{ data: unknown; error: unknown }>;
-  const { data, error } = await rpc("omni_link_configuration_authorize", {
+  // Function installed by migration 0064_omni_configuration_probe (service_role-only
+  // EXECUTE). It refuses while the global Kill Switch is on, so this probe fails closed
+  // with 403 until that switch is released; it never creates sessions, jobs or grants.
+  const { data, error } = await supabaseAdmin.rpc("omni_link_configuration_authorize", {
     _client_id: c.clientId,
     _project_id: c.projectId,
     _owner_id: c.ownerId,
