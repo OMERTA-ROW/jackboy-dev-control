@@ -505,6 +505,13 @@
       "when": 1794641859186,
       "tag": "0071_verify_omni_0067_0070_install",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1794655002707,
+      "tag": "0072_omni_autonomy_scope",
+      "breakpoints": true
     }
   ]
 }

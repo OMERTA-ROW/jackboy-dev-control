@@ -49,8 +49,7 @@ Active permit: `{contract:"omni.permit/v1", id, jobId, kind, digest, status:"act
 `kill_switch_on`, `emergency_stop_engaged`, `code_disabled`, `not_authorized`, `approval_expired`,
 `owner_scope`, `scope_invalid`, `scope_mismatch`, `job_closed`, `permit_lapsed`, `concurrency_limit`,
 `daily_limit`; forward-only 0070 also adds `permit_stopped`, `meter_untrusted`,
-`gateway_unenforced`; the staged owner-scope change (`scripts/omni-autonomy-scope-draft.sql`, not
-installed) adds `capability_not_authorized`. Transport: `session_expired_or_invalid` (401), `replay` (409),
+`gateway_unenforced`; the owner-scope change (0072, installed 2026-11-14) adds `capability_not_authorized`. Transport: `session_expired_or_invalid` (401), `replay` (409),
 `authentication_failed` (401).
 
 ## Jackboy guarantees
@@ -63,7 +62,7 @@ installed) adds `capability_not_authorized`. Transport: `session_expired_or_inva
   the Step 7 window, a passed Step 8 self-test for the current approval, a Step 9 signed handshake in the
   last 30 minutes, the runner, a trusted meter and the enforced spending guard. It lasts until the Step 7
   window ends and never releases a stop, changes a switch, starts a job or rotates a key.
-- Staged, not installed: `scripts/omni-autonomy-scope-draft.sql` (needs 0067-0070 first). The owner
+- Installed as 0072 (2026-11-14, from reviewed `scripts/omni-autonomy-scope-draft.sql`). The owner
   chooses allowed job kinds (`autonomous`, `code`) when authorizing; every `permit.request` (issue and
   renewal) is refused with `capability_not_authorized` for other kinds and with `owner_scope` when the
   session owner is not the authorizing owner. `safety.authorization` then carries `capabilities`.

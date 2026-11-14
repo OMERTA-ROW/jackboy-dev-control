@@ -1,5 +1,5 @@
-// Real PostgreSQL engine (PGlite) over the full migration chain (0066-0070 included) plus the staged,
-// NOT installed scripts/omni-autonomy-scope-draft.sql. Durable owner authorization for OMNI autonomous
+// Real PostgreSQL engine (PGlite) over the full migration chain, which now includes 0072 (installed
+// 2026-11-14 from the reviewed scripts/omni-autonomy-scope-draft.sql; the two must stay identical). Durable owner authorization for OMNI autonomous
 // work: passkey-confirmed, scoped to OMNI client/project/approval/expiry and allowed capabilities, kept
 // as history, and re-checked with every live safety gate on each permit request and renewal.
 import { after, before, beforeEach, test } from "node:test";
@@ -41,8 +41,14 @@ before(async () => {
   await base.exec(supabaseStubs);
   const files = await migrationFiles();
   assert.ok(files.includes("0070_omni_safety_generation.sql"), "draft must follow 0070");
+  const reviewed = await readFile(DRAFT, "utf8");
+  const installed = files.find((f) => f.endsWith("_omni_autonomy_scope.sql"));
+  if (installed) {
+    // Installed copy must be the reviewed bytes (the migration tool drops only the final line ending).
+    assert.equal((await readFile(`drizzle/migrations/${installed}`, "utf8")).trimEnd(), reviewed.trimEnd());
+  }
   for (const f of files) await base.exec(await readFile(`drizzle/migrations/${f}`, "utf8"));
-  await base.exec(await readFile(DRAFT, "utf8"));
+  if (!installed) await base.exec(reviewed);
   await base.query("INSERT INTO auth.users(id,email) VALUES ($1,'o@x.test'),($2,'m@x.test'),($3,'o2@x.test')", [owner, member, owner2]);
   await base.query("INSERT INTO public.user_roles(user_id, role) VALUES ($1,'owner'),($2,'member'),($3,'admin')", [owner, member, owner2]);
   await base.exec("INSERT INTO public.automation_policy(id, paused) VALUES (1, false) ON CONFLICT (id) DO NOTHING");
@@ -275,5 +281,7 @@ test("new functions are server-only and the draft never writes a switch", async 
   const sql = await readFile(DRAFT, "utf8");
   assert.ok(!/UPDATE\s+public\.(automation_policy|code_runtime_controls)/i.test(sql));
   const { entries } = JSON.parse(await readFile("drizzle/migrations/meta/_journal.json", "utf8"));
-  assert.ok(!entries.some((e) => /autonomy_scope/.test(e.tag)), "staged only, not journaled");
+  const scoped = entries.filter((e) => /autonomy_scope/.test(e.tag));
+  assert.deepEqual(scoped.map((e) => e.tag), ["0072_omni_autonomy_scope"], "journaled exactly once, as installed");
+  assert.equal(scoped[0].when, 1794655002707, "installed history timestamp is kept");
 });

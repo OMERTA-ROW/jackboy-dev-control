@@ -1817,6 +1817,7 @@ export type Database = {
       omni_autonomy_authorizations: {
         Row: {
           approval_id: string
+          capabilities: string[]
           client_id: string
           created_at: string
           daily_limit_usd: number
@@ -1832,6 +1833,7 @@ export type Database = {
         }
         Insert: {
           approval_id: string
+          capabilities?: string[]
           client_id: string
           created_at?: string
           daily_limit_usd?: number
@@ -1847,6 +1849,7 @@ export type Database = {
         }
         Update: {
           approval_id?: string
+          capabilities?: string[]
           client_id?: string
           created_at?: string
           daily_limit_usd?: number
@@ -4182,6 +4185,17 @@ export type Database = {
         }
         Returns: Json
       }
+      omni_autonomy_authorize_scoped: {
+        Args: {
+          _actor: string
+          _capabilities: string[]
+          _client: string
+          _project: string
+          _runner_ready: boolean
+          _step: string
+        }
+        Returns: Json
+      }
       omni_dispatch_callback_record: {
         Args: {
           _grant: string
@@ -4289,6 +4303,10 @@ export type Database = {
         Returns: Json
       }
       omni_execution_permit_action_unlocked: {
+        Args: { _a: Json; _op: string }
+        Returns: Json
+      }
+      omni_execution_permit_action_without_owner_scope: {
         Args: { _a: Json; _op: string }
         Returns: Json
       }
