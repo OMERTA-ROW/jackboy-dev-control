@@ -114,22 +114,22 @@ The child uses a temporary directory, empty inherited environment, fixed trusted
 
 Railway production service variables (names only; values supplied through Railway's variable store, never printed):
 
-| Variable | Purpose |
-|---|---|
-| `OMNI_LINK_ENABLED` | **Leave unset/off** until the self-test is separately approved; otherwise 503 |
-| `OMNI_LINK_NODE_RUNNER_ENABLED` | **Leave unset/off** until the self-test is separately approved |
-| `OMNI_LINK_CLIENT_ID` | 1–64 alphanumeric/underscore/hyphen identity |
-| `OMNI_LINK_PROJECT_ID` | Authorized existing owner project UUID |
-| `OMNI_LINK_OWNER_ID` | Actual owner UUID |
-| `OMNI_LINK_APPROVAL_ID` | Owner-reviewed grant UUID |
-| `OMNI_LINK_APPROVAL_EXPIRES_AT` | ISO timestamp, at most 24 hours ahead |
-| `OMNI_LINK_BOOTSTRAP_KEY`, `OMNI_LINK_HMAC_SECRET` | Independent scoped secrets |
-| `JACKBOY_LINK_ORIGIN` | Railway public `https://` origin, no path/query/credentials |
-| `OMNI_LINK_BEHIND_HTTPS_PROXY` | `true` — trust Railway's forwarded HTTPS (rules above) |
-| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Backend database access (service role key not available from Lovable Cloud) |
-| `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_SUPABASE_PROJECT_ID` | Public build-time values for the app bundle |
-| `NITRO_PRESET` | `node-server`; already set in `railway.json`'s build command |
-| `PORT` | Set automatically by Railway |
+| Variable                                                                         | Purpose                                                                       |
+| -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `OMNI_LINK_ENABLED`                                                              | **Leave unset/off** until the self-test is separately approved; otherwise 503 |
+| `OMNI_LINK_NODE_RUNNER_ENABLED`                                                  | **Leave unset/off** until the self-test is separately approved                |
+| `OMNI_LINK_CLIENT_ID`                                                            | 1–64 alphanumeric/underscore/hyphen identity                                  |
+| `OMNI_LINK_PROJECT_ID`                                                           | Authorized existing owner project UUID                                        |
+| `OMNI_LINK_OWNER_ID`                                                             | Actual owner UUID                                                             |
+| `OMNI_LINK_APPROVAL_ID`                                                          | Owner-reviewed grant UUID                                                     |
+| `OMNI_LINK_APPROVAL_EXPIRES_AT`                                                  | ISO timestamp, at most 24 hours ahead                                         |
+| `OMNI_LINK_BOOTSTRAP_KEY`, `OMNI_LINK_HMAC_SECRET`                               | Independent scoped secrets                                                    |
+| `JACKBOY_LINK_ORIGIN`                                                            | Railway public `https://` origin, no path/query/credentials                   |
+| `OMNI_LINK_BEHIND_HTTPS_PROXY`                                                   | `true` — trust Railway's forwarded HTTPS (rules above)                        |
+| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`                                      | Backend database access (service role key not available from Lovable Cloud)   |
+| `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_SUPABASE_PROJECT_ID` | Public build-time values for the app bundle                                   |
+| `NITRO_PRESET`                                                                   | `node-server`; already set in `railway.json`'s build command                  |
+| `PORT`                                                                           | Set automatically by Railway                                                  |
 
 No longer used: `OMNI_LINK_TLS_CERT_FILE`, `OMNI_LINK_TLS_KEY_FILE`, `OMNI_LINK_BIND_ADDRESS`. Deliberately not on Railway (least privilege): GitHub App/token, CODE/provider keys, `OPENAI_API_KEY`, `LOVABLE_API_KEY`, `OWNER_EMAIL`, mail and other app secrets; other pages on the Railway copy fail closed without them.
 
@@ -161,7 +161,6 @@ PGlite verifies SQL behavior and concurrent application requests but is a single
 - Companion Go inbox/client race tests, vet/build and original CLI tests/vet passed.
 - No production migration, key provisioning, provider call, CODE workflow dispatch or live agent activation occurred.
 
-
 ## Remote self-test runner (approved 2026-11-07)
 
 The live site cannot start a Node child process, and the Railway copy cannot reach Jackboy's database. Instead, OMNI talks only to the live site (`JACKBOY_LINK_ORIGIN=https://jackboy-dev-control.lovable.app`). The live site runs every session/owner/project/approval/Kill Switch/job-state check and keeps all storage. On `run`, if it has no local runner, it sends one signed request to a **stateless runner-only** Railway host at `POST /api/public/omni/runner` (contract `omni.runner/v1`).
@@ -171,9 +170,112 @@ The live site cannot start a Node child process, and the Railway copy cannot rea
 - In runner mode (`OMNI_LINK_RUNNER_MODE=true`), the host answers every other path with 404. It holds no database credentials and no OMNI link secrets.
 
 Runner API routing checks (no job execution):
+
 - The runner path is handled directly for every HTTP method, never by the dashboard HTML fallback. On a configured dedicated host, GET/PUT/DELETE return JSON HTTP 405 with `Allow: POST`; unsigned or invalidly signed POST requests are refused. Disabled or misconfigured runner hosts return JSON 404.
 - Railway loopback requests retain runner-only mode when the platform supplies `RAILWAY_ENVIRONMENT_ID`. Local development without that marker and Lovable hosts retain the dashboard safety guard; site-only settings still exclude runner-only mode.
 - Verify the deployed source SHA in Railway's deployment metadata. A listening port or dashboard HTML does not identify a build or prove authenticated runner readiness.
 - A reverse-link `session_expired_or_invalid` response is distinct from runner authentication. The live site's session must match token hash, client, project and current approval ID and remain unexpired (at most five minutes, bounded by approval expiry). Missing/mismatched approval or unavailable saved-approval storage blocks the link; project handoffs separately require unrevoked/unexpired project authorization, a verified live link and a job-scoped grant. Never infer which failed from a generic client message or bypass these checks.
 
 Settings. Live site (Jackboy secrets): `OMNI_LINK_REMOTE_RUNNER_ENABLED=true`, `OMNI_LINK_REMOTE_RUNNER_URL` (https origin only), `OMNI_LINK_REMOTE_RUNNER_SECRET` (32+ chars, shared). Railway runner host: `OMNI_LINK_RUNNER_MODE=true`, `OMNI_LINK_NODE_RUNNER_ENABLED=true`, the same `OMNI_LINK_REMOTE_RUNNER_SECRET`; remove the link secrets and database keys from that host. To disable, unset `OMNI_LINK_REMOTE_RUNNER_ENABLED` on Jackboy.
+
+## Unified activation authority (feature branch; unapplied and not deployed)
+
+Migration `0064_omni_execution_authority.sql` adds service-only connection/job state
+and `omni_execution_control`, not general execution to the existing protocol
+self-test. Signed `action: "execution-control"` requests use the existing
+`omni.link/v2` request/reply proof and durable nonces (400 requests/client/minute,
+expired execution nonces cleaned without deleting legacy callback nonces).
+Mothership authenticates the owner and approval; Jackboy independently enforces
+the configured owner/project and saved approval expiration. Executor credentials
+are separate and can only claim, check permission and finish a hash-bound plan.
+Mothership's selected upstream baseline `ebd1b63` supplies its sole activation and
+permit mirror (0053–0055), with additive unresolved-attempt guard 0056. No duplicate
+Mothership activation saga is retained. Review the separate intelligence branch's
+historical 0053 ordering before combining it with this upstream chain.
+
+### Session safety and execution permits
+
+`safety`, `permit.request` and `permit.release` use an actual current
+`omni_link_sessions` token; bootstrap keys cannot replace session authorization.
+The database validates token hash, client, project, approval and expiry.
+`omni.safety/v1` returns a fresh 30-second snapshot with independent Kill Switch,
+CODE Emergency Stop, CODE enabled, authorization, autonomous admission, manual
+diagnostics and the actual unexpired permit count.
+
+Only an already authorized exact autonomous job can request `omni.permit/v1`.
+It carries id, jobId, kind, digest, status, issuedAt, expiresAt, renewals,
+limits ($0.50/call, $1/task, $5/day), clientId, projectId, approvalId,
+renewEverySeconds (20), and signature. The canonical HMAC joins
+`contract,id,jobId,kind,digest,clientId,projectId,approvalId,expiresAt` with newlines;
+the whole reply proof also covers limits and every response field.
+Expiry is bounded by the job, connection and 60 seconds. A lapsed permit never
+renews, release cancellation is acknowledged before reporting success, and
+terminal job scope/state never reopens. Unsupported CODE permits are explicitly
+denied; existing CODE lanes are not rerouted. Both a permit and durable single-use
+claim are required before the bounded worker executes. Its signed completion
+reports Jackboy's actual terminal state, including a simultaneous Stop cancellation.
+
+Step 9 persists an authorized connection and verifies the signed safety reply.
+Step 10 checks CODE gateway/workflow identity/spending and live executor
+configuration, and requires a fresh recorded executor verification. It configures
+only: CODE remains off, OMNI remains disarmed and Emergency Stop stays unchanged.
+Arming is an independent owner action after the reviewed release and all existing
+CODE enable/passkey gates. Approval never queues or starts a plan.
+
+Admission and CODE Stop serialize on the runtime-controls row; global pause uses
+the same lock order. Stop/pause/disable disarm connections and mark active plans
+`cancel_requested` transactionally. Network cancellation happens after commit and
+only a signed termination acknowledgement can atomically finish cancellation
+with its audit. Failures remain pending and visible, not success-shaped. Disarm,
+unconfigure and revoke also drain this outbox. Independent global Kill Switch
+enforcement and existing CODE lanes are unchanged.
+
+The Settings activation panel and Mothership read this authoritative state, showing
+configuration separately from Blocked/Configured/Running. Unreadable safety is
+Blocked. Mothership's separate manual diagnostics retain their own policy; Jackboy
+Stop does not release or rewrite any manual sandbox gate.
+
+The new service lives at Mothership `services/omni-autonomous/`, contract
+`omni.autonomous/v1`, release `omni-bounded-plan-1`, default disabled. It supports
+only bounded preauthorized argv plans, not model-driven agents, repositories,
+network, provider calls, deployment or shell expansion. Paid-provider cost is zero
+because provider calls are unsupported; infrastructure cost is not measured.
+Permission polling every 250 ms aborts on unverifiable state (1.5-second request
+deadline and 2-second signed-response freshness). Cancellation is bounded and must
+be acknowledged before claiming termination.
+
+**Owner prerequisites:** review both feature branches and journals; separately
+authorize staging deployment/migrations; provision the dedicated Linux service
+with separate control/permission credentials; prove actual isolation, resource
+limits, descendant cancellation, cross-system Stop and replay/restart behavior
+before setting a reviewed release. Then perform fresh owner Steps 8/9, explicitly
+set the reviewed release on all services, verify the executor, and approve/activate
+Step 10. Release Stop/enable CODE only through its
+existing separately approved passkey controls, enable the executor separately,
+explicitly arm, then authorize one plan. Full setting names and ordered owner
+actions are in Mothership `docs/OMNI-BACKEND-CONTRACT.md`, unified activation section.
+Never rotate production credentials or weaken sandbox privileges to pass a test.
+
+No hosted migration, deployment, approval, Stop release or production execution
+occurred. Local disposable tests do not verify a live connection. Actual Linux and
+cross-system verification are blocked here by macOS and an unavailable Docker
+daemon. New autonomous execution therefore remains disabled and unverified.
+
+Local feature evidence: Node 26.13.1 focused Vitest **113 passed (8 files)**;
+full-chain disposable PostgreSQL authority/permit tests **9 passed**. Typecheck,
+changed-file lint/format, `git diff --check` and the Railway Node-server build pass.
+These are not authenticated live-system or Linux isolation results.
+
+```sh
+node node_modules/vitest/vitest.mjs run src/lib/{omni-execution.server,omni-configuration.server,omni-remote-runner,omni-link-approval,code-enable,code-safety,code-gateway.server}.test.ts src/test/activation-panel.test.tsx
+node node_modules/typescript/bin/tsc --noEmit
+NITRO_PRESET=node-server node node_modules/vite/bin/vite.js build
+git diff --check
+```
+
+With an isolated loopback PostgreSQL cluster using superuser `postgres`, and `pg`
+available through the repository or a separate fixture package:
+`STAGING_PG_URL=postgresql://postgres@127.0.0.1:55483/postgres STAGING_PG_MODULE_FROM=/path/to/local/pg-tests/package.json node --test tests/omni-execution-pg.test.mjs`.
+Never supply hosted credentials: fixtures create/drop their own databases.
+The public version endpoint currently returns no source SHA; deployment identity,
+actual connection and signed live Stop cancellation remain unverified.

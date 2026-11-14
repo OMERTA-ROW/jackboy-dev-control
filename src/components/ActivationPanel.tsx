@@ -4,6 +4,7 @@ import { Check, Circle, CircleDot, OctagonX, Power } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ReadinessChecks } from "./ReadinessChecks";
 import { CodeAcceptanceCard } from "./CodeAcceptanceCard";
+import { UnifiedOmniStatus } from "./UnifiedOmniStatus";
 import type { AcceptanceGates } from "@/lib/code-acceptance";
 import { useStepUp } from "@/lib/step-up-client";
 import {
@@ -121,7 +122,10 @@ export function ActivationPanel({
       stepUp("global_pause", "global_pause:on", {
         applyingText: "Engaging the CODE emergency stop…",
         apply: (grantId) => stop({ data: { grantId } }),
-        doneText: () => "CODE emergency stop engaged.",
+        doneText: (result) =>
+          result.omniCancellation.unavailable
+            ? "CODE emergency stop engaged; OMNI cancellation is unverified. New executions are blocked."
+            : "CODE emergency stop engaged; OMNI cancellation confirmed or no OMNI jobs pending.",
       }),
     );
   const emergencyStop = (
@@ -165,41 +169,44 @@ export function ActivationPanel({
   );
 
   const safetyControls = (
-    <div
-      className="mt-3 grid gap-3 rounded-md border border-border p-3 sm:grid-cols-2"
-      aria-label="Pause and stop controls"
-    >
-      <div>
-        <p className="text-sm font-medium">
-          Kill Switch:{" "}
-          <span
-            className={globalPaused === false ? "text-success" : "text-warning"}
-            aria-live="polite"
-          >
-            {globalPaused === null ? "unknown" : globalPaused ? "on — all work paused" : "off"}
-          </span>
-        </p>
-        <p className="mb-2 text-xs text-muted-foreground">
-          Pauses or resumes all Jackboy work. Needs your passkey.
-        </p>
-        {killSwitch}
+    <>
+      <UnifiedOmniStatus />
+      <div
+        className="mt-3 grid gap-3 rounded-md border border-border p-3 sm:grid-cols-2"
+        aria-label="Pause and stop controls"
+      >
+        <div>
+          <p className="text-sm font-medium">
+            Kill Switch:{" "}
+            <span
+              className={globalPaused === false ? "text-success" : "text-warning"}
+              aria-live="polite"
+            >
+              {globalPaused === null ? "unknown" : globalPaused ? "on — all work paused" : "off"}
+            </span>
+          </p>
+          <p className="mb-2 text-xs text-muted-foreground">
+            Pauses or resumes all Jackboy work. Needs your passkey.
+          </p>
+          {killSwitch}
+        </div>
+        <div>
+          <p className="text-sm font-medium">
+            CODE emergency stop:{" "}
+            <span
+              className={state?.killSwitch === false ? "text-success" : "text-warning"}
+              aria-live="polite"
+            >
+              {!state ? "unknown" : state.killSwitch ? "engaged — CODE off" : "released"}
+            </span>
+          </p>
+          <p className="mb-2 text-xs text-muted-foreground">
+            Turns CODE off at once and cancels a running job. Never blocked.
+          </p>
+          {emergencyStop}
+        </div>
       </div>
-      <div>
-        <p className="text-sm font-medium">
-          CODE emergency stop:{" "}
-          <span
-            className={state?.killSwitch === false ? "text-success" : "text-warning"}
-            aria-live="polite"
-          >
-            {!state ? "unknown" : state.killSwitch ? "engaged — CODE off" : "released"}
-          </span>
-        </p>
-        <p className="mb-2 text-xs text-muted-foreground">
-          Turns CODE off at once and cancels a running job. Never blocked.
-        </p>
-        {emergencyStop}
-      </div>
-    </div>
+    </>
   );
 
   const control = (step: ActivationStep): ReactNode => {
@@ -243,9 +250,13 @@ export function ActivationPanel({
                   "code_hard_cap",
                   marking ? HARD_CAP_TARGET.mark : HARD_CAP_TARGET.unmark,
                   {
-                    applyingText: marking ? "Marking the hard cap verified…" : "Un-marking the hard cap…",
+                    applyingText: marking
+                      ? "Marking the hard cap verified…"
+                      : "Un-marking the hard cap…",
                     apply: (grantId) =>
-                      setHardCap({ data: { grantId, verified: marking, evidence: capNote.trim() } }),
+                      setHardCap({
+                        data: { grantId, verified: marking, evidence: capNote.trim() },
+                      }),
                     doneText: () => (marking ? "Hard cap marked verified." : "Hard cap un-marked."),
                   },
                 );
@@ -304,7 +315,10 @@ export function ActivationPanel({
               stepUp("code_enable", CODE_ENABLE_TARGET, {
                 applyingText: "Re-checking every gate and turning CODE on…",
                 apply: (grantId) => enableCode({ data: { grantId } }),
-                doneText: (r) => (r.codeEnabled ? "CODE is on." : "The request finished, but CODE still reads as off. Check the steps below."),
+                doneText: (r) =>
+                  r.codeEnabled
+                    ? "CODE is on."
+                    : "The request finished, but CODE still reads as off. Check the steps below.",
               }),
             )
           }

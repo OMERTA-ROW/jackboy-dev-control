@@ -449,6 +449,13 @@
       "when": 1794523200000,
       "tag": "0063_omni_configuration_probe",
       "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1794626324684,
+      "tag": "0064_omni_execution_authority",
+      "breakpoints": true
     }
   ]
 }

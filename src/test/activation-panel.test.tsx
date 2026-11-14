@@ -7,6 +7,8 @@ const mocks = vi.hoisted(() => ({
   setHardCap: vi.fn(),
   enable: vi.fn(),
   stepUp: vi.fn(),
+  omniState: vi.fn(),
+  omniReconcile: vi.fn(),
 }));
 vi.mock("@tanstack/react-start", () => ({ useServerFn: (fn: unknown) => fn }));
 vi.mock("@/lib/code-safety.functions", () => ({
@@ -15,6 +17,8 @@ vi.mock("@/lib/code-safety.functions", () => ({
   stopJackboyWork: mocks.pauseAll,
   setCodeHardCapVerified: mocks.setHardCap,
   enableCodeRuntime: mocks.enable,
+  getUnifiedOmniState: mocks.omniState,
+  reconcileOmniCancellation: mocks.omniReconcile,
 }));
 vi.mock("@/components/ReadinessChecks", () => ({ ReadinessChecks: () => null }));
 vi.mock("@/lib/step-up-client", () => ({ useStepUp: () => mocks.stepUp }));
@@ -60,7 +64,11 @@ const run = async (action: () => Promise<unknown>) => {
 
 beforeEach(() => {
   vi.resetAllMocks();
-  mocks.stepUp.mockImplementation(async (_a: string, _t: string, o?: { apply?: (g: string) => Promise<unknown> }) => (o?.apply ? o.apply(GRANT) : GRANT));
+  mocks.omniState.mockResolvedValue({ state: null, label: "Blocked" });
+  mocks.stepUp.mockImplementation(
+    async (_a: string, _t: string, o?: { apply?: (g: string) => Promise<unknown> }) =>
+      o?.apply ? o.apply(GRANT) : GRANT,
+  );
 });
 afterEach(cleanup);
 
@@ -85,7 +93,11 @@ it("turning CODE on uses the same fresh passkey action and stays disabled until 
     screen.getByRole("button", { name: "Release CODE stop and turn CODE on with passkey" }),
   );
   await waitFor(() => expect(mocks.enable).toHaveBeenCalledWith({ data: { grantId: GRANT } }));
-  expect(mocks.stepUp).toHaveBeenCalledWith("code_enable", CODE_ENABLE_TARGET, expect.objectContaining({ apply: expect.any(Function) }));
+  expect(mocks.stepUp).toHaveBeenCalledWith(
+    "code_enable",
+    CODE_ENABLE_TARGET,
+    expect.objectContaining({ apply: expect.any(Function) }),
+  );
 });
 
 it("the global pause step asks for the passkey bound to the off action", async () => {
@@ -101,7 +113,11 @@ it("the global pause step asks for the passkey bound to the off action", async (
   );
   fireEvent.click(screen.getByRole("button", { name: "Turn Kill Switch off with passkey" }));
   await waitFor(() => expect(mocks.resume).toHaveBeenCalledWith({ data: { grantId: GRANT } }));
-  expect(mocks.stepUp).toHaveBeenCalledWith("global_pause", "global_pause:off", expect.objectContaining({ apply: expect.any(Function) }));
+  expect(mocks.stepUp).toHaveBeenCalledWith(
+    "global_pause",
+    "global_pause:off",
+    expect.objectContaining({ apply: expect.any(Function) }),
+  );
 });
 
 it("folds the steps away once CODE is on but keeps the emergency stop reachable", async () => {
@@ -119,7 +135,11 @@ it("folds the steps away once CODE is on but keeps the emergency stop reachable"
   expect(screen.getByText("Show activation steps").closest("details")).not.toHaveAttribute("open");
   fireEvent.click(screen.getByRole("button", { name: "Engage emergency stop" }));
   await waitFor(() => expect(mocks.stop).toHaveBeenCalledWith({ data: { grantId: GRANT } }));
-  expect(mocks.stepUp).toHaveBeenCalledWith("global_pause", "global_pause:on", expect.objectContaining({ apply: expect.any(Function) }));
+  expect(mocks.stepUp).toHaveBeenCalledWith(
+    "global_pause",
+    "global_pause:on",
+    expect.objectContaining({ apply: expect.any(Function) }),
+  );
 });
 
 it("a cancelled passkey changes nothing", async () => {
@@ -219,7 +239,11 @@ it("the Kill Switch lives in this section and uses the same passkey actions in b
   );
   fireEvent.click(screen.getByRole("button", { name: "Turn Kill Switch on" }));
   await waitFor(() => expect(mocks.pauseAll).toHaveBeenCalledWith({ data: { grantId: GRANT } }));
-  expect(mocks.stepUp).toHaveBeenCalledWith("global_pause", "global_pause:on", expect.objectContaining({ apply: expect.any(Function) }));
+  expect(mocks.stepUp).toHaveBeenCalledWith(
+    "global_pause",
+    "global_pause:on",
+    expect.objectContaining({ apply: expect.any(Function) }),
+  );
   rerender(
     <ActivationPanel
       state={OFF}
@@ -232,7 +256,11 @@ it("the Kill Switch lives in this section and uses the same passkey actions in b
   );
   fireEvent.click(screen.getByRole("button", { name: "Turn Kill Switch off" }));
   await waitFor(() => expect(mocks.resume).toHaveBeenCalledWith({ data: { grantId: GRANT } }));
-  expect(mocks.stepUp).toHaveBeenCalledWith("global_pause", "global_pause:off", expect.objectContaining({ apply: expect.any(Function) }));
+  expect(mocks.stepUp).toHaveBeenCalledWith(
+    "global_pause",
+    "global_pause:off",
+    expect.objectContaining({ apply: expect.any(Function) }),
+  );
 });
 
 it("an unreadable Kill Switch state cannot be toggled", () => {

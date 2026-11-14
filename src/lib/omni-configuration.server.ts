@@ -142,6 +142,32 @@ export async function handleOmniLinkRequest(request: Request): Promise<Response>
   }
   if (input && typeof input === "object" && "action" in input && input.action === "configuration")
     return handleOmniConfiguration(request, raw);
+  if (
+    input &&
+    typeof input === "object" &&
+    "action" in input &&
+    ["safety", "permit.request", "permit.release"].includes(String(input.action))
+  ) {
+    const { handleExecutionPermit } = await import("./omni-execution.server");
+    return handleExecutionPermit(
+      new Request(request.url, { method: request.method, headers: request.headers, body: raw }),
+    );
+  }
+  if (
+    input &&
+    typeof input === "object" &&
+    "action" in input &&
+    input.action === "execution-control"
+  ) {
+    const { handleExecutionControl } = await import("./omni-execution.server");
+    return handleExecutionControl(
+      new Request(request.url, {
+        method: request.method,
+        headers: request.headers,
+        body: raw,
+      }),
+    );
+  }
   return handleOmniLink(
     new Request(request.url, {
       method: request.method,
