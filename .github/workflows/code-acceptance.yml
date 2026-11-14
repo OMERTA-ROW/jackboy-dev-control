@@ -15,7 +15,7 @@ env:
   OMNI_REPOSITORY: OMERTA-ROW/Omni
   OMNI_REF: cc083d8e51e0135f536e01f08000de7d8660acbe
   MOTHERSHIP_REPOSITORY: OMERTA-ROW/orbiting-minds-mothership
-  MOTHERSHIP_REF: 5876c6ba7573823d1d3cc721fe4b33c55b1735b6
+  MOTHERSHIP_REF: ee2964f907753bad74c250dc73aeaa45422b0819
 jobs:
   acceptance:
     runs-on: ubuntu-latest
@@ -38,14 +38,14 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
-          node-version: '26'
+          node-version: "26"
       - uses: actions/setup-go@v5
         with:
           go-version: stable
           cache: false
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
         with:
-          bun-version: '1.4.4'
+          bun-version: "1.4.4"
       - run: bun install --frozen-lockfile
       - name: Prepare disposable PostgreSQL
         run: |

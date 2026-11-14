@@ -125,6 +125,7 @@ const REASONS: Record<string, string> = {
   scope_mismatch: "the job changed after its permit was issued",
   job_closed: "this job's permit was already closed",
   permit_lapsed: "OMNI did not renew the permit in time, so the job must stop",
+  permit_stopped: "a Stop invalidated this permit permanently; a new job is required",
   concurrency_limit: "another OMNI job already holds a permit",
   daily_limit: "today's $5 OMNI budget is used up ($1 is reserved per job)",
   session_expired_or_invalid: "OMNI's signed link session expired",
@@ -321,14 +322,14 @@ export function autonomyState(
   if (activePermits === 0)
     return {
       id: "armed",
-      label: "Armed, nothing running",
+      label: "Eligible to request a permit",
       detail: "OMNI would get a permit if it asked; no job holds one.",
       activePermits,
     };
   return {
     id: "running",
-    label: "Running",
-    detail: `${activePermits} OMNI job holds a live Jackboy permit.`,
+    label: "Permit issued",
+    detail: `${activePermits} OMNI job holds an unexpired permit record. This is not proof of worker execution.`,
     activePermits,
   };
 }

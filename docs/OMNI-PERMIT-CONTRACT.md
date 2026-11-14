@@ -4,7 +4,7 @@ Jackboy Dev Control is the final permission and Emergency Stop gate for OMNI aut
 execution. A Mothership Step 10 approval is necessary but never sufficient: OMNI may run an
 autonomous or CODE job **only while it holds a fresh Jackboy permit**.
 
-Status: Jackboy side implemented and its database part installed on production as migration
+Upstream status records the database part installed on production as migration
 `0066_omni_execution_permits` (2026-11-14 03:06 UTC, history row 73, byte-identical to the reviewed
 `scripts/omni-execution-permit-draft.sql`). Permit and safety requests still need a live Step 9
 session; handshakes are refused while the System Kill Switch is on. Any store error still returns
@@ -22,11 +22,11 @@ Sessions last 5 minutes; re-handshake (requires Kill Switch off) to keep going.
 
 ## Actions (exact keys; anything else is refused)
 
-| action | body keys | result |
-|---|---|---|
-| `safety` | `action, projectId` | `safety`: `{contract:"omni.safety/v1", checkedAt, validUntil (+30 s), killSwitch, emergencyStop, codeEnabled, authorization, autonomousAllowed, blockedBy, manualDiagnosticsAllowed, activePermits}` |
-| `permit.request` | `action, projectId, jobId (uuid), kind ("autonomous"\|"code"), digest (sha256 hex of the job payload), estimateUsd (0 < x ≤ 1)` | `200 permit` (issue or renew) or `403 {error:"permit_denied", reason}` |
-| `permit.release` | `action, projectId, jobId` | closes the permit when the job ends (idempotent) |
+| action           | body keys                                                                                                                       | result                                                                                                                                                                                               |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `safety`         | `action, projectId`                                                                                                             | `safety`: `{contract:"omni.safety/v1", checkedAt, validUntil (+30 s), killSwitch, emergencyStop, codeEnabled, authorization, autonomousAllowed, blockedBy, manualDiagnosticsAllowed, activePermits}` |
+| `permit.request` | `action, projectId, jobId (uuid), kind ("autonomous"\|"code"), digest (sha256 hex of the job payload), estimateUsd (0 < x ≤ 1)` | `200 permit` (issue or renew) or `403 {error:"permit_denied", reason}`                                                                                                                               |
+| `permit.release` | `action, projectId, jobId`                                                                                                      | closes the permit when the job ends (idempotent)                                                                                                                                                     |
 
 Active permit: `{contract:"omni.permit/v1", id, jobId, kind, digest, status:"active", issuedAt, expiresAt (≤ 60 s), renewals, limits:{perCallUsd:0.5, perTaskUsd:1, dailyUsd:5}, clientId, projectId, approvalId, renewEverySeconds:20, signature}`,
 `signature = HMAC(secret, "omni.permit/v1\n<id>\n<jobId>\n<kind>\n<digest>\n<clientId>\n<projectId>\n<approvalId>\n<expiresAt>")`.
@@ -48,12 +48,16 @@ Active permit: `{contract:"omni.permit/v1", id, jobId, kind, digest, status:"act
 
 `kill_switch_on`, `emergency_stop_engaged`, `code_disabled`, `not_authorized`, `approval_expired`,
 `owner_scope`, `scope_invalid`, `scope_mismatch`, `job_closed`, `permit_lapsed`, `concurrency_limit`,
-`daily_limit`; transport: `session_expired_or_invalid` (401), `replay` (409), `authentication_failed` (401).
+`daily_limit`; forward-only 0070 also adds `permit_stopped`, `meter_untrusted`,
+`gateway_unenforced`. Transport: `session_expired_or_invalid` (401), `replay` (409),
+`authentication_failed` (401).
 
 ## Jackboy guarantees
 
-- Stopping (Emergency Stop engaged, Kill Switch on, or CODE turned off) revokes every active permit in
-  the same database transaction; a failure there never blocks the stop, and every renewal re-checks.
+- Stopping attempts to revoke every active permit in the same transaction; a failure never blocks
+  Stop. Installed 0066 alone does not prevent failed-revocation revival after Stop release.
+  Forward-only 0070 is required to persist a Stop generation and permanently refuse old active
+  permits; admission, renewal and safety also recheck current meter/spending-guard health.
 - Owner authorization (OMNI page → "Authorize OMNI autonomous work with passkey") needs a fresh passkey,
   the Step 7 window, a passed Step 8 self-test for the current approval, a Step 9 signed handshake in the
   last 30 minutes, the runner, a trusted meter and the enforced spending guard. It lasts until the Step 7
@@ -66,3 +70,27 @@ Active permit: `{contract:"omni.permit/v1", id, jobId, kind, digest, status:"act
 - Step 9 (Mothership): run the real signed `handshake`, then call `safety` and show the returned state.
 - Step 10 (Mothership): after its own checks, call `safety`; it must show `authorization` present. Execution
   still requires `autonomousAllowed: true` and a permit per job.
+
+## Bounded integration and deployment boundary
+
+Unapplied feature migrations 0068–0070 preserve published 0063–0067 byte-for-byte.
+0068 adds exact-plan/control/cancellation state; 0069 mirrors this native authority
+instead of issuing parallel permits. Native session, nonce, approval-bound fresh
+Jackboy passkey, scope, <=60-second lifetime and $1/job/$5/client/UTC-day reservation
+are retained. A Mothership $0.01 estimate does **not** reduce the $1 reservation.
+Native CODE permits remain supported; the separate bounded worker accepts only
+autonomous exact plans and has no provider-call capability.
+
+The bounded worker additionally requires a single-use claim, fresh executor
+verification and a one-second Mothership lease. Running needs a fresh worker
+permission heartbeat; "permit issued" alone is not execution proof.
+`permit.release` is idempotent permission closure, not proof that a process exited.
+Claimed cancellation needs signed actual worker termination; unknown instances
+refuse acknowledgement. Unclaimed cancelled jobs use durable non-claim proof.
+
+0070 also serializes CODE claim/admit/dispatch with global policy before CODE
+controls, and the gateway's active-call watcher checks global Stop independently.
+These changes remain undeployed; the installed-state statement above is upstream
+provenance, not a new authenticated hosted verification. No hosted migration,
+deployment or owner switch change was performed by this work. See
+`docs/OMNI-SECURE-LINK.md` for verification and owner prerequisites.

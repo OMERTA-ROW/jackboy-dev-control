@@ -10,6 +10,7 @@ import {
   setActivatedControls,
   closeAdmin,
   dropClosedDatabase,
+  waitForLock,
 } from "./helpers/staging-pg.mjs";
 
 // Real-PostgreSQL tests for the 0042 provider-call ledger (loopback disposable server, synthetic data).
@@ -41,6 +42,7 @@ async function setup({ reserved = 2, run = true, through } = {}) {
   const db = await openDb();
   await db.exec(supabaseStubs);
   await replay(db, through ? { through } : {});
+  await db.exec("UPDATE public.automation_policy SET paused=false WHERE id=1");
   await db.query("INSERT INTO auth.users(id, email) VALUES ($1, 'o@example.test')", [owner]);
   await db.query("INSERT INTO public.user_roles(user_id, role) VALUES ($1, 'owner')", [owner]);
   const id = randomUUID();
@@ -83,6 +85,70 @@ const audits = async (db, action) =>
   (await one(db, "SELECT count(*)::int AS n FROM public.audit_logs WHERE action = $1", [action])).n;
 const killed = async (db) =>
   (await one(db, "SELECT kill_switch FROM public.code_runtime_controls")).kill_switch;
+
+for (const operation of ["admit", "dispatch"]) {
+  test(
+    `global Stop serializes with actual CODE ${operation} and rejects subsequent work`,
+    { skip: skipNoPg, timeout: 15000 },
+    async () => {
+      const { db, id } = await setup();
+      const gate = await db.pool.connect();
+      const runner = await db.pool.connect();
+      const stopper = await db.pool.connect();
+      try {
+        const callId = operation === "dispatch" ? (await admit(db, id, 0.1)).rows[0].id : null;
+        await db.exec(`CREATE FUNCTION public.fixture_hold_dispatch() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN IF TG_OP='INSERT' OR NEW.status='dispatched' THEN
+          PERFORM pg_advisory_xact_lock(818188); END IF; RETURN NEW; END $$;
+        CREATE TRIGGER fixture_hold_dispatch BEFORE INSERT OR UPDATE ON public.code_provider_calls
+          FOR EACH ROW EXECUTE FUNCTION public.fixture_hold_dispatch();`);
+        await gate.query("SELECT pg_advisory_lock(818188)");
+        const runPid = (await runner.query("SELECT pg_backend_pid() AS pid")).rows[0].pid;
+        const stopPid = (await stopper.query("SELECT pg_backend_pid() AS pid")).rows[0].pid;
+        const running =
+          operation === "dispatch"
+            ? runner.query("SELECT public.dispatch_code_provider_call($1)", [callId])
+            : admit(runner, id, 0.1);
+        await waitForLock(db, runPid);
+        assert.equal(
+          (
+            await db.query(
+              `SELECT EXISTS(SELECT 1 FROM pg_locks WHERE pid=$1
+          AND relation='public.automation_policy'::regclass AND mode='RowShareLock' AND granted) AS locked`,
+              [runPid],
+            )
+          ).rows[0].locked,
+          true,
+          "the policy is locked, not merely read",
+        );
+        const stopping = stopper.query(
+          "UPDATE public.automation_policy SET paused=true WHERE id=1",
+        );
+        await waitForLock(db, stopPid);
+        await gate.query("SELECT pg_advisory_unlock(818188)");
+        await running;
+        await stopping;
+        assert.equal(
+          (await db.query("SELECT paused FROM public.automation_policy WHERE id=1")).rows[0].paused,
+          true,
+        );
+        await assert.rejects(admit(db, id, 0.1), /not authorised/);
+        const cid =
+          callId ?? (await db.query("SELECT id FROM public.code_provider_calls")).rows[0].id;
+        await assert.rejects(
+          db.query("SELECT public.dispatch_code_provider_call($1)", [cid]),
+          /dispatch blocked/,
+        );
+      } finally {
+        await gate.query("SELECT pg_advisory_unlock_all()");
+        gate.release();
+        runner.release();
+        stopper.release();
+        await db.close();
+      }
+    },
+  );
+}
 
 test("concurrent admissions never exceed the task reservation", { skip: skipNoPg }, async () => {
   const { db, id } = await setup({ reserved: 2 });

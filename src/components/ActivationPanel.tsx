@@ -4,6 +4,7 @@ import { Check, Circle, CircleDot } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ReadinessChecks } from "./ReadinessChecks";
 import { CodeAcceptanceCard } from "./CodeAcceptanceCard";
+import { UnifiedOmniStatus } from "./UnifiedOmniStatus";
 import { SafetyControls } from "./SafetyControls";
 import { safetyControlsView } from "@/lib/safety-controls";
 import type { AcceptanceGates } from "@/lib/code-acceptance";
@@ -139,7 +140,10 @@ export function ActivationPanel({
       stepUp("global_pause", "global_pause:on", {
         applyingText: "Engaging the CODE emergency stop…",
         apply: (grantId) => stop({ data: { grantId } }),
-        doneText: () => "CODE emergency stop engaged.",
+        doneText: (result) =>
+          result.omniCancellation.unavailable
+            ? "CODE emergency stop engaged; OMNI cancellation is unverified. New executions are blocked."
+            : "CODE emergency stop engaged; OMNI cancellation confirmed or no OMNI jobs pending.",
       }),
     );
   const turnKillSwitchOff = () =>
@@ -185,18 +189,21 @@ export function ActivationPanel({
 
   const view = safetyControlsView({ globalPaused, code: state, gates, releaseGates, independent });
   const safetyControls = (
-    <SafetyControls
-      view={view}
-      busy={busy}
-      onKillSwitchOn={turnKillSwitchOn}
-      onKillSwitchOff={turnKillSwitchOff}
-      onCodeOn={turnCodeOn}
-      onCodeOff={turnCodeOff}
-      onEngageStop={engageStop}
-      onReleaseStop={releaseEmergencyStop}
-      checkedAt={checkedAt}
-      onRefresh={onRefresh}
-    />
+    <>
+      <UnifiedOmniStatus />
+      <SafetyControls
+        view={view}
+        busy={busy}
+        onKillSwitchOn={turnKillSwitchOn}
+        onKillSwitchOff={turnKillSwitchOff}
+        onCodeOn={turnCodeOn}
+        onCodeOff={turnCodeOff}
+        onEngageStop={engageStop}
+        onReleaseStop={releaseEmergencyStop}
+        checkedAt={checkedAt}
+        onRefresh={onRefresh}
+      />
+    </>
   );
 
   const control = (step: ActivationStep): ReactNode => {
@@ -240,9 +247,13 @@ export function ActivationPanel({
                   "code_hard_cap",
                   marking ? HARD_CAP_TARGET.mark : HARD_CAP_TARGET.unmark,
                   {
-                    applyingText: marking ? "Marking the hard cap verified…" : "Un-marking the hard cap…",
+                    applyingText: marking
+                      ? "Marking the hard cap verified…"
+                      : "Un-marking the hard cap…",
                     apply: (grantId) =>
-                      setHardCap({ data: { grantId, verified: marking, evidence: capNote.trim() } }),
+                      setHardCap({
+                        data: { grantId, verified: marking, evidence: capNote.trim() },
+                      }),
                     doneText: () => (marking ? "Hard cap marked verified." : "Hard cap un-marked."),
                   },
                 );
@@ -419,7 +430,11 @@ export function ActivationPanel({
           {(() => {
             const failing = guideStep.gates.filter((gate) => !gate.ok);
             const controlLock =
-              guideStep.id === "release_stop" ? view.emergencyStop.lockReason : guideStep.id === "turn_on" ? view.code.lockReason : null;
+              guideStep.id === "release_stop"
+                ? view.emergencyStop.lockReason
+                : guideStep.id === "turn_on"
+                  ? view.code.lockReason
+                  : null;
             const waitingOnYou =
               guideStep.id === "hard_cap" ||
               (guideStep.id === "global_pause" && guideAction !== null) ||

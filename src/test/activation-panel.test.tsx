@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => ({
   setEnabled: vi.fn(),
   release: vi.fn(),
   stepUp: vi.fn(),
+  omniState: vi.fn(),
+  omniReconcile: vi.fn(),
 }));
 vi.mock("@tanstack/react-start", () => ({ useServerFn: (fn: unknown) => fn }));
 vi.mock("@/lib/code-safety.functions", () => ({
@@ -15,18 +17,36 @@ vi.mock("@/lib/code-safety.functions", () => ({
   resumeJackboyWork: mocks.resume,
   stopJackboyWork: mocks.pauseAll,
   setCodeHardCapVerified: mocks.setHardCap,
+  getUnifiedOmniState: mocks.omniState,
+  reconcileOmniCancellation: mocks.omniReconcile,
   setCodeEnabled: mocks.setEnabled,
   releaseCodeEmergencyStop: mocks.release,
 }));
 vi.mock("@/components/ReadinessChecks", () => ({ ReadinessChecks: () => null }));
 vi.mock("@/lib/step-up-client", () => ({ useStepUp: () => mocks.stepUp }));
 import { ActivationPanel, type ActivationState } from "@/components/ActivationPanel";
-import { CODE_DISABLE_TARGET, CODE_ENABLE_TARGET, CODE_STOP_RELEASE_TARGET } from "@/lib/code-safety";
+import {
+  CODE_DISABLE_TARGET,
+  CODE_ENABLE_TARGET,
+  CODE_STOP_RELEASE_TARGET,
+} from "@/lib/code-safety";
 
 const GRANT = "11111111-1111-4111-8111-111111111111";
-const IDS = ["no_task", "failures", "spike", "cancellation", "hard_cap", "total_guard", "meter", "pins", "gateway", "cost_check"];
+const IDS = [
+  "no_task",
+  "failures",
+  "spike",
+  "cancellation",
+  "hard_cap",
+  "total_guard",
+  "meter",
+  "pins",
+  "gateway",
+  "cost_check",
+];
 const RELEASE_IDS = ["no_task", "failures", "spike", "cancellation", "hard_cap", "total_guard"];
-const gates = (failing: string[] = [], ids = IDS) => ids.map((id) => ({ id, label: id, ok: !failing.includes(id), detail: "" }));
+const gates = (failing: string[] = [], ids = IDS) =>
+  ids.map((id) => ({ id, label: id, ok: !failing.includes(id), detail: "" }));
 const OFF: ActivationState = {
   enabled: false,
   killSwitch: true,
@@ -57,14 +77,26 @@ const controls = () => within(screen.getByLabelText("Safety controls"));
 
 beforeEach(() => {
   vi.resetAllMocks();
-  mocks.stepUp.mockImplementation(async (_a: string, _t: string, o?: { apply?: (g: string) => Promise<unknown>; doneText?: (r: unknown) => string }) => {
-    if (!o?.apply) return GRANT;
-    const r = await o.apply(GRANT);
-    o.doneText?.(r);
-    return r;
-  });
+  mocks.omniState.mockResolvedValue({ state: null, label: "Blocked" });
+  mocks.stop.mockResolvedValue({ omniCancellation: { pending: 0, unavailable: 0 } });
+  mocks.stepUp.mockImplementation(
+    async (
+      _a: string,
+      _t: string,
+      o?: { apply?: (g: string) => Promise<unknown>; doneText?: (r: unknown) => string },
+    ) => {
+      if (!o?.apply) return GRANT;
+      const r = await o.apply(GRANT);
+      o.doneText?.(r);
+      return r;
+    },
+  );
   mocks.setEnabled.mockResolvedValue({ control: "code_enabled", ok: true, message: "saved" });
-  mocks.release.mockResolvedValue({ control: "emergency_stop_release", ok: true, message: "released" });
+  mocks.release.mockResolvedValue({
+    control: "emergency_stop_release",
+    ok: true,
+    message: "released",
+  });
 });
 afterEach(cleanup);
 
@@ -85,7 +117,9 @@ describe("three independent safety controls", () => {
     const codeSwitch = controls().getByRole("switch", { name: "CODE enabled" });
     expect(codeSwitch).toBeEnabled();
     fireEvent.click(codeSwitch);
-    await waitFor(() => expect(mocks.setEnabled).toHaveBeenCalledWith({ data: { grantId: GRANT, enabled: true } }));
+    await waitFor(() =>
+      expect(mocks.setEnabled).toHaveBeenCalledWith({ data: { grantId: GRANT, enabled: true } }),
+    );
     expect(mocks.stepUp).toHaveBeenCalledWith("code_enable", CODE_ENABLE_TARGET, expect.anything());
     expect(mocks.release).not.toHaveBeenCalled();
     expect(mocks.resume).not.toHaveBeenCalled();
@@ -97,8 +131,14 @@ describe("three independent safety controls", () => {
     const codeSwitch = controls().getByRole("switch", { name: "CODE enabled" });
     expect(codeSwitch).toHaveAttribute("aria-checked", "true");
     fireEvent.click(codeSwitch);
-    await waitFor(() => expect(mocks.setEnabled).toHaveBeenCalledWith({ data: { grantId: GRANT, enabled: false } }));
-    expect(mocks.stepUp).toHaveBeenCalledWith("code_enable", CODE_DISABLE_TARGET, expect.anything());
+    await waitFor(() =>
+      expect(mocks.setEnabled).toHaveBeenCalledWith({ data: { grantId: GRANT, enabled: false } }),
+    );
+    expect(mocks.stepUp).toHaveBeenCalledWith(
+      "code_enable",
+      CODE_DISABLE_TARGET,
+      expect.anything(),
+    );
     expect(mocks.stop).not.toHaveBeenCalled();
     expect(mocks.pauseAll).not.toHaveBeenCalled();
   });
@@ -107,7 +147,11 @@ describe("three independent safety controls", () => {
     render(panel());
     fireEvent.click(controls().getByRole("button", { name: "Release emergency stop" }));
     await waitFor(() => expect(mocks.release).toHaveBeenCalledWith({ data: { grantId: GRANT } }));
-    expect(mocks.stepUp).toHaveBeenCalledWith("code_stop_release", CODE_STOP_RELEASE_TARGET, expect.anything());
+    expect(mocks.stepUp).toHaveBeenCalledWith(
+      "code_stop_release",
+      CODE_STOP_RELEASE_TARGET,
+      expect.anything(),
+    );
     expect(mocks.setEnabled).not.toHaveBeenCalled();
     expect(mocks.resume).not.toHaveBeenCalled();
   });
@@ -116,7 +160,9 @@ describe("three independent safety controls", () => {
     render(panel({ releaseGates: gates(["spike"], RELEASE_IDS) }));
     expect(controls().getByRole("button", { name: "Release emergency stop" })).toBeDisabled();
     expect(controls().getByText(/Release locked: 1 requirement is not met/)).toBeInTheDocument();
-    expect(within(controls().getByLabelText("Release requirements not met")).getByText(/Needs: spike/)).toBeInTheDocument();
+    expect(
+      within(controls().getByLabelText("Release requirements not met")).getByText(/Needs: spike/),
+    ).toBeInTheDocument();
   });
 
   it("engaging the Emergency Stop works with CODE disabled and while the Kill Switch is on", async () => {
@@ -135,7 +181,11 @@ describe("three independent safety controls", () => {
     rerender(panel({ globalPaused: true }));
     fireEvent.click(controls().getByRole("button", { name: "Turn Kill Switch off" }));
     await waitFor(() => expect(mocks.resume).toHaveBeenCalledWith({ data: { grantId: GRANT } }));
-    expect(mocks.stepUp).toHaveBeenCalledWith("global_pause", "global_pause:off", expect.anything());
+    expect(mocks.stepUp).toHaveBeenCalledWith(
+      "global_pause",
+      "global_pause:off",
+      expect.anything(),
+    );
     expect(mocks.setEnabled).not.toHaveBeenCalled();
     expect(mocks.release).not.toHaveBeenCalled();
     expect(mocks.stop).not.toHaveBeenCalled();
@@ -171,34 +221,63 @@ describe("three independent safety controls", () => {
   it("a cancelled passkey changes nothing", async () => {
     mocks.stepUp.mockRejectedValue(new Error("Passkey cancelled"));
     const errors: unknown[] = [];
-    render(panel({ run: (a) => a().then(() => {}, (e) => void errors.push(e)) }));
+    render(
+      panel({
+        run: (a) =>
+          a().then(
+            () => {},
+            (e) => void errors.push(e),
+          ),
+      }),
+    );
     fireEvent.click(controls().getByRole("switch", { name: "CODE enabled" }));
     await waitFor(() => expect(errors).toHaveLength(1));
     expect(mocks.setEnabled).not.toHaveBeenCalled();
   });
 
   it("failures are shown as alerts, not as success", () => {
-    render(panel({ message: "The database refused to turn CODE on; nothing changed.", messageTone: "error" }));
-    expect(screen.getByRole("alert")).toHaveTextContent("Not done: The database refused");
+    render(
+      panel({
+        message: "The database refused to turn CODE on; nothing changed.",
+        messageTone: "error",
+      }),
+    );
+    expect(screen.getByText(/^Not done: The database refused/)).toHaveAttribute("role", "alert");
   });
 });
 
 describe("activation walkthrough", () => {
   it("starts only on press, shows one step, and advances after a fresh read without pressing anything", async () => {
-    const { rerender } = render(panel({ state: { ...OFF, providerBudgetEnforced: false }, gates: gates(["hard_cap"]) }));
+    const { rerender } = render(
+      panel({ state: { ...OFF, providerBudgetEnforced: false }, gates: gates(["hard_cap"]) }),
+    );
     expect(screen.queryByLabelText("Activation walkthrough")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Start activation" }));
     expect(screen.getByText("Step 4 of 8")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Provider hard cap confirmed" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Provider hard cap confirmed" }),
+    ).toBeInTheDocument();
     rerender(panel());
-    expect(await screen.findByText("Step 4 done: Provider hard cap confirmed.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Step 4 done: Provider hard cap confirmed."),
+    ).toBeInTheDocument();
     expect(screen.getByText("Step 6 of 8")).toBeInTheDocument();
-    expect(within(screen.getByLabelText("Activation walkthrough")).getByRole("button", { name: "Turn Kill Switch off with passkey" })).toBeInTheDocument();
+    expect(
+      within(screen.getByLabelText("Activation walkthrough")).getByRole("button", {
+        name: "Turn Kill Switch off with passkey",
+      }),
+    ).toBeInTheDocument();
     expect(mocks.stepUp).not.toHaveBeenCalled();
   });
 
   it("a blocked step explains why and how to fix it, offering only Check again", () => {
-    render(panel({ gates: gates(["pins"]).map((g) => (g.id === "pins" ? { ...g, detail: "Pins differ; resync first." } : g)) }));
+    render(
+      panel({
+        gates: gates(["pins"]).map((g) =>
+          g.id === "pins" ? { ...g, detail: "Pins differ; resync first." } : g,
+        ),
+      }),
+    );
     fireEvent.click(screen.getByRole("button", { name: "Start activation" }));
     const w = within(screen.getByLabelText("Activation walkthrough"));
     expect(w.getByText("Status: blocked")).toBeInTheDocument();
@@ -212,7 +291,9 @@ describe("activation walkthrough", () => {
     expect(screen.queryByText(/Activation complete/)).toBeNull();
     rerender(panel({ state: ALL_ON, globalPaused: false }));
     expect(screen.getByText(/Activation complete/)).toBeInTheDocument();
-    expect(screen.getByText("Show activation steps").closest("details")).not.toHaveAttribute("open");
+    expect(screen.getByText("Show activation steps").closest("details")).not.toHaveAttribute(
+      "open",
+    );
     fireEvent.click(controls().getByRole("button", { name: "Engage emergency stop" }));
     await waitFor(() => expect(mocks.stop).toHaveBeenCalledWith({ data: { grantId: GRANT } }));
   });
@@ -225,6 +306,8 @@ describe("activation walkthrough", () => {
     cleanup();
     render(panel({ globalPaused: false, state: { ...OFF, killSwitch: false } }));
     fireEvent.click(screen.getByRole("button", { name: "Turn CODE on with passkey" }));
-    await waitFor(() => expect(mocks.setEnabled).toHaveBeenCalledWith({ data: { grantId: GRANT, enabled: true } }));
+    await waitFor(() =>
+      expect(mocks.setEnabled).toHaveBeenCalledWith({ data: { grantId: GRANT, enabled: true } }),
+    );
   });
 });

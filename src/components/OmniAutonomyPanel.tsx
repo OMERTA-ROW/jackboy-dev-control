@@ -14,6 +14,7 @@ import {
   type Gate,
 } from "@/lib/omni-permit";
 import { useStepUp } from "@/lib/step-up-client";
+import { UnifiedOmniStatus } from "./UnifiedOmniStatus";
 
 type Status = Awaited<ReturnType<typeof getOmniAutonomyStatus>>;
 
@@ -83,10 +84,11 @@ export function OmniAutonomyPanel() {
       <p className="text-muted-foreground">
         Jackboy holds the key. OMNI may run an autonomous or CODE job only while it holds a Jackboy
         permit that lasts at most 60 seconds and must be renewed. Every renewal re-checks the Kill
-        Switch, the CODE Emergency Stop and the CODE setting, so a stop in Settings → Activation
-        halts OMNI within a minute once the Mothership follows the permit contract. A Step 10
-        approval on the Mothership never overrides this.
+        Switch, CODE Emergency Stop, CODE setting and spending protections. The bounded worker
+        additionally requires an exact single-use plan and a continuously renewed one-second
+        Mothership lease. A Step 10 approval never releases a stop, arms the worker or starts a job.
       </p>
+      <UnifiedOmniStatus />
 
       {loadError && (
         <p className="text-xs text-destructive">
@@ -96,7 +98,7 @@ export function OmniAutonomyPanel() {
       {s && (
         <>
           <p className="text-sm" data-testid="omni-autonomy-state">
-            <span className="font-medium">Autonomy: {s.state.label}.</span>{" "}
+            <span className="font-medium">Permit authority: {s.state.label}.</span>{" "}
             <span className="text-muted-foreground">{s.state.detail}</span>
           </p>
           <div
@@ -109,7 +111,7 @@ export function OmniAutonomyPanel() {
                 <OctagonX className="h-4 w-4 text-destructive" aria-hidden />
               )}
               {s.gates.omniCanRun
-                ? "OMNI can get permits right now"
+                ? "Owner and switch prerequisites pass; each permit still needs session, scope and budget checks"
                 : "OMNI cannot run autonomous or CODE work right now"}
             </p>
             <div className="mt-2">

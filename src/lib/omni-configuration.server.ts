@@ -150,6 +150,21 @@ export async function handleOmniLinkRequest(request: Request): Promise<Response>
     const { handleOmniPermit } = await import("./omni-permit.server");
     return handleOmniPermit(request, raw, await resolvedLinkConfig());
   }
+  if (
+    input &&
+    typeof input === "object" &&
+    "action" in input &&
+    input.action === "execution-control"
+  ) {
+    const { handleExecutionControl } = await import("./omni-execution.server");
+    return handleExecutionControl(
+      new Request(request.url, {
+        method: request.method,
+        headers: request.headers,
+        body: raw,
+      }),
+    );
+  }
   return handleOmniLink(
     new Request(request.url, {
       method: request.method,

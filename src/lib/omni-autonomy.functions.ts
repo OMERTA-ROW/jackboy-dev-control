@@ -62,6 +62,9 @@ export const getOmniAutonomyStatus = createServerFn({ method: "GET" })
         .select(
           "id, approval_id, expires_at, created_at, step8_job_id, daily_limit_usd, per_call_limit_usd, per_task_reserve_usd",
         )
+        .eq("client_id", clientId)
+        .eq("project_id", projectId)
+        .eq("owner_id", context.userId)
         .is("revoked_at", null)
         .order("created_at", { ascending: false })
         .limit(1),
@@ -70,6 +73,8 @@ export const getOmniAutonomyStatus = createServerFn({ method: "GET" })
         .select(
           "id, job_id, job_kind, status, issued_at, expires_at, renewals, closed_at, closed_reason",
         )
+        .eq("client_id", clientId)
+        .eq("project_id", projectId)
         .order("issued_at", { ascending: false })
         .limit(10),
     ]);
