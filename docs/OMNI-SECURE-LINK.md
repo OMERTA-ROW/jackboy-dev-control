@@ -446,6 +446,8 @@ fixture. This reviewed but unmerged feature commit is a test-source dependency,
 not a production release or approval. CI executes it with no production secrets
 or environments and blocked provider egress; the immutable pin does not waive
 companion review, owner authorization or any live safety gate.
+Both Node and Go acceptance suites run as the unprivileged `runner` inside the
+network namespace; the companion's refusal of root sandbox identities is retained.
 
 An independent security review of the initial bounded-executor implementation found
 two medium issues: delayed propagation of Mothership Stop and false cancellation
