@@ -15,6 +15,27 @@ export const SAFETY_VALID_SECONDS = 30;
 /** Fixed by the owner; the database refuses any other values. */
 export const OMNI_AUTONOMY_LIMITS = { dailyUsd: 5, perCallUsd: 0.5, perTaskUsd: 1 } as const;
 export const AUTONOMY_STEP_UP_ACTION = "omni_autonomy";
+/** Job kinds the owner can allow OMNI to run under a Jackboy permit. */
+export const OMNI_CAPABILITIES = ["autonomous", "code"] as const;
+export type OmniCapability = (typeof OMNI_CAPABILITIES)[number];
+export const OMNI_CAPABILITY_LABELS: Record<OmniCapability, string> = {
+  autonomous: "Autonomous jobs (bounded worker plans)",
+  code: "CODE jobs (repository changes through the CODE lane)",
+};
+/** Sorted, de-duplicated allowed capabilities, or null when empty or containing anything else. */
+export function normalizeCapabilities(input: readonly unknown[]): OmniCapability[] | null {
+  if (!Array.isArray(input) || input.length === 0) return null;
+  const set = new Set<OmniCapability>();
+  for (const c of input) {
+    if (typeof c !== "string" || !(OMNI_CAPABILITIES as readonly string[]).includes(c)) return null;
+    set.add(c as OmniCapability);
+  }
+  return OMNI_CAPABILITIES.filter((c) => set.has(c));
+}
+/** Without the scope database change only the full default scope (both kinds) can be recorded. */
+export function canRecordScope(caps: readonly OmniCapability[], scopeInstalled: boolean): boolean {
+  return scopeInstalled || caps.length === OMNI_CAPABILITIES.length;
+}
 export const autonomyTarget = (approvalId: string) => `omni-autonomy:${approvalId}`;
 export const PERMIT_KINDS = ["autonomous", "code"] as const;
 
@@ -138,6 +159,9 @@ const REASONS: Record<string, string> = {
   gateway_unenforced: "the spending guard is not enforced",
   fresh_passkey_required: "a fresh passkey check is required",
   project_scope: "the OMNI project is not yours or is inactive",
+  capability_not_authorized: "you did not allow this kind of OMNI job",
+  capabilities_change_requires_revoke:
+    "a different set of allowed job kinds is already authorized; revoke it first, then authorize again",
   authorization_revoked: "you revoked OMNI autonomous permission",
   authorization_replaced: "a newer authorization replaced it",
   not_renewed_in_time: "OMNI did not renew it in time",

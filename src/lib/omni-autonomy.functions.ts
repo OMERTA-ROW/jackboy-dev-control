@@ -4,7 +4,14 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { autonomyGates, autonomyState } from "./omni-permit";
+import {
+  OMNI_CAPABILITIES,
+  autonomyGates,
+  autonomyState,
+  canRecordScope,
+  normalizeCapabilities,
+  type OmniCapability,
+} from "./omni-permit";
 
 type Ctx = { supabase: { rpc: (f: "my_role") => PromiseLike<{ data: unknown }> }; userId: string };
 async function requireOwner(ctx: Ctx) {
@@ -20,6 +27,56 @@ async function runnerReady(): Promise<boolean> {
   const { protocolRunnerAvailable } = await import("./omni-session-runner.server");
   const { remoteRunnerConfig } = await import("./omni-remote-runner");
   return protocolRunnerAvailable() || Boolean(remoteRunnerConfig(process.env));
+}
+
+const AUTONOMY_AUDIT_ACTIONS = [
+  "omni.autonomy_authorized",
+  "omni.autonomy_scope",
+  "omni.autonomy_authorize_refused",
+  "omni.autonomy_revoked",
+  "omni.permits_revoked",
+] as const;
+
+export type AuthorizationHistoryRow = {
+  id: string;
+  createdAt: string;
+  expiresAt: string;
+  revokedAt: string | null;
+  revokedReason: string | null;
+  approvalId: string;
+  byYou: boolean;
+  capabilities: OmniCapability[] | null;
+};
+export type AutonomyAuditRow = {
+  at: string;
+  action: string;
+  outcome: string;
+  reasons: string[];
+  capabilities: string[] | null;
+};
+
+const errCode = (e: unknown) => (e as { code?: string } | null)?.code;
+// PostgREST/Postgres codes for "this function or column is not in the database yet".
+const missingFunction = (e: unknown) => ["PGRST202", "42883"].includes(errCode(e) ?? "");
+const missingColumn = (e: unknown) => ["42703", "PGRST204"].includes(errCode(e) ?? "");
+
+/** Only safe summary fields leave the server; raw audit detail never does. */
+function auditSummary(r: {
+  at: string;
+  action: string;
+  outcome: string;
+  detail: Record<string, unknown> | null;
+}): AutonomyAuditRow {
+  const d = r.detail ?? {};
+  const list = (v: unknown) =>
+    Array.isArray(v) ? v.filter((x): x is string => typeof x === "string").slice(0, 10) : [];
+  return {
+    at: r.at,
+    action: r.action,
+    outcome: r.outcome,
+    reasons: list(d["reasons"]).concat(typeof d["reason"] === "string" ? [d["reason"]] : []),
+    capabilities: Array.isArray(d["capabilities"]) ? list(d["capabilities"]) : null,
+  };
 }
 
 export type PermitRow = {
@@ -78,6 +135,74 @@ export const getOmniAutonomyStatus = createServerFn({ method: "GET" })
         .order("issued_at", { ascending: false })
         .limit(10),
     ]);
+    const [scopeR, historyR, auditR] = await Promise.all([
+      db
+        .from("omni_autonomy_authorizations")
+        .select("id, capabilities")
+        .eq("client_id", clientId)
+        .eq("project_id", projectId)
+        .order("created_at", { ascending: false })
+        .limit(10),
+      db
+        .from("omni_autonomy_authorizations")
+        .select("id, owner_id, approval_id, created_at, expires_at, revoked_at, revoked_reason")
+        .eq("client_id", clientId)
+        .eq("project_id", projectId)
+        .order("created_at", { ascending: false })
+        .limit(10),
+      db
+        .from("audit_logs")
+        .select("at, action, outcome, detail")
+        .in("action", [...AUTONOMY_AUDIT_ACTIONS])
+        .order("at", { ascending: false })
+        .limit(12),
+    ]);
+    // true = allowed job kinds are stored; false = that database change is not installed yet.
+    const scopeInstalled: boolean | null = !scopeR.error
+      ? true
+      : missingColumn(scopeR.error)
+        ? false
+        : null;
+    const capsById = new Map<string, OmniCapability[] | null>(
+      ((scopeR.error ? [] : (scopeR.data ?? [])) as Array<{ id: string; capabilities: unknown }>).map(
+        (r) => [r.id, Array.isArray(r.capabilities) ? normalizeCapabilities(r.capabilities) : null],
+      ),
+    );
+    // Before the scope change every authorization covers both job kinds (the 0066 default).
+    const capsFor = (id: string) =>
+      scopeInstalled === false ? [...OMNI_CAPABILITIES] : (capsById.get(id) ?? null);
+    const history: AuthorizationHistoryRow[] = historyR.error
+      ? []
+      : (
+          (historyR.data ?? []) as Array<{
+            id: string;
+            owner_id: string;
+            approval_id: string;
+            created_at: string;
+            expires_at: string;
+            revoked_at: string | null;
+            revoked_reason: string | null;
+          }>
+        ).map((r) => ({
+          id: r.id,
+          createdAt: r.created_at,
+          expiresAt: r.expires_at,
+          revokedAt: r.revoked_at,
+          revokedReason: r.revoked_reason,
+          approvalId: r.approval_id,
+          byYou: r.owner_id === context.userId,
+          capabilities: capsFor(r.id),
+        }));
+    const audit: AutonomyAuditRow[] = auditR.error
+      ? []
+      : (
+          (auditR.data ?? []) as Array<{
+            at: string;
+            action: string;
+            outcome: string;
+            detail: Record<string, unknown> | null;
+          }>
+        ).map(auditSummary);
     const approval =
       approvalR.error || !approvalR.data
         ? null
@@ -172,8 +297,14 @@ export const getOmniAutonomyStatus = createServerFn({ method: "GET" })
               perCallUsd: Number(auth["per_call_limit_usd"]),
               perTaskUsd: Number(auth["per_task_reserve_usd"]),
             },
+            capabilities: capsFor(String(auth["id"])),
           }
         : null,
+      scopeInstalled,
+      history,
+      historyReadable: !historyR.error,
+      audit,
+      auditReadable: !auditR.error,
       permits: installed === true ? ((permitsR.data ?? []) as PermitRow[]) : [],
       gates: autonomyGates(input),
       state: autonomyState(input, installed === true ? ((permitsR.data ?? []) as PermitRow[]) : []),
@@ -182,9 +313,16 @@ export const getOmniAutonomyStatus = createServerFn({ method: "GET" })
 
 export const authorizeOmniAutonomy = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator(z.object({ grantId: z.string().uuid() }))
+  .inputValidator(
+    z.object({
+      grantId: z.string().uuid(),
+      capabilities: z.array(z.enum(OMNI_CAPABILITIES)).min(1).max(2).default([...OMNI_CAPABILITIES]),
+    }),
+  )
   .handler(async ({ data, context }) => {
     await requireOwner(context);
+    const caps = normalizeCapabilities(data.capabilities);
+    if (!caps) throw new Error("Choose at least one kind of OMNI job to allow. Nothing was authorized.");
     const { resolvedLinkConfig } = await import("./omni-session.server");
     const link = await resolvedLinkConfig();
     if (!link)
@@ -192,15 +330,32 @@ export const authorizeOmniAutonomy = createServerFn({ method: "POST" })
         "The OMNI link is off or its settings are invalid in Jackboy, so nothing was authorized.",
       );
     const db = await admin();
-    const { data: r, error } = await db.rpc("omni_autonomy_authorization_action", {
-      _op: "authorize",
+    const runner = await runnerReady();
+    // Scoped authorization (allowed job kinds) once its database change is installed; otherwise only
+    // the full default scope can be recorded through the installed 0066 function.
+    let { data: r, error } = await db.rpc("omni_autonomy_authorize_scoped", {
       _actor: context.userId,
       _client: link.clientId,
       _project: link.projectId,
       _step: data.grantId,
-      _runner_ready: await runnerReady(),
-      _reason: null,
+      _runner_ready: runner,
+      _capabilities: caps,
     });
+    if (error && missingFunction(error)) {
+      if (!canRecordScope(caps, false))
+        throw new Error(
+          "Allowing only some kinds of OMNI job needs a database change that isn't installed yet. Nothing was authorized.",
+        );
+      ({ data: r, error } = await db.rpc("omni_autonomy_authorization_action", {
+        _op: "authorize",
+        _actor: context.userId,
+        _client: link.clientId,
+        _project: link.projectId,
+        _step: data.grantId,
+        _runner_ready: runner,
+        _reason: null,
+      }));
+    }
     if (error || !r)
       throw new Error(
         "OMNI autonomous permission could not be recorded (is the permit service installed?). Nothing changed.",
@@ -212,6 +367,7 @@ export const authorizeOmniAutonomy = createServerFn({ method: "POST" })
       id?: string;
       expiresAt?: string;
       executionBlockedBy?: string[];
+      capabilities?: OmniCapability[];
     };
   });
 

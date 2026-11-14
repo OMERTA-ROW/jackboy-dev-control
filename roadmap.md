@@ -10,6 +10,13 @@
 - [ ] Publish the refined checklist labels — optional; live site already uses the installed permit service.
 - [ ] Owner clicks after install: Mothership Step 9 handshake → Jackboy OMNI page "Authorize OMNI autonomous work with passkey"; execution still needs Emergency Stop released + CODE on in Settings → Activation (owner only).
 
+## Durable owner authorization for OMNI autonomous work (Nov 14, 07:10 UTC)
+- [x] Reused the installed authorization table, passkey check and audit list (no second authorization). Staged `scripts/omni-autonomy-scope-draft.sql` (SHA-256 c05e9b96…c062, not journaled, not installed): allowed job kinds, append-only history, owner binding and job-kind check on every permit issue/renewal.
+- [x] OMNI page: choose allowed job kinds, see saved authorizations (active/expired/revoked) and recent permission activity; owner-only authorize/revoke.
+- [x] 13 isolated database tests (restart, expiry, revocation, wrong owner, ownership transfer, stops, caps, audit has no tokens/passkey ids); removing the owner or job-kind rule makes its test fail.
+- [ ] Install 0067-0070, then the staged scope change — needs separate owner approval.
+- [ ] Owner authorizes with passkey on the OMNI page (after a fresh Step 9 handshake) — owner only.
+
 ## Three separate safety controls (Nov 13, 21:31 UTC)
 - [x] Settings → Activation shows System Kill Switch, CODE switch and CODE Emergency Stop separately, with live refresh, lock reasons and done/not-done messages. Safety state unchanged (Kill Switch on, Stop engaged, CODE off).
 - [x] Independent controls built (Nov 13, 22:43 UTC): separate CODE on/off and Emergency Stop release actions with their own passkeys and audit; CODE start checks the Kill Switch; Settings shows the saved CODE setting separately from "Can CODE run right now?". Staged database change tested (all 8 combinations, fail-closed). Production unchanged.

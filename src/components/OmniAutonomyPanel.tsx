@@ -9,14 +9,28 @@ import {
 import {
   AUTONOMY_STEP_UP_ACTION,
   OMNI_AUTONOMY_LIMITS,
+  OMNI_CAPABILITIES,
+  OMNI_CAPABILITY_LABELS,
   autonomyTarget,
+  canRecordScope,
   permitReasonText,
   type Gate,
+  type OmniCapability,
 } from "@/lib/omni-permit";
 import { useStepUp } from "@/lib/step-up-client";
 import { UnifiedOmniStatus } from "./UnifiedOmniStatus";
 
 type Status = Awaited<ReturnType<typeof getOmniAutonomyStatus>>;
+
+const capText = (caps: readonly string[] | null) =>
+  caps && caps.length ? caps.join(" + ") : "unknown (couldn't read)";
+const AUDIT_LABELS: Record<string, string> = {
+  "omni.autonomy_authorized": "Authorized",
+  "omni.autonomy_scope": "Allowed job kinds saved",
+  "omni.autonomy_authorize_refused": "Authorization refused",
+  "omni.autonomy_revoked": "Revoked",
+  "omni.permits_revoked": "Permits closed by a stop",
+};
 
 function GateList({ gates }: { gates: Gate[] }) {
   return (
@@ -46,6 +60,7 @@ export function OmniAutonomyPanel() {
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [caps, setCaps] = useState<OmniCapability[]>([...OMNI_CAPABILITIES]);
 
   const refresh = useCallback(
     () =>
@@ -135,6 +150,12 @@ export function OmniAutonomyPanel() {
                 {new Date(s.authorizationDetail.expiresAt).toLocaleString()} (the end of the Step 7
                 window).
               </p>
+              <p>Allowed job kinds: {capText(s.authorizationDetail.capabilities)}.</p>
+              <p className="text-muted-foreground">
+                Saved on the server: it stays after a page refresh or restart until it expires or
+                you revoke it. It never overrides the Kill Switch, Emergency Stop, CODE setting or
+                spending limits.
+              </p>
               <p className="text-muted-foreground">
                 Limits: ${s.authorizationDetail.limits.dailyUsd.toFixed(2)} per day · $
                 {s.authorizationDetail.limits.perCallUsd.toFixed(2)} per AI call · $
@@ -150,11 +171,47 @@ export function OmniAutonomyPanel() {
             </p>
           )}
 
+          {!s.authorizationDetail && (
+            <fieldset className="space-y-1 text-xs">
+              <legend className="font-medium">Kinds of OMNI job to allow</legend>
+              {OMNI_CAPABILITIES.map((c) => (
+                <label key={c} className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={caps.includes(c)}
+                    disabled={busy || s.scopeInstalled !== true}
+                    onChange={(e) =>
+                      setCaps((prev) =>
+                        e.target.checked
+                          ? OMNI_CAPABILITIES.filter((x) => x === c || prev.includes(x))
+                          : prev.filter((x) => x !== c),
+                      )
+                    }
+                  />
+                  {OMNI_CAPABILITY_LABELS[c]}
+                </label>
+              ))}
+              {s.scopeInstalled !== true && (
+                <p className="text-muted-foreground">
+                  {s.scopeInstalled === false
+                    ? "Choosing only some kinds needs a database change that isn't installed yet, so both kinds apply."
+                    : "Couldn't read the saved job kinds right now, so both kinds apply."}
+                </p>
+              )}
+            </fieldset>
+          )}
+
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
               className="inline-flex items-center gap-2 rounded-md border border-electric px-3 py-1.5 text-xs hover:bg-muted disabled:opacity-50"
-              disabled={busy || !s.gates.canAuthorize || !s.approval}
+              disabled={
+                busy ||
+                !s.gates.canAuthorize ||
+                !s.approval ||
+                caps.length === 0 ||
+                !canRecordScope(caps, s.scopeInstalled === true)
+              }
               title={s.gates.canAuthorize ? undefined : "Every check above must pass first"}
               onClick={async () => {
                 if (!s.approval) return;
@@ -165,7 +222,7 @@ export function OmniAutonomyPanel() {
                     AUTONOMY_STEP_UP_ACTION,
                     autonomyTarget(s.approval.approvalId),
                     {
-                      apply: (grantId) => authorize({ data: { grantId } }),
+                      apply: (grantId) => authorize({ data: { grantId, capabilities: caps } }),
                       applyingText: "Passkey confirmed. Recording your permission…",
                       doneText: () => "Done.",
                     },
@@ -179,7 +236,7 @@ export function OmniAutonomyPanel() {
                     const blocked = r.executionBlockedBy ?? [];
                     setMsg({
                       ok: true,
-                      text: `${r.duplicate ? "Already authorized" : "Authorized"} until ${new Date(r.expiresAt!).toLocaleString()}.${blocked.length ? ` OMNI still cannot run because ${blocked.map(permitReasonText).join(", ")}.` : ""}`,
+                      text: `${r.duplicate ? "Already authorized" : "Authorized"} until ${new Date(r.expiresAt!).toLocaleString()} for ${capText(r.capabilities ?? caps)}.${blocked.length ? ` OMNI still cannot run because ${blocked.map(permitReasonText).join(", ")}.` : ""}`,
                     });
                   }
                 } catch (e) {
@@ -259,6 +316,62 @@ export function OmniAutonomyPanel() {
               </ul>
             )}
           </div>
+          <div className="space-y-1">
+            <p className="text-xs font-medium">Saved authorizations (newest first)</p>
+            {!s.historyReadable ? (
+              <p className="text-xs text-muted-foreground">Couldn't read the history right now.</p>
+            ) : s.history.length === 0 ? (
+              <p className="text-xs text-muted-foreground">None saved yet.</p>
+            ) : (
+              <ul className="space-y-1" data-testid="omni-autonomy-history">
+                {s.history.map((h) => {
+                  const state = h.revokedAt
+                    ? `revoked ${new Date(h.revokedAt).toLocaleString()}${h.revokedReason ? ` (${h.revokedReason})` : ""}`
+                    : Date.parse(h.expiresAt) <= Date.now()
+                      ? `expired ${new Date(h.expiresAt).toLocaleString()}`
+                      : `active until ${new Date(h.expiresAt).toLocaleString()}`;
+                  return (
+                    <li key={h.id} className="text-xs">
+                      <span className="font-mono">{h.id.slice(0, 8)}</span> ·{" "}
+                      {new Date(h.createdAt).toLocaleString()} · {capText(h.capabilities)} ·{" "}
+                      <span
+                        className={
+                          !h.revokedAt && Date.parse(h.expiresAt) > Date.now()
+                            ? "text-success"
+                            : "text-muted-foreground"
+                        }
+                      >
+                        {state}
+                      </span>
+                      {!h.byYou && " · by another account"}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+
+          <div className="space-y-1">
+            <p className="text-xs font-medium">Recent permission activity</p>
+            {!s.auditReadable ? (
+              <p className="text-xs text-muted-foreground">Couldn't read the activity list.</p>
+            ) : s.audit.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No activity yet.</p>
+            ) : (
+              <ul className="space-y-1">
+                {s.audit.map((a, i) => (
+                  <li key={`${a.at}-${i}`} className="text-xs">
+                    {new Date(a.at).toLocaleString()} · {AUDIT_LABELS[a.action] ?? a.action}
+                    {a.capabilities ? ` · ${capText(a.capabilities)}` : ""}
+                    {a.reasons.length
+                      ? ` · ${a.reasons.map(permitReasonText).join("; ")}`
+                      : ""}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
           <p className="text-xs text-muted-foreground">
             Checked {new Date(s.checkedAt).toLocaleTimeString()}.
           </p>

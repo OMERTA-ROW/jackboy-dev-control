@@ -396,3 +396,20 @@ describe("autonomyState: configured vs armed vs running", () => {
     expect(autonomyState({ ...ok, installed: null }, live, now).id).toBe("unavailable");
   });
 });
+
+describe("allowed OMNI capabilities", () => {
+  it("accepts only autonomous and code, de-duplicated in a fixed order", async () => {
+    const { normalizeCapabilities } = await import("./omni-permit");
+    expect(normalizeCapabilities(["code", "autonomous", "code"])).toEqual(["autonomous", "code"]);
+    expect(normalizeCapabilities(["code"])).toEqual(["code"]);
+    expect(normalizeCapabilities([])).toBeNull();
+    expect(normalizeCapabilities(["deploy"])).toBeNull();
+    expect(normalizeCapabilities(["code", null])).toBeNull();
+  });
+  it("records a narrowed scope only once the scope database change is installed", async () => {
+    const { canRecordScope } = await import("./omni-permit");
+    expect(canRecordScope(["autonomous", "code"], false)).toBe(true);
+    expect(canRecordScope(["code"], false)).toBe(false);
+    expect(canRecordScope(["code"], true)).toBe(true);
+  });
+});
