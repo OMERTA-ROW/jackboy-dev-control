@@ -79,7 +79,10 @@ installed) adds `capability_not_authorized`. Transport: `session_expired_or_inva
 
 ## Bounded integration and deployment boundary
 
-Unapplied feature migrations 0068–0070 preserve published 0063–0067 byte-for-byte.
+Migrations 0068–0070 are source in merged PR #71 (`05ae0391`), preserving published
+0063–0067 byte-for-byte. This repository provenance does not establish remote installation.
+This review adds forward-only 0071 denial diagnostics, 0072 execution nonce-retention
+correction and 0073 idempotent handshakes without altering 0066–0070.
 0068 adds exact-plan/control/cancellation state; 0069 mirrors this native authority
 instead of issuing parallel permits. Native session, nonce, approval-bound fresh
 Jackboy passkey, scope, <=60-second lifetime and $1/job/$5/client/UTC-day reservation
@@ -96,7 +99,47 @@ refuse acknowledgement. Unclaimed cancelled jobs use durable non-claim proof.
 
 0070 also serializes CODE claim/admit/dispatch with global policy before CODE
 controls, and the gateway's active-call watcher checks global Stop independently.
-These changes remain undeployed; the installed-state statement above is upstream
-provenance, not a new authenticated hosted verification. No hosted migration,
-deployment or owner switch change was performed by this work. See
+The earlier undeployed status and installed-state statement above are historical provenance,
+not a new authenticated hosted verification. No hosted migration, deployment or owner switch
+change was performed by this work. See
 `docs/OMNI-SECURE-LINK.md` for verification and owner prerequisites.
+
+Local reconciliation onto `8436a7a` preserves the staged owner-scope draft above.
+The pending `0073_omni_idempotent_handshake` migration is additive: it grants no work
+authorization and never changes the native permit authority. Isolated tests replay the
+combined chain and scope draft, including capability/stop/expiry checks on retry sessions
+and the prepared scope/0067–0070 rollback scripts. Those scripts intentionally leave
+0073 intact; they do not verify or install it. The owner-scope SQL remains the preserved,
+unjournaled draft, not a 0074 migration; promotion needs separate owner approval and
+guarded manager bookkeeping so a previously installed draft is never replayed.
+This rehearsal is not production evidence.
+
+Forward-only 0072 preserves execution nonces for five minutes while the request
+rate budget still counts only the last minute. This covers the full timestamp
+acceptance window (including future-skewed requests) without changing the
+published 0068 migration bytes or legacy callback nonce retention.
+
+## Owner-reviewed activation sequence (not performed)
+
+1. Keep the System Kill Switch on, CODE Emergency Stop engaged and CODE saved OFF. Confirm owner
+   sign-in and passkey availability. Take fresh, timestamped read-only safety and readiness readings;
+   missing or unreadable evidence blocks progress. Historical integration observations and local tests
+   are not live bridge, deployment, or production-readiness proof.
+2. Independently compare the deployed `/api/public/version` commit/tree and clean build to GitHub
+   main, then compare the live workflow blob, configured policy and database pins. Review the live
+   migration journal and exact bytes/ordering for 0065–0073 before any owner-approved migration or
+   deployment; installation of 0067–0073 is not proven by this document.
+   The #65/0062 reconciliation path also requires a fresh schema/journal read and exact migration
+   manager bookkeeping. Historical empty-table observations and this repository's journal are
+   insufficient; never auto-register or apply it.
+3. Verify current runner isolation, storage, the enforced $10 total guard, trusted live meter,
+   per-call limits and independently confirmed provider hard cap. Resolve stale or failed evidence
+   without raising limits. A `session_limit` response is not a reason to bypass any gate.
+4. Only after the owner separately approves the remaining live integration checks, follow Settings →
+   Autonomous Activation in its displayed order. Each switch and stop is independent and requires its
+   own owner action and fresh passkey; none is changed by this checklist. Any handshake, self-test,
+   authorization or permit operation needs its own explicit owner approval and current prerequisites.
+5. Before any work, confirm current controls and authorization again, independently verify OMNI's
+   permit enforcement and spending limits, and obtain each required job approval. Stop immediately on
+   missing evidence, refusal, lost connectivity or permit expiry. Do not treat an old session or a
+   successful local test as proof that the live bridge is reachable.

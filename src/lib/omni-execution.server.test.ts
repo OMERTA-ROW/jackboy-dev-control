@@ -140,6 +140,19 @@ it("runner failure or unreviewed release does not persist configuration", async 
   expect(await response.text()).not.toContain("credentials");
   expect(deps.store).not.toHaveBeenCalled();
 });
+it("missing isolated executor configuration keeps Step 10 blocked", async () => {
+  const deps = dependencies();
+  const { inspect: _inspect, ...withoutInspect } = deps;
+  vi.stubEnv("OMNI_EXECUTOR_ORIGIN", "");
+  vi.stubEnv("OMNI_EXECUTOR_CONTROL_SECRET", "");
+  try {
+    const response = await handleExecutionControl(await request("configure"), withoutInspect);
+    expect(response.status).toBe(503);
+    expect(deps.store).not.toHaveBeenCalled();
+  } finally {
+    vi.unstubAllEnvs();
+  }
+});
 it("disarming persists first and an unconfirmed cancellation is an explicit failure", async () => {
   const deps = dependencies();
   deps.cancel.mockResolvedValueOnce({ pending: 1, unavailable: 1 });

@@ -232,16 +232,20 @@ export async function executorRequest(
   const secret = process.env["OMNI_EXECUTOR_CONTROL_SECRET"];
   if (!origin || !secret || secret.length < 32) throw new Error("Executor is not configured");
   const url = new URL(origin);
+  const internalOrigin = "http://omni-autonomous-executor.railway.internal:8080";
+  const isInternalExecutor = origin === internalOrigin || origin === `${internalOrigin}/`;
   if (
-    url.protocol !== "https:" ||
+    (!isInternalExecutor &&
+      (url.protocol !== "https:" || !url.hostname.endsWith(".up.railway.app"))) ||
     url.username ||
     url.password ||
     url.pathname !== "/" ||
     url.search ||
-    url.hash ||
-    !url.hostname.endsWith(".up.railway.app")
+    url.hash
   )
-    throw new Error("Executor must be a separate Railway HTTPS service");
+    throw new Error(
+      "Executor must use the exact private origin or a separate Railway HTTPS service",
+    );
   if (
     origin === process.env["OMNI_SANDBOX_ORIGIN"] ||
     origin === process.env["OMNI_REMOTE_RUNNER_ORIGIN"]

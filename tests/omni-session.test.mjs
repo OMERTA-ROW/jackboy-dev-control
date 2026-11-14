@@ -38,18 +38,25 @@ await db.exec(await readFile(join(root, "drizzle/migrations/0030_omni_sessions.s
 await db.exec(
   await readFile(join(root, "drizzle/migrations/0064_omni_configuration_probe.sql"), "utf8"),
 );
+for (const migration of [
+  "0071_omni_link_denial_reasons.sql",
+  "0072_omni_execution_nonce_replay_window.sql",
+  "0073_omni_idempotent_handshake.sql",
+]) await db.exec(await readFile(join(root, "drizzle/migrations", migration), "utf8"));
 const project = "11111111-1111-4111-8111-111111111111",
   owner = "22222222-2222-4222-8222-222222222222",
   approval = "33333333-3333-4333-8333-333333333333";
 const job = "44444444-4444-4444-8444-444444444444";
 let config;
 const store = async (op, args) =>
-  (await db.query("SELECT omni_link_action($1,$2::jsonb) AS result", [op, JSON.stringify(args)]))
+  (op === "handshake_idempotent"
+    ? await db.query("SELECT omni_link_idempotent_handshake($1::jsonb) AS result", [JSON.stringify(args)])
+    : await db.query("SELECT omni_link_action($1,$2::jsonb) AS result", [op, JSON.stringify(args)]))
     .rows[0].result;
 beforeEach(async () => {
   process.env["OMNI_LINK_NODE_RUNNER_ENABLED"] = "true";
   await db.exec(
-    "TRUNCATE omni_link_sessions,omni_inbound_jobs,omni_callback_nonces,site_log,owner_projects,user_roles,automation_policy;",
+    "TRUNCATE omni_handshake_requests,omni_link_sessions,omni_inbound_jobs,omni_callback_nonces,site_log,owner_projects,user_roles,automation_policy;",
   );
   await db.query("INSERT INTO owner_projects VALUES($1,$2,true)", [project, owner]);
   await db.query("INSERT INTO user_roles VALUES($1,'owner')", [owner]);
@@ -104,8 +111,12 @@ async function connect() {
   assert.equal(r.status, 200);
   return r.sessionToken;
 }
-test("authenticated handshake, hash-only session, scoped readiness and signed response", async () => {
-  const r = await call("handshake", config.bootstrap);
+test("authenticated handshake is independent of jobs, CODE and permits and returns a signed scoped session", async () => {
+  let executions = 0;
+  const r = await call("handshake", config.bootstrap, {}, async () => {
+    executions++;
+    return false;
+  });
   assert.equal(r.status, 200);
   assert.equal(r.ready, true);
   assert.deepEqual(r.capabilities, ["protocol.self-test", "jobs.read", "jobs.cancel"]);
@@ -113,6 +124,8 @@ test("authenticated handshake, hash-only session, scoped readiness and signed re
   assert.equal(rows[0].token_hash, await digest(r.sessionToken));
   assert(!JSON.stringify(rows).includes(r.sessionToken));
   assert(Date.parse(r.expiresAt) <= Date.now() + 300000);
+  assert.equal(executions, 0);
+  assert.equal((await db.query("SELECT count(*)::int AS n FROM omni_inbound_jobs")).rows[0].n, 0);
 });
 test("disabled by default; HTTPS required; invalid credentials and stale signatures rejected", async () => {
   assert.equal(
@@ -161,6 +174,21 @@ test("replay rejected durably across handler instances and signed body tampering
     401,
   );
 });
+test("execution nonces outlive future-skew acceptance without reducing the per-minute rate budget", async () => {
+  const nonce = "d".repeat(32);
+  const claim = (value) => db.query("SELECT public.claim_omni_execution_nonce('fixture',$1)", [value]);
+  await claim(nonce);
+  await db.query(
+    "UPDATE public.omni_callback_nonces SET received_at=now()-interval '61 seconds' WHERE nonce=$1",
+    [`execution:fixture:${nonce}`],
+  );
+  await claim("e".repeat(32));
+  await assert.rejects(claim(nonce));
+  await db.exec(
+    "INSERT INTO public.omni_callback_nonces(nonce,received_at) SELECT 'execution:fixture:'||md5(i::text),now()-interval '61 seconds' FROM generate_series(1,400) i",
+  );
+  await claim("f".repeat(32));
+});
 test("expired session rejected, reconnect recovers same queued job", async () => {
   const token = await connect();
   assert.equal(
@@ -171,6 +199,79 @@ test("expired session rejected, reconnect recovers same queued job", async () =>
   assert.equal((await call("status", token, { jobId: job })).status, 401);
   const fresh = await connect();
   assert.equal((await call("status", fresh, { jobId: job })).job.status, "queued");
+});
+test("idempotent handshake retries reuse a session without weakening replay or expiry", async () => {
+  const handshakeId = crypto.randomUUID();
+  const replies = await Promise.all(Array.from({ length: 10 }, () =>
+    call("handshake", config.bootstrap, { handshakeId })));
+  assert(replies.every((r) => r.status === 200));
+  assert.equal(new Set(replies.map((r) => r.sessionToken)).size, 1);
+  assert.equal((await db.query("SELECT count(*)::int AS n FROM omni_link_sessions")).rows[0].n, 1);
+  await db.query("INSERT INTO omni_callback_nonces VALUES ($1,now()-interval '11 minutes'),($2,now()-interval '11 minutes')",
+    ["link-v2:omni-review:old", "link-v2:another-client:old"]);
+  assert.equal((await call("handshake", config.bootstrap, { handshakeId })).status, 200);
+  assert.deepEqual((await db.query("SELECT nonce FROM omni_callback_nonces WHERE nonce LIKE '%:old'")).rows,
+    [{ nonce: "link-v2:another-client:old" }]);
+  const request = await signed("handshake", config.bootstrap, { handshakeId });
+  assert.equal((await handleOmniLink(request.clone(), config, store)).status, 200);
+  assert.equal((await handleOmniLink(request, config, store)).status, 409);
+  await db.exec("UPDATE automation_policy SET paused=true");
+  assert.equal((await call("handshake", config.bootstrap, { handshakeId })).status, 403);
+  await db.exec("UPDATE automation_policy SET paused=false; UPDATE omni_link_sessions SET expires_at=now()-interval '1 second'");
+  const conflictRequest = await signed("handshake", config.bootstrap, { handshakeId });
+  const conflictResponse = await handleOmniLink(conflictRequest, config, store);
+  const conflictBody = await conflictResponse.text();
+  const nonce = conflictRequest.headers.get("x-omni-nonce");
+  assert.equal(conflictResponse.status, 409);
+  assert.deepEqual(JSON.parse(conflictBody), {
+    contract: LINK_CONTRACT, requestNonce: nonce, error: "handshake_id_expired_or_conflict",
+  });
+  assert.equal(conflictResponse.headers.get("x-omni-proof"),
+    await hmacHex(config.secret, `${LINK_CONTRACT}\nresponse\n${nonce}\n409\n${conflictBody}`));
+  assert.equal((await call("handshake", config.bootstrap, { handshakeId: crypto.randomUUID() })).status, 200);
+  assert.equal((await db.query("SELECT count(*)::int AS n FROM omni_link_sessions")).rows[0].n, 1);
+});
+test("only the authenticated handshake conflict receives a signed error", async () => {
+  const handshakeId = crypto.randomUUID();
+  const request = await signed("handshake", config.bootstrap, { handshakeId });
+  assert.equal((await handleOmniLink(request.clone(), config, store)).status, 200);
+  const replay = await handleOmniLink(request, config, store);
+  assert.equal(replay.status, 409);
+  assert.equal(replay.headers.get("x-omni-proof"), null);
+  assert.equal((await replay.json()).error, "replay");
+});
+test("a failed rejection audit never produces a signed conflict", async () => {
+  const handshakeId = crypto.randomUUID();
+  await call("handshake", config.bootstrap, { handshakeId });
+  await db.exec("UPDATE omni_link_sessions SET expires_at=now()-interval '1 second'");
+  const failReject = async (op, args) => {
+    if (op === "reject") throw new Error("audit unavailable");
+    return store(op, args);
+  };
+  const response = await handleOmniLink(
+    await signed("handshake", config.bootstrap, { handshakeId }), config, failReject,
+  );
+  assert.equal(response.status, 503);
+  assert.equal(response.headers.get("x-omni-proof"), null);
+});
+test("legacy handshakes enforce the live-session quota and clean expired sessions", async () => {
+  for (let i = 0; i < 8; i++) assert.equal((await call("handshake", config.bootstrap)).status, 200);
+  assert.equal((await call("handshake", config.bootstrap)).error, "session_limit");
+  await db.exec("UPDATE omni_link_sessions SET expires_at=now()-interval '1 second'");
+  assert.equal((await call("handshake", config.bootstrap)).status, 200);
+  assert.equal((await db.query("SELECT count(*)::int AS n FROM omni_link_sessions")).rows[0].n, 1);
+});
+test("idempotent handshake audit failure rolls back the session and retry record", async () => {
+  const handshakeId = crypto.randomUUID();
+  await db.exec("ALTER TABLE site_log ADD CONSTRAINT fixture_deny_handshake CHECK (action <> 'omni.link.handshake') NOT VALID");
+  try {
+    assert.equal((await call("handshake", config.bootstrap, { handshakeId })).status, 503);
+    assert.equal((await db.query("SELECT count(*)::int AS n FROM omni_link_sessions")).rows[0].n, 0);
+    assert.equal((await db.query("SELECT count(*)::int AS n FROM omni_handshake_requests")).rows[0].n, 0);
+  } finally {
+    await db.exec("ALTER TABLE site_log DROP CONSTRAINT fixture_deny_handshake");
+  }
+  assert.equal((await call("handshake", config.bootstrap, { handshakeId })).status, 200);
 });
 test("cross-project, arbitrary CODE/shell jobs, unowned project, revocation and pause denied", async () => {
   const token = await connect();
@@ -192,6 +293,59 @@ test("cross-project, arbitrary CODE/shell jobs, unowned project, revocation and 
   assert.equal((await call("handshake", config.bootstrap)).status, 403);
   await db.exec("UPDATE owner_projects SET active=true; DELETE FROM user_roles");
   assert.equal((await call("handshake", config.bootstrap)).status, 403);
+});
+test("fresh and retry handshakes report each grant gate without changing sessions, jobs or safety", async () => {
+  const handshakeId = crypto.randomUUID();
+  await call("handshake", config.bootstrap, { handshakeId });
+  const cases = [
+    ["link_approval_missing", () => { config.approvalExpiresAt = null; }],
+    ["link_approval_expired", () => {
+      config.approvalExpiresAt = new Date(Date.now() - 60000).toISOString();
+    }],
+    ["link_approval_expiry_invalid", () => {
+      config.approvalExpiresAt = new Date(Date.now() + 2 * 86400000).toISOString();
+    }],
+    ["link_project_missing", () => db.exec("DELETE FROM omni_link_sessions; DELETE FROM owner_projects")],
+    ["link_project_owner_mismatch", () => db.query("UPDATE owner_projects SET created_by=$1", [approval])],
+    ["link_project_inactive", () => db.exec("UPDATE owner_projects SET active=false")],
+    ["link_owner_role_required", () => db.exec("DELETE FROM user_roles")],
+    ["safety_state_unavailable", () => db.exec("DELETE FROM automation_policy")],
+    ["safety_state_unavailable", () => db.exec("UPDATE automation_policy SET paused=NULL")],
+    ["kill_switch_on", () => db.exec("UPDATE automation_policy SET paused=true")],
+  ];
+  for (const [reason, change] of cases) {
+    await db.exec("BEGIN");
+    const expiry = config.approvalExpiresAt;
+    try {
+      await change();
+      const before = (await db.query("SELECT * FROM automation_policy")).rows;
+      const sessions = (await db.query("SELECT * FROM omni_link_sessions")).rows;
+      for (const id of [crypto.randomUUID(), handshakeId]) {
+        const request = await signed("handshake", config.bootstrap, { handshakeId: id });
+        const response = await handleOmniLink(request, config, store);
+        const result = await response.json();
+        assert.equal(response.status, 403, reason);
+        assert.equal(response.headers.get("X-Omni-Proof"), null);
+        assert.equal(result.error, reason);
+        assert.equal(result.sessionToken, undefined);
+      }
+      assert.deepEqual((await db.query("SELECT * FROM automation_policy")).rows, before);
+      assert.deepEqual((await db.query("SELECT * FROM omni_link_sessions")).rows, sessions);
+      assert.equal((await db.query("SELECT count(*)::int AS n FROM omni_inbound_jobs")).rows[0].n, 0);
+      const details = (await db.query("SELECT detail FROM site_log WHERE action='omni.link.denied'")).rows;
+      assert.deepEqual(details.map((row) => row.detail), [{ reason }, { reason }]);
+    } finally {
+      config.approvalExpiresAt = expiry;
+      await db.exec("ROLLBACK");
+    }
+  }
+});
+test("signature validation precedes grant diagnostics and denial audit never copies arbitrary text", async () => {
+  await db.exec("UPDATE automation_policy SET paused=true");
+  assert.equal((await call("handshake", "x".repeat(64))).error, "authentication_failed");
+  await store("reject", { projectId: project, reason: "secret=do-not-copy" });
+  const details = (await db.query("SELECT detail FROM site_log WHERE action='omni.link.denied'")).rows;
+  assert.deepEqual(details.map((row) => row.detail.reason), ["authentication_failed", "request_denied"]);
 });
 test("real restricted test job dispatch, execution and returned test evidence", async () => {
   const token = await connect();
@@ -315,6 +469,7 @@ test("database function and tables are inaccessible to browser roles", async () 
   for (const role of ["anon", "authenticated"]) {
     await db.exec("SET ROLE " + role);
     await assert.rejects(db.query("SELECT omni_link_action('handshake','{}')"));
+    await assert.rejects(db.query("SELECT omni_link_idempotent_handshake('{}')"));
     await assert.rejects(
       db.query("SELECT omni_link_configuration_authorize('client', $1, $2, $3)", [
         project,
@@ -323,6 +478,7 @@ test("database function and tables are inaccessible to browser roles", async () 
       ]),
     );
     await assert.rejects(db.query("SELECT * FROM omni_link_sessions"));
+    await assert.rejects(db.query("SELECT * FROM omni_handshake_requests"));
     await assert.rejects(db.query("SELECT * FROM omni_inbound_jobs"));
     await db.exec("RESET ROLE");
   }
@@ -509,11 +665,14 @@ test("Go OMNI client against real Jackboy handler over verified local TLS", asyn
   ]);
   const { createLinkServer } = await import("../scripts/omni-link-server.mjs");
   const lost = new Set();
+  let handshakes = 0;
   const server = createLinkServer(
     { key: await readFile(key), cert: await readFile(cert) },
     "https://127.0.0.1:0",
     async (request) => {
       const action = (await request.clone().json()).action;
+      if (action === "handshake" && ++handshakes === 3)
+        await db.exec("UPDATE omni_link_sessions SET expires_at=now()-interval '1 second'");
       const response = await handleOmniLink(request, config, store);
       // Lose one acknowledgement AFTER commit, then let the Go client reconcile.
       if ((action === "submit" || action === "run") && !lost.has(action) && response.ok) {
@@ -539,6 +698,7 @@ test("Go OMNI client against real Jackboy handler over verified local TLS", asyn
       },
     );
     assert.match(stdout, /PASS/);
+    assert.equal(handshakes, 4, "expired persisted ID must rotate only after the signed conflict");
     assert.equal(lost.size, 2);
     assert.equal((await db.query("SELECT count(*)::int AS n FROM omni_inbound_jobs")).rows[0].n, 1);
     assert.equal(

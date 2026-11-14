@@ -354,7 +354,7 @@ test(
       ]);
       assert.equal(results.filter((result) => result.status === "fulfilled").length, 1);
       await db.exec(
-        "INSERT INTO public.omni_callback_nonces(nonce,received_at) VALUES('legacy-fixture',now()-interval '2 minutes'),('execution:fixture:expired',now()-interval '2 minutes')",
+        "INSERT INTO public.omni_callback_nonces(nonce,received_at) VALUES('legacy-fixture',now()-interval '6 minutes'),('execution:fixture:expired',now()-interval '6 minutes')",
       );
       await db.query("SELECT public.claim_omni_execution_nonce('fixture',$1)", ["b".repeat(32)]);
       assert.equal(
@@ -379,6 +379,31 @@ test(
       await assert.rejects(
         db.query("SELECT public.claim_omni_execution_nonce('fixture',$1)", ["c".repeat(32)]),
       );
+    } finally {
+      await db.close();
+    }
+  },
+);
+test(
+  "execution replay retention covers future-skewed signatures without reducing the per-minute rate budget",
+  { skip: skipNoPg },
+  async () => {
+    const db = await fixture();
+    try {
+      const nonce = "d".repeat(32);
+      await db.query("SELECT public.claim_omni_execution_nonce('fixture',$1)", [nonce]);
+      await db.query(
+        "UPDATE public.omni_callback_nonces SET received_at=now()-interval '61 seconds' WHERE nonce=$1",
+        [`execution:fixture:${nonce}`],
+      );
+      await db.query("SELECT public.claim_omni_execution_nonce('fixture',$1)", ["e".repeat(32)]);
+      await assert.rejects(
+        db.query("SELECT public.claim_omni_execution_nonce('fixture',$1)", [nonce]),
+      );
+      await db.exec(
+        "INSERT INTO public.omni_callback_nonces(nonce,received_at) SELECT 'execution:fixture:'||md5(i::text),now()-interval '61 seconds' FROM generate_series(1,400) i",
+      );
+      await db.query("SELECT public.claim_omni_execution_nonce('fixture',$1)", ["f".repeat(32)]);
     } finally {
       await db.close();
     }

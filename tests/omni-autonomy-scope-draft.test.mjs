@@ -121,6 +121,49 @@ test("every permit request and renewal enforces the allowed capability", async (
   assert.deepEqual(s.authorization.capabilities, ["code"]);
 });
 
+test("idempotent handshake sessions retain owner capability and stop checks on permits", async () => {
+  const handshakeId = "88888888-8888-4888-8888-888888888888";
+  const retryTokenHash = "d".repeat(64);
+  const approvalExpiresAt = new Date(Date.now() + 3600_000).toISOString();
+  const handshake = async () => (await one(db,
+    "SELECT public.omni_link_idempotent_handshake($1::jsonb) AS r",
+    [JSON.stringify(args({ handshakeId, newTokenHash: retryTokenHash, approvalExpiresAt }))])).r;
+  const first = await handshake();
+  assert.equal(first.http, 200);
+  const retry = await handshake();
+  assert.equal(retry.duplicate, true);
+  assert.equal(retry.expiresAt, first.expiresAt);
+  assert.equal((await auths()).length, 0, "handshakes never authorize work");
+  await authorize(await grant(), ["code"]);
+  assert.equal((await request(jobA, { tokenHash: retryTokenHash })).reason, "capability_not_authorized");
+  assert.equal((await request(jobB, { kind: "code", tokenHash: retryTokenHash })).http, 200);
+  assert.equal((await request(jobB, { kind: "code", tokenHash: retryTokenHash })).permit.renewals, 1);
+  await db.query("SELECT * FROM public.engage_code_kill_switch($1)", [owner]);
+  assert.equal((await request(jobB, { kind: "code", tokenHash: retryTokenHash })).reason, "emergency_stop_engaged");
+  await seedControls(db, { paused: true });
+  assert.equal((await handshake()).error, "kill_switch_on");
+  await seedControls(db);
+  await db.query("UPDATE public.omni_link_sessions SET expires_at=now()-interval '1 second' WHERE token_hash=$1", [retryTokenHash]);
+  assert.equal((await handshake()).error, "handshake_id_expired_or_conflict");
+  assert.equal((await request(jobB, { kind: "code", tokenHash: retryTokenHash })).error, "session_expired_or_invalid");
+});
+
+test("reviewed scope and authority rollback scripts leave handshake retry support intact", async () => {
+  await seedControls(db, { enabled: false, stop: true });
+  await db.exec(await readFile("scripts/verify-omni-0067-0070-install.sql", "utf8"));
+  await db.exec(await readFile("scripts/rollback-omni-autonomy-scope.sql", "utf8"));
+  await db.exec(await readFile("scripts/rollback-omni-0067-0070.sql", "utf8"));
+  assert.equal((await one(db, "SELECT to_regprocedure('public.omni_link_idempotent_handshake(jsonb)') IS NOT NULL AS present")).present, true);
+  const reply = (await one(db, "SELECT public.omni_link_idempotent_handshake($1::jsonb) AS r",
+    [JSON.stringify(args({
+      handshakeId: "88888888-8888-4888-8888-888888888888",
+      newTokenHash: "d".repeat(64),
+    }))])).r;
+  assert.equal(reply.http, 200);
+  assert.deepEqual(await controls(), { enabled: false, kill_switch: true, paused: false });
+  assert.equal((await one(db, "SELECT count(*)::int AS n FROM public.omni_autonomy_authorizations")).n, 0);
+});
+
 test("changing capabilities needs an explicit revoke first; history is kept", async () => {
   await authorize(await grant(), ["code"]);
   const widen = await authorize(await grant(), ["autonomous", "code"]);

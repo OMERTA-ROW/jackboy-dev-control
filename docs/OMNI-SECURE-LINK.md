@@ -77,15 +77,22 @@ The ordinary job/session protocol below continues to require execution grants.
 
 Single route: `POST /api/public/omni/link`, HTTPS only, no query string or redirects.
 
-Body: `{ "action": "handshake|submit|run|status|cancel", "projectId": "uuid", "jobId": "uuid", "kind": "protocol.self-test" }`. Omit `jobId` for handshake; `kind` is required only for submit. Other fields and actions are rejected. Bodies are limited to 8 KiB and two seconds of reading.
+Body: `{ "action": "handshake|submit|run|status|cancel", "projectId": "uuid", "jobId": "uuid", "kind": "protocol.self-test", "handshakeId": "uuid" }`. Omit `jobId` for handshake; `kind` is required only for submit. The optional `handshakeId` is accepted only for handshake. Other fields and actions are rejected. Bodies are limited to 8 KiB and two seconds of reading.
 
 Headers: `Authorization: Bearer <bootstrap-or-session>`, `X-Omni-Client`, Unix-seconds `X-Omni-Timestamp`, random 16-byte hex `X-Omni-Nonce`, `X-Omni-Signature`.
 
 The request HMAC-SHA256 covers newline-separated contract, method, exact path, timestamp, nonce, SHA-256 of the bearer and exact raw body. The response `X-Omni-Proof` covers contract, `response`, request nonce, HTTP status and exact response body. This binds replies to individual requests and prevents response substitution. TLS validates the server certificate; the shared scoped HMAC key proves possession on both sides. No custom cryptographic cipher is used.
 
-Session tokens are random and stored only as SHA-256 hashes in PostgreSQL; OMNI holds them only in memory. Each request rechecks expiry, approval ID, project ownership/active status, owner role and global pause. Owner approval expires within 24 hours; sessions cannot outlast it. Changing the configured approval ID invalidates access to old sessions/jobs. Rotate both dedicated keys to revoke the cryptographic relationship. Disabling the listener blocks all new requests.
+Legacy session tokens are random; idempotent handshake tokens are derived with the secret and scoped handshake ID. Only SHA-256 hashes are stored in PostgreSQL; OMNI holds tokens only in memory. Each request rechecks expiry, approval ID, project ownership/active status, owner role and global pause. Owner approval expires within 24 hours; sessions cannot outlast it. Changing the configured approval ID invalidates access to old sessions/jobs. Rotate both dedicated keys to revoke the cryptographic relationship. Disabling the listener blocks all new requests.
 
 Freshness is ±60 seconds. Nonces are consumed atomically in PostgreSQL and retained for ten minutes, longer than the acceptance window. A client advisory transaction lock protects session quotas, job deduplication and the two-job in-flight limit across replicas. Job IDs are immutable; a duplicate returns its existing state, and a different approval/project cannot read or reuse it. Eight live sessions maximum per client. State changes and successful-handshake audit writes commit together; a storage/audit error never reports success. Denied authenticated requests also record a generic rejection. Network/TLS and disabled-route rejections do not have a database audit.
+
+HTTP `429 session_limit` means eight unexpired sessions already exist for that client; expired sessions are removed on the next authorized handshake. It does not establish why they were created. Legacy handshakes always create a new session, so clients should reuse a valid session rather than handshake for every request. With migration `0073` installed, a client can send a new random `handshakeId` for a logical handshake and reuse it with a **fresh nonce** for retries, including a lost response. Retries return the same live token without extending its expiry or consuming another slot. After expiry or a conflict, `409 handshake_id_expired_or_conflict` requires a new ID. Replaying a nonce is still rejected. This is opt-in: existing clients must adopt it; until then the quota remains unchanged and callers should wait for expiry rather than disable safety checks.
+
+Only the authenticated `handshake_id_expired_or_conflict` response carries a signed error:
+its JSON contains `contract`, `requestNonce`, and `error`; `X-Omni-Proof` covers the exact
+body, nonce, and 409 status. Clients must verify all of these before rotating the ID;
+unsigned conflicts, replay errors and transport failures do not authorize rotation.
 
 Jobs expire after 60 seconds or the earlier approval deadline. Expiry is materialized on the next protocol request, not by an autonomous scheduler. `run` atomically claims one queued job. Only the successful claimant starts the test. `status` reports queued/running/final states. `cancel` stops queued work or marks running work cancelled; a 100 ms monitor aborts the bounded subprocess. The process has a three-second timeout and 1 KiB output cap. Crash-interrupted jobs time out and never automatically rerun. Successful checks count is three; a failed execution reports zero confirmed checks, not invented output.
 
@@ -178,11 +185,18 @@ Runner API routing checks (no job execution):
 
 Settings. Live site (Jackboy secrets): `OMNI_LINK_REMOTE_RUNNER_ENABLED=true`, `OMNI_LINK_REMOTE_RUNNER_URL` (https origin only), `OMNI_LINK_REMOTE_RUNNER_SECRET` (32+ chars, shared). Railway runner host: `OMNI_LINK_RUNNER_MODE=true`, `OMNI_LINK_NODE_RUNNER_ENABLED=true`, the same `OMNI_LINK_REMOTE_RUNNER_SECRET`; remove the link secrets and database keys from that host. To disable, unset `OMNI_LINK_REMOTE_RUNNER_ENABLED` on Jackboy.
 
-## Unified activation authority (feature branch; unapplied and not deployed)
+## Unified activation authority
 
-This branch merges upstream main `f49f86dd3631e88f396346ca171aea22ae3b0e5f`,
-including published 0063–0067, without changing their bytes or timestamps.
-Only the unapplied feature migrations were renumbered after that history.
+The notes below describe the earlier feature-branch verification and deployment state at the
+time of that work. The current migration journal and running build require fresh verification;
+subsequent deployment metadata alone does not establish migration installation.
+
+Migrations 0068–0070 are source in merged PR #71 (`05ae0391`); the preserved
+Lovable revision `8436a7a` is three commits ahead and includes the unjournaled
+owner-scope draft and reviewed install/rollback scripts. Neither source nor
+deployment provenance proves installed database state. This review appends
+0071 denial diagnostics, 0072 execution replay correction and 0073 handshake
+retries without changing published 0066–0070.
 Migration `0068_omni_execution_authority.sql` adds service-only connection/job state
 and `omni_execution_control`, not general execution to the existing protocol
 self-test. Signed `action: "execution-control"` requests use the existing
@@ -298,7 +312,7 @@ Never rotate production credentials or weaken sandbox privileges to pass a test.
 
 No hosted migration, deployment, approval, Stop release or production execution
 was performed by this work. Upstream records an owner-installed 0066; we have not
-reverified the hosted journal. Our additive **0068–0070 remain unapplied**.
+reverified the hosted journal. Remote installation of 0067–0073 remains unknown.
 Local disposable tests do not verify a live connection. Actual Linux
 verification runs separately in Mothership's credential-free GitHub-hosted VM;
 the exact Railway worker image/kernel and signed live cancellation still require
@@ -308,6 +322,83 @@ passed **5/5, zero skipped**:
 [Linux evidence](https://github.com/OMERTA-ROW/orbiting-minds-mothership/actions/runs/43558863121).
 Ubuntu 24.04 refused namespace setup; no host policy was weakened.
 New autonomous execution remains disabled.
+
+### Current backend reconciliation and staging plan
+
+Forward-only 0071 refines Step 9's generic `grant_unavailable` into fixed
+approval/project/owner/safety denial codes and records only an allowlisted reason
+in the audit log. The 0073 retry path enforces the same denial gates. Neither
+handshake path approves Step 10, issues a permit, starts a job or changes a control.
+0072 retains execution nonces for five minutes across the full signed timestamp
+acceptance window, without reducing the separate one-minute rate budget.
+
+The peer's read-only Railway inventory reported an Evolution project with staging
+and production environments but no dedicated verified executor service. The
+owner-selected internal-only origin is exactly
+`http://omni-autonomous-executor.railway.internal:8080` (optional root slash).
+Only this origin is allowed over HTTP: other hosts, ports, paths, credentials,
+queries and fragments are refused. Existing Railway HTTPS origins remain
+compatible; common public-origin validation is unchanged. Private networking
+does not replace signed authentication or authorize deployment or activation.
+
+The Jackboy adapter expects `POST /omni-autonomous/v1` with
+`{"operation":"<fixed operation>","args":{...}}`, Unix-seconds
+`X-Executor-Timestamp`, a single-use 32-hex `X-Executor-Nonce`, and
+`X-Executor-Signature = HMAC-SHA256(secret,
+"omni.autonomous/v1\n/omni-autonomous/v1\nts\nnonce\nrawBody")`. It verifies
+`X-Executor-Proof = HMAC-SHA256(secret,
+"omni.autonomous/v1\nresponse\nnonce\nstatus\nrawBody")` before trusting a
+bounded response. OMNI must enforce a strict operation/argument/result schema,
+replay rejection, lease-bound claim/permission, status and cancellation; a generic
+signed endpoint is insufficient. Claimed cancellation must prove termination
+from the owning executor, and restart must invalidate old work rather than resume
+it. Native permits remain the separate `omni.link/v2` and `omni.permit/v1` contract
+documented in `OMNI-PERMIT-CONTRACT.md`.
+
+Mothership's `omni.workspace/v1` sandbox (PR #22) is not that executor. It uses
+`POST /api/public/omni/workspace`, `step.decide` approvals and a separate
+`/api/internal/emergency-stop` controlled by `OMNI_SANDBOX_CONTROL_SECRET`.
+Its `clear` action controls its own Stop latch. It has no Jackboy permit,
+executor lease or scoped CODE grant contract. Do not use it as
+`OMNI_EXECUTOR_ORIGIN` or bridge its clearable Stop into Jackboy's controls.
+
+The following bounded no-op staging verification is **not run**. Only after
+separate owner approval, provision a private executor in isolated staging; do not
+change production services or enable production CODE. Use one fixed versioned
+no-op descriptor, its SHA-256 digest and a fresh random job ID. No repository,
+command, CODE payload, model prompt, provider call, shell input or user data is
+permitted. Capture only redacted signed responses, audit IDs and release identity:
+
+1. Issue one permit only with current staging owner/project/grant, Step 10
+   configuration, trusted meter/guard and separately owner-released staging gates.
+   Check exact job/digest scope, signature, <=60-second expiry, $1 reservation and
+   one-job concurrency. Wrong owner/project, expired grant, invalid digest,
+   replay, global pause, Emergency Stop, CODE off or untrusted spend must deny.
+2. Renew only the same job/kind/digest with the current one-second lease. Changed
+   scope, stale lease, expired/revoked grant, Stop or unreadable spend must deny
+   and halt the no-op.
+3. Revoke authorization and engage each staging Stop separately. Check permit
+   revocation or stale safety generation, failed renewal and no revival after
+   Stop release.
+4. Cancel a claimed no-op after engaging Stop. Verify durable `cancel_requested`;
+   do not mark it cancelled without signed termination acknowledgement from the
+   owning executor. Unavailable, wrong-instance, bad-signature or failed-audit
+   cases remain pending/Blocked. Unclaimed cancellation must prevent later claim.
+5. Restart the executor while the no-op is running. Startup must be stopped;
+   old process/session/job must never resume and old permit/lease renewal must
+   fail. Recovery needs a new job ID and fresh owner authorization.
+
+Paired transport tests against Mothership PR #12
+`7821f8f5a04f12a6ad89ba5e9fefeca810420279` use
+`tests/omni-executor-contract.test.mjs` with execution disabled and workspace,
+permission and subprocess functions prohibited. They check signed inspect,
+replay (409), bad authentication (401) and unowned cancellation refusal; they
+skip explicitly without `MOTHERSHIP_TEST_ROOT`. PR #12 keeps jobs and replay
+nonces in process-local memory: restart loses that state. Mocked/in-process
+transport tests do **not** prove restart replay durability, containment, live
+cancellation or staging readiness. Restart replay protection must be resolved,
+then exact image/kernel isolation and live Stop/control checks must pass under
+separate owner approval before staging or production activation.
 
 Local feature evidence: Node 26.13.1 focused Vitest **144 passed (11 files)**;
 isolated release-surface checks **115 passed, zero failed/skipped** (real
@@ -340,7 +431,11 @@ node --test --test-concurrency=1 \
 ```
 
 Never supply hosted credentials: fixtures create/drop their own databases.
-The public version endpoint currently returns no source SHA; deployment identity,
+The earlier public version observation returned no source SHA. The coordinator's
+2026-11-14 11:27 UTC read instead reported clean live commit `8436a7a` (tree
+`26aa5afb70fc00e8591dbd8e6cf9bda135bdaee2`), three commits ahead of GitHub main
+`05ae0391`, not an older build. This branch preserves those Lovable commits;
+do not overwrite the live-ahead deployment. The live database journal/schema,
 actual connection and signed live Stop cancellation remain unverified.
 
 An independent security review of the initial bounded-executor implementation found
