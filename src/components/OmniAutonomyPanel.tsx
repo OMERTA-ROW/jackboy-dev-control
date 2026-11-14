@@ -152,7 +152,7 @@ export function OmniAutonomyPanel() {
           <div className="space-y-1">
             <p className="text-xs font-medium">Permits ({active.length} active)</p>
             {s.permits.length === 0 ? (
-              <p className="text-xs text-muted-foreground">{s.installed ? "No permits issued yet." : "Permit service not installed yet."}</p>
+              <p className="text-xs text-muted-foreground">{s.installed === true ? "No permits issued yet." : s.installed === false ? "Permit service not installed yet." : "Couldn't read permits right now."}</p>
             ) : (
               <ul className="space-y-1">
                 {s.permits.map((p) => (

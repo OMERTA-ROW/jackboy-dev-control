@@ -1,5 +1,6 @@
-// Real PostgreSQL engine (PGlite) over the full migration chain plus the DRAFT
-// scripts/omni-execution-permit-draft.sql (not journaled, not installed on production).
+// Real PostgreSQL engine (PGlite) over the full migration chain. Tests the reviewed script
+// scripts/omni-execution-permit-draft.sql, installed on production 2026-11-14 as
+// 0066_omni_execution_permits (history row 73), byte-identical to the reviewed script.
 // Jackboy is the final permission and Emergency Stop gate for OMNI autonomous/CODE execution.
 import { after, before, beforeEach, test } from "node:test";
 import assert from "node:assert/strict";
@@ -8,6 +9,7 @@ import { PGlite } from "@electric-sql/pglite";
 import { migrationFiles, supabaseStubs } from "./helpers/staging-pg.mjs";
 
 const DRAFT = "scripts/omni-execution-permit-draft.sql";
+const INSTALLED = "0066_omni_execution_permits.sql";
 const owner = "11111111-1111-4111-8111-111111111111";
 const member = "22222222-2222-4222-8222-222222222222";
 const project = "33333333-3333-4333-8333-333333333333";
@@ -36,8 +38,10 @@ async function seedControls(d, { enabled = true, stop = false, paused = false } 
 before(async () => {
   base = new PGlite();
   await base.exec(supabaseStubs);
-  for (const f of await migrationFiles()) await base.exec(await readFile(`drizzle/migrations/${f}`, "utf8"));
-  await base.exec(await readFile(DRAFT, "utf8"));
+  // The chain includes the installed copy; it must be the reviewed script, so test the chain as-is.
+  const files = await migrationFiles();
+  assert.ok(files.includes(INSTALLED), "installed permit migration missing from the chain");
+  for (const f of files) await base.exec(await readFile(`drizzle/migrations/${f}`, "utf8"));
   await base.query("INSERT INTO auth.users(id,email) VALUES ($1,'o@x.test'),($2,'m@x.test')", [owner, member]);
   await base.query("INSERT INTO public.user_roles(user_id, role) VALUES ($1,'owner'),($2,'member')", [owner, member]);
   await base.exec("INSERT INTO public.automation_policy(id, paused) VALUES (1, false) ON CONFLICT (id) DO NOTHING");
@@ -280,4 +284,13 @@ test("functions and tables are server-only", async () => {
   for (const t of ["omni_autonomy_authorizations", "omni_execution_permits"]) {
     assert.equal((await one(db, `SELECT has_table_privilege('authenticated','public.${t}','SELECT') ok`)).ok, false);
   }
+});
+
+test("installed 0066 is byte-identical to the reviewed script, journaled once, and never writes a switch", async () => {
+  const [installed, draft] = await Promise.all([readFile(`drizzle/migrations/${INSTALLED}`, "utf8"), readFile(DRAFT, "utf8")]);
+  assert.equal(installed, draft);
+  const { entries } = JSON.parse(await readFile("drizzle/migrations/meta/_journal.json", "utf8"));
+  assert.equal(entries.filter((e) => e.tag === "0066_omni_execution_permits").length, 1);
+  assert.ok(!/UPDATE\s+public\.automation_policy/i.test(draft));
+  assert.ok(!/UPDATE\s+public\.code_runtime_controls/i.test(draft));
 });

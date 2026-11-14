@@ -157,3 +157,18 @@ test("installed 0065 independent CODE controls keeps its bytes and timestamp", a
   const probe = journal.entries.find((e) => e.tag === "0064_omni_configuration_probe");
   assert.ok(controls.when > probe.when, "0065 would be skipped by the migrator");
 });
+
+// Production recorded 0066_omni_execution_permits (history row 73, 2026-11-14 03:06 UTC) with the
+// reviewed script's exact bytes; its bytes and `when` must never change.
+test("installed 0066 OMNI execution permits keeps its bytes and timestamp", async () => {
+  const permits = journal.entries.find((e) => e.tag === "0066_omni_execution_permits");
+  assert.ok(permits, "journal lost 0066_omni_execution_permits");
+  assert.equal(permits.idx, 66);
+  assert.equal(permits.when, 1794625591706);
+  assert.equal(
+    await sha("0066_omni_execution_permits"),
+    "ecd1da5f7a76ea19a1828918123cecad1b2346f2f608cb64b24e7b02c854b224",
+  );
+  const controls = journal.entries.find((e) => e.tag === "0065_code_independent_controls");
+  assert.ok(permits.when > controls.when, "0066 would be skipped by the migrator");
+});

@@ -3,8 +3,11 @@
 ## Jackboy as OMNI's permission and Emergency Stop gate (Nov 14, 01:01 UTC)
 - [x] Signed permit actions on the OMNI link (request/renew ≤60 s, release, safety snapshot), owner passkey authorization on the OMNI page, Emergency Stop/Kill Switch/CODE off revoke permits in the same transaction. 17 isolated database tests + 11 app tests pass.
 - [x] Contract for the Mothership project written (docs/OMNI-PERMIT-CONTRACT.md).
-- [ ] Install the staged permit database change — needs owner approval (until then OMNI gets "permit service unavailable", fail closed).
-- [ ] Mothership side (Step 9 real handshake + safety read, Step 10 safety read, permit request/renew/halt, manual terminal rule) — must be built in the Mothership project.
+- [x] Installed the permit database change on the live database (0066, history row 73, 2026-11-14 03:06 UTC, SHA-256 ecd1da5f…b224, byte-identical to the reviewed script) with Kill Switch ON, CODE OFF, Emergency Stop engaged; OMNI page now shows "Permit service installed — Ready".
+- [x] Checklist labels: "not installed" vs "couldn't read" told apart; Step 9 line says when the Kill Switch blocks a new handshake.
+- [x] Mothership side built in its own project (snapshot 5784d280: permit client, PermitHolder halt/renew, safety snapshot, migration 0055); field-for-field compatible with Jackboy's replies. Not yet proven live (no OMNI executor; no signed permit exchanged).
+- [ ] Fresh Step 9 handshake — blocked: the System Kill Switch is ON (owner set it 02:53 UTC) and the database refuses handshakes while it is on. Owner decision only.
+- [ ] Publish the refined checklist labels — optional; live site already uses the installed permit service.
 - [ ] Owner clicks after install: Mothership Step 9 handshake → Jackboy OMNI page "Authorize OMNI autonomous work with passkey"; execution still needs Emergency Stop released + CODE on in Settings → Activation (owner only).
 
 ## Three separate safety controls (Nov 13, 21:31 UTC)

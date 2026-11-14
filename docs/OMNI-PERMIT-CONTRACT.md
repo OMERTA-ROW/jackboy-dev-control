@@ -4,9 +4,11 @@ Jackboy Dev Control is the final permission and Emergency Stop gate for OMNI aut
 execution. A Mothership Step 10 approval is necessary but never sufficient: OMNI may run an
 autonomous or CODE job **only while it holds a fresh Jackboy permit**.
 
-Status: Jackboy side implemented; its database part is staged (`scripts/omni-execution-permit-draft.sql`)
-and **not installed** until the owner approves it. Until then every permit request returns
-`503 permit_service_unavailable` (fail closed). The Mothership side is not built by this change.
+Status: Jackboy side implemented and its database part installed on production as migration
+`0066_omni_execution_permits` (2026-11-14 03:06 UTC, history row 73, byte-identical to the reviewed
+`scripts/omni-execution-permit-draft.sql`). Permit and safety requests still need a live Step 9
+session; handshakes are refused while the System Kill Switch is on. Any store error still returns
+`503 permit_service_unavailable` (fail closed). The Mothership side lives in that project.
 
 ## Transport
 

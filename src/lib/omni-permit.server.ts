@@ -17,7 +17,7 @@ export type PermitStore = (op: "request" | "release" | "safety", args: Record<st
 
 export const databasePermitStore: PermitStore = async (op, args) => {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  // Installed by the staged omni-execution-permit change; until then this errors and we fail closed.
+  // Installed on production as migration 0066_omni_execution_permits; any error still fails closed.
   const rpc = supabaseAdmin.rpc.bind(supabaseAdmin) as unknown as (
     name: string,
     a: Record<string, unknown>,

@@ -135,7 +135,7 @@ describe("owner gates", () => {
   };
   it("OMNI can run only with every control and the authorization in place", () => {
     expect(autonomyGates(ready, now).omniCanRun).toBe(true);
-    for (const patch of [{ killSwitch: true }, { emergencyStop: true }, { codeEnabled: false }, { authorization: null }, { killSwitch: null }, { emergencyStop: null }, { installed: false }]) {
+    for (const patch of [{ killSwitch: true }, { emergencyStop: true }, { codeEnabled: false }, { authorization: null }, { killSwitch: null }, { emergencyStop: null }, { installed: false }, { installed: null }]) {
       expect(autonomyGates({ ...ready, ...patch }, now).omniCanRun, JSON.stringify(patch)).toBe(false);
     }
   });
@@ -144,6 +144,32 @@ describe("owner gates", () => {
     for (const patch of [{ step8ProofAt: null }, { lastHandshakeAt: "2026-11-14T00:29:00Z" }, { approval: { approvalId: "a", expiresAt: "2026-11-14T00:59:00Z" } }, { runnerReady: false }, { meterOk: null }, { guardEnforced: false }, { linkConfigured: false }]) {
       expect(autonomyGates({ ...ready, ...patch }, now).canAuthorize, JSON.stringify(patch)).toBe(false);
     }
+  });
+});
+
+describe("readiness labels", () => {
+  const now = Date.parse("2026-11-14T03:00:00Z");
+  const base = {
+    installed: true, linkConfigured: true,
+    approval: { approvalId: "a", expiresAt: "2026-11-14T20:00:00Z" },
+    step8ProofAt: "2026-11-14T00:50:00Z", lastHandshakeAt: "2026-11-14T00:50:23.120Z",
+    runnerReady: true, meterOk: true, guardEnforced: true,
+    killSwitch: true, emergencyStop: true, codeEnabled: false, authorization: null,
+  };
+  const gate = (s: typeof base | Record<string, unknown>, id: string) => autonomyGates({ ...base, ...s } as typeof base, now).authorize.find((g) => g.id === id)!;
+  it("a handshake from 00:50 is stale at 03:00 and says the Kill Switch blocks a new one", () => {
+    const g = gate({}, "step9");
+    expect(g.ok).toBe(false);
+    expect(g.detail).toContain("over 30 minutes ago");
+    expect(g.detail).toContain("Kill Switch");
+    expect(gate({ killSwitch: false }, "step9").detail).toContain("run Step 9 again");
+    expect(gate({ lastHandshakeAt: "2026-11-14T02:40:00Z" }, "step9").ok).toBe(true);
+  });
+  it("permit service: installed, missing and unreadable are told apart, and only installed passes", () => {
+    expect(gate({ installed: true }, "installed")).toMatchObject({ ok: true, detail: "Ready" });
+    expect(gate({ installed: false }, "installed")).toMatchObject({ ok: false, detail: "The database change is not installed yet" });
+    expect(gate({ installed: null }, "installed").ok).toBe(false);
+    expect(gate({ installed: null }, "installed").detail).toContain("Couldn't read");
   });
 });
 

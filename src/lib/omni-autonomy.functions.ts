@@ -65,8 +65,14 @@ export const getOmniAutonomyStatus = createServerFn({ method: "GET" })
       // Sessions last 5 minutes, so the handshake happened about 5 minutes before the session's end.
       lastHandshakeAt = s ? new Date(Date.parse(s.expires_at) - 5 * 60_000).toISOString() : null;
     }
-    const installed = !authR.error && !permitsR.error;
-    const auth = installed ? ((authR.data ?? [])[0] as Record<string, unknown> | undefined) ?? null : null;
+    // Missing table → not installed; any other read error → unknown (still blocked, but not mislabelled).
+    const missing = (e: unknown) => {
+      const code = (e as { code?: string } | null)?.code;
+      return code === "42P01" || code === "PGRST205";
+    };
+    const installed: boolean | null =
+      !authR.error && !permitsR.error ? true : missing(authR.error) || missing(permitsR.error) ? false : null;
+    const auth = installed === true ? ((authR.data ?? [])[0] as Record<string, unknown> | undefined) ?? null : null;
     const controls = controlsR.error || !controlsR.data ? null : (controlsR.data as { enabled: boolean; kill_switch: boolean });
     const meter = meterR.error ? null : (meterR.data as { ok?: unknown } | null);
     const ready = await runnerReady();
@@ -96,7 +102,7 @@ export const getOmniAutonomyStatus = createServerFn({ method: "GET" })
             limits: { dailyUsd: Number(auth["daily_limit_usd"]), perCallUsd: Number(auth["per_call_limit_usd"]), perTaskUsd: Number(auth["per_task_reserve_usd"]) },
           }
         : null,
-      permits: installed ? ((permitsR.data ?? []) as PermitRow[]) : [],
+      permits: installed === true ? ((permitsR.data ?? []) as PermitRow[]) : [],
       gates: autonomyGates(input),
     };
   });

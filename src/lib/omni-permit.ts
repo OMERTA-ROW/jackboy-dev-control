@@ -111,7 +111,8 @@ export function permitReasonText(reason: string | null | undefined): string {
 }
 
 export type AutonomyStatusInput = {
-  installed: boolean;
+  /** true = permit tables readable; false = confirmed missing; null = could not read (blocked, not "missing"). */
+  installed: boolean | null;
   linkConfigured: boolean;
   approval: { approvalId: string; expiresAt: string } | null;
   step8ProofAt: string | null;
@@ -130,12 +131,24 @@ export type Gate = { id: string; label: string; ok: boolean; detail: string };
 export function autonomyGates(s: AutonomyStatusInput, now = Date.now()) {
   const approvalOk = !!s.approval && Date.parse(s.approval.expiresAt) > now && Date.parse(s.approval.expiresAt) <= now + 86_400_000;
   const handshakeOk = !!s.lastHandshakeAt && Date.parse(s.lastHandshakeAt) > now - 30 * 60_000;
+  // A new handshake is refused by the database while the System Kill Switch is on, so say so.
+  const handshakeHint = s.killSwitch === true ? " A new one is refused while the System Kill Switch is on." : " OMNI must run Step 9 again.";
+  const handshakeDetail = !s.lastHandshakeAt
+    ? `No handshake yet.${handshakeOk ? "" : handshakeHint}`
+    : handshakeOk
+      ? `Last handshake ${s.lastHandshakeAt}`
+      : `Last handshake ${s.lastHandshakeAt} (over 30 minutes ago).${handshakeHint}`;
   const authorize: Gate[] = [
-    { id: "installed", label: "Permit service installed", ok: s.installed, detail: s.installed ? "Ready" : "The database change is not installed yet" },
+    {
+      id: "installed",
+      label: "Permit service installed",
+      ok: s.installed === true,
+      detail: s.installed === true ? "Ready" : s.installed === false ? "The database change is not installed yet" : "Couldn't read it right now (treated as blocked)",
+    },
     { id: "link", label: "OMNI link set up in Jackboy", ok: s.linkConfigured, detail: s.linkConfigured ? "Link settings valid" : "Link off or settings invalid" },
     { id: "step7", label: "Step 7 approval window", ok: approvalOk, detail: s.approval ? `Ends ${s.approval.expiresAt}` : "No saved approval" },
     { id: "step8", label: "Step 8 self-test proof", ok: !!s.step8ProofAt, detail: s.step8ProofAt ? `Passed ${s.step8ProofAt}` : "No passed self-test for this approval" },
-    { id: "step9", label: "Step 9 signed handshake (last 30 min)", ok: handshakeOk, detail: s.lastHandshakeAt ? `Last session ${s.lastHandshakeAt}` : "No handshake yet" },
+    { id: "step9", label: "Step 9 signed handshake (last 30 min)", ok: handshakeOk, detail: handshakeDetail },
     { id: "runner", label: "Self-test runner", ok: s.runnerReady, detail: s.runnerReady ? "Configured" : "Not configured" },
     { id: "meter", label: "Trusted spend meter", ok: s.meterOk === true, detail: s.meterOk === null ? "Unreadable" : s.meterOk ? "Trusted" : "Not trusted" },
     { id: "guard", label: "Spending guard", ok: s.guardEnforced === true, detail: s.guardEnforced === null ? "Unreadable" : s.guardEnforced ? "Enforced" : "Not enforced" },
@@ -151,6 +164,6 @@ export function autonomyGates(s: AutonomyStatusInput, now = Date.now()) {
     authorize,
     run,
     canAuthorize: authorize.every((g) => g.ok),
-    omniCanRun: s.installed && authorized && run.every((g) => g.ok) && authorize.slice(0, 3).every((g) => g.ok),
+    omniCanRun: s.installed === true && authorized && run.every((g) => g.ok) && authorize.slice(0, 3).every((g) => g.ok),
   };
 }

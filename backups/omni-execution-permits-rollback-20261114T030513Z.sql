@@ -1,0 +1,17 @@
+-- Rollback for the OMNI execution-permit database change (additive only; drops nothing that existed before).
+-- Pre-install snapshot taken 20261114T030513Z (read-only):
+--   automation_policy.paused=true
+--   code enabled=false emergency_stop=true caps 1.00/5.00/10.00
+--   existing triggers: code_runtime_controls.code_runtime_controls_activation_gate, code_runtime_controls.code_runtime_controls_hard_cap_gate
+--   permit tables/functions present before install: 0
+-- Owner approval required before running. Run as one transaction:
+-- BEGIN;
+-- DROP TRIGGER IF EXISTS omni_permits_revoke_on_emergency_stop ON public.code_runtime_controls;
+-- DROP TRIGGER IF EXISTS omni_permits_revoke_on_kill_switch ON public.automation_policy;
+-- DROP FUNCTION IF EXISTS public.omni_permits_revoke_on_stop();
+-- DROP FUNCTION IF EXISTS public.omni_execution_permit_action(text, jsonb);
+-- DROP FUNCTION IF EXISTS public.omni_autonomy_authorization_action(text, uuid, text, uuid, uuid, boolean, text);
+-- DROP TABLE IF EXISTS public.omni_execution_permits;
+-- DROP TABLE IF EXISTS public.omni_autonomy_authorizations;
+-- COMMIT;
+-- Without these objects Jackboy answers every permit request with 503 permit_service_unavailable (fail closed).

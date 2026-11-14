@@ -1814,6 +1814,69 @@ export type Database = {
         }
         Relationships: []
       }
+      omni_autonomy_authorizations: {
+        Row: {
+          approval_id: string
+          client_id: string
+          created_at: string
+          daily_limit_usd: number
+          expires_at: string
+          id: string
+          owner_id: string
+          per_call_limit_usd: number
+          per_task_reserve_usd: number
+          project_id: string
+          revoked_at: string | null
+          revoked_reason: string | null
+          step8_job_id: string
+        }
+        Insert: {
+          approval_id: string
+          client_id: string
+          created_at?: string
+          daily_limit_usd?: number
+          expires_at: string
+          id?: string
+          owner_id: string
+          per_call_limit_usd?: number
+          per_task_reserve_usd?: number
+          project_id: string
+          revoked_at?: string | null
+          revoked_reason?: string | null
+          step8_job_id: string
+        }
+        Update: {
+          approval_id?: string
+          client_id?: string
+          created_at?: string
+          daily_limit_usd?: number
+          expires_at?: string
+          id?: string
+          owner_id?: string
+          per_call_limit_usd?: number
+          per_task_reserve_usd?: number
+          project_id?: string
+          revoked_at?: string | null
+          revoked_reason?: string | null
+          step8_job_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "omni_autonomy_authorizations_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "owner_projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "omni_autonomy_authorizations_step8_job_id_fkey"
+            columns: ["step8_job_id"]
+            isOneToOne: false
+            referencedRelation: "omni_inbound_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       omni_callback_nonces: {
         Row: {
           nonce: string
@@ -2144,6 +2207,71 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: true
             referencedRelation: "omni_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      omni_execution_permits: {
+        Row: {
+          approval_id: string
+          authorization_id: string
+          client_id: string
+          closed_at: string | null
+          closed_reason: string | null
+          expires_at: string
+          id: string
+          issued_at: string
+          job_id: string
+          job_kind: string
+          payload_digest: string
+          project_id: string
+          renewals: number
+          renewed_at: string
+          reserved_usd: number
+          status: string
+        }
+        Insert: {
+          approval_id: string
+          authorization_id: string
+          client_id: string
+          closed_at?: string | null
+          closed_reason?: string | null
+          expires_at: string
+          id?: string
+          issued_at?: string
+          job_id: string
+          job_kind: string
+          payload_digest: string
+          project_id: string
+          renewals?: number
+          renewed_at?: string
+          reserved_usd: number
+          status: string
+        }
+        Update: {
+          approval_id?: string
+          authorization_id?: string
+          client_id?: string
+          closed_at?: string | null
+          closed_reason?: string | null
+          expires_at?: string
+          id?: string
+          issued_at?: string
+          job_id?: string
+          job_kind?: string
+          payload_digest?: string
+          project_id?: string
+          renewals?: number
+          renewed_at?: string
+          reserved_usd?: number
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "omni_execution_permits_authorization_id_fkey"
+            columns: ["authorization_id"]
+            isOneToOne: false
+            referencedRelation: "omni_autonomy_authorizations"
             referencedColumns: ["id"]
           },
         ]
@@ -3911,6 +4039,18 @@ export type Database = {
         Returns: undefined
       }
       my_role: { Args: never; Returns: Database["public"]["Enums"]["app_role"] }
+      omni_autonomy_authorization_action: {
+        Args: {
+          _actor: string
+          _client: string
+          _op: string
+          _project: string
+          _reason: string
+          _runner_ready: boolean
+          _step: string
+        }
+        Returns: Json
+      }
       omni_dispatch_callback_record: {
         Args: {
           _grant: string
@@ -3987,6 +4127,10 @@ export type Database = {
           _source: string
           _status: string
         }
+        Returns: Json
+      }
+      omni_execution_permit_action: {
+        Args: { _a: Json; _op: string }
         Returns: Json
       }
       omni_handoff_create: {
