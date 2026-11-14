@@ -1,5 +1,12 @@
 # Jackboy roadmap
 
+## Jackboy as OMNI's permission and Emergency Stop gate (Nov 14, 01:01 UTC)
+- [x] Signed permit actions on the OMNI link (request/renew ≤60 s, release, safety snapshot), owner passkey authorization on the OMNI page, Emergency Stop/Kill Switch/CODE off revoke permits in the same transaction. 17 isolated database tests + 11 app tests pass.
+- [x] Contract for the Mothership project written (docs/OMNI-PERMIT-CONTRACT.md).
+- [ ] Install the staged permit database change — needs owner approval (until then OMNI gets "permit service unavailable", fail closed).
+- [ ] Mothership side (Step 9 real handshake + safety read, Step 10 safety read, permit request/renew/halt, manual terminal rule) — must be built in the Mothership project.
+- [ ] Owner clicks after install: Mothership Step 9 handshake → Jackboy OMNI page "Authorize OMNI autonomous work with passkey"; execution still needs Emergency Stop released + CODE on in Settings → Activation (owner only).
+
 ## Three separate safety controls (Nov 13, 21:31 UTC)
 - [x] Settings → Activation shows System Kill Switch, CODE switch and CODE Emergency Stop separately, with live refresh, lock reasons and done/not-done messages. Safety state unchanged (Kill Switch on, Stop engaged, CODE off).
 - [x] Independent controls built (Nov 13, 22:43 UTC): separate CODE on/off and Emergency Stop release actions with their own passkeys and audit; CODE start checks the Kill Switch; Settings shows the saved CODE setting separately from "Can CODE run right now?". Staged database change tested (all 8 combinations, fail-closed). Production unchanged.

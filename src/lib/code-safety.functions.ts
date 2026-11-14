@@ -682,7 +682,11 @@ export const engageCodeKillSwitch = createServerFn({ method: "POST" })
     if (statusError)
       throw new Error("CODE stop was engaged, but its cancellation status could not be recorded.");
     const after = await readControls(db);
-    return { killSwitch: true, cancellation, codeEnabled: after.enabled, globalPaused: after.killSwitch };
+    // The database revokes every OMNI execution permit in the stop's own transaction (when the
+    // permit service is installed); this read only confirms it. null = not installed or unreadable.
+    const permits = await db.from("omni_execution_permits").select("id", { count: "exact", head: true }).eq("status", "active");
+    const omniActivePermits = permits.error ? null : (permits.count ?? 0);
+    return { killSwitch: true, cancellation, codeEnabled: after.enabled, globalPaused: after.killSwitch, omniActivePermits };
   });
 
 export const checkCodeCancellation = createServerFn({ method: "POST" })

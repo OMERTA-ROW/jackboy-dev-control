@@ -2,6 +2,7 @@ import { hmacHex, safeEqual } from "./omni-link";
 import { LINK_CONTRACT, LINK_PATH, UUID, linkRequestUrl, verifyRequest } from "./omni-session";
 import { boundedBody, handleOmniLink, resolvedLinkConfig } from "./omni-session.server";
 import { callRemoteRunnerConfiguration, remoteRunnerConfig } from "./omni-remote-runner";
+import { isPermitAction } from "./omni-permit";
 
 type Env = Record<string, string | undefined>;
 type ProbeConfig = {
@@ -145,6 +146,10 @@ export async function handleOmniLinkRequest(request: Request): Promise<Response>
   }
   if (input && typeof input === "object" && "action" in input && input.action === "configuration")
     return handleOmniConfiguration(request, raw);
+  if (input && typeof input === "object" && "action" in input && isPermitAction(input.action)) {
+    const { handleOmniPermit } = await import("./omni-permit.server");
+    return handleOmniPermit(request, raw, await resolvedLinkConfig());
+  }
   return handleOmniLink(
     new Request(request.url, {
       method: request.method,
