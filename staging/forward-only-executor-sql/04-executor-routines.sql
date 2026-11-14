@@ -450,7 +450,8 @@ AS $function$
         'public.claim_code_runtime_slot(uuid,text,text,text,bigint)'::regprocedure,
         'public.admit_code_provider_call(uuid,bigint,text,text,numeric)'::regprocedure,
         'public.dispatch_code_provider_call(uuid)'::regprocedure)
-      AND prosrc LIKE '%NOT EXISTS (SELECT 1 FROM public.automation_policy WHERE id = 1 AND paused = false)%';
+      AND pg_catalog.regexp_replace(prosrc, '[[:space:]]+', '', 'g')
+        LIKE '%NOTEXISTS(SELECT1FROMpublic.automation_policyWHEREid=1ANDpaused=false)%';
 $function$
 ;
 
