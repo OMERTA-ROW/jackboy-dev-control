@@ -1,4 +1,4 @@
--- An acquired permit alone must not outlive Mothership's current Stop decision.
+-- Follows the published permit/Stop authority and the unapplied bounded worker integration.
 ALTER TABLE public.omni_execution_jobs ADD COLUMN mothership_lease_expires_at timestamptz;
 
 ALTER FUNCTION public.omni_execution_control(uuid,uuid,uuid,text,jsonb)

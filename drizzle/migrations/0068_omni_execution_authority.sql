@@ -1,4 +1,4 @@
--- New authority is disabled on installation. No existing CODE lane or stop is changed.
+-- Bounded worker admission follows upstream 0063–0067; no existing lane or stop is enabled.
 CREATE TABLE public.omni_execution_connections (
   project_id uuid PRIMARY KEY REFERENCES public.owner_projects(id),
   owner_id uuid NOT NULL REFERENCES auth.users(id),
