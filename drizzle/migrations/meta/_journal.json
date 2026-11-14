@@ -470,6 +470,13 @@
       "when": 1794625591706,
       "tag": "0066_omni_execution_permits",
       "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1794630419509,
+      "tag": "0067_omni_permit_stop_serialization",
+      "breakpoints": true
     }
   ]
 }

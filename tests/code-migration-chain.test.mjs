@@ -75,14 +75,14 @@ test(
       await assert.rejects(attest(stranger), /Only the owner/);
       await assert.rejects(
         db.query("UPDATE public.code_runtime_controls SET kill_switch = false"),
-        /enable_code_runtime/,
+        /Emergency Stop released only through release_code_emergency_stop/,
       );
       await setActivatedControls(db, "UPDATE public.code_runtime_controls SET kill_switch = false");
       await assert.rejects(attest(owner), /disabled and stopped/);
       await db.query("UPDATE public.code_runtime_controls SET kill_switch = true");
       await assert.rejects(
         db.query("UPDATE public.code_runtime_controls SET kill_switch = false"),
-        /enable_code_runtime/,
+        /Emergency Stop released only through release_code_emergency_stop/,
       );
       await db.exec("ALTER TABLE public.code_usage_events DISABLE TRIGGER code_usage_events_total_guard");
       await assert.rejects(attest(owner), /not enforced/);
