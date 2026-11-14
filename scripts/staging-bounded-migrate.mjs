@@ -374,7 +374,7 @@ const catalogQueries = Object.freeze({
 });
 
 function catalogIdentifier(value) {
-  if (typeof value !== "string" || !/^[A-Za-z_][A-Za-z0-9_$]{0,62}$/.test(value))
+  if (typeof value !== "string" || Array.from(value).length > 128 || /\p{Cc}/u.test(value))
     throw new MigrationError("catalog_metadata_invalid");
   return value;
 }
@@ -411,22 +411,42 @@ function catalogSection(rows, map, keys, limit = catalogLimit) {
   return { items, truncated: rows.length > limit };
 }
 
+function catalogSectionFor(name, rows, map, keys, limit = catalogLimit) {
+  try {
+    return catalogSection(rows, map, keys, limit);
+  } catch (error) {
+    if (error instanceof MigrationError && error.category === "catalog_metadata_invalid") {
+      const section = new Set([
+        "schemas",
+        "relations",
+        "columns",
+        "routines",
+        "triggers",
+        "policies",
+      ]).has(name)
+        ? name
+        : "unknown";
+      throw new MigrationError(`catalog_metadata_invalid:${section}`);
+    }
+    throw error;
+  }
+}
+
 export async function readCatalogInventory(query) {
   const read = async (name) => {
     const rows = await query(catalogQueries[name], [catalogLimit + 1]);
-    if (!Array.isArray(rows)) throw new MigrationError("catalog_metadata_invalid");
     return rows;
   };
   const sections = {};
-  const schemas = await read("schemas");
-  sections.schemas = catalogSection(
-    schemas,
+  sections.schemas = catalogSectionFor(
+    "schemas",
+    await read("schemas"),
     (row) => ({ name: catalogIdentifier(row.schema_name) }),
     ["name"],
   );
-  const relations = await read("relations");
-  sections.relations = catalogSection(
-    relations,
+  sections.relations = catalogSectionFor(
+    "relations",
+    await read("relations"),
     (row) => {
       if (
         !["table", "partitioned_table", "view", "materialized_view", "foreign_table"].includes(
@@ -448,13 +468,14 @@ export async function readCatalogInventory(query) {
   for (let offset = 0; offset <= columnLimit; offset += catalogLimit) {
     const page = await query(catalogQueries.columns, [catalogLimit, offset]);
     if (!Array.isArray(page) || page.length > catalogLimit)
-      throw new MigrationError("catalog_metadata_invalid");
+      throw new MigrationError("catalog_metadata_invalid:columns");
     if (columns.length + page.length > columnLimit)
       throw new MigrationError("catalog_column_limit_exceeded");
     columns.push(...page);
     if (page.length < catalogLimit) break;
   }
-  sections.columns = catalogSection(
+  sections.columns = catalogSectionFor(
+    "columns",
     columns,
     (row) => ({
       schema: catalogIdentifier(row.schema_name),
@@ -466,9 +487,9 @@ export async function readCatalogInventory(query) {
     ["schema", "table", "name"],
     columnLimit,
   );
-  const routines = await read("routines");
-  sections.routines = catalogSection(
-    routines,
+  sections.routines = catalogSectionFor(
+    "routines",
+    await read("routines"),
     (row) => {
       if (!["function", "procedure", "aggregate", "window"].includes(row.routine_kind))
         throw new MigrationError("catalog_metadata_invalid");
@@ -482,9 +503,9 @@ export async function readCatalogInventory(query) {
     },
     ["schema", "name", "signature"],
   );
-  const triggers = await read("triggers");
-  sections.triggers = catalogSection(
-    triggers,
+  sections.triggers = catalogSectionFor(
+    "triggers",
+    await read("triggers"),
     (row) => {
       if (!Number.isSafeInteger(row.trigger_type) || row.trigger_type < 0 || row.trigger_type > 127)
         throw new MigrationError("catalog_metadata_invalid");
@@ -509,9 +530,9 @@ export async function readCatalogInventory(query) {
     },
     ["schema", "table", "name"],
   );
-  const policies = await read("policies");
-  sections.policies = catalogSection(
-    policies,
+  sections.policies = catalogSectionFor(
+    "policies",
+    await read("policies"),
     (row) => {
       if (!["select", "insert", "update", "delete", "all"].includes(row.command))
         throw new MigrationError("catalog_metadata_invalid");
