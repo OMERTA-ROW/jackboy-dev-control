@@ -1,41 +1,45 @@
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer, connect } from "node:tls";
+import { PGlite } from "@electric-sql/pglite";
+import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
+import { migrate as migratePglite } from "drizzle-orm/pglite/migrator";
 import {
   target,
   cutoff,
   seedSlugs,
   loadPlan,
+  reviewedMigrationHashes,
   strictConnectionOptions,
   assertApproval,
+  modeFromEnv,
   assertHistory,
   assertIdentity,
   assertSeedAvailable,
   assertCodeStopped,
   safeFailure,
   applyBounded,
+  readCatalogInventory,
+  inspectWithClient,
   runWithClient,
+  runWithDeadline,
 } from "../scripts/staging-bounded-migrate.mjs";
+import { copyBoundedMigrations } from "../scripts/staging-bounded-image.mjs";
 
 const plan = await loadPlan();
 const sha = "a".repeat(40);
 const approved = {
-  GITHUB_ACTIONS: "true",
-  GITHUB_EVENT_NAME: "workflow_dispatch",
-  GITHUB_RUN_ATTEMPT: "1",
-  GITHUB_REPOSITORY: "OMERTA-ROW/jackboy-dev-control",
-  GITHUB_REF: "refs/heads/main",
-  RUNNER_ENVIRONMENT: "staging",
-  GITHUB_WORKFLOW_REF:
-    "OMERTA-ROW/jackboy-dev-control/.github/workflows/staging-bounded-migrate.yml@refs/heads/main",
-  GITHUB_SHA: sha,
-  GITHUB_WORKFLOW_SHA: sha,
-  APPROVED_COMMIT: sha,
-  STAGING_CONFIRMATION: "railway-jackboy-staging",
+  RAILWAY_ENVIRONMENT_ID: target.environmentId,
+  RAILWAY_SERVICE_ID: "runner-service-id",
+  RAILWAY_GIT_REPO_OWNER: "OMERTA-ROW",
+  RAILWAY_GIT_REPO_NAME: "jackboy-dev-control",
+  RAILWAY_GIT_BRANCH: "main",
+  RAILWAY_GIT_COMMIT_SHA: sha,
+  STAGING_MIGRATOR_APPROVED_COMMIT: sha,
 };
 const identity = {
   database: target.database,
@@ -53,15 +57,75 @@ const stopped = {
   paused: true,
   no_holds: true,
 };
+const sentinel = "synthetic-secret-sentinel";
+const catalogMock = {
+  schemas: [{ schema_name: "public" }, { schema_name: "drizzle" }],
+  relations: [
+    {
+      schema_name: "public",
+      relation_name: "profiles",
+      relation_kind: "table",
+      row_security_enabled: true,
+      row_security_forced: false,
+      definition: sentinel,
+    },
+    {
+      schema_name: "public",
+      relation_name: "profile_view",
+      relation_kind: "view",
+      row_security_enabled: false,
+      row_security_forced: false,
+    },
+  ],
+  columns: [
+    {
+      schema_name: "public",
+      relation_name: "profiles",
+      column_name: "id",
+      data_type: "uuid",
+      not_null: true,
+    },
+  ],
+  routines: [
+    {
+      schema_name: "public",
+      routine_name: "lookup_profile",
+      routine_kind: "function",
+      arguments: "uuid",
+      result_type: "jsonb",
+      definition: sentinel,
+    },
+  ],
+  triggers: [
+    {
+      schema_name: "public",
+      relation_name: "profiles",
+      trigger_name: "profiles_audit",
+      trigger_type: 7,
+      definition: sentinel,
+    },
+  ],
+  policies: [
+    {
+      schema_name: "public",
+      relation_name: "profiles",
+      policy_name: "profiles_read",
+      command: "select",
+      permissive: true,
+      roles: ["authenticated"],
+      qual: sentinel,
+    },
+  ],
+};
 const history = (count) =>
   plan.history.slice(0, count).map((row, index) => ({ id: index + 1, ...row }));
-const sentinel = "synthetic-secret-sentinel";
-const url = `postgresql://fixture:${sentinel}@${target.host}:${target.port}/${target.database}`;
+const host = "jackboy-staging-db.railway.internal";
+const url = `postgresql://fixture:${sentinel}@${host}:5432/${target.database}`;
 
 const certDir = await mkdtemp(join(tmpdir(), "bounded-tls-fixture-"));
 after(() => rm(certDir, { recursive: true, force: true }));
 for (const name of ["matching", "wrong"]) {
-  const host = name === "matching" ? target.host : "not-the-approved-host.test";
+  const certificateHost = name === "matching" ? host : "not-the-approved-host.railway.internal";
   execFileSync(
     "openssl",
     [
@@ -73,7 +137,9 @@ for (const name of ["matching", "wrong"]) {
       "-days",
       "1",
       "-subj",
-      `/CN=${host}`,
+      `/CN=${certificateHost}`,
+      "-addext",
+      `subjectAltName=DNS:${certificateHost}`,
       "-keyout",
       join(certDir, `${name}.key`),
       "-out",
@@ -92,15 +158,71 @@ test("cutoff is exactly the byte/hash-preserving original 65-entry journal prefi
   assert.equal(plan.history.length, 65);
   assert.deepEqual(seedSlugs, ["omni", "jax", "razul", "iggy"]);
   assert.ok(plan.journal.entries.every((entry) => entry.idx <= 64));
+  assert.deepEqual(
+    Object.keys(reviewedMigrationHashes),
+    plan.journal.entries.slice(44).map((entry) => entry.tag),
+  );
 });
 
-test("approval binds manual first attempt, repository, main, environment, workflow and checkout SHA", () => {
-  assertApproval(approved, sha);
-  for (const key of Object.keys(approved)) {
-    assert.throws(() => assertApproval({ ...approved, [key]: "incorrect" }, sha), /approval_input/);
-    assert.throws(() => assertApproval({ ...approved, [key]: undefined }, sha), /approval_input/);
+test("read-only is default and apply is disabled regardless of approval", () => {
+  assert.equal(modeFromEnv({}), "inspect");
+  assert.throws(
+    () => modeFromEnv({ STAGING_MIGRATOR_MODE: "apply" }),
+    /apply_disabled_pending_revised_plan/,
+  );
+  assert.throws(() => modeFromEnv({ STAGING_MIGRATOR_MODE: "anything-else" }), /approval_input/);
+  assertApproval(approved);
+  assert.throws(() => assertApproval(approved, "apply"), /apply_disabled_pending_revised_plan/);
+  assert.throws(
+    () =>
+      assertApproval(
+        {
+          ...approved,
+          STAGING_MIGRATOR_APPLY_CONFIRMATION: "apply-0064-staging-once",
+        },
+        "apply",
+      ),
+    /apply_disabled_pending_revised_plan/,
+  );
+  for (const key of Object.keys(approved).filter((key) => key !== "RAILWAY_SERVICE_ID")) {
+    assert.throws(() => assertApproval({ ...approved, [key]: "incorrect" }), /approval_input/);
+    assert.throws(() => assertApproval({ ...approved, [key]: undefined }), /approval_input/);
   }
-  assert.throws(() => assertApproval(approved, "b".repeat(40)), /approval_input/);
+  assert.throws(
+    () =>
+      assertApproval({
+        ...approved,
+        STAGING_MIGRATOR_APPROVED_COMMIT: "b".repeat(40),
+      }),
+    /approval_input/,
+  );
+  assert.throws(
+    () =>
+      assertApproval({
+        ...approved,
+        RAILWAY_SERVICE_ID: target.serviceId,
+      }),
+    /approval_input/,
+  );
+  assert.throws(
+    () =>
+      assertApproval({
+        ...approved,
+        RAILWAY_SERVICE_ID: "not a service id",
+      }),
+    /approval_input/,
+  );
+  assert.throws(
+    () =>
+      assertApproval(
+        {
+          ...approved,
+          STAGING_MIGRATOR_APPLY_CONFIRMATION: "wrong",
+        },
+        "apply",
+      ),
+    /apply_disabled_pending_revised_plan/,
+  );
 });
 
 test("unapproved CLI exits before configuration/access and never prints synthetic credentials", () => {
@@ -109,8 +231,8 @@ test("unapproved CLI exits before configuration/access and never prints syntheti
     env: {
       PATH: process.env.PATH,
       ...approved,
-      APPROVED_COMMIT: "b".repeat(40),
-      STAGING_DATABASE_URL: sentinel,
+      STAGING_MIGRATOR_APPROVED_COMMIT: "b".repeat(40),
+      RAILWAY_PRIVATE_DB_URL: sentinel,
     },
   });
   assert.equal(result.status, 1);
@@ -118,15 +240,33 @@ test("unapproved CLI exits before configuration/access and never prints syntheti
   assert.doesNotMatch(result.stdout + result.stderr, new RegExp(sentinel));
 });
 
-test("connection accepts only the fixed target and explicit CA/hostname verification", () => {
+test("apply CLI rejects before connection configuration even with the former confirmation", () => {
+  const result = spawnSync(process.execPath, ["scripts/staging-bounded-migrate.mjs"], {
+    encoding: "utf8",
+    env: {
+      PATH: process.env.PATH,
+      ...approved,
+      STAGING_MIGRATOR_MODE: "apply",
+      STAGING_MIGRATOR_APPLY_CONFIRMATION: "apply-0064-staging-once",
+      RAILWAY_PRIVATE_DB_URL: sentinel,
+      RAILWAY_DB_CA_CERT: sentinel,
+    },
+  });
+  assert.equal(result.status, 1);
+  assert.equal(result.stdout, "");
+  assert.equal(result.stderr.trim(), "preflight: apply_disabled_pending_revised_plan");
+});
+
+test("connection accepts only a private Railway URL and explicit CA/hostname verification", () => {
   const options = strictConnectionOptions(url, encodedCa);
-  assert.deepEqual(options.ssl, { ca, servername: target.host, rejectUnauthorized: true });
+  assert.deepEqual(options.ssl, { ca, servername: host, rejectUnauthorized: true });
   assert.equal(options.onnotice, false);
   assert.equal(options.debug, false);
   assert.equal(options.prepare, false);
   for (const invalid of [
-    url.replace(target.host, "other.test"),
-    url.replace(String(target.port), "48735"),
+    url.replace(host, "shinkansen.proxy.rlwy.net"),
+    url.replace(host, "other.example.test"),
+    url.replace("5432", "48734"),
     url.replace("/railway", "/production"),
     `${url}?sslmode=require`,
     `${url}#fragment`,
@@ -300,9 +440,14 @@ function fixture(overrides = {}) {
   const calls = [];
   let nested = 0;
   let committed = false;
+  let activeTx = null;
+  const beginModes = [];
   const tx = {
-    options: { parsers: {}, serializers: {} },
     async begin(work) {
+      nested++;
+      return work(tx);
+    },
+    async savepoint(work) {
       nested++;
       return work(tx);
     },
@@ -311,14 +456,21 @@ function fixture(overrides = {}) {
       if (overrides.failOn && sql.includes(overrides.failOn)) {
         throw Object.assign(new Error(sentinel), { code: "23505" });
       }
+      const catalogName = sql.match(
+        /staging-catalog:(schemas|relations|columns|routines|triggers|policies)/,
+      )?.[1];
+      if (catalogName) return overrides.catalog?.[catalogName] ?? catalogMock[catalogName];
       if (sql.includes("pg_try_advisory_xact_lock")) return [{ acquired: overrides.lock ?? true }];
       if (sql.includes("SELECT current_database()")) return overrides.identity ?? [identity];
       if (
-        sql ===
-        "SELECT id, hash, created_at FROM drizzle.__drizzle_migrations ORDER BY created_at, id"
+        sql.startsWith(
+          "SELECT id, hash, created_at FROM drizzle.__drizzle_migrations ORDER BY created_at, id",
+        )
       )
         return overrides.history ?? rows;
       if (sql.includes("SELECT enabled, kill_switch")) return overrides.controls ?? [stopped];
+      if (sql.includes("to_regclass('drizzle.__drizzle_migrations')"))
+        return [{ migration_table: "drizzle.__drizzle_migrations" }];
       if (sql.startsWith("SELECT to_regclass")) return [{ contexts: overrides.contexts ?? null }];
       if (sql.startsWith("SELECT slug")) return [{ slug: "omni" }];
       if (/select id, hash, created_at from "drizzle"/.test(sql)) return rows.slice(-1);
@@ -330,14 +482,25 @@ function fixture(overrides = {}) {
     },
   };
   const client = {
-    async begin(work) {
+    options: { parsers: {}, serializers: {} },
+    async unsafe(sql, params = []) {
+      if (!activeTx) throw new Error("no_transaction");
+      return activeTx.unsafe(sql, params);
+    },
+    async begin(modeOrWork, maybeWork) {
+      if (typeof modeOrWork === "string") beginModes.push(modeOrWork);
+      const work = typeof modeOrWork === "function" ? modeOrWork : maybeWork;
+      if (activeTx) return activeTx.begin(work);
       const before = rows.slice();
+      activeTx = tx;
       try {
         await work(tx);
         committed = true;
       } catch (error) {
         rows = before;
         throw error;
+      } finally {
+        activeTx = null;
       }
     },
   };
@@ -345,6 +508,7 @@ function fixture(overrides = {}) {
     client,
     query: tx.unsafe,
     calls,
+    beginModes,
     get rows() {
       return rows;
     },
@@ -357,23 +521,15 @@ function fixture(overrides = {}) {
   };
 }
 
-test("normal Drizzle runner emits 21 ordered entries with exact hashes and only 65 rows", async () => {
+test("disabled apply entrypoint cannot touch the client", async () => {
   const f = fixture();
-  await runWithClient(f.client, plan);
-  assert.equal(f.nested, 21);
-  assert.equal(f.committed, true);
-  assertHistory(f.rows, plan.history);
-  assert.equal(f.rows.length, 65);
-  assert.ok(f.calls.some((sql) => sql.includes("total_spend_limit_usd::text")));
-  assert.ok(
-    f.calls.every((sql) => !sql.includes("CREATE TABLE public.omni_autonomy_authorizations")),
-  );
-  assert.ok(
-    f.calls.every((sql) => !sql.includes("CREATE OR REPLACE FUNCTION public.set_code_enabled")),
-  );
+  await assert.rejects(runWithClient(f.client, plan), /apply_disabled_pending_revised_plan/);
+  assert.equal(f.calls.length, 0);
+  assert.equal(f.nested, 0);
+  assert.equal(f.committed, false);
 });
 
-test("preflight identity/history/concurrency/controls failures never call Drizzle", async () => {
+test("disabled apply helper never invokes the migration callback", async () => {
   for (const overrides of [
     { identity: [] },
     { history: history(45) },
@@ -395,19 +551,336 @@ test("preflight identity/history/concurrency/controls failures never call Drizzl
   }
 });
 
-test("0054 conflict stops before its SQL and rolls the whole mocked transaction back", async () => {
+test("disabled apply never starts a transaction even with seed conflicts", async () => {
   const f = fixture({ contexts: "chat_contexts" });
   await assert.rejects(
     runWithClient(f.client, plan),
-    (error) =>
-      error.tag === plan.journal.entries[54].tag && error.category === "seed_slug_conflict",
+    (error) => error.category === "apply_disabled_pending_revised_plan",
   );
-  assert.equal(f.nested, 10);
+  assert.equal(f.nested, 0);
   assert.equal(f.committed, false);
   assert.equal(f.rows.length, 44);
 });
 
-test("0061 holds are rechecked immediately before migration; no resume or later SQL", async () => {
+test("safe inspection uses a read-only transaction and never invokes the migrator", async () => {
+  const f = fixture();
+  const summary = await inspectWithClient(f.client, plan);
+  assert.deepEqual(summary, {
+    mode: "inspect",
+    target: "railway-staging",
+    identity: "verified",
+    diagnostics: {
+      history: { status: "matched" },
+      seeds: { status: "matched" },
+      controls: { status: "matched" },
+    },
+    catalog: {
+      limitPerSection: 200,
+      schemas: {
+        items: [{ name: "drizzle" }, { name: "public" }],
+        truncated: false,
+      },
+      relations: {
+        items: [
+          {
+            schema: "public",
+            name: "profile_view",
+            kind: "view",
+            rowSecurityEnabled: false,
+            rowSecurityForced: false,
+          },
+          {
+            schema: "public",
+            name: "profiles",
+            kind: "table",
+            rowSecurityEnabled: true,
+            rowSecurityForced: false,
+          },
+        ],
+        truncated: false,
+      },
+      columns: {
+        items: [
+          {
+            schema: "public",
+            table: "profiles",
+            name: "id",
+            type: "uuid",
+            nullable: false,
+          },
+        ],
+        truncated: false,
+      },
+      routines: {
+        items: [
+          {
+            schema: "public",
+            name: "lookup_profile",
+            kind: "function",
+            signature: "uuid",
+            returns: "jsonb",
+          },
+        ],
+        truncated: false,
+      },
+      triggers: {
+        items: [
+          {
+            schema: "public",
+            table: "profiles",
+            name: "profiles_audit",
+            timing: "before",
+            level: "row",
+            events: ["insert"],
+          },
+        ],
+        truncated: false,
+      },
+      policies: {
+        items: [
+          {
+            schema: "public",
+            table: "profiles",
+            name: "profiles_read",
+            command: "select",
+            permissive: true,
+            roles: ["authenticated"],
+          },
+        ],
+        truncated: false,
+      },
+    },
+  });
+  assert.deepEqual(f.beginModes, ["read only"]);
+  assert.equal(f.nested, 0);
+  assert.equal(f.rows.length, 44);
+  assert.equal(f.committed, true);
+});
+
+test("catalog inventory is bounded, sorted, projected and excludes definitions or expressions", async () => {
+  const queries = [];
+  const inventory = await readCatalogInventory(async (sql, params) => {
+    queries.push({ sql, params });
+    const name = sql.match(
+      /staging-catalog:(schemas|relations|columns|routines|triggers|policies)/,
+    )?.[1];
+    return catalogMock[name];
+  });
+  assert.equal(inventory.limitPerSection, 200);
+  assert.deepEqual(
+    inventory.schemas.items.map((row) => row.name),
+    ["drizzle", "public"],
+  );
+  assert.deepEqual(
+    inventory.relations.items.map((row) => row.name),
+    ["profile_view", "profiles"],
+  );
+  assert.deepEqual(inventory.routines.items[0], {
+    schema: "public",
+    name: "lookup_profile",
+    kind: "function",
+    signature: "uuid",
+    returns: "jsonb",
+  });
+  assert.deepEqual(inventory.triggers.items[0].events, ["insert"]);
+  assert.deepEqual(inventory.policies.items[0].roles, ["authenticated"]);
+  assert.doesNotMatch(JSON.stringify(inventory), new RegExp(sentinel));
+  assert.equal(queries.length, 6);
+  for (const { sql, params } of queries) {
+    assert.deepEqual(params, [201]);
+    assert.match(sql, /ORDER BY/);
+    assert.match(sql, /LIMIT \$1/);
+    assert.doesNotMatch(
+      sql,
+      /pg_get_viewdef|pg_get_functiondef|pg_get_expr|prosrc|polqual|polwithcheck/,
+    );
+  }
+});
+
+test("inspection reports drift separately while preserving catalog output", async () => {
+  const f = fixture({
+    history: history(45),
+    contexts: "chat_contexts",
+    controls: [{ ...stopped, enabled: true }],
+  });
+  const result = await inspectWithClient(f.client, plan);
+  assert.deepEqual(result.diagnostics, {
+    history: { status: "mismatch", category: "migration_history_mismatch" },
+    seeds: { status: "mismatch", category: "seed_slug_conflict" },
+    controls: { status: "mismatch", category: "code_not_stopped_or_holds" },
+  });
+  assert.equal(result.catalog.schemas.items.length, 2);
+  assert.deepEqual(f.beginModes, ["read only"]);
+});
+
+test("inspection never masks identity, TLS, or unexpected diagnostic errors", async () => {
+  const f = fixture({ identity: [] });
+  await assert.rejects(inspectWithClient(f.client, plan), /staging_identity_mismatch/);
+  assert.ok(f.calls.every((sql) => !sql.includes("staging-catalog")));
+  for (const code of ["ERR_TLS_CERT_ALTNAME_INVALID", "ECONNRESET", "42501"]) {
+    const g = fixture();
+    const original = g.client.begin;
+    g.client.begin = (mode, work) =>
+      original(mode, (tx) =>
+        work({
+          unsafe: (sql, params) => {
+            if (sql.includes("to_regclass")) throw Object.assign(new Error(sentinel), { code });
+            return tx.unsafe(sql, params);
+          },
+        }),
+      );
+    await assert.rejects(inspectWithClient(g.client, plan), (error) => error.code === code);
+  }
+});
+
+test("missing diagnostic schema rolls back savepoints and still returns inventory in PGlite", async () => {
+  const db = new PGlite();
+  try {
+    await db.exec(`
+      CREATE TABLE public.jackboy_staging_identity (
+        environment_id text, service_id text
+      );
+      INSERT INTO public.jackboy_staging_identity VALUES (
+        '${target.environmentId}', '${target.serviceId}'
+      );
+    `);
+    const result = await inspectWithClient(
+      {
+        begin: async (mode, work) => {
+          assert.equal(mode, "read only");
+          await db.exec("BEGIN READ ONLY");
+          try {
+            await work({
+              unsafe: async (sql, params = []) => {
+                const rows = (await db.query(sql, params)).rows;
+                if (sql.includes("SELECT current_database()"))
+                  return rows.map((row) => ({ ...row, database: target.database }));
+                return rows;
+              },
+            });
+            await db.exec("COMMIT");
+          } catch (error) {
+            await db.exec("ROLLBACK");
+            throw error;
+          }
+        },
+      },
+      plan,
+    );
+    assert.equal(result.diagnostics.history.category, "migration_history_missing");
+    assert.equal(result.diagnostics.controls.category, "schema_check_unavailable");
+    assert.ok(
+      result.catalog.relations.items.some((row) => row.name === "jackboy_staging_identity"),
+    );
+  } finally {
+    await db.close();
+  }
+});
+
+test("catalog sections report truncation and reject unsafe metadata without echoing it", async () => {
+  const inventory = await readCatalogInventory(async (sql) => {
+    const section = sql.match(
+      /staging-catalog:(schemas|relations|columns|routines|triggers|policies)/,
+    )?.[1];
+    if (section !== "schemas") return catalogMock[section];
+    return Array.from({ length: 201 }, (_, index) => ({ schema_name: `schema_${index}` }));
+  });
+  assert.equal(inventory.schemas.items.length, 200);
+  assert.equal(inventory.schemas.truncated, true);
+  await assert.rejects(
+    readCatalogInventory(async (sql) => {
+      const section = sql.match(
+        /staging-catalog:(schemas|relations|columns|routines|triggers|policies)/,
+      )?.[1];
+      return section === "schemas" ? [{ schema_name: sentinel }] : catalogMock[section];
+    }),
+    (error) => {
+      assert.equal(error.category, "catalog_metadata_invalid");
+      assert.doesNotMatch(error.stack, new RegExp(sentinel));
+      return true;
+    },
+  );
+});
+
+test("catalog inventory queries inspect only metadata in an in-memory PostgreSQL fixture", async () => {
+  const db = new PGlite();
+  try {
+    await db.exec(`
+      CREATE SCHEMA fixture;
+      CREATE TABLE fixture.sample (id uuid NOT NULL, label text);
+      INSERT INTO fixture.sample VALUES ('00000000-0000-0000-0000-000000000001', '${sentinel}');
+      CREATE VIEW fixture.sample_view AS SELECT id, label FROM fixture.sample;
+      CREATE FUNCTION fixture.lookup_profile(uuid) RETURNS jsonb
+        LANGUAGE sql AS 'SELECT ''{}''::jsonb';
+      CREATE FUNCTION fixture.secret_marker() RETURNS text
+        LANGUAGE sql AS 'SELECT ''${sentinel}''';
+      CREATE FUNCTION fixture.noop_trigger() RETURNS trigger
+        LANGUAGE plpgsql AS 'BEGIN RETURN NEW; END';
+      CREATE TRIGGER sample_audit BEFORE INSERT ON fixture.sample
+        FOR EACH ROW EXECUTE FUNCTION fixture.noop_trigger();
+      CREATE POLICY sample_read ON fixture.sample FOR SELECT TO PUBLIC
+        USING (label = '${sentinel}');
+      ALTER TABLE fixture.sample ENABLE ROW LEVEL SECURITY;
+    `);
+    const inventory = await readCatalogInventory(async (sql, params = []) => {
+      return (await db.query(sql, params)).rows;
+    });
+    assert.ok(inventory.schemas.items.some((row) => row.name === "fixture"));
+    assert.ok(
+      inventory.relations.items.some(
+        (row) => row.schema === "fixture" && row.name === "sample_view" && row.kind === "view",
+      ),
+    );
+    assert.ok(
+      inventory.columns.items.some(
+        (row) =>
+          row.schema === "fixture" &&
+          row.table === "sample" &&
+          row.name === "id" &&
+          row.type === "uuid" &&
+          !row.nullable,
+      ),
+    );
+    assert.ok(
+      inventory.routines.items.some(
+        (row) =>
+          row.schema === "fixture" &&
+          row.name === "lookup_profile" &&
+          row.signature === "uuid" &&
+          row.returns === "jsonb",
+      ),
+    );
+    assert.ok(
+      inventory.triggers.items.some(
+        (row) =>
+          row.schema === "fixture" && row.name === "sample_audit" && row.events.includes("insert"),
+      ),
+    );
+    assert.ok(
+      inventory.relations.items.some(
+        (row) =>
+          row.schema === "fixture" &&
+          row.name === "sample" &&
+          row.rowSecurityEnabled &&
+          !row.rowSecurityForced,
+      ),
+    );
+    assert.ok(
+      inventory.policies.items.some(
+        (row) =>
+          row.schema === "fixture" &&
+          row.name === "sample_read" &&
+          row.command === "select" &&
+          row.roles.includes("public"),
+      ),
+    );
+    assert.doesNotMatch(JSON.stringify(inventory), new RegExp(sentinel));
+  } finally {
+    await db.close();
+  }
+});
+
+test("disabled apply never advances the migration plan", async () => {
   const f = fixture();
   let applied = 0;
   const query = async (sql, params) => {
@@ -425,41 +898,126 @@ test("0061 holds are rechecked immediately before migration; no resume or later 
       },
       plan,
     ),
-    (error) =>
-      error.tag === plan.journal.entries[61].tag && error.category === "code_not_stopped_or_holds",
+    (error) => error.category === "apply_disabled_pending_revised_plan",
   );
-  assert.equal(applied, 17);
+  assert.equal(applied, 0);
 });
 
-test("first native migration error is secret-safe, rolled back and never retried", async () => {
+test("disabled apply never reaches migration SQL or leaks driver details", async () => {
   const f = fixture({ failOn: "CREATE TABLE public.chat_threads" });
   await assert.rejects(runWithClient(f.client, plan), (error) => {
-    assert.equal(error.tag, plan.journal.entries[54].tag);
-    assert.equal(error.category, "database");
+    assert.equal(error.tag, "preflight");
+    assert.equal(error.category, "apply_disabled_pending_revised_plan");
     assert.doesNotMatch(error.stack, new RegExp(sentinel));
     return true;
   });
-  assert.equal(f.nested, 11);
+  assert.equal(f.nested, 0);
   assert.equal(f.rows.length, 44);
   assert.equal(f.committed, false);
-  assert.equal(f.calls.filter((sql) => sql.includes("CREATE TABLE public.chat_threads")).length, 1);
+  assert.equal(f.calls.length, 0);
 });
 
-test("workflow is manual, protected staging, read-only, non-canceling and has no cutoff input", async () => {
-  const yaml = await readFile(".github/workflows/staging-bounded-migrate.yml", "utf8");
-  assert.match(yaml, /on:\n  workflow_dispatch:/);
-  assert.match(yaml, /permissions:\n  contents: read/);
-  assert.match(yaml, /environment: staging/);
-  assert.match(yaml, /group: staging-code-bootstrap\n  cancel-in-progress: false/);
-  assert.match(yaml, /ref: main/);
-  assert.match(yaml, /persist-credentials: false/);
-  assert.doesNotMatch(
-    yaml,
-    /pull_request:|push:|schedule:|workflow_call:|cutoff:|migrationsFolder:/,
+test("image builder copies only journal entries through fixed 0064", async () => {
+  const output = await mkdtemp(join(tmpdir(), "bounded-image-test-"));
+  try {
+    const count = await copyBoundedMigrations("drizzle/migrations", output);
+    assert.equal(count, 65);
+    const journal = JSON.parse(await readFile(join(output, "meta", "_journal.json"), "utf8"));
+    assert.equal(journal.entries.length, 65);
+    assert.equal(journal.entries.at(-1).tag, cutoff);
+    assert.equal(
+      await readFile(join(output, `${cutoff}.sql`), "utf8"),
+      await readFile(`drizzle/migrations/${cutoff}.sql`, "utf8"),
+    );
+    await assert.rejects(readFile(join(output, "0065_code_independent_controls.sql")));
+  } finally {
+    await rm(output, { recursive: true, force: true });
+  }
+});
+
+test("the actual Drizzle migrator preserves standard hashes in local PGlite", async () => {
+  const folder = await mkdtemp(join(tmpdir(), "bounded-pglite-migration-"));
+  const client = new PGlite();
+  try {
+    await mkdir(join(folder, "meta"), { recursive: true });
+    const entries = [
+      { idx: 0, version: "7", when: 1, tag: "0000_first", breakpoints: true },
+      { idx: 1, version: "7", when: 2, tag: "0001_second", breakpoints: true },
+    ];
+    await writeFile(
+      join(folder, "meta", "_journal.json"),
+      JSON.stringify({ version: "7", dialect: "postgresql", entries }),
+    );
+    await writeFile(
+      join(folder, "0000_first.sql"),
+      "CREATE TABLE migration_probe (value integer PRIMARY KEY);",
+    );
+    await writeFile(
+      join(folder, "0001_second.sql"),
+      "INSERT INTO migration_probe (value) VALUES (64);",
+    );
+    const db = drizzlePglite(client, { logger: false });
+    await client.waitReady;
+    await migratePglite(db, { migrationsFolder: folder });
+    const rows = await client.query("SELECT value FROM migration_probe");
+    assert.equal(rows.rows[0].value, 64);
+    const journalRows = await client.query(
+      "SELECT hash, created_at FROM drizzle.__drizzle_migrations ORDER BY created_at",
+    );
+    assert.equal(journalRows.rows.length, 2);
+    assert.equal(String(journalRows.rows[0].created_at), "1");
+    assert.equal(String(journalRows.rows[1].created_at), "2");
+  } finally {
+    await client.close();
+    await rm(folder, { recursive: true, force: true });
+  }
+});
+
+test("hard execution deadline tears down the connection", async () => {
+  let closed = false;
+  await assert.rejects(
+    runWithDeadline(
+      {
+        async end(options) {
+          closed = options.timeout === 0;
+        },
+      },
+      () => new Promise(() => {}),
+      5,
+    ),
+    /execution_timeout/,
   );
+  assert.equal(closed, true);
+});
+
+test("image CI builds only and cannot start the inspector or deploy", async () => {
+  const workflow = await readFile(".github/workflows/staging-inspector-image.yml", "utf8");
+  assert.match(workflow, /pull_request:/);
+  assert.match(workflow, /contents: read/);
+  assert.match(workflow, /persist-credentials: false/);
+  const commands = [...workflow.matchAll(/^\s+run: (.+)$/gm)].map((match) => match[1]);
+  assert.deepEqual(commands, [
+    "docker build --file staging/bounded-migrator/Dockerfile --tag jackboy-staging-inspector:ci .",
+  ]);
+  assert.doesNotMatch(
+    workflow,
+    /secrets\.|environment:|workflow_dispatch:|docker run|docker push|railway up/,
+  );
+});
+
+test("Railway container is private-network-only by default and never auto-restarts", async () => {
+  const config = JSON.parse(await readFile("staging/bounded-migrator/railway.json", "utf8"));
+  const dockerfile = await readFile("staging/bounded-migrator/Dockerfile", "utf8");
+  await assert.rejects(readFile(".github/workflows/staging-bounded-migrate.yml"));
+  assert.equal(config.deploy.restartPolicyType, "NEVER");
+  assert.equal(config.deploy.numReplicas, 1);
+  assert.equal(config.build.dockerfilePath, "staging/bounded-migrator/Dockerfile");
+  assert.match(dockerfile, /STAGING_MIGRATOR_MODE=inspect/);
+  assert.match(dockerfile, /ENTRYPOINT \["bun", "scripts\/staging-bounded-migrate\.mjs"\]/);
+  assert.doesNotMatch(dockerfile, /EXPOSE|node server|vite|start/);
   const runner = await readFile("scripts/staging-bounded-migrate.mjs", "utf8");
   assert.doesNotMatch(
     runner,
-    /staging-db-preflight|staging-code-bootstrap|checkServerIdentity|rejectUnauthorized:\s*false|sslmode=require/,
+    /shinkansen\.proxy\.rlwy\.net|STAGING_DATABASE_URL|checkServerIdentity|rejectUnauthorized:\s*false|sslmode=require|staging-bounded-migrate\.yml/,
   );
 });
