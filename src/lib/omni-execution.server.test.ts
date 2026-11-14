@@ -86,7 +86,15 @@ it("Step 10 inspects the signed runner configuration but starts nothing", async 
   expect(response.headers.get("X-Omni-Proof")).toMatch(/^[a-f0-9]{64}$/);
 });
 it("expired approval or disabled link denies activation and execution", async () => {
-  for (const operation of ["connect", "configure", "arm", "authorize", "claim", "permission"]) {
+  for (const operation of [
+    "connect",
+    "configure",
+    "arm",
+    "authorize",
+    "lease",
+    "claim",
+    "permission",
+  ]) {
     const deps = dependencies();
     deps.approval = { ...approval, expiresAt: new Date(Date.now() - 1000).toISOString() };
     expect(
@@ -106,6 +114,7 @@ it("expired approval or disabled link denies activation and execution", async ()
 it("executor credentials cannot change controls and Mothership cannot claim execution", async () => {
   const deps = dependencies();
   expect((await handleExecutionControl(await request("arm", "executor"), deps)).status).toBe(403);
+  expect((await handleExecutionControl(await request("lease", "executor"), deps)).status).toBe(403);
   expect((await handleExecutionControl(await request("claim"), deps)).status).toBe(403);
   expect(deps.store).not.toHaveBeenCalled();
 });

@@ -25,6 +25,7 @@ const controlInput = z
       "revoke",
       "safety",
       "authorize",
+      "lease",
       "claim",
       "permission",
       "finish",
@@ -342,9 +343,16 @@ export async function handleExecutionControl(
       approvalExpiry > Date.now() &&
       approvalExpiry <= Date.now() + 24 * 60 * 60_000;
     if (
-      ["connect", "configure", "verify", "arm", "authorize", "claim", "permission"].includes(
-        input.operation,
-      ) &&
+      [
+        "connect",
+        "configure",
+        "verify",
+        "arm",
+        "authorize",
+        "lease",
+        "claim",
+        "permission",
+      ].includes(input.operation) &&
       !authorized
     )
       return plain(403, "approval_expired_or_link_disabled");

@@ -188,8 +188,10 @@ expired execution nonces cleaned without deleting legacy callback nonces).
 Mothership authenticates the owner and approval; Jackboy independently enforces
 the configured owner/project and saved approval expiration. Executor credentials
 are separate and can only claim, check permission and finish a hash-bound plan.
-Mothership's selected upstream baseline `ebd1b63` supplies its sole activation and
-permit mirror (0053–0055), with additive unresolved-attempt guard 0056. No duplicate
+Mothership's integrated upstream baseline `4c3094866722036ffe542568f1c25519a8e767da`
+supplies its sole activation and permit mirror (0053–0056), with additive
+unresolved-attempt guard 0057 and Stop propagation 0058. Published migration0056
+was preserved byte-for-byte; only the previously unapplied feature migration was renumbered. No duplicate
 Mothership activation saga is retained. Review the separate intelligence branch's
 historical 0053 ordering before combining it with this upstream chain.
 
@@ -214,6 +216,15 @@ terminal job scope/state never reopens. Unsupported CODE permits are explicitly
 denied; existing CODE lanes are not rerouted. Both a permit and durable single-use
 claim are required before the bounded worker executes. Its signed completion
 reports Jackboy's actual terminal state, including a simultaneous Stop cancellation.
+
+Additive `0065_omni_mothership_lease.sql` also requires a **one-second Mothership
+liveness lease** for every claim/permission. Mothership checks its own current
+Stop and durable permit every 250 ms before renewing this exact-job/hash lease.
+Only Mothership credentials can renew it; the worker cannot. A missing/expired
+lease requests cancellation and cannot revive, even if the 20-second-renewal
+permit is still valid. Process/network loss therefore fails closed rather than
+leaving local Stop hidden until permit renewal. Lease, permit/release and CODE
+Stop share the same database lock. No owner decision is synthesized.
 
 Step 9 persists an authorized connection and verifies the signed safety reply.
 Step 10 checks CODE gateway/workflow identity/spending and live executor
@@ -243,6 +254,8 @@ because provider calls are unsupported; infrastructure cost is not measured.
 Permission polling every 250 ms aborts on unverifiable state (1.5-second request
 deadline and 2-second signed-response freshness). Cancellation is bounded and must
 be acknowledged before claiming termination.
+An instance that does not own the active job refuses cancellation acknowledgement;
+a restarted or load-balanced instance cannot falsely prove another process exited.
 
 **Owner prerequisites:** review both feature branches and journals; separately
 authorize staging deployment/migrations; provision the dedicated Linux service
@@ -257,12 +270,15 @@ actions are in Mothership `docs/OMNI-BACKEND-CONTRACT.md`, unified activation se
 Never rotate production credentials or weaken sandbox privileges to pass a test.
 
 No hosted migration, deployment, approval, Stop release or production execution
-occurred. Local disposable tests do not verify a live connection. Actual Linux and
-cross-system verification are blocked here by macOS and an unavailable Docker
-daemon. New autonomous execution therefore remains disabled and unverified.
+occurred. Local disposable tests do not verify a live connection. Actual Linux
+verification runs separately in Mothership's credential-free GitHub-hosted VM;
+the exact Railway worker image/kernel and signed live cancellation still require
+separately authorized staging verification. New autonomous execution remains disabled.
 
 Local feature evidence: Node 26.13.1 focused Vitest **113 passed (8 files)**;
-full-chain disposable PostgreSQL authority/permit tests **9 passed**. Typecheck,
+full-chain disposable PostgreSQL authority/permit tests **12 passed**, including
+genuine simultaneous permit/lease/Stop and issuance/release transactions and
+elapsed-time lease expiry. Typecheck,
 changed-file lint/format, `git diff --check` and the Railway Node-server build pass.
 These are not authenticated live-system or Linux isolation results.
 
@@ -279,3 +295,9 @@ available through the repository or a separate fixture package:
 Never supply hosted credentials: fixtures create/drop their own databases.
 The public version endpoint currently returns no source SHA; deployment identity,
 actual connection and signed live Stop cancellation remain unverified.
+
+An independent security review of starting commits `fda80c5` / `3f19d2e` found
+two medium issues: delayed propagation of Mothership Stop and false cancellation
+acknowledgement by an unowned executor instance. The durable Stop outbox,
+one-second lease and unknown-instance refusal address those findings; regression
+results are not an independent certification of the revised release or a live Stop drill.

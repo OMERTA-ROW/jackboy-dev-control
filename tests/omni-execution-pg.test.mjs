@@ -74,8 +74,84 @@ async function authorized(db, ttlMs = 50_000) {
   };
   await control(db, "authorize", args);
   await control(db, "permit", { ...args, estimateUsd: 0.01 });
+  await control(db, "lease", args);
   return args;
 }
+test(
+  "missing, stale and disconnected Mothership leases fail closed without reviving a job",
+  { skip: skipNoPg },
+  async () => {
+    const db = await fixture();
+    try {
+      const args = await authorized(db);
+      await db.exec("UPDATE public.omni_execution_jobs SET mothership_lease_expires_at=NULL");
+      assert.equal((await control(db, "claim", args)).allowed, false);
+      await assert.rejects(control(db, "lease", args));
+      await db.query("SELECT public.omni_execution_cancel_ack($1,$2)", [
+        args.jobId,
+        args.planSha256,
+      ]);
+      const next = { ...args, jobId: randomUUID() };
+      await control(db, "authorize", next);
+      await control(db, "permit", { ...next, estimateUsd: 0.01 });
+      await control(db, "lease", next);
+      assert.equal((await control(db, "claim", next)).allowed, true);
+      // Real elapsed database time: Mothership has stopped renewing, even though its permit remains valid.
+      await db.exec("SELECT pg_sleep(1.05)");
+      assert.equal((await control(db, "permission", next)).allowed, false);
+      await assert.rejects(control(db, "lease", next));
+      assert.equal((await control(db, "safety")).activePermits, 0);
+    } finally {
+      await db.close();
+    }
+  },
+);
+test(
+  "concurrent permit renewal, lease and Emergency Stop serialize; no permit survives revocation",
+  { skip: skipNoPg },
+  async () => {
+    const db = await fixture();
+    try {
+      const args = await authorized(db);
+      assert.equal((await control(db, "claim", args)).allowed, true);
+      await Promise.allSettled([
+        control(db, "permit", { ...args, estimateUsd: 0.01 }),
+        control(db, "lease", args),
+        db.query("SELECT public.engage_code_kill_switch($1)", [owner]),
+      ]);
+      const state = await control(db, "safety");
+      assert.equal(state.emergencyStop, true);
+      assert.equal(state.armed, false);
+      assert.equal(state.cancellationPending, true);
+      assert.equal(state.activePermits, 0);
+      assert.equal((await control(db, "permission", args)).allowed, false);
+      await assert.rejects(control(db, "permit", { ...args, estimateUsd: 0.01 }));
+      await assert.rejects(control(db, "lease", args));
+      await assert.rejects(control(db, "authorize", { ...args, jobId: randomUUID() }));
+    } finally {
+      await db.close();
+    }
+  },
+);
+test(
+  "concurrent permit issuance and release never reopen a revoked job",
+  { skip: skipNoPg },
+  async () => {
+    const db = await fixture();
+    try {
+      const args = await authorized(db);
+      await Promise.allSettled([
+        control(db, "permit", { ...args, estimateUsd: 0.01 }),
+        control(db, "release", args),
+      ]);
+      assert.equal((await control(db, "claim", args)).allowed, false);
+      assert.equal((await control(db, "safety")).activePermits, 0);
+      await assert.rejects(control(db, "permit", { ...args, estimateUsd: 0.01 }));
+    } finally {
+      await db.close();
+    }
+  },
+);
 test(
   "configuration is persisted without enabling CODE, OMNI, or releasing Stop",
   { skip: skipNoPg },
