@@ -102,6 +102,9 @@ describe("three independent safety controls", () => {
       expect(v.emergencyStop.lockReason).toBe(NOT_INSTALLED_LOCK);
       expect(view({ independent, code: code(true, false) }).code.canTurnOff).toBe(false);
       expect(view({ independent, code: code(true, false) }).emergencyStop.canEngage).toBe(true);
+      const apparentlyReady = view({ independent, globalPaused: false, code: code(true, false) });
+      expect(apparentlyReady.execution.allowed).toBe(false);
+      expect(apparentlyReady.execution.blockedBy).toContain("Independent safety controls not verified");
       expect(v.killSwitch.canToggle).toBe(true);
       expect(view({ independent }).killSwitch.effect).toMatch(/Turning it off does NOT turn CODE back on/);
     }

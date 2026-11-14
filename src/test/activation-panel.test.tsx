@@ -247,6 +247,15 @@ describe("three independent safety controls", () => {
 });
 
 describe("activation walkthrough", () => {
+  it("does not claim completion when independent controls cannot be verified", () => {
+    render(panel({ state: ALL_ON, globalPaused: false, independent: null }));
+    expect(screen.queryByText(/Activation complete/)).toBeNull();
+    expect(controls().getByText(/Independent safety controls not verified/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Start activation" }));
+    expect(screen.getByText(/Activation status blocked/)).toBeInTheDocument();
+    expect(screen.queryByText(/Activation complete/)).toBeNull();
+    expect(mocks.stepUp).not.toHaveBeenCalled();
+  });
   it("starts only on press, shows one step, and advances after a fresh read without pressing anything", async () => {
     const { rerender } = render(
       panel({ state: { ...OFF, providerBudgetEnforced: false }, gates: gates(["hard_cap"]) }),

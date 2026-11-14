@@ -13,7 +13,7 @@ concurrency:
 env:
   # Public companion repository, pinned so the interop result is reproducible.
   OMNI_REPOSITORY: OMERTA-ROW/Omni
-  OMNI_REF: cc083d8e51e0135f536e01f08000de7d8660acbe
+  OMNI_REF: a129adf2379514d0802e9ac8d8faba3784429129
   MOTHERSHIP_REPOSITORY: OMERTA-ROW/orbiting-minds-mothership
   MOTHERSHIP_REF: ee2964f907753bad74c250dc73aeaa45422b0819
 jobs:
@@ -98,7 +98,7 @@ jobs:
         env:
           GOTOOLCHAIN: local
         run: |
-          sudo -E env "PATH=$PATH" unshare -n sh -c 'ip link set lo up && timeout 300 go test ./... -count=1 -timeout 120s' 2>&1 | tee "$RUNNER_TEMP/acceptance/go-tests.txt"
+          sudo -E env "PATH=$PATH" unshare -n sh -c 'ip link set lo up && runuser -u runner -- timeout 300 go test ./... -count=1 -timeout 120s' 2>&1 | tee "$RUNNER_TEMP/acceptance/go-tests.txt"
           test "${PIPESTATUS[0]}" -eq 0
       - name: Assert nothing was skipped
         run: |

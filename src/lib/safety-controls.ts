@@ -150,6 +150,7 @@ export function safetyControlsView(input: SafetyControlsInput): SafetyControlsVi
   } as const;
 
   const blockedBy: string[] = [];
+  if (!independent) blockedBy.push("Independent safety controls not verified");
   if (globalPaused !== false) blockedBy.push(globalPaused === null ? "Kill Switch state unreadable" : "Kill Switch is on");
   if (code === null) blockedBy.push("CODE state unreadable");
   else {

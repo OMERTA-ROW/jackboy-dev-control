@@ -13,6 +13,7 @@ test("full acceptance initializes disposable PostgreSQL inside provider-isolated
   assert.match(workflow, /runuser -u runner -- "\$PG_BIN\/initdb".*-U postgres --auth=trust/);
   assert.match(workflow, /trap .*pg_ctl.*stop/);
   assert.match(workflow, /runuser -u runner -- timeout 300 node --test --test-concurrency=1/);
+  assert.match(workflow, /unshare -n sh -c 'ip link set lo up && runuser -u runner -- timeout 300 go test/);
   assert.match(workflow, /grep -E '\^ℹ skipped \[1-9\]'/);
   assert.doesNotMatch(workflow, /paths:|paths-ignore:/);
   assert.doesNotMatch(workflow, /secrets\.|environment:|contents: write|workflow_run:/);

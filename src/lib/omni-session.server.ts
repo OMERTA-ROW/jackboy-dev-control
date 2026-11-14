@@ -85,7 +85,10 @@ export const databaseStore: LinkStore = async (op, args) => {
     name: string,
     args: Record<string, unknown>,
   ) => Promise<{ data: StoreReply | null; error: unknown }>;
-  const { data, error } = await rpc("omni_link_action", { _op: op, _a: args });
+  const { data, error } = await rpc(
+    op === "handshake_idempotent" ? "omni_link_idempotent_handshake" : "omni_link_action",
+    op === "handshake_idempotent" ? { _a: args } : { _op: op, _a: args },
+  );
   if (error || !data) throw new Error("link_store_unavailable");
   return data;
 };
@@ -178,7 +181,7 @@ export async function handleOmniLink(
     const action = input["action"];
     if (
       !["handshake", "submit", "status", "run", "cancel"].includes(String(action)) ||
-      Object.keys(input).some((k) => !["action", "projectId", "jobId", "kind"].includes(k))
+      Object.keys(input).some((k) => !["action", "projectId", "jobId", "kind", "handshakeId"].includes(k))
     )
       return await deny(403, "action_denied");
     if (action === "submit" && input["kind"] !== "protocol.self-test")
@@ -197,21 +200,43 @@ export async function handleOmniLink(
       return await deny(401, "authentication_failed");
     if (action !== "submit" && input["kind"] !== undefined)
       return await deny(400, "invalid_request");
+    if (
+      input["handshakeId"] !== undefined &&
+      (action !== "handshake" || typeof input["handshakeId"] !== "string" || !UUID.test(input["handshakeId"]))
+    )
+      return await deny(400, "invalid_request");
     if (["submit", "run"].includes(String(action)) && !runnerReady)
       return await deny(503, "runner_unavailable");
     const nonce = request.headers.get("x-omni-nonce")!;
-    const sessionToken =
-      crypto.randomUUID().replaceAll("-", "") + crypto.randomUUID().replaceAll("-", "");
+    const handshakeId = input["handshakeId"];
+    const sessionToken = typeof handshakeId === "string"
+      ? await hmacHex(c.secret, `omni.link/v2\nidempotent-handshake\n${c.clientId}\n${c.projectId}\n${c.approvalId}\n${c.approvalExpiresAt}\n${handshakeId}`)
+      : crypto.randomUUID().replaceAll("-", "") + crypto.randomUUID().replaceAll("-", "");
     const args = {
       ...context,
       nonce,
       tokenHash: await digest(token),
       newTokenHash: await digest(sessionToken),
+      handshakeId,
       jobId: input["jobId"],
       kind: input["kind"],
     };
-    let out = await store(String(action), args);
-    if (out.http >= 400) return await deny(out.http, out.error || "request_denied");
+    let out = await store(handshakeId ? "handshake_idempotent" : String(action), args);
+    if (out.http >= 400) {
+      if (action === "handshake" && handshakeId && out.http === 409 && out.error === "handshake_id_expired_or_conflict") {
+        await store("reject", { ...context, reason: out.error });
+        const body = JSON.stringify({ contract: LINK_CONTRACT, requestNonce: nonce, error: out.error });
+        return new Response(body, {
+          status: 409,
+          headers: {
+            "Content-Type": "application/json",
+            "Cache-Control": "no-store",
+            "X-Omni-Proof": await hmacHex(c.secret, `${LINK_CONTRACT}\nresponse\n${nonce}\n409\n${body}`),
+          },
+        });
+      }
+      return await deny(out.http, out.error || "request_denied");
+    }
     let runnerError: string | undefined;
     if (action === "run" && out.claimed) {
       const abort = new AbortController();

@@ -101,7 +101,8 @@ export function ActivationPanel({
   const lastIndex = useRef<number | null>(null);
 
   const steps = gates && state ? activationSteps(gates, state, globalPaused) : null;
-  const progress = steps ? activationProgress(steps) : null;
+  const stepProgress = steps ? activationProgress(steps) : null;
+  const progress = stepProgress ? { ...stepProgress, complete: stepProgress.complete && independent === true } : null;
   const currentIndex = steps ? steps.findIndex((step) => step.status !== "done") : -1;
 
   // Auto-advance only moves what is shown: when a fresh server read marks the step done, the next one
@@ -394,6 +395,11 @@ export function ActivationPanel({
       )}
       {!steps ? (
         <p className="text-sm text-muted-foreground">Checking each step…</p>
+      ) : !guideStep && !progress?.complete ? (
+        <div role="alert">
+          <p className="text-sm text-warning">Activation status blocked: the independent safety controls database update is not verified.</p>
+          <Button variant="outline" size="sm" className="mt-3" disabled={busy} onClick={checkAgain}>Check again</Button>
+        </div>
       ) : !guideStep ? (
         <div>
           <h3

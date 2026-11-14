@@ -498,6 +498,27 @@
       "when": 1794633602000,
       "tag": "0070_omni_safety_generation",
       "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1794633603000,
+      "tag": "0071_omni_link_denial_reasons",
+      "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1794633604000,
+      "tag": "0072_omni_execution_nonce_replay_window",
+      "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1794637880000,
+      "tag": "0073_omni_idempotent_handshake",
+      "breakpoints": true
     }
   ]
 }
