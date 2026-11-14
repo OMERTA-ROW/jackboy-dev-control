@@ -14,7 +14,9 @@
 - [x] Reused the installed authorization table, passkey check and audit list (no second authorization). Staged `scripts/omni-autonomy-scope-draft.sql` (SHA-256 c05e9b96…c062, not journaled, not installed): allowed job kinds, append-only history, owner binding and job-kind check on every permit issue/renewal.
 - [x] OMNI page: choose allowed job kinds, see saved authorizations (active/expired/revoked) and recent permission activity; owner-only authorize/revoke.
 - [x] 13 isolated database tests (restart, expiry, revocation, wrong owner, ownership transfer, stops, caps, audit has no tokens/passkey ids); removing the owner or job-kind rule makes its test fail.
-- [ ] Install 0067-0070, then the staged scope change — needs separate owner approval.
+- [x] Install prep (2026-11-14 07:15-07:35 UTC): live history row 73 = 0066; live permit/CODE rules match the saved 0066 state exactly; 0067-0070 + scope change rehearsed on a throwaway PostgreSQL 17.11 server (33/33 incl. real stop-vs-permit timing tests); prepared undo scripts return the database exactly to today's state; install check refuses while CODE could run.
+- [ ] Approval 1 — owner engages CODE Emergency Stop (or turns CODE off), then approves installing 0067-0070 with `scripts/verify-omni-0067-0070-install.sql` as the next history entry (refuses unless stopped and idle).
+- [ ] Approval 2 — after Approval 1 is verified, owner separately approves installing `scripts/omni-autonomy-scope-draft.sql` byte-for-byte.
 - [ ] Owner authorizes with passkey on the OMNI page (after a fresh Step 9 handshake) — owner only.
 
 ## Three separate safety controls (Nov 13, 21:31 UTC)
