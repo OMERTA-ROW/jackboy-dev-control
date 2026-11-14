@@ -438,6 +438,15 @@ The earlier public version observation returned no source SHA. The coordinator's
 do not overwrite the live-ahead deployment. The live database journal/schema,
 actual connection and signed live Stop cancellation remain unverified.
 
+The isolated acceptance workflow pins companion
+`OMERTA-ROW/Omni#23` at `147b3d6a232b3c1e4dfba668d87f4513f8a33187`
+for persisted reuse and signed-conflict rotation (four handshakes). The former
+`cc083d8` pin exercised only a legacy single handshake and cannot validate this
+fixture. This reviewed but unmerged feature commit is a test-source dependency,
+not a production release or approval. CI executes it with no production secrets
+or environments and blocked provider egress; the immutable pin does not waive
+companion review, owner authorization or any live safety gate.
+
 An independent security review of the initial bounded-executor implementation found
 two medium issues: delayed propagation of Mothership Stop and false cancellation
 acknowledgement by an unowned executor instance. The durable Stop outbox,
