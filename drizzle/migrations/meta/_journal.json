@@ -498,6 +498,13 @@
       "when": 1794633602000,
       "tag": "0070_omni_safety_generation",
       "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1794641859186,
+      "tag": "0071_verify_omni_0067_0070_install",
+      "breakpoints": true
     }
   ]
 }

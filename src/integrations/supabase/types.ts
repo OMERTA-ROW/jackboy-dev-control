@@ -2211,6 +2211,115 @@ export type Database = {
           },
         ]
       }
+      omni_execution_connections: {
+        Row: {
+          approval_id: string
+          armed: boolean
+          configured: boolean
+          connected: boolean
+          executor_release: string | null
+          expires_at: string
+          operation_id: string
+          owner_id: string
+          project_id: string
+          verified_at: string | null
+        }
+        Insert: {
+          approval_id: string
+          armed?: boolean
+          configured?: boolean
+          connected?: boolean
+          executor_release?: string | null
+          expires_at: string
+          operation_id: string
+          owner_id: string
+          project_id: string
+          verified_at?: string | null
+        }
+        Update: {
+          approval_id?: string
+          armed?: boolean
+          configured?: boolean
+          connected?: boolean
+          executor_release?: string | null
+          expires_at?: string
+          operation_id?: string
+          owner_id?: string
+          project_id?: string
+          verified_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "omni_execution_connections_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: true
+            referencedRelation: "owner_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      omni_execution_jobs: {
+        Row: {
+          cancel_delivered: boolean
+          claimed_at: string | null
+          expires_at: string
+          finished_at: string | null
+          id: string
+          last_permission_at: string | null
+          mothership_lease_expires_at: string | null
+          owner_id: string
+          permit_expires_at: string | null
+          permit_id: string | null
+          permit_issued_at: string | null
+          permit_renewals: number
+          plan_sha256: string
+          project_id: string
+          state: string
+        }
+        Insert: {
+          cancel_delivered?: boolean
+          claimed_at?: string | null
+          expires_at: string
+          finished_at?: string | null
+          id: string
+          last_permission_at?: string | null
+          mothership_lease_expires_at?: string | null
+          owner_id: string
+          permit_expires_at?: string | null
+          permit_id?: string | null
+          permit_issued_at?: string | null
+          permit_renewals?: number
+          plan_sha256: string
+          project_id: string
+          state?: string
+        }
+        Update: {
+          cancel_delivered?: boolean
+          claimed_at?: string | null
+          expires_at?: string
+          finished_at?: string | null
+          id?: string
+          last_permission_at?: string | null
+          mothership_lease_expires_at?: string | null
+          owner_id?: string
+          permit_expires_at?: string | null
+          permit_id?: string | null
+          permit_issued_at?: string | null
+          permit_renewals?: number
+          plan_sha256?: string
+          project_id?: string
+          state?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "omni_execution_jobs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "omni_execution_connections"
+            referencedColumns: ["project_id"]
+          },
+        ]
+      }
       omni_execution_permits: {
         Row: {
           approval_id: string
@@ -2229,6 +2338,7 @@ export type Database = {
           renewed_at: string
           reserved_usd: number
           status: string
+          stop_generation: number
         }
         Insert: {
           approval_id: string
@@ -2247,6 +2357,7 @@ export type Database = {
           renewed_at?: string
           reserved_usd: number
           status: string
+          stop_generation?: number
         }
         Update: {
           approval_id?: string
@@ -2265,6 +2376,7 @@ export type Database = {
           renewed_at?: string
           reserved_usd?: number
           status?: string
+          stop_generation?: number
         }
         Relationships: [
           {
@@ -2525,6 +2637,21 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      omni_permit_safety_generation: {
+        Row: {
+          generation: number
+          singleton: boolean
+        }
+        Insert: {
+          generation?: number
+          singleton?: boolean
+        }
+        Update: {
+          generation?: number
+          singleton?: boolean
+        }
+        Relationships: []
       }
       omni_project_authorizations: {
         Row: {
@@ -3983,6 +4110,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      claim_omni_execution_nonce: {
+        Args: { _client: string; _nonce: string }
+        Returns: undefined
+      }
       code_acceptance_guard_status: { Args: never; Returns: boolean }
       code_independent_controls_installed: { Args: never; Returns: boolean }
       code_provider_call_holds: {
@@ -4129,7 +4260,43 @@ export type Database = {
         }
         Returns: Json
       }
+      omni_execution_cancel_ack: {
+        Args: { _hash: string; _job: string }
+        Returns: undefined
+      }
+      omni_execution_control: {
+        Args: {
+          _a: Json
+          _approval: string
+          _op: string
+          _owner: string
+          _project: string
+        }
+        Returns: Json
+      }
+      omni_execution_control_without_lease: {
+        Args: {
+          _a: Json
+          _approval: string
+          _op: string
+          _owner: string
+          _project: string
+        }
+        Returns: Json
+      }
       omni_execution_permit_action: {
+        Args: { _a: Json; _op: string }
+        Returns: Json
+      }
+      omni_execution_permit_action_unlocked: {
+        Args: { _a: Json; _op: string }
+        Returns: Json
+      }
+      omni_execution_permit_action_without_safety_generation: {
+        Args: { _a: Json; _op: string }
+        Returns: Json
+      }
+      omni_execution_permit_action_without_worker: {
         Args: { _a: Json; _op: string }
         Returns: Json
       }
