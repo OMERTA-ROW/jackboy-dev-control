@@ -1,0 +1,38 @@
+name: Staging inspector image
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/staging-inspector-image.yml"
+      - "staging/bounded-migrator/**"
+      - "scripts/staging-bounded-*.mjs"
+      - "drizzle/migrations/**"
+      - "package.json"
+      - "bun.lock"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/staging-inspector-image.yml"
+      - "staging/bounded-migrator/**"
+      - "scripts/staging-bounded-*.mjs"
+      - "drizzle/migrations/**"
+      - "package.json"
+      - "bun.lock"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staging-inspector-image-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Build image only; never start the inspector
+        run: docker build --file staging/bounded-migrator/Dockerfile --tag jackboy-staging-inspector:ci .
