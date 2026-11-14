@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   single: vi.fn(),
+  policy: vi.fn(),
   owner: vi.fn(),
   rpc: vi.fn(),
   token: vi.fn(),
@@ -9,10 +10,10 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock("@/integrations/supabase/client.server", () => ({
   supabaseAdmin: {
-    from: () => ({
+    from: (table: string) => ({
       select: () => ({
         eq: () => ({
-          single: mocks.single,
+          single: table === "automation_policy" ? mocks.policy : mocks.single,
           eq: () => ({ maybeSingle: mocks.owner }),
         }),
       }),
@@ -56,6 +57,7 @@ beforeEach(() => {
   mocks.workflow.mockResolvedValue(undefined);
   mocks.single.mockResolvedValue({ data: allowed(), error: null });
   mocks.owner.mockResolvedValue({ data: { role: "owner" }, error: null });
+  mocks.policy.mockResolvedValue({ data: { paused: false }, error: null });
 });
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -194,5 +196,14 @@ describe("production gateway authorization wiring (no external requests)", () =>
     expect(await deps.isStopped({ requestId: id, runId: 7 })).toBe(true);
     mocks.single.mockResolvedValueOnce({ data: controls, error: null });
     expect(await deps.isStopped({ requestId: id, runId: 7 })).toBe(false);
+    for (const policy of [
+      { data: { paused: true }, error: null },
+      { data: null, error: null },
+      { data: { paused: false }, error: { message: "down" } },
+    ]) {
+      mocks.policy.mockResolvedValueOnce(policy);
+      mocks.single.mockResolvedValueOnce({ data: controls, error: null });
+      expect(await deps.isStopped({ requestId: id, runId: 7 })).toBe(true);
+    }
   });
 });

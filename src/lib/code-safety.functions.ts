@@ -174,13 +174,17 @@ export const stopJackboyWork = createServerFn({ method: "POST" })
       omniCancellation,
       codeStopSaved,
       codeControlsChanged: !independent && codeStopSaved === true,
-      warning: independent
-        ? `All Jackboy work is paused. The saved CODE setting and the CODE Emergency Stop were not changed; while the Kill Switch is on the database refuses every CODE start and AI call.${running}${foundryError || auditError ? " Some other worker controls or audit storage are unavailable." : ""}`
-        : codeStopSaved === false
-          ? "Kill Switch saved, but the CODE Emergency Stop could NOT be saved. Press Engage emergency stop now and confirm any running job is cancelled in GitHub."
-          : foundryError || auditError
-            ? "Kill Switch and CODE Emergency Stop saved (the database update that keeps them separate is not installed yet). Some other worker controls or audit storage are unavailable. Any external run must be cancelled and confirmed in GitHub."
-            : "New work is blocked and the CODE Emergency Stop is engaged too, because the database update that keeps them separate is not installed yet. Any already-running external job must be cancelled and confirmed in GitHub.",
+      warning:
+        (independent
+          ? `All Jackboy work is paused. The saved CODE setting and the CODE Emergency Stop were not changed; while the Kill Switch is on the database refuses every CODE start and AI call.${running}${foundryError || auditError ? " Some other worker controls or audit storage are unavailable." : ""}`
+          : codeStopSaved === false
+            ? "Kill Switch saved, but the CODE Emergency Stop could NOT be saved. Press Engage emergency stop now and confirm any running job is cancelled in GitHub."
+            : foundryError || auditError
+              ? "Kill Switch and CODE Emergency Stop saved (the database update that keeps them separate is not installed yet). Some other worker controls or audit storage are unavailable. Any external run must be cancelled and confirmed in GitHub."
+              : "New work is blocked and the CODE Emergency Stop is engaged too, because the database update that keeps them separate is not installed yet. Any already-running external job must be cancelled and confirmed in GitHub.") +
+        (omniCancellation.unavailable
+          ? " OMNI cancellation remains unverified; keep Stop engaged and reconcile it."
+          : ""),
     };
   });
 
@@ -657,7 +661,7 @@ export const getUnifiedOmniState = createServerFn({ method: "GET" })
         _project: project,
         _approval: approval.approvalId,
         _op: "safety",
-        _a: {},
+        _a: { clientId: process.env["OMNI_LINK_CLIENT_ID"] },
       });
       if (result.error) throw new Error("Execution state unavailable");
       const state = z
@@ -707,7 +711,7 @@ export const reconcileOmniCancellation = createServerFn({ method: "POST" })
       _project: project,
       _approval: null,
       _op: "disarm",
-      _a: {},
+      _a: { clientId: process.env["OMNI_LINK_CLIENT_ID"] },
     });
     if (result.error) throw new Error("OMNI disarm could not be committed");
     const cancellation = await (await import("./omni-execution.server")).deliverOmniCancellations();

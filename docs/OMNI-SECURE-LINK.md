@@ -180,7 +180,10 @@ Settings. Live site (Jackboy secrets): `OMNI_LINK_REMOTE_RUNNER_ENABLED=true`, `
 
 ## Unified activation authority (feature branch; unapplied and not deployed)
 
-Migration `0064_omni_execution_authority.sql` adds service-only connection/job state
+This branch merges upstream main `f49f86dd3631e88f396346ca171aea22ae3b0e5f`,
+including published 0063–0067, without changing their bytes or timestamps.
+Only the unapplied feature migrations were renumbered after that history.
+Migration `0068_omni_execution_authority.sql` adds service-only connection/job state
 and `omni_execution_control`, not general execution to the existing protocol
 self-test. Signed `action: "execution-control"` requests use the existing
 `omni.link/v2` request/reply proof and durable nonces (400 requests/client/minute,
@@ -204,25 +207,36 @@ The database validates token hash, client, project, approval and expiry.
 CODE Emergency Stop, CODE enabled, authorization, autonomous admission, manual
 diagnostics and the actual unexpired permit count.
 
-Only an already authorized exact autonomous job can request `omni.permit/v1`.
+The installed native `0066_omni_execution_permits` / published 0067 authority
+remains the **only permit issuer**. The bounded adapter reuses its fresh,
+approval-bound Jackboy `omni_autonomy` passkey authorization, session/nonce checks,
+scope, one-active-permit limit and $1/job reservation against $5/client/UTC day.
+Mothership approval never substitutes for that separate owner authorization.
+Native autonomous and CODE permits remain supported; only the separate bounded
+worker is restricted to already authorized exact autonomous jobs.
+The native `omni.permit/v1`
 It carries id, jobId, kind, digest, status, issuedAt, expiresAt, renewals,
 limits ($0.50/call, $1/task, $5/day), clientId, projectId, approvalId,
 renewEverySeconds (20), and signature. The canonical HMAC joins
 `contract,id,jobId,kind,digest,clientId,projectId,approvalId,expiresAt` with newlines;
 the whole reply proof also covers limits and every response field.
-Expiry is bounded by the job, connection and 60 seconds. A lapsed permit never
-renews, release cancellation is acknowledged before reporting success, and
-terminal job scope/state never reopens. Unsupported CODE permits are explicitly
-denied; existing CODE lanes are not rerouted. Both a permit and durable single-use
+Expiry is bounded by the job, authorization and 60 seconds. A lapsed permit never
+renews and terminal job scope/state never reopens. `permit.release` closes the
+permission record, **not** proof of process termination; bounded cancellation has
+its separate signed acknowledgement. Existing CODE lanes are not rerouted.
+Both a permit and durable single-use
 claim are required before the bounded worker executes. Its signed completion
 reports Jackboy's actual terminal state, including a simultaneous Stop cancellation.
 
-Additive `0065_omni_mothership_lease.sql` also requires a **one-second Mothership
+Additive `0069_omni_mothership_lease.sql` mirrors those native permits and requires a **one-second Mothership
 liveness lease** for every claim/permission. Mothership checks its own current
 Stop and durable permit every 250 ms before renewing this exact-job/hash lease.
 Only Mothership credentials can renew it; the worker cannot. A missing/expired
 lease requests cancellation and cannot revive, even if the 20-second-renewal
-permit is still valid. Process/network loss therefore fails closed rather than
+permit is still valid. A fresh worker claim/permission heartbeat (within 1.5 seconds),
+lease and unexpired permit are required to report Running; stale evidence is Blocked.
+An authorization or permit record alone never proves a running process.
+Process/network loss therefore fails closed rather than
 leaving local Stop hidden until permit renewal. Lease, permit/release and CODE
 Stop share the same database lock. No owner decision is synthesized.
 
@@ -233,11 +247,22 @@ only: CODE remains off, OMNI remains disarmed and Emergency Stop stays unchanged
 Arming is an independent owner action after the reviewed release and all existing
 CODE enable/passkey gates. Approval never queues or starts a plan.
 
-Admission and CODE Stop serialize on the runtime-controls row; global pause uses
-the same lock order. Stop/pause/disable disarm connections and mark active plans
+Forward-only `0070_omni_safety_generation.sql` also rechecks the actual meter and
+spending guard at every native issue/renewal and safety read. Each Stop,
+global-pause or CODE-off transition advances a durable generation outside
+best-effort revocation; an old active permit cannot renew even after Stop release
+when revocation failed. Existing pre-install cached permits are invalidated.
+CODE claim/admit/dispatch lock global policy before runtime controls, so Stop
+cannot commit in the previously unprotected dispatch interleaving. Active
+provider-call watchers fail closed on global pause, including unreadable policy.
+
+Admission and Stop share lock order: policy, CODE controls, then client/job locks.
+Stop/pause/disable disarm connections and mark active plans
 `cancel_requested` transactionally. Network cancellation happens after commit and
-only a signed termination acknowledgement can atomically finish cancellation
-with its audit. Failures remain pending and visible, not success-shaped. Disarm,
+only a signed termination acknowledgement can finish a **claimed** job's cancellation
+with its audit. Unclaimed cancelled jobs can use durable database non-claim proof:
+the cancelled state makes subsequent claim impossible. Failures remain pending
+and visible, not success-shaped. Disarm,
 unconfigure and revoke also drain this outbox. Independent global Kill Switch
 enforcement and existing CODE lanes are unchanged.
 
@@ -263,35 +288,57 @@ with separate control/permission credentials; prove actual isolation, resource
 limits, descendant cancellation, cross-system Stop and replay/restart behavior
 before setting a reviewed release. Then perform fresh owner Steps 8/9, explicitly
 set the reviewed release on all services, verify the executor, and approve/activate
-Step 10. Release Stop/enable CODE only through its
-existing separately approved passkey controls, enable the executor separately,
+Step 10, with a separate fresh Jackboy autonomy authorization after the live
+Step 8/9 prerequisites. Enable saved CODE and release CODE Emergency Stop only through their
+**distinct** freshly approved passkey controls; global Kill Switch is independent.
+Enable the executor separately,
 explicitly arm, then authorize one plan. Full setting names and ordered owner
 actions are in Mothership `docs/OMNI-BACKEND-CONTRACT.md`, unified activation section.
 Never rotate production credentials or weaken sandbox privileges to pass a test.
 
 No hosted migration, deployment, approval, Stop release or production execution
-occurred. Local disposable tests do not verify a live connection. Actual Linux
+was performed by this work. Upstream records an owner-installed 0066; we have not
+reverified the hosted journal. Our additive **0068–0070 remain unapplied**.
+Local disposable tests do not verify a live connection. Actual Linux
 verification runs separately in Mothership's credential-free GitHub-hosted VM;
 the exact Railway worker image/kernel and signed live cancellation still require
-separately authorized staging verification. New autonomous execution remains disabled.
+separately authorized staging verification. Actual Ubuntu 22.04 isolation,
+filesystem/resource/network restrictions, timeout and descendant cancellation
+passed **5/5, zero skipped**:
+[Linux evidence](https://github.com/OMERTA-ROW/orbiting-minds-mothership/actions/runs/43558863121).
+Ubuntu 24.04 refused namespace setup; no host policy was weakened.
+New autonomous execution remains disabled.
 
-Local feature evidence: Node 26.13.1 focused Vitest **113 passed (8 files)**;
-full-chain disposable PostgreSQL authority/permit tests **12 passed**, including
+Local feature evidence: Node 26.13.1 focused Vitest **141 passed (10 files)**;
+isolated release-surface checks **115 passed, zero failed/skipped** (real
+PostgreSQL/PGLite plus workflow/history checks), including
 genuine simultaneous permit/lease/Stop and issuance/release transactions and
 elapsed-time lease expiry. Typecheck,
 changed-file lint/format, `git diff --check` and the Railway Node-server build pass.
 These are not authenticated live-system or Linux isolation results.
 
 ```sh
-node node_modules/vitest/vitest.mjs run src/lib/{omni-execution.server,omni-configuration.server,omni-remote-runner,omni-link-approval,code-enable,code-safety,code-gateway.server}.test.ts src/test/activation-panel.test.tsx
-node node_modules/typescript/bin/tsc --noEmit
+node node_modules/vitest/vitest.mjs run src/lib/{omni-execution.server,omni-configuration.server,omni-permit,omni-permit-e2e,code-safety,code-gateway.server,code-gateway,safety-controls,safety-controls.server}.test.ts src/test/activation-panel.test.tsx
+node node_modules/typescript/bin/tsc --noEmit --strict
 NITRO_PRESET=node-server node node_modules/vite/bin/vite.js build
 git diff --check
 ```
 
 With an isolated loopback PostgreSQL cluster using superuser `postgres`, and `pg`
 available through the repository or a separate fixture package:
-`STAGING_PG_URL=postgresql://postgres@127.0.0.1:55483/postgres STAGING_PG_MODULE_FROM=/path/to/local/pg-tests/package.json node --test tests/omni-execution-pg.test.mjs`.
+Set `STAGING_PG_URL=postgresql://postgres@127.0.0.1:55483/postgres` and, if needed,
+`STAGING_PG_MODULE_FROM=/path/to/local/pg-tests/package.json`, then run:
+
+```sh
+node --test --test-concurrency=1 \
+  tests/code-migration-chain.test.mjs tests/code-sync-safety-pg.test.mjs \
+  tests/code-spend-staging-pg.test.mjs tests/code-spend-hold-release.test.mjs \
+  tests/code-provider-gateway-pg.test.mjs tests/omni-execution-pg.test.mjs \
+  tests/omni-permit-stop-race.test.mjs tests/omni-execution-permit-draft.test.mjs \
+  tests/migration-history-reconcile.test.mjs tests/code-workflow.test.mjs \
+  tests/code-gateway-isolation.test.mjs
+```
+
 Never supply hosted credentials: fixtures create/drop their own databases.
 The public version endpoint currently returns no source SHA; deployment identity,
 actual connection and signed live Stop cancellation remain unverified.
@@ -301,3 +348,12 @@ two medium issues: delayed propagation of Mothership Stop and false cancellation
 acknowledgement by an unowned executor instance. The durable Stop outbox,
 one-second lease and unknown-instance refusal address those findings; regression
 results are not an independent certification of the revised release or a live Stop drill.
+The independent follow-up review of newly arrived upstream found four more
+medium issues: missing current meter/guard checks, permit revival after failed
+revocation and Stop release, active provider calls missing global Stop, and
+unserialized CODE dispatch/global Stop. The owner selected fixing all issues.
+0070, the active-call watcher and genuine concurrent/failed-revocation regression
+tests address all four without editing published migrations. The six-finding
+table and remaining staging/owner prerequisites are in Mothership
+`docs/OMNI-BACKEND-CONTRACT.md`; the repaired release has not received a fresh
+independent certification.

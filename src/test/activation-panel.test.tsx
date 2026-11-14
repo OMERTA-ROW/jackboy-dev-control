@@ -78,6 +78,7 @@ const controls = () => within(screen.getByLabelText("Safety controls"));
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.omniState.mockResolvedValue({ state: null, label: "Blocked" });
+  mocks.stop.mockResolvedValue({ omniCancellation: { pending: 0, unavailable: 0 } });
   mocks.stepUp.mockImplementation(
     async (
       _a: string,
@@ -241,7 +242,7 @@ describe("three independent safety controls", () => {
         messageTone: "error",
       }),
     );
-    expect(screen.getByRole("alert")).toHaveTextContent("Not done: The database refused");
+    expect(screen.getByText(/^Not done: The database refused/)).toHaveAttribute("role", "alert");
   });
 });
 

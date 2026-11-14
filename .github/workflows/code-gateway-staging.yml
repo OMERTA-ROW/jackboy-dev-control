@@ -48,6 +48,7 @@ jobs:
                 runuser -u runner -- node --test --test-concurrency=1 \
                   tests/code-migration-chain.test.mjs tests/code-sync-safety-pg.test.mjs tests/code-spend-staging-pg.test.mjs \
                   tests/code-spend-hold-release.test.mjs tests/code-provider-gateway-pg.test.mjs tests/omni-execution-pg.test.mjs \
+                  tests/omni-permit-stop-race.test.mjs tests/omni-execution-permit-draft.test.mjs tests/migration-history-reconcile.test.mjs \
                   tests/code-workflow.test.mjs tests/code-gateway-isolation.test.mjs
                 runuser -u runner -- bunx vitest run src/lib/code-gateway.test.ts src/lib/code-gateway.server.test.ts
               '

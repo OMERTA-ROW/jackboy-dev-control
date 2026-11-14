@@ -6,6 +6,18 @@ import { createRequire } from "node:module";
 export const stagingUrl = process.env.STAGING_PG_URL;
 export const skipNoPg = stagingUrl ? false : "STAGING_PG_URL not set (no disposable PostgreSQL)";
 
+export async function waitForLock(db, pid, timeoutMs = 5000) {
+  const end = Date.now() + timeoutMs;
+  while (Date.now() < end) {
+    const result = await db.query("SELECT wait_event_type FROM pg_stat_activity WHERE pid=$1", [
+      pid,
+    ]);
+    if (result.rows[0]?.wait_event_type === "Lock") return;
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  throw new Error(`Backend ${pid} did not reach the expected lock wait`);
+}
+
 let pgModule;
 let admin;
 

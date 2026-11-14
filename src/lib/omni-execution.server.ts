@@ -1,13 +1,6 @@
 import { z } from "zod";
 import { hmacHex, safeEqual } from "./omni-link";
-import {
-  LINK_CONTRACT,
-  LINK_PATH,
-  UUID,
-  digest,
-  linkRequestUrl,
-  verifyRequest,
-} from "./omni-session";
+import { LINK_CONTRACT, LINK_PATH, UUID, linkRequestUrl, verifyRequest } from "./omni-session";
 import { boundedBody, loadEffectiveApproval } from "./omni-session.server";
 
 const controlInput = z
@@ -76,206 +69,6 @@ async function claimNonce(client: string, nonce: string) {
   const db = (await import("./untyped-db")).untyped(supabaseAdmin);
   const { error } = await db.rpc("claim_omni_execution_nonce", { _client: client, _nonce: nonce });
   if (error) throw new Error("Request replay or nonce store unavailable");
-}
-
-const permitInput = z.union([
-  z.object({ action: z.literal("safety"), projectId: z.string().uuid() }).strict(),
-  z
-    .object({
-      action: z.literal("permit.request"),
-      projectId: z.string().uuid(),
-      jobId: z.string().uuid(),
-      kind: z.enum(["autonomous", "code"]),
-      digest: z.string().regex(/^[a-f0-9]{64}$/),
-      estimateUsd: z.number().positive().max(1),
-    })
-    .strict(),
-  z
-    .object({
-      action: z.literal("permit.release"),
-      projectId: z.string().uuid(),
-      jobId: z.string().uuid(),
-    })
-    .strict(),
-]);
-
-export async function handleExecutionPermit(
-  request: Request,
-  dependencies: {
-    env?: Record<string, string | undefined>;
-    approval?: { approvalId: string; expiresAt: string };
-    nonce?: typeof claimNonce;
-    session?: (
-      operation: string,
-      args: Record<string, unknown>,
-      tokenHash: string,
-    ) => Promise<unknown>;
-    cancel?: typeof deliverOmniCancellations;
-  } = {},
-) {
-  const env = dependencies.env ?? process.env;
-  const plain = (status: number, error: string) =>
-    Response.json({ error }, { status, headers: { "Cache-Control": "no-store" } });
-  try {
-    const url = linkRequestUrl(request, env);
-    if (!url || url.pathname !== LINK_PATH || url.search || request.method !== "POST")
-      return plain(400, "https_post_required");
-    const raw = await boundedBody(request);
-    const input = permitInput.parse(JSON.parse(raw));
-    const token =
-      request.headers.get("authorization")?.match(/^Bearer ([A-Za-z0-9_-]{32,256})$/)?.[1] ?? "";
-    const secret = env["OMNI_LINK_HMAC_SECRET"];
-    const client = env["OMNI_LINK_CLIENT_ID"] ?? "";
-    const owner = env["OMNI_LINK_OWNER_ID"] ?? "";
-    const approval = dependencies.approval ?? (await loadEffectiveApproval(env));
-    const expiry = Date.parse(approval.expiresAt);
-    if (
-      !secret ||
-      secret.length < 32 ||
-      !token ||
-      token === env["OMNI_LINK_BOOTSTRAP_KEY"] ||
-      request.headers.get("x-omni-client") !== client ||
-      input.projectId !== env["OMNI_LINK_PROJECT_ID"] ||
-      !UUID.test(owner) ||
-      !UUID.test(approval.approvalId) ||
-      env["OMNI_LINK_ENABLED"] !== "true" ||
-      !Number.isFinite(expiry) ||
-      expiry <= Date.now() ||
-      expiry > Date.now() + 86_400_000 ||
-      !(await verifyRequest(secret, token, request.headers, raw))
-    )
-      return plain(401, "authentication_failed");
-    const nonce = request.headers.get("x-omni-nonce")!;
-    await (dependencies.nonce ?? claimNonce)(client, nonce);
-    const operation =
-      input.action === "safety"
-        ? "safety"
-        : input.action === "permit.request"
-          ? "permit"
-          : "release";
-    if (input.action === "permit.request" && input.kind !== "autonomous")
-      return plain(403, "scope_invalid");
-    const args =
-      input.action === "safety"
-        ? {}
-        : input.action === "permit.request"
-          ? { jobId: input.jobId, planSha256: input.digest, estimateUsd: input.estimateUsd }
-          : { jobId: input.jobId };
-    const session =
-      dependencies.session ??
-      (async (op, values, tokenHash) => {
-        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-        const db = (await import("./untyped-db")).untyped(supabaseAdmin);
-        const result = await db.rpc("omni_execution_session", {
-          _owner: owner,
-          _project: input.projectId,
-          _approval: approval.approvalId,
-          _client: client,
-          _token_hash: tokenHash,
-          _op: op,
-          _a: values,
-        });
-        if (result.error) throw new Error("Session or permit admission refused");
-        return result.data;
-      });
-    const result = await session(operation, args, await digest(token));
-    let payload: Record<string, unknown>;
-    if (input.action === "safety") {
-      const state = z
-        .object({
-          checkedAt: z.string(),
-          connected: z.boolean(),
-          configured: z.boolean(),
-          armed: z.boolean(),
-          emergencyStop: z.boolean(),
-          killSwitch: z.boolean(),
-          codeEnabled: z.boolean(),
-          executionReady: z.boolean(),
-          expiresAt: z.string().nullable(),
-          operationId: z.string().uuid().nullable(),
-          running: z.boolean(),
-          cancellationPending: z.boolean(),
-          activePermits: z.number().int().nonnegative(),
-        })
-        .parse(result);
-      payload = {
-        safety: {
-          contract: "omni.safety/v1",
-          checkedAt: state.checkedAt,
-          validUntil: new Date(Date.now() + 30_000).toISOString(),
-          killSwitch: state.killSwitch,
-          emergencyStop: state.emergencyStop,
-          codeEnabled: state.codeEnabled,
-          authorization:
-            state.connected && state.configured && state.expiresAt && state.operationId
-              ? { id: state.operationId, expiresAt: state.expiresAt }
-              : null,
-          autonomousAllowed: state.executionReady,
-          blockedBy: state.executionReady
-            ? null
-            : state.killSwitch
-              ? "kill_switch_on"
-              : state.emergencyStop
-                ? "emergency_stop_engaged"
-                : !state.codeEnabled
-                  ? "code_disabled"
-                  : !state.armed
-                    ? "not_authorized"
-                    : "guard_unverified",
-          manualDiagnosticsAllowed: !state.killSwitch,
-          activePermits: state.activePermits,
-        },
-      };
-    } else if (input.action === "permit.request") {
-      const row = z
-        .object({
-          id: z.string().uuid(),
-          jobId: z.literal(input.jobId),
-          digest: z.literal(input.digest),
-          issuedAt: z.string(),
-          expiresAt: z.string(),
-          renewals: z.number().int().nonnegative(),
-        })
-        .parse(result);
-      const permit = {
-        contract: "omni.permit/v1",
-        ...row,
-        kind: "autonomous",
-        status: "active",
-        limits: { perCallUsd: 0.5, perTaskUsd: 1, dailyUsd: 5 },
-        clientId: client,
-        projectId: input.projectId,
-        approvalId: approval.approvalId,
-        renewEverySeconds: 20,
-      };
-      const message = [
-        permit.contract,
-        permit.id,
-        permit.jobId,
-        permit.kind,
-        permit.digest,
-        client,
-        input.projectId,
-        approval.approvalId,
-        permit.expiresAt,
-      ].join("\n");
-      payload = { permit: { ...permit, signature: await hmacHex(secret, message) } };
-    } else {
-      const cancellation = await (dependencies.cancel ?? deliverOmniCancellations)();
-      if (cancellation.unavailable) return plain(503, "cancellation_unverified");
-      payload = { released: true };
-    }
-    const body = JSON.stringify({ contract: LINK_CONTRACT, requestNonce: nonce, ...payload });
-    return new Response(body, {
-      headers: {
-        "Content-Type": "application/json",
-        "Cache-Control": "no-store",
-        "X-Omni-Proof": await hmacHex(secret, `${LINK_CONTRACT}\nresponse\n${nonce}\n200\n${body}`),
-      },
-    });
-  } catch {
-    return plain(503, "permit_service_unavailable");
-  }
 }
 
 export async function handleExecutionControl(
@@ -389,7 +182,7 @@ export async function handleExecutionControl(
       input.projectId,
       approval.approvalId,
       input.operation,
-      args,
+      { ...args, clientId: client },
     );
     if (["disarm", "unconfigure", "revoke"].includes(input.operation)) {
       const cancellation = await (dependencies.cancel ?? deliverOmniCancellations)();
@@ -399,7 +192,7 @@ export async function handleExecutionControl(
         input.projectId,
         approval.approvalId,
         "safety",
-        {},
+        { clientId: client },
       );
       return signedState(fresh, secret);
     }
@@ -487,23 +280,24 @@ export async function deliverOmniCancellations() {
   const db = (await import("./untyped-db")).untyped(supabaseAdmin);
   const pending = await db
     .from("omni_execution_jobs")
-    .select("id,plan_sha256")
+    .select("id,plan_sha256,claimed_at")
     .eq("state", "cancel_requested")
     .limit(10);
   if (pending.error) throw new Error("OMNI cancellation outbox unavailable");
   let unavailable = 0;
   for (const job of pending.data ?? []) {
     try {
-      const result = z
-        .object({ cancelled: z.literal(true) })
-        .parse(await executorRequest("cancel", { jobId: job.id, planSha256: job.plan_sha256 }));
-      if (result.cancelled) {
-        const updated = await db.rpc("omni_execution_cancel_ack", {
-          _job: job.id,
-          _hash: job.plan_sha256,
-        });
-        if (updated.error) throw new Error("Cancellation acknowledgement could not be stored");
+      // Cancellation commits before claim can succeed; an unclaimed job never reached execution.
+      if (job.claimed_at !== null) {
+        z.object({ cancelled: z.literal(true) }).parse(
+          await executorRequest("cancel", { jobId: job.id, planSha256: job.plan_sha256 }),
+        );
       }
+      const updated = await db.rpc("omni_execution_cancel_ack", {
+        _job: job.id,
+        _hash: job.plan_sha256,
+      });
+      if (updated.error) throw new Error("Cancellation acknowledgement could not be stored");
     } catch {
       unavailable++;
     }

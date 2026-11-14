@@ -13,6 +13,7 @@ after(closeAdmin);
 const owner = "11111111-1111-4111-8111-111111111111";
 const project = "22222222-2222-4222-8222-222222222222";
 const approval = "33333333-3333-4333-8333-333333333333";
+const tokenHash = "c".repeat(64);
 async function fixture() {
   const db = await openDb();
   try {
@@ -36,22 +37,83 @@ async function fixture() {
       "SELECT public.set_code_provider_hard_cap_verified($1,true,'Synthetic isolated fixture only')",
       [owner],
     );
+    await db.query(
+      "INSERT INTO public.omni_link_approval(id,approval_id,expires_at,saved_by,saved_at) VALUES(1,$1,now()+interval '1 hour',$2,now()-interval '1 minute')",
+      [approval, owner],
+    );
+    const proof = randomUUID();
+    await db.query(
+      `INSERT INTO public.omni_inbound_jobs(id,client_id,project_id,approval_id,kind,status,deadline,result)
+       VALUES($1,'fixture',$2,$3,'protocol.self-test','completed',now(),
+       '{"passed":true,"checks":3,"runner":"restricted-protocol-self-test"}')`,
+      [proof, project, approval],
+    );
+    await db.query(
+      "INSERT INTO public.omni_link_sessions VALUES($1,'fixture',$2,$3,now()+interval '5 minutes')",
+      [tokenHash, project, approval],
+    );
+    await db.query(
+      "INSERT INTO public.owner_passkeys(user_id,credential_id,public_key) VALUES($1,'fixture-passkey','synthetic')",
+      [owner],
+    );
+    const grant = (
+      await db.query(
+        "INSERT INTO public.step_up_grants(user_id,action,target,credential_id,expires_at) VALUES($1,'omni_autonomy',$2,'fixture-passkey',now()+interval '5 minutes') RETURNING id",
+        [owner, `omni-autonomy:${approval}`],
+      )
+    ).rows[0].id;
+    const authorized = (
+      await db.query(
+        "SELECT public.omni_autonomy_authorization_action('authorize',$1,'fixture',$2,$3,true,'Synthetic fixture only') AS r",
+        [owner, project, grant],
+      )
+    ).rows[0].r;
+    assert.equal(authorized.ok, true, JSON.stringify(authorized));
     return db;
   } catch (error) {
     await db.close();
     throw error;
   }
 }
-const control = async (db, op, args = {}) =>
-  (
+async function permit(db, op, extra = {}) {
+  const result = (
+    await db.query("SELECT public.omni_execution_permit_action($1,$2::jsonb) AS r", [
+      op,
+      JSON.stringify({
+        clientId: "fixture",
+        ownerId: owner,
+        projectId: project,
+        approvalId: approval,
+        approvalExpiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+        tokenHash,
+        nonce: randomUUID().replaceAll("-", ""),
+        ...extra,
+      }),
+    ])
+  ).rows[0].r;
+  if (result.http !== 200) throw new Error(`${result.error}: ${result.reason ?? result.http}`);
+  return result;
+}
+const control = async (db, op, args = {}) => {
+  if (op === "permit" || op === "release") {
+    const result = await permit(db, op === "permit" ? "request" : "release", {
+      jobId: args.jobId,
+      kind: "autonomous",
+      digest: args.planSha256,
+      estimateUsd: args.estimateUsd,
+    });
+    return result.permit;
+  }
+  return (
     await db.query("SELECT public.omni_execution_control($1,$2,$3,$4,$5::jsonb) AS state", [
       owner,
       project,
       approval,
       op,
-      JSON.stringify(args),
+      JSON.stringify({ ...args, clientId: "fixture" }),
     ])
   ).rows[0].state;
+};
 const connect = (db) =>
   control(db, "connect", {
     operationId: randomUUID(),
@@ -91,6 +153,7 @@ test(
         args.jobId,
         args.planSha256,
       ]);
+      await control(db, "release", args);
       const next = { ...args, jobId: randomUUID() };
       await control(db, "authorize", next);
       await control(db, "permit", { ...next, estimateUsd: 0.01 });
@@ -368,17 +431,16 @@ test(
     try {
       const args = await authorized(db);
       const hash = "c".repeat(64);
-      await db.query(
-        "INSERT INTO public.omni_link_sessions(token_hash,client_id,project_id,approval_id,expires_at) VALUES($1,'fixture',$2,$3,now()+interval '5 minutes')",
-        [hash, project, approval],
-      );
-      const session = async (token, op, values = {}) =>
-        (
-          await db.query(
-            "SELECT public.omni_execution_session($1,$2,$3,'fixture',$4,$5,$6::jsonb) AS state",
-            [owner, project, approval, token, op, JSON.stringify(values)],
-          )
-        ).rows[0].state;
+      const session = async (token, op, values = {}) => {
+        const result = await permit(db, op === "permit" ? "request" : op, {
+          tokenHash: token,
+          jobId: values.jobId,
+          kind: "autonomous",
+          digest: values.planSha256,
+          estimateUsd: values.estimateUsd,
+        });
+        return op === "safety" ? result.safety : result.permit;
+      };
       await assert.rejects(session("d".repeat(64), "safety"));
       assert.equal((await session(hash, "safety")).activePermits, 1);
       const renewed = await session(hash, "permit", { ...args, estimateUsd: 0.01 });
@@ -408,6 +470,7 @@ test(
       await db.exec(
         "UPDATE public.omni_execution_jobs SET permit_expires_at=now()-interval '1 second'",
       );
+
       await assert.rejects(control(db, "permit", { ...args, estimateUsd: 0.01 }));
       assert.equal((await control(db, "claim", args)).allowed, false);
       await db.query("SELECT public.omni_execution_cancel_ack($1,$2)", [
@@ -424,3 +487,173 @@ test(
     }
   },
 );
+
+test(
+  "an issued permit is not Running without a fresh worker claim and permission heartbeat",
+  { skip: skipNoPg },
+  async () => {
+    const db = await fixture();
+    try {
+      const args = await authorized(db);
+      assert.equal((await control(db, "safety")).running, false);
+      assert.equal((await control(db, "claim", args)).allowed, true);
+      assert.equal((await control(db, "safety")).running, true);
+      await db.exec(
+        "UPDATE public.omni_execution_jobs SET last_permission_at=now()-interval '2 seconds'",
+      );
+      const stale = await control(db, "safety");
+      assert.equal(stale.running, false);
+      assert.equal(stale.executionReady, false);
+      assert.equal((await control(db, "permission", args)).allowed, true);
+      assert.equal((await control(db, "safety")).running, true);
+      await control(db, "finish", { ...args, outcome: "completed" });
+      assert.equal((await control(db, "safety")).running, false);
+    } finally {
+      await db.close();
+    }
+  },
+);
+
+test(
+  "upstream owner revocation cancels the bounded job and cannot be bypassed by its mirror",
+  { skip: skipNoPg },
+  async () => {
+    const db = await fixture();
+    try {
+      const args = await authorized(db);
+      assert.equal((await control(db, "claim", args)).allowed, true);
+      const native = (await db.query("SELECT id,reserved_usd FROM public.omni_execution_permits"))
+        .rows[0];
+      const mirror = (await db.query("SELECT permit_id FROM public.omni_execution_jobs")).rows[0];
+      assert.equal(mirror.permit_id, native.id);
+      assert.equal(Number(native.reserved_usd), 1);
+      await db.query(
+        "SELECT public.omni_autonomy_authorization_action('revoke',$1,'fixture',$2,NULL,NULL,'Synthetic revoke')",
+        [owner, project],
+      );
+      assert.equal((await control(db, "safety")).executionReady, false);
+      assert.equal((await control(db, "permission", args)).allowed, false);
+      assert.equal((await control(db, "safety")).cancellationPending, true);
+      await assert.rejects(control(db, "lease", args), /owner authorization/);
+      await assert.rejects(
+        control(db, "configure", { release: "omni-bounded-plan-1" }),
+        /owner authorization/,
+      );
+      await assert.rejects(control(db, "permit", { ...args, estimateUsd: 0.01 }));
+    } finally {
+      await db.close();
+    }
+  },
+);
+
+for (const [fn, body, reason] of [
+  ["code_spend_meter_status", '{"ok":false}', "meter_untrusted"],
+  ["code_total_spend_guard_status", '{"enforced":false,"limit_usd":10}', "gateway_unenforced"],
+]) {
+  test(
+    `permit admission and renewal recheck ${reason} and halt the actual bounded claim`,
+    { skip: skipNoPg },
+    async () => {
+      const db = await fixture();
+      try {
+        const args = await authorized(db);
+        assert.equal((await control(db, "claim", args)).allowed, true);
+        await db.exec(
+          `CREATE OR REPLACE FUNCTION public.${fn}() RETURNS jsonb LANGUAGE sql AS $$ SELECT '${body}'::jsonb $$`,
+        );
+        const safety = (await permit(db, "safety")).safety;
+        assert.equal(safety.autonomousAllowed, false);
+        assert.equal(safety.blockedBy, reason);
+        await assert.rejects(
+          control(db, "permit", { ...args, estimateUsd: 0.01 }),
+          new RegExp(reason),
+        );
+        await assert.rejects(
+          permit(db, "request", {
+            jobId: randomUUID(),
+            kind: "autonomous",
+            digest: "b".repeat(64),
+            estimateUsd: 1,
+          }),
+          new RegExp(reason),
+        );
+        assert.equal(
+          (await db.query("SELECT count(*)::int AS n FROM public.omni_execution_permits")).rows[0]
+            .n,
+          1,
+        );
+        assert.equal((await control(db, "permission", args)).allowed, false);
+        assert.equal(
+          (await db.query("SELECT status FROM public.omni_execution_permits")).rows[0].status,
+          "revoked",
+        );
+      } finally {
+        await db.close();
+      }
+    },
+  );
+}
+
+for (const mode of ["emergency_stop", "global_stop", "code_off"]) {
+  test(
+    `${mode} generation survives failed revocation and permanently rejects the old permit after release`,
+    { skip: skipNoPg },
+    async () => {
+      const db = await fixture();
+      try {
+        await setActivatedControls(
+          db,
+          "UPDATE public.code_runtime_controls SET enabled=true,kill_switch=false",
+        );
+        const jobId = randomUUID();
+        const input = { jobId, kind: "autonomous", digest: "f".repeat(64), estimateUsd: 1 };
+        await permit(db, "request", input);
+        await db.exec(
+          "ALTER TABLE public.omni_execution_permits ADD CONSTRAINT fixture_revoke_failure CHECK(status<>'revoked') NOT VALID",
+        );
+        await db.exec(
+          mode === "global_stop"
+            ? "UPDATE public.automation_policy SET paused=true"
+            : mode === "code_off"
+              ? "UPDATE public.code_runtime_controls SET enabled=false"
+              : "UPDATE public.code_runtime_controls SET kill_switch=true",
+        );
+        assert.equal(
+          (await db.query("SELECT status FROM public.omni_execution_permits")).rows[0].status,
+          "active",
+        );
+        await db.exec(
+          "ALTER TABLE public.omni_execution_permits DROP CONSTRAINT fixture_revoke_failure",
+        );
+        // Isolated fixture models a subsequent explicit owner release, never an application action.
+        await db.exec("UPDATE public.automation_policy SET paused=false");
+        await setActivatedControls(
+          db,
+          "UPDATE public.code_runtime_controls SET enabled=true,kill_switch=false",
+        );
+        await assert.rejects(permit(db, "request", input), /permit_stopped/);
+        assert.equal(
+          (await db.query("SELECT status FROM public.omni_execution_permits")).rows[0].status,
+          "revoked",
+        );
+        assert.equal((await permit(db, "request", { ...input, jobId: randomUUID() })).http, 200);
+        for (const fn of [
+          "omni_execution_permit_action_unlocked",
+          "omni_execution_permit_action_without_worker",
+          "omni_execution_permit_action_without_safety_generation",
+        ]) {
+          assert.equal(
+            (
+              await db.query(
+                `SELECT has_function_privilege('service_role','public.${fn}(text,jsonb)','EXECUTE') AS allowed`,
+              )
+            ).rows[0].allowed,
+            false,
+          );
+        }
+      } finally {
+        await db.close();
+      }
+    },
+  );
+}

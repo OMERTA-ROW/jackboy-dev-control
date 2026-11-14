@@ -1,7 +1,21 @@
 import { expect, it, vi } from "vitest";
-import { handleExecutionControl, handleExecutionPermit } from "./omni-execution.server";
+import { deliverOmniCancellations, handleExecutionControl } from "./omni-execution.server";
+import { handleOmniPermit, type PermitStore } from "./omni-permit.server";
 import { hmacHex } from "./omni-link";
 import { digest, requestMessage } from "./omni-session";
+
+const cancellationMocks = vi.hoisted(() => ({
+  pending: vi.fn(),
+  ack: vi.fn(),
+  request: vi.fn(),
+}));
+vi.mock("@/integrations/supabase/client.server", () => ({
+  supabaseAdmin: {
+    from: () => ({ select: () => ({ eq: () => ({ limit: cancellationMocks.pending }) }) }),
+    rpc: cancellationMocks.ack,
+  },
+}));
+vi.mock("./omni-executor-client", () => ({ signedExecutorRequest: cancellationMocks.request }));
 
 const project = "11111111-1111-4111-8111-111111111111";
 const env = {
@@ -81,7 +95,7 @@ it("Step 10 inspects the signed runner configuration but starts nothing", async 
     project,
     approval.approvalId,
     "configure",
-    { release: "omni-bounded-plan-1" },
+    { release: "omni-bounded-plan-1", clientId: "fixture" },
   );
   expect(response.headers.get("X-Omni-Proof")).toMatch(/^[a-f0-9]{64}$/);
 });
@@ -136,7 +150,7 @@ it("disarming persists first and an unconfirmed cancellation is an explicit fail
     project,
     approval.approvalId,
     "disarm",
-    {},
+    { clientId: "fixture" },
   );
   expect(await response.json()).toEqual({ error: "cancellation_unverified" });
 });
@@ -166,24 +180,46 @@ async function permitRequest(action: string, extra = {}, token = "u".repeat(32))
     },
   });
 }
+async function runPermit(request: Request, store: PermitStore) {
+  return handleOmniPermit(
+    request,
+    await request.clone().text(),
+    {
+      clientId: env.OMNI_LINK_CLIENT_ID,
+      projectId: project,
+      ownerId: env.OMNI_LINK_OWNER_ID,
+      approvalId: approval.approvalId,
+      approvalExpiresAt: approval.expiresAt,
+      bootstrap: env.OMNI_LINK_BOOTSTRAP_KEY,
+      secret: env.OMNI_LINK_HMAC_SECRET,
+    },
+    store,
+    env,
+  );
+}
 it("safety uses a current session, reports actual issued permits, and keeps CODE Stop independent of manual diagnostics", async () => {
   const session = vi.fn(async () => ({
-    checkedAt: new Date().toISOString(),
-    connected: true,
-    configured: true,
-    armed: false,
-    emergencyStop: true,
-    killSwitch: false,
-    codeEnabled: false,
-    executionReady: false,
-    expiresAt: approval.expiresAt,
-    operationId: approval.approvalId,
-    running: false,
-    cancellationPending: false,
-    activePermits: 1,
+    http: 200,
+    safety: {
+      checkedAt: new Date().toISOString(),
+      connected: true,
+      configured: true,
+      armed: false,
+      emergencyStop: true,
+      killSwitch: false,
+      codeEnabled: false,
+      executionReady: false,
+      expiresAt: approval.expiresAt,
+      operationId: approval.approvalId,
+      running: false,
+      cancellationPending: false,
+      activePermits: 1,
+      autonomousAllowed: false,
+      manualDiagnosticsAllowed: true,
+    },
   }));
   const req = await permitRequest("safety");
-  const response = await handleExecutionPermit(req, { ...dependencies(), session });
+  const response = await runPermit(req, session);
   expect(response.status).toBe(200);
   expect((await response.clone().json()).safety).toMatchObject({
     emergencyStop: true,
@@ -198,17 +234,24 @@ it("safety uses a current session, reports actual issued permits, and keeps CODE
       `omni.link/v2\nresponse\n${req.headers.get("X-Omni-Nonce")}\n200\n${body}`,
     ),
   );
-  expect(session).toHaveBeenCalledWith("safety", {}, await digest("u".repeat(32)));
+  expect(session).toHaveBeenCalledWith(
+    "safety",
+    expect.objectContaining({
+      clientId: "fixture",
+      projectId: project,
+      tokenHash: await digest("u".repeat(32)),
+    }),
+  );
 });
-it("bootstrap is never a permit session and unsupported CODE permits are not rerouted", async () => {
-  const session = vi.fn();
+it("bootstrap is never a permit session; CODE permits retain the upstream owner gate", async () => {
+  const session = vi.fn(async () => ({
+    http: 403,
+    error: "permit_denied",
+    reason: "not_authorized",
+  }));
   expect(
-    (
-      await handleExecutionPermit(await permitRequest("safety", {}, env.OMNI_LINK_BOOTSTRAP_KEY), {
-        ...dependencies(),
-        session,
-      })
-    ).status,
+    (await runPermit(await permitRequest("safety", {}, env.OMNI_LINK_BOOTSTRAP_KEY), session))
+      .status,
   ).toBe(401);
   const extra = {
     jobId: crypto.randomUUID(),
@@ -216,15 +259,8 @@ it("bootstrap is never a permit session and unsupported CODE permits are not rer
     digest: "a".repeat(64),
     estimateUsd: 0.01,
   };
-  expect(
-    (
-      await handleExecutionPermit(await permitRequest("permit.request", extra), {
-        ...dependencies(),
-        session,
-      })
-    ).status,
-  ).toBe(403);
-  expect(session).not.toHaveBeenCalled();
+  expect((await runPermit(await permitRequest("permit.request", extra), session)).status).toBe(403);
+  expect(session).toHaveBeenCalledOnce();
 });
 it("permits bind job, digest, session scope and expiry with the canonical signature", async () => {
   const extra = {
@@ -240,12 +276,11 @@ it("permits bind job, digest, session scope and expiry with the canonical signat
     issuedAt: new Date().toISOString(),
     expiresAt: new Date(Date.now() + 50_000).toISOString(),
     renewals: 0,
+    kind: "autonomous",
+    status: "active",
   };
-  const session = vi.fn(async () => row);
-  const response = await handleExecutionPermit(await permitRequest("permit.request", extra), {
-    ...dependencies(),
-    session,
-  });
+  const session = vi.fn(async () => ({ http: 200, permit: row }));
+  const response = await runPermit(await permitRequest("permit.request", extra), session);
   expect(response.status).toBe(200);
   const permit = (await response.json()).permit;
   expect(permit.signature).toBe(
@@ -265,24 +300,49 @@ it("permits bind job, digest, session scope and expiry with the canonical signat
     ),
   );
   session.mockRejectedValueOnce(new Error("private session detail"));
-  const denied = await handleExecutionPermit(await permitRequest("permit.request", extra), {
-    ...dependencies(),
-    session,
-  });
+  const denied = await runPermit(await permitRequest("permit.request", extra), session);
   expect(denied.status).toBe(503);
   expect(await denied.text()).not.toContain("private");
 });
-it("permit release does not claim success before durable cancellation delivery is confirmed", async () => {
-  const session = vi.fn(async () => ({}));
-  const deps = { ...dependencies(), session };
-  deps.cancel.mockResolvedValueOnce({ pending: 1, unavailable: 1 });
-  expect(
-    (
-      await handleExecutionPermit(
-        await permitRequest("permit.release", { jobId: crypto.randomUUID() }),
-        deps,
-      )
-    ).status,
-  ).toBe(503);
-  expect(session).toHaveBeenCalled();
+it("permit release uses the upstream terminal record and never claims worker cancellation", async () => {
+  const session = vi.fn(async () => ({ http: 200, permit: { status: "released" } }));
+  const result = await runPermit(
+    await permitRequest("permit.release", { jobId: crypto.randomUUID() }),
+    session,
+  );
+  expect(result.status).toBe(200);
+  expect(await result.json()).toMatchObject({ permit: { status: "released" } });
+  expect(session).toHaveBeenCalledWith("release", expect.any(Object));
 });
+
+it.each([
+  { claimed: false, reachable: false, ackError: false, unavailable: 0 },
+  { claimed: true, reachable: false, ackError: false, unavailable: 1 },
+  { claimed: true, reachable: true, ackError: false, unavailable: 0 },
+  { claimed: true, reachable: true, ackError: true, unavailable: 1 },
+])(
+  "cancellation acknowledges only an unclaimed job or a verified worker termination: %j",
+  async (c) => {
+    const job = {
+      id: crypto.randomUUID(),
+      plan_sha256: "a".repeat(64),
+      claimed_at: c.claimed ? new Date().toISOString() : null,
+    };
+    cancellationMocks.pending.mockReset().mockResolvedValue({ data: [job], error: null });
+    cancellationMocks.ack
+      .mockReset()
+      .mockResolvedValue({ error: c.ackError ? { message: "down" } : null });
+    cancellationMocks.request.mockReset();
+    if (c.reachable) cancellationMocks.request.mockResolvedValue({ cancelled: true });
+    else cancellationMocks.request.mockRejectedValue(new Error("job_not_owned_by_instance"));
+    vi.stubEnv("OMNI_EXECUTOR_ORIGIN", "https://isolated-worker.up.railway.app");
+    vi.stubEnv("OMNI_EXECUTOR_CONTROL_SECRET", "s".repeat(32));
+    try {
+      expect(await deliverOmniCancellations()).toEqual({ pending: 1, unavailable: c.unavailable });
+      expect(cancellationMocks.request).toHaveBeenCalledTimes(c.claimed ? 1 : 0);
+      expect(cancellationMocks.ack).toHaveBeenCalledTimes(!c.claimed || c.reachable ? 1 : 0);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  },
+);

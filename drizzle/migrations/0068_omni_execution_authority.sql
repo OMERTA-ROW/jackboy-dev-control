@@ -1,4 +1,4 @@
--- Bounded worker admission follows upstream 0063–0067; no existing lane or stop is enabled.
+-- Bounded worker admission follows upstream 0063-0067; no existing lane or stop is enabled.
 CREATE TABLE public.omni_execution_connections (
   project_id uuid PRIMARY KEY REFERENCES public.owner_projects(id),
   owner_id uuid NOT NULL REFERENCES auth.users(id),
@@ -64,7 +64,7 @@ DECLARE
 BEGIN
   IF _owner IS NULL OR NOT EXISTS (SELECT 1 FROM public.user_roles WHERE user_id=_owner AND role='owner')
     OR NOT EXISTS (SELECT 1 FROM public.owner_projects WHERE id=_project AND created_by=_owner AND active)
-    OR _op IS NULL OR _op NOT IN ('connect','configure','verify','arm','disarm','unconfigure','revoke','safety','authorize','claim','permission','finish','permit','release')
+    OR _op IS NULL OR _op NOT IN ('connect','configure','verify','arm','disarm','unconfigure','revoke','safety','authorize','claim','permission','finish')
   THEN RAISE EXCEPTION 'Execution authority denied'; END IF;
   -- The same row lock serializes job admission with the existing CODE Stop transaction.
   SELECT * INTO c FROM public.code_runtime_controls WHERE singleton FOR UPDATE;
@@ -95,7 +95,7 @@ BEGIN
       configured=CASE WHEN _op IN ('revoke','unconfigure') THEN false ELSE configured END WHERE project_id=_project;
     UPDATE public.omni_execution_jobs SET state='cancel_requested',cancel_delivered=false
       WHERE project_id=_project AND state IN ('authorized','running');
-  ELSIF _op NOT IN ('safety','finish','permission','release') THEN
+  ELSIF _op NOT IN ('safety','finish','permission') THEN
     IF link.connected IS DISTINCT FROM true OR link.approval_id IS DISTINCT FROM _approval
       OR link.owner_id IS DISTINCT FROM _owner OR link.expires_at<=now()
     THEN RAISE EXCEPTION 'Connection is not authorized'; END IF;
@@ -146,31 +146,6 @@ BEGIN
       END IF;
     END IF;
   END IF;
-  IF _op IN ('permit','release') THEN
-    SELECT * INTO job FROM public.omni_execution_jobs WHERE id=(_a->>'jobId')::uuid FOR UPDATE;
-    IF job.id IS NULL OR job.project_id IS DISTINCT FROM _project OR job.owner_id IS DISTINCT FROM _owner
-      OR (_op='permit' AND job.plan_sha256 IS DISTINCT FROM _a->>'planSha256')
-    THEN RAISE EXCEPTION 'Permit scope denied'; END IF;
-    IF _op='release' THEN
-      UPDATE public.omni_execution_jobs SET permit_expires_at=now(),
-        state=CASE WHEN state IN ('authorized','running') THEN 'cancel_requested' ELSE state END
-        WHERE id=job.id AND state IN ('authorized','running','cancel_requested');
-    ELSE
-      IF blocked OR c.enabled IS DISTINCT FROM true OR link.armed IS DISTINCT FROM true
-        OR link.configured IS DISTINCT FROM true OR job.state NOT IN ('authorized','running')
-        OR link.verified_at IS NULL OR link.verified_at<now()-interval '15 minutes'
-        OR job.expires_at<=now() OR (job.permit_id IS NOT NULL AND coalesce(job.permit_expires_at<=now(),true))
-        OR (public.code_spend_meter_status()->>'ok')::boolean IS DISTINCT FROM true
-        OR (public.code_total_spend_guard_status()->>'enforced')::boolean IS DISTINCT FROM true
-        OR (_a->>'estimateUsd')::numeric IS NULL OR (_a->>'estimateUsd')::numeric<=0
-        OR (_a->>'estimateUsd')::numeric>0.5
-      THEN RAISE EXCEPTION 'Permit admission denied'; END IF;
-      UPDATE public.omni_execution_jobs SET permit_id=coalesce(permit_id,gen_random_uuid()),
-        permit_issued_at=coalesce(permit_issued_at,now()),
-        permit_expires_at=least(job.expires_at,link.expires_at,now()+interval '60 seconds'),
-        permit_renewals=CASE WHEN permit_id IS NULL THEN 0 ELSE permit_renewals+1 END WHERE id=job.id;
-    END IF;
-  END IF;
   IF _op IN ('claim','permission','finish') THEN
     SELECT * INTO job FROM public.omni_execution_jobs WHERE id=(_a->>'jobId')::uuid FOR UPDATE;
     IF job.id IS NULL OR job.project_id IS DISTINCT FROM _project OR job.owner_id IS DISTINCT FROM _owner
@@ -200,11 +175,6 @@ BEGIN
     VALUES(_owner,'omni.execution.'||_op,
       jsonb_build_object('project_id',_project,'job_id',_a->>'jobId'),CASE WHEN blocked THEN 'blocked' ELSE 'ok' END);
   SELECT * INTO link FROM public.omni_execution_connections WHERE project_id=_project;
-  IF _op='permit' THEN
-    SELECT * INTO job FROM public.omni_execution_jobs WHERE id=(_a->>'jobId')::uuid;
-    RETURN jsonb_build_object('id',job.permit_id,'jobId',job.id,'digest',job.plan_sha256,
-      'issuedAt',job.permit_issued_at,'expiresAt',job.permit_expires_at,'renewals',job.permit_renewals);
-  END IF;
   RETURN jsonb_build_object('allowed',ok,'checkedAt',now(),'projectId',_project,
     'jobState',(SELECT state FROM public.omni_execution_jobs WHERE id=(_a->>'jobId')::uuid),
     'connected',coalesce(link.connected,false) AND link.expires_at>now(),'configured',coalesce(link.configured,false),
@@ -281,18 +251,3 @@ REVOKE ALL ON FUNCTION public.omni_execution_cancel_ack(uuid,text),
   public.claim_omni_execution_nonce(text,text) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.omni_execution_cancel_ack(uuid,text),
   public.claim_omni_execution_nonce(text,text) TO service_role;
-
-CREATE FUNCTION public.omni_execution_session(
-  _owner uuid,_project uuid,_approval uuid,_client text,_token_hash text,_op text,_a jsonb
-) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
-BEGIN
-  PERFORM 1 FROM public.code_runtime_controls WHERE singleton FOR UPDATE;
-  IF _op IS NULL OR _op NOT IN ('safety','permit','release') OR NOT EXISTS (
-    SELECT 1 FROM public.omni_link_sessions WHERE token_hash=_token_hash AND client_id=_client
-      AND project_id=_project AND approval_id=_approval AND expires_at>now()
-  ) THEN RAISE EXCEPTION 'Current signed session required'; END IF;
-  RETURN public.omni_execution_control(_owner,_project,_approval,_op,_a);
-END $$;
-REVOKE ALL ON FUNCTION public.omni_execution_session(uuid,uuid,uuid,text,text,text,jsonb)
-  FROM PUBLIC,anon,authenticated;
-GRANT EXECUTE ON FUNCTION public.omni_execution_session(uuid,uuid,uuid,text,text,text,jsonb) TO service_role;

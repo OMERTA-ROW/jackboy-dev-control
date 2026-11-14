@@ -116,14 +116,19 @@ export function productionGatewayDeps(): GatewayDeps {
     markUnknown: (callId, reason) =>
       rpc<void>("mark_code_provider_call_unknown", { p_call_id: callId, p_reason: reason }),
     isStopped: async (identity) => {
-      const { data, error } = await db
-        .from("code_runtime_controls")
-        .select(
-          "enabled, kill_switch, stop_requested_at, active_request_id, active_run_id, cancellation_status",
-        )
-        .eq("singleton", true)
-        .single();
+      const [{ data, error }, policy] = await Promise.all([
+        db
+          .from("code_runtime_controls")
+          .select(
+            "enabled, kill_switch, stop_requested_at, active_request_id, active_run_id, cancellation_status",
+          )
+          .eq("singleton", true)
+          .single(),
+        db.from("automation_policy").select("paused").eq("id", 1).single(),
+      ]);
       return (
+        !!policy.error ||
+        policy.data?.paused !== false ||
         !!error ||
         !data ||
         data.enabled !== true ||
