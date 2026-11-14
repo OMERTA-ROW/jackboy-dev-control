@@ -1,14 +1,14 @@
 import { useServerFn } from "@tanstack/react-start";
 import { ActivationPanel } from "./ActivationPanel";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import { probeOmniConnection } from "@/lib/omni-link.functions";
 import {
   checkCodeCancellation,
   getCodeEnableGates,
   getCodeSafetySettings,
   getCodePrerequisites,
+  getSafetyControlState,
   reconcileCodeClosedDay,
   setCodeDailySpendLimit,
   syncCodeProviderCosts,
@@ -35,10 +35,25 @@ export function CodeSafetyPanel() {
   const checkCancellation = useServerFn(checkCodeCancellation);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [messageTone, setMessageTone] = useState<"success" | "error" | "info">("info");
+  const readLive = useServerFn(getSafetyControlState);
+  const [live, setLive] = useState<Awaited<ReturnType<typeof getSafetyControlState>> | null>(null);
+  const [liveError, setLiveError] = useState(false);
   const [messageSource, setMessageSource] = useState<"activation" | "safety">("safety");
   const [busy, setBusy] = useState(false);
   const [limit, setLimitValue] = useState("5");
+  const refreshLive = useCallback(
+    () =>
+      readLive()
+        .then((next) => {
+          setLive(next);
+          setLiveError(false);
+        })
+        .catch(() => setLiveError(true)),
+    [readLive],
+  );
   const load = useCallback(() => {
+    void refreshLive();
     void loadGates()
       .then((result) => {
         setGates(result);
@@ -54,7 +69,7 @@ export function CodeSafetyPanel() {
           error instanceof Error ? error.message : "CODE safety settings could not be loaded.",
         );
       });
-  }, [get, loadGates]);
+  }, [get, loadGates, refreshLive]);
   useEffect(() => {
     void load();
     void checkPrerequisites()
@@ -67,6 +82,26 @@ export function CodeSafetyPanel() {
   useEffect(() => {
     if (settings) setLimitValue(String(settings.dailySpendLimitUsd));
   }, [settings]);
+  // Live refresh: a light read every 15 s while the page is visible, plus a full re-check on focus.
+  // When the live controls change (for example from another device), the requirement checks reload too.
+  const liveKey = live ? `${live.globalPaused}|${live.code?.enabled}|${live.code?.killSwitch}|${live.code?.activeRequestId}` : null;
+  const lastKey = useRef<string | null>(null);
+  useEffect(() => {
+    if (lastKey.current !== null && liveKey !== null && liveKey !== lastKey.current) void load();
+    if (liveKey !== null) lastKey.current = liveKey;
+  }, [liveKey, load]);
+  useEffect(() => {
+    const tick = () => {
+      if (document.visibilityState === "visible") void refreshLive();
+    };
+    const id = window.setInterval(tick, 15_000);
+    const onFocus = () => void load();
+    window.addEventListener("focus", onFocus);
+    return () => {
+      window.clearInterval(id);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [refreshLive, load]);
 
   const run = async (
     action: () => Promise<unknown>,
@@ -74,17 +109,33 @@ export function CodeSafetyPanel() {
   ) => {
     setBusy(true);
     setMessage(null);
+    setMessageTone("info");
     setMessageSource(source);
     try {
       const result = await action();
-      if (result && typeof result === "object" && "cancellation" in result) {
+      setMessageTone(
+        result && typeof result === "object" && "codeStopSaved" in result && result.codeStopSaved === false
+          ? "error"
+          : result === undefined
+            ? "info"
+            : "success",
+      );
+      if (result && typeof result === "object" && "control" in result && "message" in result) {
+        // Separate CODE on/off and stop release: the server reports the read-back of all three controls.
+        setMessage(String(result.message));
+        if ("ok" in result && result.ok !== true) setMessageTone("error");
+      } else if (result && typeof result === "object" && "cancellation" in result) {
         const cancellation = result.cancellation;
+        const saved =
+          "codeEnabled" in result && typeof result.codeEnabled === "boolean"
+            ? ` Saved CODE setting reads ${result.codeEnabled ? "ON" : "OFF"}.`
+            : "";
         setMessage(
-          cancellation === "requested"
+          (cancellation === "requested"
             ? "Emergency stop engaged and GitHub accepted the active-run cancellation request. Verify the run reaches cancelled status."
             : cancellation === "unavailable"
               ? "Emergency stop engaged. Active-run cancellation could not be confirmed; inspect GitHub Actions immediately."
-              : "Emergency stop engaged; no active CODE run was recorded.",
+              : "Emergency stop engaged; no active CODE run was recorded.") + saved,
         );
       } else if (result && typeof result === "object" && "status" in result) {
         const status = result.status;
@@ -115,6 +166,7 @@ export function CodeSafetyPanel() {
             ? "CODE is ON and its Emergency Stop is released. Each run still needs your approval in GitHub; use Engage emergency stop to turn it off."
             : "CODE did not turn on. Nothing changed.",
         );
+        if (!(result.codeEnabled && !result.emergencyStop)) setMessageTone("error");
       } else if (
         result &&
         typeof result === "object" &&
@@ -141,7 +193,7 @@ export function CodeSafetyPanel() {
         setMessage(
           result.paused
             ? "Kill Switch is on."
-            : "Kill Switch is off. CODE stays off until you turn it on in the last step.",
+            : "Kill Switch is off. The saved CODE setting and the Emergency Stop were not changed.",
         );
       } else if (
         result &&
@@ -156,6 +208,7 @@ export function CodeSafetyPanel() {
         setMessage("CODE safety status refreshed.");
       }
     } catch (error) {
+      setMessageTone("error");
       setMessage(error instanceof Error ? error.message : "CODE safety action failed.");
     } finally {
       setBusy(false);
@@ -163,12 +216,13 @@ export function CodeSafetyPanel() {
     }
   };
 
+  // The light live read wins for the three controls; it is the newest server evidence.
   const activationState = settings
     ? {
-        enabled: settings.enabled,
-        killSwitch: settings.killSwitch,
-        activeRequestId: settings.activeRequestId,
-        activeRunId: settings.activeRunId,
+        enabled: live?.code ? live.code.enabled : settings.enabled,
+        killSwitch: live?.code ? live.code.killSwitch : settings.killSwitch,
+        activeRequestId: live?.code ? live.code.activeRequestId : settings.activeRequestId,
+        activeRunId: live?.code ? (live.code.activeRunId === null ? null : String(live.code.activeRunId)) : settings.activeRunId,
         providerBudgetEnforced: settings.providerBudgetEnforced,
         totalSpendGuard: settings.totalSpendGuard,
       }
@@ -179,11 +233,16 @@ export function CodeSafetyPanel() {
       <ActivationPanel
         state={activationState}
         gates={gates?.gates ?? null}
-        globalPaused={gates ? gates.globalPaused : null}
-        gatesError={gatesError}
+        releaseGates={gates?.releaseGates ?? null}
+        independent={live ? live.independentControls : gates ? gates.independentControls : null}
+        globalPaused={liveError ? null : live ? live.globalPaused : gates ? gates.globalPaused : null}
+        gatesError={liveError ? "The live safety state could not be read; controls show as unknown until it reads again." : gatesError}
         busy={busy}
         run={(action) => run(action, "activation")}
         message={messageSource === "activation" ? message : null}
+        messageTone={messageTone}
+        checkedAt={live?.checkedAt ?? null}
+        onRefresh={() => void load()}
         acceptance={
           settings
             ? {
@@ -209,32 +268,33 @@ export function CodeSafetyPanel() {
               CODE safety details
             </h2>
             <p className="mt-1 text-xs text-muted-foreground">
-              Supervised execution is {settings?.enabled ? "ON" : "off"}. The live meter counts the
+              Saved CODE setting is {settings?.enabled ? "ON" : "OFF"}. The live meter counts the
               gateway's own record of every provider call; OpenAI's delayed reports are checked
               against it afterwards. This panel never dispatches execution.
             </p>
           </div>
         </div>
         {message && messageSource === "safety" && (
-          <p role="status" className="mt-3 text-sm text-warning">
+          <p
+            role={messageTone === "error" ? "alert" : "status"}
+            className={`mt-3 text-sm ${messageTone === "error" ? "text-destructive" : messageTone === "success" ? "text-success" : "text-warning"}`}
+          >
             {message}
           </p>
         )}
-        <div className="mt-3 flex items-center gap-3">
-          <Switch
-            id="worker-supervised"
-            checked={settings?.enabled === true}
-            disabled
-            aria-describedby="worker-activation-blocker"
-          />
-          <label htmlFor="worker-supervised" className="text-sm">
-            Worker 1 · supervised mode (owner only)
-          </label>
-        </div>
-        <p id="worker-activation-blocker" className="mt-2 text-xs text-warning">
-          This switch only shows the current state. Turn CODE on in the last step of Autonomous
-          Activation above. Each run still requires owner approval in GitHub. No autonomous
-          distribution.
+        <p className="mt-3 text-sm">
+          Worker 1 · supervised mode (owner only): saved CODE setting{" "}
+          <span className={activationState?.enabled ? "text-success" : "text-warning"}>
+            {!activationState ? "unknown" : activationState.enabled ? "ON" : "OFF"}
+          </span>
+          {" · "}Emergency Stop{" "}
+          <span className={activationState && !activationState.killSwitch ? "text-success" : "text-warning"}>
+            {!activationState ? "unknown" : activationState.killSwitch ? "engaged" : "released"}
+          </span>
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Change each with its own control in Autonomous Activation above; whether CODE can run right now is
+          shown there. Each run still requires owner approval in GitHub. No autonomous distribution.
         </p>
         {prerequisites && (
           <div className="mt-3 text-sm">
@@ -299,10 +359,10 @@ export function CodeSafetyPanel() {
           <>
             <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
               <div>
-                <dt className="text-xs text-muted-foreground">Execution mode</dt>
+                <dt className="text-xs text-muted-foreground">CODE · CODE Emergency Stop</dt>
                 <dd>
-                  {settings.enabled ? "Enabled" : "Disabled"} ·{" "}
-                  {settings.killSwitch ? "kill switch engaged" : "kill switch clear"}
+                  {settings.enabled ? "CODE enabled" : "CODE disabled"} ·{" "}
+                  {settings.killSwitch ? "Emergency Stop engaged" : "Emergency Stop released"}
                 </dd>
               </div>
               <div>
@@ -310,7 +370,7 @@ export function CodeSafetyPanel() {
                 <dd>{settings.activeRequestId ?? "None"}</dd>
               </div>
               <div>
-                <dt className="text-xs text-muted-foreground">Emergency-stop status</dt>
+                <dt className="text-xs text-muted-foreground">Running-job cancellation</dt>
                 <dd>{settings.cancellationStatus}</dd>
               </div>
               <div>

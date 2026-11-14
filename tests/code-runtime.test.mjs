@@ -2,7 +2,7 @@
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { registerHooks } from 'node:module';
-const records = { action_requests: [], owner_projects: [], audit_logs: [], omni_connection: [], omni_jobs: [], code_runtime_controls: [], code_usage_events: [], code_spend_reservations: [], code_provider_calls: [] };
+const records = { automation_policy: [], action_requests: [], owner_projects: [], audit_logs: [], omni_connection: [], omni_jobs: [], code_runtime_controls: [], code_usage_events: [], code_spend_reservations: [], code_provider_calls: [] };
 let run, dispatches, omniDispatches, cancellations, retries, auditFails, uncertain, afterAllowAudit, failingTable;
 class Query {
   constructor(table) { this.table = table; this.filters = []; this.operation = 'select'; }
@@ -101,6 +101,7 @@ beforeEach(() => {
   Object.values(records).forEach(rows => rows.splice(0));
   records.owner_projects.push({ id: projectId, name: 'Jackboy', github_repo: 'OMERTA-ROW/jackboy-dev-control', dev_enabled: true });
   records.omni_connection.push({ id: true, verified: false });
+  records.automation_policy.push({ id: 1, paused: false });
   records.code_runtime_controls.push({
     singleton: true,
     enabled: true,

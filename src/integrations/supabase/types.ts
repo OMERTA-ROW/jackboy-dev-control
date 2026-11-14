@@ -1814,6 +1814,69 @@ export type Database = {
         }
         Relationships: []
       }
+      omni_autonomy_authorizations: {
+        Row: {
+          approval_id: string
+          client_id: string
+          created_at: string
+          daily_limit_usd: number
+          expires_at: string
+          id: string
+          owner_id: string
+          per_call_limit_usd: number
+          per_task_reserve_usd: number
+          project_id: string
+          revoked_at: string | null
+          revoked_reason: string | null
+          step8_job_id: string
+        }
+        Insert: {
+          approval_id: string
+          client_id: string
+          created_at?: string
+          daily_limit_usd?: number
+          expires_at: string
+          id?: string
+          owner_id: string
+          per_call_limit_usd?: number
+          per_task_reserve_usd?: number
+          project_id: string
+          revoked_at?: string | null
+          revoked_reason?: string | null
+          step8_job_id: string
+        }
+        Update: {
+          approval_id?: string
+          client_id?: string
+          created_at?: string
+          daily_limit_usd?: number
+          expires_at?: string
+          id?: string
+          owner_id?: string
+          per_call_limit_usd?: number
+          per_task_reserve_usd?: number
+          project_id?: string
+          revoked_at?: string | null
+          revoked_reason?: string | null
+          step8_job_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "omni_autonomy_authorizations_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "owner_projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "omni_autonomy_authorizations_step8_job_id_fkey"
+            columns: ["step8_job_id"]
+            isOneToOne: false
+            referencedRelation: "omni_inbound_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       omni_callback_nonces: {
         Row: {
           nonce: string
@@ -2148,6 +2211,137 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: true
             referencedRelation: "omni_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      omni_execution_permits: {
+        Row: {
+          approval_id: string
+          authorization_id: string
+          client_id: string
+          closed_at: string | null
+          closed_reason: string | null
+          expires_at: string
+          id: string
+          issued_at: string
+          job_id: string
+          job_kind: string
+          payload_digest: string
+          project_id: string
+          renewals: number
+          renewed_at: string
+          reserved_usd: number
+          status: string
+        }
+        Insert: {
+          approval_id: string
+          authorization_id: string
+          client_id: string
+          closed_at?: string | null
+          closed_reason?: string | null
+          expires_at: string
+          id?: string
+          issued_at?: string
+          job_id: string
+          job_kind: string
+          payload_digest: string
+          project_id: string
+          renewals?: number
+          renewed_at?: string
+          reserved_usd: number
+          status: string
+        }
+        Update: {
+          approval_id?: string
+          authorization_id?: string
+          client_id?: string
+          closed_at?: string | null
+          closed_reason?: string | null
+          expires_at?: string
+          id?: string
+          issued_at?: string
+          job_id?: string
+          job_kind?: string
+          payload_digest?: string
+          project_id?: string
+          renewals?: number
+          renewed_at?: string
+          reserved_usd?: number
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "omni_execution_permits_authorization_id_fkey"
+            columns: ["authorization_id"]
+            isOneToOne: false
+            referencedRelation: "omni_autonomy_authorizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      omni_handoff_nonces: {
+        Row: {
+          client_id: string
+          nonce: string
+          received_at: string
+        }
+        Insert: {
+          client_id: string
+          nonce: string
+          received_at?: string
+        }
+        Update: {
+          client_id?: string
+          nonce?: string
+          received_at?: string
+        }
+        Relationships: []
+      }
+      omni_handoff_tasks: {
+        Row: {
+          client_id: string
+          created_at: string
+          digest: string
+          job_id: string
+          kind: string
+          project_id: string
+          repo: string
+          task_id: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          digest: string
+          job_id: string
+          kind: string
+          project_id: string
+          repo: string
+          task_id: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          digest?: string
+          job_id?: string
+          kind?: string
+          project_id?: string
+          repo?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "omni_handoff_tasks_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "omni_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "omni_handoff_tasks_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "agent_projects"
             referencedColumns: ["id"]
           },
         ]
@@ -3793,7 +3987,8 @@ export type Database = {
         }
         Returns: boolean
       }
-      code_acceptance_guard_status: { Args: never; Returns: boolean };
+      code_acceptance_guard_status: { Args: never; Returns: boolean }
+      code_independent_controls_installed: { Args: never; Returns: boolean }
       code_provider_call_holds: {
         Args: { p_request_id: string }
         Returns: number
@@ -3848,6 +4043,18 @@ export type Database = {
         Returns: undefined
       }
       my_role: { Args: never; Returns: Database["public"]["Enums"]["app_role"] }
+      omni_autonomy_authorization_action: {
+        Args: {
+          _actor: string
+          _client: string
+          _op: string
+          _project: string
+          _reason: string
+          _runner_ready: boolean
+          _step: string
+        }
+        Returns: Json
+      }
       omni_dispatch_callback_record: {
         Args: {
           _grant: string
@@ -3926,16 +4133,32 @@ export type Database = {
         }
         Returns: Json
       }
+      omni_execution_permit_action: {
+        Args: { _a: Json; _op: string }
+        Returns: Json
+      }
+      omni_handoff_create: {
+        Args: {
+          _client: string
+          _digest: string
+          _instructions: string
+          _kind: string
+          _project: string
+          _repo: string
+          _task: string
+        }
+        Returns: Json
+      }
       omni_link_action: { Args: { _a: Json; _op: string }; Returns: Json }
       omni_link_configuration_authorize: {
         Args: {
-          _client_id: string;
-          _project_id: string;
-          _owner_id: string;
-          _nonce: string;
-        };
-        Returns: boolean;
-      };
+          _client_id: string
+          _nonce: string
+          _owner_id: string
+          _project_id: string
+        }
+        Returns: boolean
+      }
       omni_link_live: { Args: never; Returns: boolean }
       omni_project_authorization_action: {
         Args: {
@@ -3975,6 +4198,7 @@ export type Database = {
         Returns: undefined
       }
       refresh_code_spend_meter: { Args: never; Returns: Json }
+      release_code_emergency_stop: { Args: { p_actor: string }; Returns: Json }
       release_code_spend_holds: {
         Args: { p_actor: string; p_reason: string; p_request_ids: string[] }
         Returns: number
@@ -4013,14 +4237,18 @@ export type Database = {
         }
         Returns: undefined
       }
+      set_code_enabled: {
+        Args: { p_actor: string; p_enabled: boolean }
+        Returns: Json
+      }
       set_code_provider_hard_cap_verified: {
         Args: { p_actor: string; p_evidence: string; p_verified: boolean }
         Returns: Json
       }
       set_guardian_limits: {
-        Args: { _max_files: number; _max_lines: number; _tier: number };
-        Returns: undefined;
-      };
+        Args: { _max_files: number; _max_lines: number; _tier: number }
+        Returns: undefined
+      }
       set_jax_enrollment: {
         Args: { _enroll: boolean; _id: string; _purpose: string }
         Returns: undefined

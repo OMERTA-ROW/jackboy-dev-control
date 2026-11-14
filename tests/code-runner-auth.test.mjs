@@ -219,6 +219,7 @@ beforeEach(() => {
   claimedArgs = null;
   githubCalls = [];
   safetyState = {
+    globalPaused: false,
     enabled: true,
     killSwitch: false,
     allowedTargets: { "owner/repo": { ref: "main", workflowSha } },

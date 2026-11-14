@@ -16,6 +16,7 @@ import { parseOpenAICostPage } from "./openai-costs";
 const now = Date.parse("2026-11-03T18:00:00Z");
 const repo = "OMERTA-ROW/jackboy-dev-control";
 const state = (overrides: Partial<CodeSafetyState> = {}): CodeSafetyState => ({
+  globalPaused: false,
   enabled: true,
   killSwitch: false,
   allowedTargets: { [repo]: { ref: "main", workflowSha: "a".repeat(40) } },
@@ -41,6 +42,21 @@ const state = (overrides: Partial<CodeSafetyState> = {}): CodeSafetyState => ({
     bypassDays: [],
   },
   ...overrides,
+});
+
+describe("execution eligibility on task start", () => {
+  it("blocks unless the Kill Switch is off, the Emergency Stop is released and CODE is enabled", () => {
+    for (const globalPaused of [true, false, null]) for (const killSwitch of [true, false]) for (const enabled of [true, false]) {
+      const blocked = codeStartBlockReason(state({ globalPaused, killSwitch, enabled }), repo, now);
+      expect(blocked === null).toBe(globalPaused === false && !killSwitch && enabled);
+    }
+    expect(codeStartBlockReason(state({ globalPaused: true }), repo, now)).toMatch(/Kill Switch is on/);
+    expect(codeStartBlockReason(state({ globalPaused: null }), repo, now)).toMatch(/could not be read/);
+  });
+  it("keeps the $5/day and $10 total caps when all three controls allow work", () => {
+    expect(codeStartBlockReason(state({ providerSpendTodayUsd: 5 }), repo, now)).toMatch(/daily spending limit/);
+    expect(codeStartBlockReason(state({ totalSpendGuard: { enforced: true, limitUsd: 10, committedUsd: 9.5 } }), repo, now)).toMatch(/cumulative/);
+  });
 });
 
 describe("live spending meter on task start", () => {

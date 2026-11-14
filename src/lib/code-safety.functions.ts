@@ -6,7 +6,9 @@ import {
   classifyGithubCancellationState,
   closedDayToReconcile,
   CODE_DAILY_SPEND_LIMIT_USD,
+  CODE_DISABLE_TARGET,
   CODE_ENABLE_TARGET,
+  CODE_STOP_RELEASE_TARGET,
   codeEnableBlockReason,
   codeEnableGates,
   enableRefusalText,
@@ -18,6 +20,8 @@ import {
   hardCapChangeBlockReason,
   parseCodeTargets,
   parseTotalSpendGuard,
+  stopReleaseBlockReason,
+  stopReleaseGates,
 } from "./code-safety";
 import type { OpenAICostRow } from "./openai-costs";
 
@@ -57,6 +61,21 @@ export const GLOBAL_PAUSE_ON = "global_pause:on";
 export const GLOBAL_PAUSE_OFF = "global_pause:off";
 const grantInput = (d: unknown) => z.object({ grantId: z.string().uuid() }).parse(d);
 
+/** True only when the database itself refuses every CODE start and AI call while the Kill Switch is on
+ * (the independent-controls change is installed). Any error or other answer counts as false, so the
+ * Kill Switch keeps engaging the CODE stop until the database proves it no longer needs to. */
+async function independentControlsInstalled(db: ReturnType<typeof import("./untyped-db").untyped>): Promise<boolean> {
+  try {
+    const { data, error } = await db.rpc("code_independent_controls_installed");
+    return !error && data === true;
+  } catch {
+    return false;
+  }
+}
+
+const NOT_INSTALLED =
+  "Nothing changed: the database update that keeps CODE, the Emergency Stop and the Kill Switch separate is not installed yet (it waits for your approval). The Emergency Stop still works and blocks CODE at once.";
+
 export const stopJackboyWork = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(grantInput)
@@ -69,12 +88,77 @@ export const stopJackboyWork = createServerFn({ method: "POST" })
     if (error) throw new Error("Global emergency pause could not be saved.");
     const db = (await import("./untyped-db")).untyped((await import("@/integrations/supabase/client.server")).supabaseAdmin);
     const { error: foundryError } = await db.from("foundry_schedule").update({ paused: true, updated_at: new Date().toISOString() }).eq("id", 1);
-    const { error: codeError } = await db.rpc("engage_code_kill_switch", { p_actor: context.userId });
-    const { error: auditError } = await context.supabase.rpc("write_audit", { _action: "worker.kill_switch", _detail: { global_paused: true, foundry_paused: !foundryError, code_stop_saved: !codeError }, _outcome: foundryError || codeError ? "partial" : "ok" });
-    return { paused: true, warning: foundryError || codeError || auditError ? "Global pause saved. Some worker controls or audit storage are unavailable; CODE stays blocked. Any external run must be cancelled and confirmed in GitHub." : "New work is blocked. Any already-running external job must be cancelled and confirmed in GitHub." };
+    const independent = await independentControlsInstalled(db);
+    // Until the database enforces the Kill Switch for CODE itself, the Kill Switch must also engage the
+    // CODE stop (the old, coupled behaviour) so it never becomes less safe.
+    let codeStopSaved: boolean | null = null;
+    if (!independent) {
+      const { error: codeError } = await db.rpc("engage_code_kill_switch", { p_actor: context.userId });
+      codeStopSaved = !codeError;
+    }
+    const { data: controls } = await db.from("code_runtime_controls").select("active_request_id, active_run_id").eq("singleton", true).maybeSingle();
+    const activeTask = !controls || !!controls.active_request_id || !!controls.active_run_id;
+    const { error: auditError } = await context.supabase.rpc("write_audit", {
+      _action: "worker.kill_switch",
+      _detail: { global_paused: true, foundry_paused: !foundryError, code_controls: independent ? "unchanged" : "legacy_stop_engaged", code_stop_saved: codeStopSaved },
+      _outcome: foundryError || codeStopSaved === false ? "partial" : "ok",
+    });
+    const running = activeTask
+      ? " A CODE task may still be running in GitHub: press Engage emergency stop to cancel it and confirm it stopped."
+      : "";
+    return {
+      paused: true,
+      codeStopSaved,
+      codeControlsChanged: !independent && codeStopSaved === true,
+      warning: independent
+        ? `All Jackboy work is paused. The saved CODE setting and the CODE Emergency Stop were not changed; while the Kill Switch is on the database refuses every CODE start and AI call.${running}${foundryError || auditError ? " Some other worker controls or audit storage are unavailable." : ""}`
+        : codeStopSaved === false
+          ? "Kill Switch saved, but the CODE Emergency Stop could NOT be saved. Press Engage emergency stop now and confirm any running job is cancelled in GitHub."
+          : foundryError || auditError
+            ? "Kill Switch and CODE Emergency Stop saved (the database update that keeps them separate is not installed yet). Some other worker controls or audit storage are unavailable. Any external run must be cancelled and confirmed in GitHub."
+            : "New work is blocked and the CODE Emergency Stop is engaged too, because the database update that keeps them separate is not installed yet. Any already-running external job must be cancelled and confirmed in GitHub.",
+    };
   });
 
-/** Turns the global pause OFF after a passkey. The CODE kill switch stays engaged; CODE still needs its own unlock path. */
+/** One light, owner-only read of the three safety controls for live refresh. Read-only; never changes
+ * anything and never calls GitHub. Unreadable parts come back null so the page shows them as unknown. */
+export const getSafetyControlState = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await requireOwner(context);
+    const db = (await import("./untyped-db")).untyped((await import("@/integrations/supabase/client.server")).supabaseAdmin);
+    const [policy, controls, independent] = await Promise.all([
+      db.from("automation_policy").select("paused, updated_at").eq("id", 1).maybeSingle(),
+      db.from("code_runtime_controls")
+        .select("enabled, kill_switch, active_request_id, active_run_id, cancellation_status, paused_reason, stop_requested_at, updated_at")
+        .eq("singleton", true)
+        .maybeSingle(),
+      independentControlsInstalled(db),
+    ]);
+    const p = policy.error ? null : policy.data;
+    const c = controls.error ? null : controls.data;
+    return {
+      checkedAt: new Date().toISOString(),
+      globalPaused: p && typeof p.paused === "boolean" ? p.paused : null,
+      globalPauseUpdatedAt: p?.updated_at ?? null,
+      /** The database keeps the three controls separate (draft change installed). */
+      independentControls: independent,
+      code: c && typeof c.enabled === "boolean" && typeof c.kill_switch === "boolean"
+        ? {
+            enabled: c.enabled as boolean,
+            killSwitch: c.kill_switch as boolean,
+            activeRequestId: (c.active_request_id as string | null) ?? null,
+            activeRunId: (c.active_run_id as number | null) ?? null,
+            cancellationStatus: String(c.cancellation_status ?? "unknown"),
+            pausedReason: (c.paused_reason as string | null) ?? null,
+            stopRequestedAt: (c.stop_requested_at as string | null) ?? null,
+            updatedAt: (c.updated_at as string | null) ?? null,
+          }
+        : null,
+    };
+  });
+
+/** Turns the System Kill Switch OFF after a passkey. Never changes the saved CODE setting or the CODE Emergency Stop. */
 export const resumeJackboyWork = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(grantInput)
@@ -221,25 +305,96 @@ export const getCodeEnableGates = createServerFn({ method: "POST" })
   .handler(async ({ context }) => {
     await requireOwner(context);
     const input = await collectEnableInput();
-    return { checkedAt: new Date().toISOString(), gates: codeEnableGates(input), meter: input.spendMeter, globalPaused: input.globalPaused };
+    const db = (await import("./untyped-db")).untyped((await import("@/integrations/supabase/client.server")).supabaseAdmin);
+    return {
+      checkedAt: new Date().toISOString(),
+      gates: codeEnableGates(input),
+      releaseGates: stopReleaseGates(input),
+      independentControls: await independentControlsInstalled(db),
+      meter: input.spendMeter,
+      globalPaused: input.globalPaused,
+    };
   });
 
-/** Owner switch: releases the CODE stop and turns CODE on. Needs a NEW passkey check every time,
- * re-checks every gate on the server, and the database re-checks its share under a row lock. */
-export const enableCodeRuntime = createServerFn({ method: "POST" })
+async function readControls(db: ReturnType<typeof import("./untyped-db").untyped>) {
+  const [c, p] = await Promise.all([
+    db.from("code_runtime_controls").select("enabled, kill_switch").eq("singleton", true).maybeSingle(),
+    db.from("automation_policy").select("paused").eq("id", 1).maybeSingle(),
+  ]);
+  return {
+    enabled: c.error || !c.data ? null : c.data.enabled === true,
+    emergencyStop: c.error || !c.data ? null : c.data.kill_switch === true,
+    killSwitch: p.error || !p.data ? null : p.data.paused === true,
+  };
+}
+
+/** Saved CODE setting ON/OFF. Needs a NEW passkey bound to the direction. Turning ON re-checks every
+ * owner authorisation, allowlist, metering and budget requirement here and again in the database. It
+ * never changes the Emergency Stop or the Kill Switch, and the read-back proves that. */
+export const setCodeEnabled = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ grantId: z.string().uuid(), enabled: z.boolean() }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireOwner(context);
+    const db = (await import("./untyped-db")).untyped((await import("@/integrations/supabase/client.server")).supabaseAdmin);
+    if (!(await independentControlsInstalled(db))) throw new Error(NOT_INSTALLED);
+    await (await import("./passkey.server")).consumeGrant(
+      data.grantId, context.userId, "code_enable", data.enabled ? CODE_ENABLE_TARGET : CODE_DISABLE_TARGET, { requireFresh: true },
+    );
+    const before = await readControls(db);
+    if (data.enabled) {
+      const blocked = codeEnableBlockReason(await collectEnableInput());
+      if (blocked) throw new Error(`CODE was not turned on. ${blocked} Nothing changed.`);
+    }
+    const { data: result, error } = await db.rpc("set_code_enabled", { p_actor: context.userId, p_enabled: data.enabled });
+    if (error || !result) throw new Error(`The database refused to turn CODE ${data.enabled ? "on" : "off"}; nothing changed.`);
+    if (result.ok !== true) throw new Error(`CODE was not turned on: ${enableRefusalText(result.reasons)}. Nothing changed.`);
+    const after = await readControls(db);
+    const othersUnchanged = after.emergencyStop === before.emergencyStop && after.killSwitch === before.killSwitch;
+    const ok = after.enabled === data.enabled;
+    return {
+      control: "code_enabled" as const,
+      ok,
+      codeEnabled: after.enabled,
+      emergencyStop: after.emergencyStop,
+      killSwitch: after.killSwitch,
+      othersUnchanged,
+      message: !ok
+        ? `The request finished, but the saved CODE setting still reads ${after.enabled === null ? "unknown" : after.enabled ? "ON" : "OFF"}.`
+        : `Saved CODE setting is now ${data.enabled ? "ON" : "OFF"}. Emergency Stop ${after.emergencyStop ? "is still engaged" : "is still released"} and the Kill Switch ${after.killSwitch ? "is still on" : "is still off"} — neither was changed.${data.enabled && (after.emergencyStop !== false || after.killSwitch !== false) ? " CODE cannot run until both are off." : ""}`,
+    };
+  });
+
+/** Releases the CODE Emergency Stop only. Needs a NEW passkey for this exact action. Refused while any
+ * emergency protection holds (running or unconfirmed task, two-failure stop, usage spike) or the hard
+ * cap / $10 guard is not in place. Never turns CODE on and never changes the Kill Switch. */
+export const releaseCodeEmergencyStop = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(grantInput)
   .handler(async ({ data, context }) => {
     await requireOwner(context);
-    await (await import("./passkey.server")).consumeGrant(data.grantId, context.userId, "code_enable", CODE_ENABLE_TARGET, { requireFresh: true });
-    const blocked = codeEnableBlockReason(await collectEnableInput());
-    if (blocked) throw new Error(`CODE was not turned on. ${blocked}`);
     const db = (await import("./untyped-db")).untyped((await import("@/integrations/supabase/client.server")).supabaseAdmin);
-    const { data: result, error } = await db.rpc("enable_code_runtime", { p_actor: context.userId });
-    if (error || !result) throw new Error("The database refused to turn CODE on; nothing changed.");
-    if (result.ok !== true) throw new Error(`CODE was not turned on: ${enableRefusalText(result.reasons)}.`);
-    const { data: after } = await db.from("code_runtime_controls").select("enabled, kill_switch").eq("singleton", true).single();
-    return { codeEnabled: after?.enabled === true, emergencyStop: after?.kill_switch === true };
+    if (!(await independentControlsInstalled(db))) throw new Error(NOT_INSTALLED);
+    await (await import("./passkey.server")).consumeGrant(data.grantId, context.userId, "code_stop_release", CODE_STOP_RELEASE_TARGET, { requireFresh: true });
+    const before = await readControls(db);
+    const blocked = stopReleaseBlockReason(await collectEnableInput());
+    if (blocked) throw new Error(`The Emergency Stop was not released. ${blocked} Nothing changed.`);
+    const { data: result, error } = await db.rpc("release_code_emergency_stop", { p_actor: context.userId });
+    if (error || !result) throw new Error("The database refused to release the Emergency Stop; nothing changed.");
+    if (result.ok !== true) throw new Error(`The Emergency Stop was not released: ${enableRefusalText(result.reasons)}. Nothing changed.`);
+    const after = await readControls(db);
+    const ok = after.emergencyStop === false;
+    return {
+      control: "emergency_stop_release" as const,
+      ok,
+      codeEnabled: after.enabled,
+      emergencyStop: after.emergencyStop,
+      killSwitch: after.killSwitch,
+      othersUnchanged: after.enabled === before.enabled && after.killSwitch === before.killSwitch,
+      message: !ok
+        ? "The request finished, but the Emergency Stop still reads as engaged."
+        : `Emergency Stop released. Saved CODE setting is still ${after.enabled ? "ON" : "OFF"} and the Kill Switch is still ${after.killSwitch ? "on" : "off"} — neither was changed.${after.enabled !== true || after.killSwitch !== false ? " CODE still cannot run." : ""}`,
+    };
   });
 
 /** OpenAI cross-check: records the closed-day cost report for the oldest past day the meter is waiting
@@ -526,7 +681,12 @@ export const engageCodeKillSwitch = createServerFn({ method: "POST" })
     });
     if (statusError)
       throw new Error("CODE stop was engaged, but its cancellation status could not be recorded.");
-    return { killSwitch: true, cancellation };
+    const after = await readControls(db);
+    // The database revokes every OMNI execution permit in the stop's own transaction (when the
+    // permit service is installed); this read only confirms it. null = not installed or unreadable.
+    const permits = await db.from("omni_execution_permits").select("id", { count: "exact", head: true }).eq("status", "active");
+    const omniActivePermits = permits.error ? null : (permits.count ?? 0);
+    return { killSwitch: true, cancellation, codeEnabled: after.enabled, globalPaused: after.killSwitch, omniActivePermits };
   });
 
 export const checkCodeCancellation = createServerFn({ method: "POST" })
