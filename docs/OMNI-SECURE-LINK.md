@@ -439,13 +439,16 @@ do not overwrite the live-ahead deployment. The live database journal/schema,
 actual connection and signed live Stop cancellation remain unverified.
 
 The isolated acceptance workflow pins companion
-`OMERTA-ROW/Omni#23` at `147b3d6a232b3c1e4dfba668d87f4513f8a33187`
+`OMERTA-ROW/Omni#23` at `a129adf2379514d0802e9ac8d8faba3784429129`
 for persisted reuse and signed-conflict rotation (four handshakes). The former
 `cc083d8` pin exercised only a legacy single handshake and cannot validate this
 fixture. This reviewed but unmerged feature commit is a test-source dependency,
 not a production release or approval. CI executes it with no production secrets
 or environments and blocked provider egress; the immutable pin does not waive
 companion review, owner authorization or any live safety gate.
+The pin includes exclusive root-anchored lock creation followed by reopening
+only on EEXIST, fixing concurrent Darwin ENOENT without weakening O_NOFOLLOW,
+private permissions or flock.
 Both Node and Go acceptance suites run as the unprivileged `runner` inside the
 network namespace; the companion's refusal of root sandbox identities is retained.
 

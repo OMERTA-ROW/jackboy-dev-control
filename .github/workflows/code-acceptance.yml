@@ -13,7 +13,7 @@ concurrency:
 env:
   # Public companion repository, pinned so the interop result is reproducible.
   OMNI_REPOSITORY: OMERTA-ROW/Omni
-  OMNI_REF: 147b3d6a232b3c1e4dfba668d87f4513f8a33187
+  OMNI_REF: a129adf2379514d0802e9ac8d8faba3784429129
   MOTHERSHIP_REPOSITORY: OMERTA-ROW/orbiting-minds-mothership
   MOTHERSHIP_REF: ee2964f907753bad74c250dc73aeaa45422b0819
 jobs:
