@@ -164,9 +164,12 @@ export const getOmniAutonomyStatus = createServerFn({ method: "GET" })
         ? false
         : null;
     const capsById = new Map<string, OmniCapability[] | null>(
-      ((scopeR.error ? [] : (scopeR.data ?? [])) as Array<{ id: string; capabilities: unknown }>).map(
-        (r) => [r.id, Array.isArray(r.capabilities) ? normalizeCapabilities(r.capabilities) : null],
-      ),
+      (
+        (scopeR.error ? [] : (scopeR.data ?? [])) as Array<{ id: string; capabilities: unknown }>
+      ).map((r) => [
+        r.id,
+        Array.isArray(r.capabilities) ? normalizeCapabilities(r.capabilities) : null,
+      ]),
     );
     // Before the scope change every authorization covers both job kinds (the 0066 default).
     const capsFor = (id: string) =>
@@ -301,6 +304,16 @@ export const getOmniAutonomyStatus = createServerFn({ method: "GET" })
           }
         : null,
       scopeInstalled,
+      // Non-secret identities for the final review screen (never tokens, hashes or passkey IDs).
+      review: {
+        ownerId: context.userId,
+        ownerEmail:
+          typeof (context.claims as { email?: unknown } | undefined)?.email === "string"
+            ? (context.claims as { email: string }).email
+            : null,
+        clientId: clientId || null,
+        projectId: projectId || null,
+      },
       history,
       historyReadable: !historyR.error,
       audit,
@@ -316,13 +329,18 @@ export const authorizeOmniAutonomy = createServerFn({ method: "POST" })
   .inputValidator(
     z.object({
       grantId: z.string().uuid(),
-      capabilities: z.array(z.enum(OMNI_CAPABILITIES)).min(1).max(2).default([...OMNI_CAPABILITIES]),
+      capabilities: z
+        .array(z.enum(OMNI_CAPABILITIES))
+        .min(1)
+        .max(2)
+        .default([...OMNI_CAPABILITIES]),
     }),
   )
   .handler(async ({ data, context }) => {
     await requireOwner(context);
     const caps = normalizeCapabilities(data.capabilities);
-    if (!caps) throw new Error("Choose at least one kind of OMNI job to allow. Nothing was authorized.");
+    if (!caps)
+      throw new Error("Choose at least one kind of OMNI job to allow. Nothing was authorized.");
     const { resolvedLinkConfig } = await import("./omni-session.server");
     const link = await resolvedLinkConfig();
     if (!link)

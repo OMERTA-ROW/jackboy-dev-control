@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { handleOmniPermit, type PermitStore } from "./omni-permit.server";
 import {
+  authorizationReview,
   autonomyGates,
   autonomyState,
   parsePermitInput,
@@ -411,5 +412,78 @@ describe("allowed OMNI capabilities", () => {
     expect(canRecordScope(["autonomous", "code"], false)).toBe(true);
     expect(canRecordScope(["code"], false)).toBe(false);
     expect(canRecordScope(["code"], true)).toBe(true);
+  });
+});
+
+describe("final review before the passkey", () => {
+  const now = Date.parse("2026-11-14T11:30:00Z");
+  const status = {
+    installed: true,
+    linkConfigured: true,
+    approval: {
+      approvalId: "4c3a0a75-b0dc-49af-b48e-2c55cad616a6",
+      expiresAt: "2026-11-14T23:17:46Z",
+    },
+    step8ProofAt: "2026-11-14T11:00:00Z",
+    lastHandshakeAt: "2026-11-14T11:20:00Z",
+    runnerReady: true,
+    meterOk: true,
+    guardEnforced: true,
+    killSwitch: false,
+    emergencyStop: true,
+    codeEnabled: false,
+    authorization: null,
+    checkedAt: "2026-11-14T11:29:40Z",
+    scopeInstalled: true,
+    review: {
+      ownerId: "owner-uuid",
+      ownerEmail: "owner@example.com",
+      clientId: "OMNI",
+      projectId: "f45d225f-c03e-49e6-8c79-11350ed1aa7e",
+    },
+  };
+  const value = (rows: { label: string; value: string }[], label: string) =>
+    rows.find((r) => r.label === label)?.value;
+
+  it("shows the owner, OMNI project, chosen job kinds and every safety control", () => {
+    const r = authorizationReview(status, ["code"], now);
+    expect(value(r.owner, "Signed-in owner")).toBe("owner@example.com");
+    expect(value(r.project, "OMNI client")).toBe("OMNI");
+    expect(value(r.project, "OMNI project ID")).toBe("f45d225f-c03e-49e6-8c79-11350ed1aa7e");
+    expect(r.kinds.map((k) => k.value)).toEqual(["Not allowed", "Allowed"]);
+    expect(value(r.safety, "System Kill Switch off")).toBe("Off");
+    expect(value(r.safety, "CODE Emergency Stop released")).toBe("Engaged");
+    expect(value(r.safety, "CODE setting on")).toBe("Off");
+    expect(value(r.safety, "Spending limits")).toContain("$5.00 per day");
+    expect(value(r.safety, "Spending limits")).toContain("$0.50 per AI call");
+    expect(value(r.safety, "Spending limits")).toContain("$1.00 reserved per job");
+  });
+
+  it("a stop being on doesn't block confirming, but is named as holding OMNI", () => {
+    const r = authorizationReview(status, ["autonomous", "code"], now);
+    expect(r.ready).toBe(true);
+    expect(r.heldBy).toEqual(["the CODE Emergency Stop is engaged", "CODE is off"]);
+  });
+
+  it("can't confirm when details are over a minute old", () => {
+    const r = authorizationReview({ ...status, checkedAt: "2026-11-14T11:28:59Z" }, ["code"], now);
+    expect(r.stale).toBe(true);
+    expect(r.ready).toBe(false);
+  });
+
+  it("can't confirm with no job kind, an unknown owner or project, or a failing authorize check", () => {
+    for (const [patch, caps] of [
+      [{}, []],
+      [{ review: { ...status.review, ownerEmail: null } }, ["code"]],
+      [{ review: { ...status.review, projectId: null } }, ["code"]],
+      [{ review: null }, ["code"]],
+      [{ lastHandshakeAt: "2026-11-14T10:59:00Z" }, ["code"]],
+      [{ scopeInstalled: false }, ["code"]],
+    ] as const) {
+      expect(
+        authorizationReview({ ...status, ...patch }, caps, now).ready,
+        JSON.stringify(patch),
+      ).toBe(false);
+    }
   });
 });

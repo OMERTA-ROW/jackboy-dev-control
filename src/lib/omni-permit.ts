@@ -357,3 +357,89 @@ export function autonomyState(
     activePermits,
   };
 }
+
+/** A review older than this must be rechecked before the passkey prompt opens. */
+export const REVIEW_MAX_AGE_MS = 60_000;
+export type ReviewRow = { label: string; value: string; ok: boolean | null };
+export type AuthorizationReviewInput = AutonomyStatusInput & {
+  checkedAt: string;
+  scopeInstalled: boolean | null;
+  review: {
+    ownerId: string | null;
+    ownerEmail: string | null;
+    clientId: string | null;
+    projectId: string | null;
+  } | null;
+};
+
+/**
+ * The final screen before the passkey: who is authorizing, for which OMNI project and approval, which
+ * job kinds, and the live safety controls. `ready` is false (with plain reasons) whenever anything is
+ * missing, stale or would be refused, so the passkey prompt never opens on an incomplete review.
+ * Safety controls are shown, not required: authorizing while a stop is on is allowed and stays held.
+ */
+export function authorizationReview(
+  s: AuthorizationReviewInput,
+  caps: readonly OmniCapability[],
+  now = Date.now(),
+) {
+  const g = autonomyGates(s, now);
+  const r = s.review;
+  const owner: ReviewRow[] = [
+    { label: "Signed-in owner", value: r?.ownerEmail || "unknown", ok: !!r?.ownerEmail },
+    { label: "Owner account ID", value: r?.ownerId || "unknown", ok: !!r?.ownerId },
+  ];
+  const project: ReviewRow[] = [
+    { label: "OMNI client", value: r?.clientId || "not set", ok: !!r?.clientId },
+    { label: "OMNI project ID", value: r?.projectId || "not set", ok: !!r?.projectId },
+    {
+      label: "Step 7 approval",
+      value: s.approval ? `${s.approval.approvalId} (ends ${s.approval.expiresAt})` : "none saved",
+      ok: g.authorize.find((x) => x.id === "step7")?.ok ?? false,
+    },
+  ];
+  const kinds: ReviewRow[] = OMNI_CAPABILITIES.map((c) => ({
+    label: OMNI_CAPABILITY_LABELS[c],
+    value: caps.includes(c) ? "Allowed" : "Not allowed",
+    ok: caps.includes(c) ? true : null,
+  }));
+  const pick = (list: Gate[], id: string) => list.find((x) => x.id === id)!;
+  const safety: ReviewRow[] = [
+    pick(g.run, "kill"),
+    pick(g.run, "stop"),
+    pick(g.run, "code"),
+    pick(g.authorize, "meter"),
+    pick(g.authorize, "guard"),
+  ].map((x) => ({ label: x.label, value: x.detail, ok: x.ok }));
+  safety.push({
+    label: "Spending limits",
+    value: `$${OMNI_AUTONOMY_LIMITS.dailyUsd.toFixed(2)} per day · $${OMNI_AUTONOMY_LIMITS.perCallUsd.toFixed(2)} per AI call · $${OMNI_AUTONOMY_LIMITS.perTaskUsd.toFixed(2)} reserved per job · one job at a time`,
+    ok: null,
+  });
+
+  const blockers: string[] = [];
+  if (!r?.ownerId || !r?.ownerEmail) blockers.push("the signed-in owner couldn't be read");
+  if (!r?.clientId || !r?.projectId) blockers.push("the OMNI client or project isn't set");
+  if (caps.length === 0) blockers.push("choose at least one kind of OMNI job");
+  else if (!canRecordScope(caps, s.scopeInstalled === true))
+    blockers.push("only both job kinds together can be saved right now");
+  for (const x of g.authorize)
+    if (!x.ok) blockers.push(`${x.label}: ${x.detail.replace(/\.$/, "")}`);
+  const age = now - Date.parse(s.checkedAt);
+  const stale = !(age >= 0 && age <= REVIEW_MAX_AGE_MS);
+  if (stale) blockers.push("these details are over a minute old; recheck them");
+  const heldBy: string[] = [];
+  if (s.killSwitch !== false)
+    heldBy.push(
+      s.killSwitch === null ? "the Kill Switch can't be read" : "the System Kill Switch is on",
+    );
+  if (s.emergencyStop !== false)
+    heldBy.push(
+      s.emergencyStop === null
+        ? "the CODE Emergency Stop can't be read"
+        : "the CODE Emergency Stop is engaged",
+    );
+  if (s.codeEnabled !== true)
+    heldBy.push(s.codeEnabled === null ? "the CODE setting can't be read" : "CODE is off");
+  return { owner, project, kinds, safety, blockers, stale, heldBy, ready: blockers.length === 0 };
+}

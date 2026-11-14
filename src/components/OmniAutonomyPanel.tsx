@@ -11,11 +11,13 @@ import {
   OMNI_AUTONOMY_LIMITS,
   OMNI_CAPABILITIES,
   OMNI_CAPABILITY_LABELS,
+  authorizationReview,
   autonomyTarget,
   canRecordScope,
   permitReasonText,
   type Gate,
   type OmniCapability,
+  type ReviewRow,
 } from "@/lib/omni-permit";
 import { useStepUp } from "@/lib/step-up-client";
 import { UnifiedOmniStatus } from "./UnifiedOmniStatus";
@@ -31,6 +33,31 @@ const AUDIT_LABELS: Record<string, string> = {
   "omni.autonomy_revoked": "Revoked",
   "omni.permits_revoked": "Permits closed by a stop",
 };
+
+function ReviewSection({ title, rows }: { title: string; rows: ReviewRow[] }) {
+  return (
+    <div className="space-y-1">
+      <p className="text-xs font-medium">{title}</p>
+      <dl className="grid grid-cols-[minmax(0,14rem)_1fr] gap-x-3 gap-y-1 text-xs">
+        {rows.map((r) => (
+          <div key={r.label} className="contents">
+            <dt className="flex items-center gap-1 text-muted-foreground">
+              {r.ok === true ? (
+                <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-success" aria-hidden />
+              ) : r.ok === false ? (
+                <XCircle className="h-3.5 w-3.5 shrink-0 text-destructive" aria-hidden />
+              ) : (
+                <span className="inline-block h-3.5 w-3.5 shrink-0" aria-hidden />
+              )}
+              {r.label}
+            </dt>
+            <dd className={`break-all ${r.ok === false ? "text-destructive" : ""}`}>{r.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
 
 function GateList({ gates }: { gates: Gate[] }) {
   return (
@@ -61,6 +88,7 @@ export function OmniAutonomyPanel() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [caps, setCaps] = useState<OmniCapability[]>([...OMNI_CAPABILITIES]);
+  const [reviewing, setReviewing] = useState(false);
 
   const refresh = useCallback(
     () =>
@@ -79,6 +107,48 @@ export function OmniAutonomyPanel() {
   }, [refresh]);
 
   const active = s?.permits.filter((p) => p.status === "active") ?? [];
+  const review = s ? authorizationReview(s, caps) : null;
+
+  const confirmWithPasskey = async () => {
+    setBusy(true);
+    setMsg(null);
+    try {
+      // Re-read the live state right before the passkey so the owner confirms what is true now.
+      const fresh = await load();
+      setS(fresh);
+      const check = authorizationReview(fresh, caps);
+      if (!check.ready || !fresh.approval) {
+        setMsg({
+          ok: false,
+          text: `Not sent for passkey: ${check.blockers.join("; ") || "no saved approval"}. Review the details again.`,
+        });
+        return;
+      }
+      const r = await stepUp(AUTONOMY_STEP_UP_ACTION, autonomyTarget(fresh.approval.approvalId), {
+        apply: (grantId) => authorize({ data: { grantId, capabilities: caps } }),
+        applyingText: "Passkey confirmed. Recording your permission…",
+        doneText: () => "Done.",
+      });
+      if (!r.ok)
+        setMsg({
+          ok: false,
+          text: `Not authorized: ${(r.reasons ?? []).map(permitReasonText).join("; ")}.`,
+        });
+      else {
+        const blocked = r.executionBlockedBy ?? [];
+        setReviewing(false);
+        setMsg({
+          ok: true,
+          text: `${r.duplicate ? "Already authorized" : "Authorized"} until ${new Date(r.expiresAt!).toLocaleString()} for ${capText(r.capabilities ?? caps)}.${blocked.length ? ` OMNI still cannot run because ${blocked.map(permitReasonText).join(", ")}.` : ""}`,
+        });
+      }
+    } catch (e) {
+      setMsg({ ok: false, text: (e as Error).message });
+    } finally {
+      setBusy(false);
+      void refresh();
+    }
+  };
 
   return (
     <section className="panel mb-4 space-y-3 p-4 text-sm" aria-labelledby="omni-autonomy">
@@ -179,7 +249,7 @@ export function OmniAutonomyPanel() {
                   <input
                     type="checkbox"
                     checked={caps.includes(c)}
-                    disabled={busy || s.scopeInstalled !== true}
+                    disabled={busy || reviewing || s.scopeInstalled !== true}
                     onChange={(e) =>
                       setCaps((prev) =>
                         e.target.checked
@@ -201,55 +271,87 @@ export function OmniAutonomyPanel() {
             </fieldset>
           )}
 
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              className="inline-flex items-center gap-2 rounded-md border border-electric px-3 py-1.5 text-xs hover:bg-muted disabled:opacity-50"
-              disabled={
-                busy ||
-                !s.gates.canAuthorize ||
-                !s.approval ||
-                caps.length === 0 ||
-                !canRecordScope(caps, s.scopeInstalled === true)
-              }
-              title={s.gates.canAuthorize ? undefined : "Every check above must pass first"}
-              onClick={async () => {
-                if (!s.approval) return;
-                setBusy(true);
-                setMsg(null);
-                try {
-                  const r = await stepUp(
-                    AUTONOMY_STEP_UP_ACTION,
-                    autonomyTarget(s.approval.approvalId),
-                    {
-                      apply: (grantId) => authorize({ data: { grantId, capabilities: caps } }),
-                      applyingText: "Passkey confirmed. Recording your permission…",
-                      doneText: () => "Done.",
-                    },
-                  );
-                  if (!r.ok)
-                    setMsg({
-                      ok: false,
-                      text: `Not authorized: ${(r.reasons ?? []).map(permitReasonText).join("; ")}.`,
-                    });
-                  else {
-                    const blocked = r.executionBlockedBy ?? [];
-                    setMsg({
-                      ok: true,
-                      text: `${r.duplicate ? "Already authorized" : "Authorized"} until ${new Date(r.expiresAt!).toLocaleString()} for ${capText(r.capabilities ?? caps)}.${blocked.length ? ` OMNI still cannot run because ${blocked.map(permitReasonText).join(", ")}.` : ""}`,
-                    });
-                  }
-                } catch (e) {
-                  setMsg({ ok: false, text: (e as Error).message });
-                } finally {
-                  setBusy(false);
-                  void refresh();
-                }
-              }}
+          {reviewing && review && !s.authorizationDetail && (
+            <div
+              className="space-y-3 rounded-md border border-electric/60 p-3"
+              role="region"
+              aria-labelledby="omni-autonomy-review"
+              data-testid="omni-autonomy-review"
             >
-              <KeyRound className="h-4 w-4" aria-hidden /> Authorize OMNI autonomous work with
-              passkey
-            </button>
+              <p id="omni-autonomy-review" className="font-medium">
+                Final review — check these details before confirming with your passkey
+              </p>
+              <ReviewSection title="Owner" rows={review.owner} />
+              <ReviewSection title="OMNI project" rows={review.project} />
+              <ReviewSection title="Allowed job kinds" rows={review.kinds} />
+              <ReviewSection title="Current safety controls" rows={review.safety} />
+              <p className="text-xs text-muted-foreground">
+                {review.heldBy.length
+                  ? `After you confirm, OMNI stays held because ${review.heldBy.join(" and ")}. Authorizing never changes the Kill Switch, Emergency Stop or CODE setting.`
+                  : "After you confirm, OMNI could request a permit straight away. Authorizing never changes the Kill Switch, Emergency Stop or CODE setting."}{" "}
+                Details checked {new Date(s.checkedAt).toLocaleTimeString()}; they are read again
+                just before the passkey prompt opens.
+              </p>
+              {review.blockers.length > 0 && (
+                <ul className="space-y-0.5 text-xs text-destructive" role="alert">
+                  {review.blockers.map((b) => (
+                    <li key={b}>Can't confirm yet: {b}.</li>
+                  ))}
+                </ul>
+              )}
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-2 rounded-md border border-electric px-3 py-1.5 text-xs hover:bg-muted disabled:opacity-50"
+                  disabled={busy || !review.ready}
+                  onClick={() => void confirmWithPasskey()}
+                >
+                  <KeyRound className="h-4 w-4" aria-hidden /> Confirm with passkey
+                </button>
+                {review.stale && (
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1 rounded-md border border-border px-3 py-1.5 text-xs hover:bg-muted"
+                    disabled={busy}
+                    onClick={() => void refresh()}
+                  >
+                    <RefreshCw className="h-3 w-3" aria-hidden /> Recheck details
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="rounded-md border border-border px-3 py-1.5 text-xs hover:bg-muted disabled:opacity-50"
+                  disabled={busy}
+                  onClick={() => setReviewing(false)}
+                >
+                  Back
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="flex flex-wrap gap-2">
+            {!reviewing && !s.authorizationDetail && (
+              <button
+                type="button"
+                className="inline-flex items-center gap-2 rounded-md border border-electric px-3 py-1.5 text-xs hover:bg-muted disabled:opacity-50"
+                disabled={
+                  busy ||
+                  !s.gates.canAuthorize ||
+                  !s.approval ||
+                  caps.length === 0 ||
+                  !canRecordScope(caps, s.scopeInstalled === true)
+                }
+                title={s.gates.canAuthorize ? undefined : "Every check above must pass first"}
+                onClick={() => {
+                  setMsg(null);
+                  setReviewing(true);
+                  void refresh();
+                }}
+              >
+                <KeyRound className="h-4 w-4" aria-hidden /> Review before authorizing
+              </button>
+            )}
             {s.authorizationDetail && (
               <button
                 type="button"
@@ -363,9 +465,7 @@ export function OmniAutonomyPanel() {
                   <li key={`${a.at}-${i}`} className="text-xs">
                     {new Date(a.at).toLocaleString()} · {AUDIT_LABELS[a.action] ?? a.action}
                     {a.capabilities ? ` · ${capText(a.capabilities)}` : ""}
-                    {a.reasons.length
-                      ? ` · ${a.reasons.map(permitReasonText).join("; ")}`
-                      : ""}
+                    {a.reasons.length ? ` · ${a.reasons.map(permitReasonText).join("; ")}` : ""}
                   </li>
                 ))}
               </ul>
