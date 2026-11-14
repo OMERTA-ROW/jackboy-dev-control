@@ -309,7 +309,7 @@ passed **5/5, zero skipped**:
 Ubuntu 24.04 refused namespace setup; no host policy was weakened.
 New autonomous execution remains disabled.
 
-Local feature evidence: Node 26.13.1 focused Vitest **141 passed (10 files)**;
+Local feature evidence: Node 26.13.1 focused Vitest **144 passed (11 files)**;
 isolated release-surface checks **115 passed, zero failed/skipped** (real
 PostgreSQL/PGLite plus workflow/history checks), including
 genuine simultaneous permit/lease/Stop and issuance/release transactions and
@@ -318,7 +318,7 @@ changed-file lint/format, `git diff --check` and the Railway Node-server build p
 These are not authenticated live-system or Linux isolation results.
 
 ```sh
-node node_modules/vitest/vitest.mjs run src/lib/{omni-execution.server,omni-configuration.server,omni-permit,omni-permit-e2e,code-safety,code-gateway.server,code-gateway,safety-controls,safety-controls.server}.test.ts src/test/activation-panel.test.tsx
+node node_modules/vitest/vitest.mjs run src/lib/{omni-execution.server,omni-executor-client,omni-configuration.server,omni-permit,omni-permit-e2e,code-safety,code-gateway.server,code-gateway,safety-controls,safety-controls.server}.test.ts src/test/activation-panel.test.tsx
 node node_modules/typescript/bin/tsc --noEmit --strict
 NITRO_PRESET=node-server node node_modules/vite/bin/vite.js build
 git diff --check

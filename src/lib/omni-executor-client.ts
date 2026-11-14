@@ -14,7 +14,7 @@ export async function signedExecutorRequest(
   const response = await fetch(new URL(path, origin), {
     method: "POST",
     body,
-    redirect: "error",
+    redirect: "manual",
     signal: AbortSignal.timeout(35_000),
     headers: {
       "Content-Type": "application/json",
