@@ -60,14 +60,17 @@ appropriate CA-signed certificate before any separately approved run.
 ## Modes and one-shot gate
 
 `STAGING_MIGRATOR_MODE` defaults to `inspect`; unknown values fail closed.
-Inspection starts a PostgreSQL `READ ONLY` transaction and verifies exact database
+Inspection starts a PostgreSQL repeatable-read `READ ONLY` transaction and verifies exact database
 identity before collecting metadata. It checks the 44-row baseline history
 through 0043, seed availability and stopped CODE controls as separate diagnostics,
 and prints a concise status summary with a sorted
 catalog inventory. The inventory includes non-system schemas, tables and views,
 column types/nullability, routine signatures, trigger table/event metadata,
-table RLS flags, and policy command/permissiveness/roles. Each category is
-limited to 200 entries and reports whether it was truncated. It excludes view
+table RLS flags, and policy command/permissiveness/roles. Columns are paginated
+in 200-row pages within the consistent snapshot, up to 10,000 columns; exceeding
+that safety ceiling fails with `catalog_column_limit_exceeded` instead of emitting
+an incomplete inventory. Other categories are limited to 200 entries and report
+whether they were truncated. It excludes view
 and function bodies, policy expressions, table rows, and raw query results;
 catalog names and type metadata are validated before output. It never calls
 Drizzle's migrator.

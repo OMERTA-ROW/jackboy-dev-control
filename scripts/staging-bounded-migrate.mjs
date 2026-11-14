@@ -223,7 +223,7 @@ export async function loadPlan() {
 
 export async function inspectWithClient(client, plan) {
   let summary;
-  await client.begin("read only", async (tx) => {
+  await client.begin("isolation level repeatable read read only", async (tx) => {
     const query = (sql, params = []) => tx.unsafe(sql, params);
     await query("SET LOCAL statement_timeout = '15s'");
     await assertIdentity(query);
@@ -271,6 +271,7 @@ export async function inspectWithClient(client, plan) {
 }
 
 const catalogLimit = 200;
+const columnLimit = 10_000;
 const catalogQueries = Object.freeze({
   schemas: `
     /* staging-catalog:schemas */
@@ -311,7 +312,7 @@ const catalogQueries = Object.freeze({
       AND c.relkind IN ('r', 'p', 'v', 'm', 'f')
       AND a.attnum > 0 AND NOT a.attisdropped
     ORDER BY n.nspname COLLATE "C", c.relname COLLATE "C", a.attnum
-    LIMIT $1
+    LIMIT $1 OFFSET $2
   `,
   routines: `
     /* staging-catalog:routines */
@@ -394,20 +395,20 @@ function catalogBoolean(value) {
   return value;
 }
 
-function catalogRows(rows) {
+function catalogRows(rows, limit) {
   if (!Array.isArray(rows)) throw new MigrationError("catalog_metadata_invalid");
-  return rows.slice(0, catalogLimit);
+  return rows.slice(0, limit);
 }
 
-function catalogSection(rows, map, keys) {
-  const items = catalogRows(rows).map(map);
+function catalogSection(rows, map, keys, limit = catalogLimit) {
+  const items = catalogRows(rows, limit).map(map);
   const keyOf = (item) => keys.map((key) => item[key]).join("\u0000");
   items.sort((left, right) => {
     const leftKey = keyOf(left);
     const rightKey = keyOf(right);
     return leftKey < rightKey ? -1 : leftKey > rightKey ? 1 : 0;
   });
-  return { items, truncated: rows.length > catalogLimit };
+  return { items, truncated: rows.length > limit };
 }
 
 export async function readCatalogInventory(query) {
@@ -443,7 +444,16 @@ export async function readCatalogInventory(query) {
     },
     ["schema", "name"],
   );
-  const columns = await read("columns");
+  const columns = [];
+  for (let offset = 0; offset <= columnLimit; offset += catalogLimit) {
+    const page = await query(catalogQueries.columns, [catalogLimit, offset]);
+    if (!Array.isArray(page) || page.length > catalogLimit)
+      throw new MigrationError("catalog_metadata_invalid");
+    if (columns.length + page.length > columnLimit)
+      throw new MigrationError("catalog_column_limit_exceeded");
+    columns.push(...page);
+    if (page.length < catalogLimit) break;
+  }
   sections.columns = catalogSection(
     columns,
     (row) => ({
@@ -454,6 +464,7 @@ export async function readCatalogInventory(query) {
       nullable: !catalogBoolean(row.not_null),
     }),
     ["schema", "table", "name"],
+    columnLimit,
   );
   const routines = await read("routines");
   sections.routines = catalogSection(
@@ -516,7 +527,7 @@ export async function readCatalogInventory(query) {
     },
     ["schema", "table", "name"],
   );
-  return { limitPerSection: catalogLimit, ...sections };
+  return { limitPerSection: catalogLimit, columnLimit, ...sections };
 }
 
 export function assertHistory(rows, expected) {

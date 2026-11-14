@@ -576,6 +576,7 @@ test("safe inspection uses a read-only transaction and never invokes the migrato
     },
     catalog: {
       limitPerSection: 200,
+      columnLimit: 10_000,
       schemas: {
         items: [{ name: "drizzle" }, { name: "public" }],
         truncated: false,
@@ -651,7 +652,7 @@ test("safe inspection uses a read-only transaction and never invokes the migrato
       },
     },
   });
-  assert.deepEqual(f.beginModes, ["read only"]);
+  assert.deepEqual(f.beginModes, ["isolation level repeatable read read only"]);
   assert.equal(f.nested, 0);
   assert.equal(f.rows.length, 44);
   assert.equal(f.committed, true);
@@ -687,13 +688,77 @@ test("catalog inventory is bounded, sorted, projected and excludes definitions o
   assert.doesNotMatch(JSON.stringify(inventory), new RegExp(sentinel));
   assert.equal(queries.length, 6);
   for (const { sql, params } of queries) {
-    assert.deepEqual(params, [201]);
+    assert.deepEqual(params, sql.includes("staging-catalog:columns") ? [200, 0] : [201]);
     assert.match(sql, /ORDER BY/);
     assert.match(sql, /LIMIT \$1/);
     assert.doesNotMatch(
       sql,
       /pg_get_viewdef|pg_get_functiondef|pg_get_expr|prosrc|polqual|polwithcheck/,
     );
+  }
+});
+
+test("column pagination emits all columns beyond 200 and fails closed at its ceiling", async () => {
+  const rows = Array.from({ length: 10_001 }, (_, index) => ({
+    schema_name: "public",
+    relation_name: "fixture",
+    column_name: `column_${String(index).padStart(5, "0")}`,
+    data_type: "text",
+    not_null: false,
+    row_data: sentinel,
+  }));
+  for (const count of [201, 400, 10_000, 10_001]) {
+    const offsets = [];
+    const result = readCatalogInventory(async (sql, params) => {
+      if (sql.includes("staging-catalog:columns")) {
+        const [limit, offset] = params;
+        assert.equal(limit, 200);
+        offsets.push(offset);
+        return rows.slice(0, count).slice(offset, offset + limit);
+      }
+      const section = sql.match(/staging-catalog:(\w+)/)[1];
+      return catalogMock[section];
+    });
+    if (count > 10_000) {
+      await assert.rejects(result, /catalog_column_limit_exceeded/);
+    } else {
+      const inventory = await result;
+      assert.equal(inventory.columns.items.length, count);
+      assert.equal(inventory.columns.truncated, false);
+      assert.deepEqual(
+        inventory.columns.items.map((row) => row.name),
+        rows.slice(0, count).map((row) => row.column_name),
+      );
+      assert.doesNotMatch(JSON.stringify(inventory), new RegExp(sentinel));
+    }
+    assert.ok(offsets.length <= 51);
+    assert.deepEqual(
+      offsets,
+      offsets.map((_, index) => index * 200),
+    );
+  }
+});
+
+test("real catalog pagination includes columns after the first page in a read-only snapshot", async () => {
+  const db = new PGlite();
+  try {
+    await db.exec(
+      `CREATE TABLE public.wide_fixture (${Array.from(
+        { length: 225 },
+        (_, index) => `column_${index} text`,
+      ).join(", ")})`,
+    );
+    await db.exec("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
+    const inventory = await readCatalogInventory(
+      async (sql, params) => (await db.query(sql, params)).rows,
+    );
+    await db.exec("COMMIT");
+    const columns = inventory.columns.items.filter((row) => row.table === "wide_fixture");
+    assert.equal(columns.length, 225);
+    assert.ok(columns.some((row) => row.name === "column_224"));
+    assert.equal(inventory.columns.truncated, false);
+  } finally {
+    await db.close();
   }
 });
 
@@ -710,7 +775,7 @@ test("inspection reports drift separately while preserving catalog output", asyn
     controls: { status: "mismatch", category: "code_not_stopped_or_holds" },
   });
   assert.equal(result.catalog.schemas.items.length, 2);
-  assert.deepEqual(f.beginModes, ["read only"]);
+  assert.deepEqual(f.beginModes, ["isolation level repeatable read read only"]);
 });
 
 test("inspection never masks identity, TLS, or unexpected diagnostic errors", async () => {
@@ -747,8 +812,8 @@ test("missing diagnostic schema rolls back savepoints and still returns inventor
     const result = await inspectWithClient(
       {
         begin: async (mode, work) => {
-          assert.equal(mode, "read only");
-          await db.exec("BEGIN READ ONLY");
+          assert.equal(mode, "isolation level repeatable read read only");
+          await db.exec("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
           try {
             await work({
               unsafe: async (sql, params = []) => {
