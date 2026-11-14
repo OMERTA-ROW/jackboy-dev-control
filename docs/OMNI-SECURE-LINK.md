@@ -343,7 +343,7 @@ Never supply hosted credentials: fixtures create/drop their own databases.
 The public version endpoint currently returns no source SHA; deployment identity,
 actual connection and signed live Stop cancellation remain unverified.
 
-An independent security review of starting commits `fda80c5` / `3f19d2e` found
+An independent security review of the initial bounded-executor implementation found
 two medium issues: delayed propagation of Mothership Stop and false cancellation
 acknowledgement by an unowned executor instance. The durable Stop outbox,
 one-second lease and unknown-instance refusal address those findings; regression
