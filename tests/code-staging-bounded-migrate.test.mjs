@@ -857,11 +857,61 @@ test("catalog sections report truncation and reject unsafe metadata without echo
       const section = sql.match(
         /staging-catalog:(schemas|relations|columns|routines|triggers|policies)/,
       )?.[1];
-      return section === "schemas" ? [{ schema_name: sentinel }] : catalogMock[section];
+      return section === "schemas"
+        ? [{ schema_name: `${sentinel}\ninvalid` }]
+        : catalogMock[section];
     }),
     (error) => {
-      assert.equal(error.category, "catalog_metadata_invalid");
+      assert.equal(error.category, "catalog_metadata_invalid:schemas");
       assert.doesNotMatch(error.stack, new RegExp(sentinel));
+      return true;
+    },
+  );
+});
+
+test("catalog accepts printable names with spaces and hyphens and emits JSON-escaped output", async () => {
+  const policyNames = ["owner read-policy", 'owner "review"-policy'];
+  const inventory = await readCatalogInventory(async (sql) => {
+    const section = sql.match(
+      /staging-catalog:(schemas|relations|columns|routines|triggers|policies)/,
+    )?.[1];
+    if (section !== "policies") return catalogMock[section];
+    return policyNames.map((policy_name) => ({
+      schema_name: "public",
+      relation_name: "profiles",
+      policy_name,
+      command: "select",
+      permissive: true,
+      roles: ["authenticated"],
+    }));
+  });
+  const json = JSON.stringify(inventory);
+  assert.deepEqual(
+    JSON.parse(json).policies.items.map((row) => row.name),
+    [...policyNames].sort(),
+  );
+  assert.match(json, /owner \\"review\\"-policy/);
+});
+
+test("catalog validation errors name only the allowlisted section and never row values", async () => {
+  const privateValue = "private-policy-name";
+  await assert.rejects(
+    readCatalogInventory(async (sql) => {
+      const section = sql.match(
+        /staging-catalog:(schemas|relations|columns|routines|triggers|policies)/,
+      )?.[1];
+      if (section !== "policies") return catalogMock[section];
+      return [
+        {
+          ...catalogMock.policies[0],
+          policy_name: `${privateValue}\ninvalid`,
+        },
+      ];
+    }),
+    (error) => {
+      assert.equal(error.category, "catalog_metadata_invalid:policies");
+      assert.doesNotMatch(error.stack, new RegExp(privateValue));
+      assert.doesNotMatch(JSON.stringify(error), new RegExp(privateValue));
       return true;
     },
   );
