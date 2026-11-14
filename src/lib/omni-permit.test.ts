@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { handleOmniPermit, type PermitStore } from "./omni-permit.server";
-import { autonomyGates, parsePermitInput, permitSigningMessage, permitUsable, signPermit, OMNI_AUTONOMY_LIMITS } from "./omni-permit";
+import { autonomyGates, autonomyState, parsePermitInput, permitSigningMessage, permitUsable, signPermit, OMNI_AUTONOMY_LIMITS } from "./omni-permit";
 import { digest, requestMessage, LINK_CONTRACT } from "./omni-session";
 import { hmacHex } from "./omni-link";
 import type { LinkConfig } from "./omni-session.server";
@@ -187,5 +187,35 @@ describe("link endpoint routing", () => {
     } finally {
       spy.mockRestore();
     }
+  });
+});
+
+describe("autonomyState: configured vs armed vs running", () => {
+  const now = Date.parse("2026-11-14T03:00:00Z");
+  const ok = {
+    installed: true as const, linkConfigured: true, approval: { approvalId: "a", expiresAt: "2026-11-14T20:00:00Z" },
+    step8ProofAt: "2026-11-14T02:55:00Z", lastHandshakeAt: "2026-11-14T02:50:00Z", runnerReady: true, meterOk: true, guardEnforced: true,
+    killSwitch: false, emergencyStop: false, codeEnabled: true, authorization: { expiresAt: "2026-11-14T20:00:00Z" },
+  };
+  const live = [{ status: "active", expires_at: "2026-11-14T03:00:40Z" }];
+  it("is not configured without an unexpired owner authorization, even with every switch on", () => {
+    expect(autonomyState({ ...ok, authorization: null }, [], now).id).toBe("not_configured");
+    expect(autonomyState({ ...ok, authorization: { expiresAt: "2026-11-14T02:59:00Z" } }, [], now).id).toBe("not_configured");
+  });
+  it("is configured-but-held when the Emergency Stop, Kill Switch or CODE off blocks permits", () => {
+    for (const held of [{ emergencyStop: true }, { killSwitch: true }, { codeEnabled: false }]) {
+      const s = autonomyState({ ...ok, ...held }, live, now);
+      expect(s.id).toBe("configured");
+      expect(s.detail).toMatch(/refused at its next renewal/);
+    }
+  });
+  it("is armed (nothing running) with all gates and no live permit; running only with an unexpired active permit", () => {
+    expect(autonomyState(ok, [], now).id).toBe("armed");
+    expect(autonomyState(ok, [{ status: "active", expires_at: "2026-11-14T02:59:59Z" }], now).id).toBe("armed");
+    expect(autonomyState(ok, [{ status: "revoked", expires_at: "2026-11-14T03:00:40Z" }], now).id).toBe("armed");
+    expect(autonomyState(ok, live, now)).toMatchObject({ id: "running", activePermits: 1 });
+  });
+  it("is unavailable when the permit service can't be read", () => {
+    expect(autonomyState({ ...ok, installed: null }, live, now).id).toBe("unavailable");
   });
 });

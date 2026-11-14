@@ -4,7 +4,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { autonomyGates } from "./omni-permit";
+import { autonomyGates, autonomyState } from "./omni-permit";
 
 type Ctx = { supabase: { rpc: (f: "my_role") => PromiseLike<{ data: unknown }> }; userId: string };
 async function requireOwner(ctx: Ctx) {
@@ -104,6 +104,7 @@ export const getOmniAutonomyStatus = createServerFn({ method: "GET" })
         : null,
       permits: installed === true ? ((permitsR.data ?? []) as PermitRow[]) : [],
       gates: autonomyGates(input),
+      state: autonomyState(input, installed === true ? ((permitsR.data ?? []) as PermitRow[]) : []),
     };
   });
 

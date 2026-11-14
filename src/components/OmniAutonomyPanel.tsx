@@ -61,6 +61,10 @@ export function OmniAutonomyPanel() {
       {loadError && <p className="text-xs text-destructive">Could not read the current state: {loadError}. Treat OMNI as blocked.</p>}
       {s && (
         <>
+          <p className="text-sm" data-testid="omni-autonomy-state">
+            <span className="font-medium">Autonomy: {s.state.label}.</span>{" "}
+            <span className="text-muted-foreground">{s.state.detail}</span>
+          </p>
           <div className={`rounded-md border p-3 ${s.gates.omniCanRun ? "border-success/50" : "border-destructive/50"}`}>
             <p className="flex items-center gap-2 font-medium">
               {s.gates.omniCanRun ? <CheckCircle2 className="h-4 w-4 text-success" aria-hidden /> : <OctagonX className="h-4 w-4 text-destructive" aria-hidden />}

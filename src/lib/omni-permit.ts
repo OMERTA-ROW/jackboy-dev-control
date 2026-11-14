@@ -167,3 +167,35 @@ export function autonomyGates(s: AutonomyStatusInput, now = Date.now()) {
     omniCanRun: s.installed === true && authorized && run.every((g) => g.ok) && authorize.slice(0, 3).every((g) => g.ok),
   };
 }
+
+/**
+ * Configured vs armed vs running, from backend records only (never from a switch or label):
+ * - unavailable: permit service not readable
+ * - not_configured: no unexpired, unrevoked owner authorization row
+ * - configured: authorization row exists but a stop/CODE gate refuses permits (held)
+ * - armed: authorization + every run gate passes, but no active unexpired permit (nothing running)
+ * - running: an active, unexpired permit exists AND every gate still passes
+ * An active permit while a gate fails is reported as configured: its next renewal is refused.
+ */
+export type AutonomyStateId = "unavailable" | "not_configured" | "configured" | "armed" | "running";
+export function autonomyState(
+  s: AutonomyStatusInput,
+  permits: Array<{ status: string; expires_at: string }>,
+  now = Date.now(),
+): { id: AutonomyStateId; label: string; detail: string; activePermits: number } {
+  const g = autonomyGates(s, now);
+  const activePermits = permits.filter((p) => p.status === "active" && Date.parse(p.expires_at) > now).length;
+  const authorized = !!s.authorization && Date.parse(s.authorization.expiresAt) > now;
+  const held = g.run.filter((r) => r.id !== "auth" && !r.ok).map((r) => r.label);
+  if (s.installed !== true) return { id: "unavailable", label: "Unavailable", detail: "Permit service can't be read, so OMNI is blocked.", activePermits };
+  if (!authorized) return { id: "not_configured", label: "Not configured", detail: "No owner authorization is saved in Jackboy.", activePermits };
+  if (!g.omniCanRun)
+    return {
+      id: "configured",
+      label: "Configured, held",
+      detail: `Authorization saved, but permits are refused: ${held.join(", ") || "a required check fails"} not met.${activePermits ? " An open permit will be refused at its next renewal." : ""}`,
+      activePermits,
+    };
+  if (activePermits === 0) return { id: "armed", label: "Armed, nothing running", detail: "OMNI would get a permit if it asked; no job holds one.", activePermits };
+  return { id: "running", label: "Running", detail: `${activePermits} OMNI job holds a live Jackboy permit.`, activePermits };
+}
