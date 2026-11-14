@@ -2048,7 +2048,6 @@ export type Database = {
           result: Json | null
           status: string
         }
-        ComputedFields: never
         Insert: {
           id?: never
           job_id: string
@@ -2078,7 +2077,6 @@ export type Database = {
           nonce: string
           received_at: string
         }
-        ComputedFields: never
         Insert: {
           nonce: string
           received_at?: string
@@ -2104,7 +2102,6 @@ export type Database = {
           status: string
           updated_at: string
         }
-        ComputedFields: never
         Insert: {
           created_at?: string
           expires_at: string
@@ -2171,7 +2168,6 @@ export type Database = {
           status: string
           updated_at: string
         }
-        ComputedFields: never
         Insert: {
           created_at?: string
           grant_id: string
