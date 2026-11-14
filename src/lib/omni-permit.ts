@@ -29,28 +29,51 @@ const KEYS: Record<PermitAction, string[]> = {
 };
 
 export type PermitInput =
-  | { action: "permit.request"; jobId: string; kind: (typeof PERMIT_KINDS)[number]; digest: string; estimateUsd: number }
+  | {
+      action: "permit.request";
+      jobId: string;
+      kind: (typeof PERMIT_KINDS)[number];
+      digest: string;
+      estimateUsd: number;
+    }
   | { action: "permit.release"; jobId: string }
   | { action: "safety" };
 
 /** Strict shape check: exact keys per action, project bound to the configured link. */
-export function parsePermitInput(input: unknown, projectId: string): { ok: true; value: PermitInput } | { ok: false; error: string } {
-  if (!input || typeof input !== "object" || Array.isArray(input)) return { ok: false, error: "invalid_request" };
+export function parsePermitInput(
+  input: unknown,
+  projectId: string,
+): { ok: true; value: PermitInput } | { ok: false; error: string } {
+  if (!input || typeof input !== "object" || Array.isArray(input))
+    return { ok: false, error: "invalid_request" };
   const o = input as Record<string, unknown>;
   if (!isPermitAction(o["action"])) return { ok: false, error: "action_denied" };
   const action = o["action"];
-  if (Object.keys(o).sort().join(",") !== KEYS[action].join(",")) return { ok: false, error: "action_denied" };
+  if (Object.keys(o).sort().join(",") !== KEYS[action].join(","))
+    return { ok: false, error: "action_denied" };
   if (o["projectId"] !== projectId) return { ok: false, error: "project_denied" };
   if (action === "safety") return { ok: true, value: { action } };
   const jobId = o["jobId"];
   if (typeof jobId !== "string" || !UUID.test(jobId)) return { ok: false, error: "job_required" };
   if (action === "permit.release") return { ok: true, value: { action, jobId } };
-  const kind = o["kind"], digest = o["digest"], estimateUsd = o["estimateUsd"];
-  if (!(PERMIT_KINDS as readonly unknown[]).includes(kind)) return { ok: false, error: "scope_invalid" };
-  if (typeof digest !== "string" || !/^[a-f0-9]{64}$/.test(digest)) return { ok: false, error: "scope_invalid" };
-  if (typeof estimateUsd !== "number" || !Number.isFinite(estimateUsd) || estimateUsd <= 0 || estimateUsd > OMNI_AUTONOMY_LIMITS.perTaskUsd)
+  const kind = o["kind"],
+    digest = o["digest"],
+    estimateUsd = o["estimateUsd"];
+  if (!(PERMIT_KINDS as readonly unknown[]).includes(kind))
     return { ok: false, error: "scope_invalid" };
-  return { ok: true, value: { action, jobId, kind: kind as (typeof PERMIT_KINDS)[number], digest, estimateUsd } };
+  if (typeof digest !== "string" || !/^[a-f0-9]{64}$/.test(digest))
+    return { ok: false, error: "scope_invalid" };
+  if (
+    typeof estimateUsd !== "number" ||
+    !Number.isFinite(estimateUsd) ||
+    estimateUsd <= 0 ||
+    estimateUsd > OMNI_AUTONOMY_LIMITS.perTaskUsd
+  )
+    return { ok: false, error: "scope_invalid" };
+  return {
+    ok: true,
+    value: { action, jobId, kind: kind as (typeof PERMIT_KINDS)[number], digest, estimateUsd },
+  };
 }
 
 export type SignedPermitFields = {
@@ -65,14 +88,27 @@ export type SignedPermitFields = {
 };
 /** Canonical message OMNI workers verify independently of the transport proof. */
 export function permitSigningMessage(p: SignedPermitFields): string {
-  return [PERMIT_CONTRACT, p.permitId, p.jobId, p.kind, p.digest, p.clientId, p.projectId, p.approvalId, p.expiresAt].join("\n");
+  return [
+    PERMIT_CONTRACT,
+    p.permitId,
+    p.jobId,
+    p.kind,
+    p.digest,
+    p.clientId,
+    p.projectId,
+    p.approvalId,
+    p.expiresAt,
+  ].join("\n");
 }
 export function signPermit(secret: string, p: SignedPermitFields): Promise<string> {
   return hmacHex(secret, permitSigningMessage(p));
 }
 
 /** A permit is usable only while unexpired by the verifier's own clock. */
-export function permitUsable(p: { status?: unknown; expiresAt?: unknown } | null | undefined, now = Date.now()): boolean {
+export function permitUsable(
+  p: { status?: unknown; expiresAt?: unknown } | null | undefined,
+  now = Date.now(),
+): boolean {
   if (!p || p.status !== "active" || typeof p.expiresAt !== "string") return false;
   const t = Date.parse(p.expiresAt);
   return Number.isFinite(t) && t > now;
@@ -94,7 +130,8 @@ const REASONS: Record<string, string> = {
   session_expired_or_invalid: "OMNI's signed link session expired",
   step7_approval_expired: "the OMNI link approval (Step 7) is missing or expired",
   step8_proof_missing: "there is no passed self-test (Step 8) for the current approval",
-  step9_handshake_missing: "OMNI has not completed a signed link handshake (Step 9) in the last 30 minutes",
+  step9_handshake_missing:
+    "OMNI has not completed a signed link handshake (Step 9) in the last 30 minutes",
   runner_unavailable: "the self-test runner is not configured",
   meter_untrusted: "the spend meter is not trusted right now",
   gateway_unenforced: "the spending guard is not enforced",
@@ -129,10 +166,16 @@ export type Gate = { id: string; label: string; ok: boolean; detail: string };
 
 /** What the owner sees before authorizing, and why OMNI can or cannot run right now. Unknown = blocked. */
 export function autonomyGates(s: AutonomyStatusInput, now = Date.now()) {
-  const approvalOk = !!s.approval && Date.parse(s.approval.expiresAt) > now && Date.parse(s.approval.expiresAt) <= now + 86_400_000;
+  const approvalOk =
+    !!s.approval &&
+    Date.parse(s.approval.expiresAt) > now &&
+    Date.parse(s.approval.expiresAt) <= now + 86_400_000;
   const handshakeOk = !!s.lastHandshakeAt && Date.parse(s.lastHandshakeAt) > now - 30 * 60_000;
   // A new handshake is refused by the database while the System Kill Switch is on, so say so.
-  const handshakeHint = s.killSwitch === true ? " A new one is refused while the System Kill Switch is on." : " OMNI must run Step 9 again.";
+  const handshakeHint =
+    s.killSwitch === true
+      ? " A new one is refused while the System Kill Switch is on."
+      : " OMNI must run Step 9 again.";
   const handshakeDetail = !s.lastHandshakeAt
     ? `No handshake yet.${handshakeOk ? "" : handshakeHint}`
     : handshakeOk
@@ -143,28 +186,93 @@ export function autonomyGates(s: AutonomyStatusInput, now = Date.now()) {
       id: "installed",
       label: "Permit service installed",
       ok: s.installed === true,
-      detail: s.installed === true ? "Ready" : s.installed === false ? "The database change is not installed yet" : "Couldn't read it right now (treated as blocked)",
+      detail:
+        s.installed === true
+          ? "Ready"
+          : s.installed === false
+            ? "The database change is not installed yet"
+            : "Couldn't read it right now (treated as blocked)",
     },
-    { id: "link", label: "OMNI link set up in Jackboy", ok: s.linkConfigured, detail: s.linkConfigured ? "Link settings valid" : "Link off or settings invalid" },
-    { id: "step7", label: "Step 7 approval window", ok: approvalOk, detail: s.approval ? `Ends ${s.approval.expiresAt}` : "No saved approval" },
-    { id: "step8", label: "Step 8 self-test proof", ok: !!s.step8ProofAt, detail: s.step8ProofAt ? `Passed ${s.step8ProofAt}` : "No passed self-test for this approval" },
-    { id: "step9", label: "Step 9 signed handshake (last 30 min)", ok: handshakeOk, detail: handshakeDetail },
-    { id: "runner", label: "Self-test runner", ok: s.runnerReady, detail: s.runnerReady ? "Configured" : "Not configured" },
-    { id: "meter", label: "Trusted spend meter", ok: s.meterOk === true, detail: s.meterOk === null ? "Unreadable" : s.meterOk ? "Trusted" : "Not trusted" },
-    { id: "guard", label: "Spending guard", ok: s.guardEnforced === true, detail: s.guardEnforced === null ? "Unreadable" : s.guardEnforced ? "Enforced" : "Not enforced" },
+    {
+      id: "link",
+      label: "OMNI link set up in Jackboy",
+      ok: s.linkConfigured,
+      detail: s.linkConfigured ? "Link settings valid" : "Link off or settings invalid",
+    },
+    {
+      id: "step7",
+      label: "Step 7 approval window",
+      ok: approvalOk,
+      detail: s.approval ? `Ends ${s.approval.expiresAt}` : "No saved approval",
+    },
+    {
+      id: "step8",
+      label: "Step 8 self-test proof",
+      ok: !!s.step8ProofAt,
+      detail: s.step8ProofAt ? `Passed ${s.step8ProofAt}` : "No passed self-test for this approval",
+    },
+    {
+      id: "step9",
+      label: "Step 9 signed handshake (last 30 min)",
+      ok: handshakeOk,
+      detail: handshakeDetail,
+    },
+    {
+      id: "runner",
+      label: "Self-test runner",
+      ok: s.runnerReady,
+      detail: s.runnerReady ? "Configured" : "Not configured",
+    },
+    {
+      id: "meter",
+      label: "Trusted spend meter",
+      ok: s.meterOk === true,
+      detail: s.meterOk === null ? "Unreadable" : s.meterOk ? "Trusted" : "Not trusted",
+    },
+    {
+      id: "guard",
+      label: "Spending guard",
+      ok: s.guardEnforced === true,
+      detail:
+        s.guardEnforced === null ? "Unreadable" : s.guardEnforced ? "Enforced" : "Not enforced",
+    },
   ];
   const authorized = !!s.authorization && Date.parse(s.authorization.expiresAt) > now;
   const run: Gate[] = [
-    { id: "kill", label: "System Kill Switch off", ok: s.killSwitch === false, detail: s.killSwitch === null ? "Unreadable" : s.killSwitch ? "On" : "Off" },
-    { id: "stop", label: "CODE Emergency Stop released", ok: s.emergencyStop === false, detail: s.emergencyStop === null ? "Unreadable" : s.emergencyStop ? "Engaged" : "Released" },
-    { id: "code", label: "CODE setting on", ok: s.codeEnabled === true, detail: s.codeEnabled === null ? "Unreadable" : s.codeEnabled ? "On" : "Off" },
-    { id: "auth", label: "Your Jackboy authorization", ok: authorized, detail: authorized ? `Until ${s.authorization!.expiresAt}` : "Not authorized" },
+    {
+      id: "kill",
+      label: "System Kill Switch off",
+      ok: s.killSwitch === false,
+      detail: s.killSwitch === null ? "Unreadable" : s.killSwitch ? "On" : "Off",
+    },
+    {
+      id: "stop",
+      label: "CODE Emergency Stop released",
+      ok: s.emergencyStop === false,
+      detail: s.emergencyStop === null ? "Unreadable" : s.emergencyStop ? "Engaged" : "Released",
+    },
+    {
+      id: "code",
+      label: "CODE setting on",
+      ok: s.codeEnabled === true,
+      detail: s.codeEnabled === null ? "Unreadable" : s.codeEnabled ? "On" : "Off",
+    },
+    {
+      id: "auth",
+      label: "Your Jackboy authorization",
+      ok: authorized,
+      detail: authorized ? `Until ${s.authorization!.expiresAt}` : "Not authorized",
+    },
   ];
   return {
     authorize,
     run,
     canAuthorize: authorize.every((g) => g.ok),
-    omniCanRun: s.installed === true && authorized && run.every((g) => g.ok) && authorize.slice(0, 3).every((g) => g.ok),
+    omniCanRun:
+      s.installed === true &&
+      authorized &&
+      run.every((g) => g.ok) &&
+      authorize.slice(0, 3).every((g) => g.ok),
   };
 }
 
@@ -184,11 +292,25 @@ export function autonomyState(
   now = Date.now(),
 ): { id: AutonomyStateId; label: string; detail: string; activePermits: number } {
   const g = autonomyGates(s, now);
-  const activePermits = permits.filter((p) => p.status === "active" && Date.parse(p.expires_at) > now).length;
+  const activePermits = permits.filter(
+    (p) => p.status === "active" && Date.parse(p.expires_at) > now,
+  ).length;
   const authorized = !!s.authorization && Date.parse(s.authorization.expiresAt) > now;
   const held = g.run.filter((r) => r.id !== "auth" && !r.ok).map((r) => r.label);
-  if (s.installed !== true) return { id: "unavailable", label: "Unavailable", detail: "Permit service can't be read, so OMNI is blocked.", activePermits };
-  if (!authorized) return { id: "not_configured", label: "Not configured", detail: "No owner authorization is saved in Jackboy.", activePermits };
+  if (s.installed !== true)
+    return {
+      id: "unavailable",
+      label: "Unavailable",
+      detail: "Permit service can't be read, so OMNI is blocked.",
+      activePermits,
+    };
+  if (!authorized)
+    return {
+      id: "not_configured",
+      label: "Not configured",
+      detail: "No owner authorization is saved in Jackboy.",
+      activePermits,
+    };
   if (!g.omniCanRun)
     return {
       id: "configured",
@@ -196,6 +318,17 @@ export function autonomyState(
       detail: `Authorization saved, but permits are refused: ${held.join(", ") || "a required check fails"} not met.${activePermits ? " An open permit will be refused at its next renewal." : ""}`,
       activePermits,
     };
-  if (activePermits === 0) return { id: "armed", label: "Armed, nothing running", detail: "OMNI would get a permit if it asked; no job holds one.", activePermits };
-  return { id: "running", label: "Running", detail: `${activePermits} OMNI job holds a live Jackboy permit.`, activePermits };
+  if (activePermits === 0)
+    return {
+      id: "armed",
+      label: "Armed, nothing running",
+      detail: "OMNI would get a permit if it asked; no job holds one.",
+      activePermits,
+    };
+  return {
+    id: "running",
+    label: "Running",
+    detail: `${activePermits} OMNI job holds a live Jackboy permit.`,
+    activePermits,
+  };
 }

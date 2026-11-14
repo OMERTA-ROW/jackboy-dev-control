@@ -13,7 +13,10 @@ import {
   signPermit,
 } from "./omni-permit";
 
-export type PermitStore = (op: "request" | "release" | "safety", args: Record<string, unknown>) => Promise<StoreReply>;
+export type PermitStore = (
+  op: "request" | "release" | "safety",
+  args: Record<string, unknown>,
+) => Promise<StoreReply>;
 
 export const databasePermitStore: PermitStore = async (op, args) => {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -40,11 +43,23 @@ export async function handleOmniPermit(
     Response.json({ error }, { status, headers: { "Cache-Control": "no-store" } });
   if (!c) return plain(503, "link_disabled");
   const url = linkRequestUrl(request, env);
-  if (!url || url.pathname !== LINK_PATH || url.search || request.method !== "POST" || raw.length > 8192)
+  if (
+    !url ||
+    url.pathname !== LINK_PATH ||
+    url.search ||
+    request.method !== "POST" ||
+    raw.length > 8192
+  )
     return plain(400, "https_post_required");
-  const token = request.headers.get("authorization")?.match(/^Bearer ([a-zA-Z0-9_-]{32,256})$/)?.[1] || "";
+  const token =
+    request.headers.get("authorization")?.match(/^Bearer ([a-zA-Z0-9_-]{32,256})$/)?.[1] || "";
   // A bootstrap key is never a session: permits require the handshake's session token.
-  if (!token || token === c.bootstrap || request.headers.get("x-omni-client") !== c.clientId || !(await verifyRequest(c.secret, token, request.headers, raw)))
+  if (
+    !token ||
+    token === c.bootstrap ||
+    request.headers.get("x-omni-client") !== c.clientId ||
+    !(await verifyRequest(c.secret, token, request.headers, raw))
+  )
     return plain(401, "authentication_failed");
   let input: unknown;
   try {
@@ -67,14 +82,21 @@ export async function handleOmniPermit(
       tokenHash: await digest(token),
       nonce,
       ...(v.action === "safety" ? {} : { jobId: v.jobId }),
-      ...(v.action === "permit.request" ? { kind: v.kind, digest: v.digest, estimateUsd: v.estimateUsd } : {}),
+      ...(v.action === "permit.request"
+        ? { kind: v.kind, digest: v.digest, estimateUsd: v.estimateUsd }
+        : {}),
     });
   } catch {
     return plain(503, "permit_service_unavailable");
   }
   const payload: Record<string, unknown> = { contract: LINK_CONTRACT, requestNonce: nonce, ...out };
   const permit = out["permit"] as Record<string, unknown> | null | undefined;
-  if (v.action === "permit.request" && out.http === 200 && permit && permit["status"] === "active") {
+  if (
+    v.action === "permit.request" &&
+    out.http === 200 &&
+    permit &&
+    permit["status"] === "active"
+  ) {
     const fields = {
       permitId: String(permit["id"]),
       jobId: String(permit["jobId"]),
@@ -96,14 +118,20 @@ export async function handleOmniPermit(
     };
   }
   if (v.action === "safety" && out["safety"] && typeof out["safety"] === "object")
-    payload["safety"] = { contract: SAFETY_CONTRACT, ...(out["safety"] as Record<string, unknown>) };
+    payload["safety"] = {
+      contract: SAFETY_CONTRACT,
+      ...(out["safety"] as Record<string, unknown>),
+    };
   const body = JSON.stringify(payload);
   return new Response(body, {
     status: out.http,
     headers: {
       "Content-Type": "application/json",
       "Cache-Control": "no-store",
-      "X-Omni-Proof": await hmacHex(c.secret, `${LINK_CONTRACT}\nresponse\n${nonce}\n${out.http}\n${body}`),
+      "X-Omni-Proof": await hmacHex(
+        c.secret,
+        `${LINK_CONTRACT}\nresponse\n${nonce}\n${out.http}\n${body}`,
+      ),
     },
   });
 }
