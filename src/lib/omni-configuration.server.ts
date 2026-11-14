@@ -2,6 +2,7 @@ import { hmacHex, safeEqual } from "./omni-link";
 import { LINK_CONTRACT, LINK_PATH, UUID, linkRequestUrl, verifyRequest } from "./omni-session";
 import { boundedBody, handleOmniLink, resolvedLinkConfig } from "./omni-session.server";
 import { callRemoteRunnerConfiguration, remoteRunnerConfig } from "./omni-remote-runner";
+import { isPermitAction } from "./omni-permit";
 
 type Env = Record<string, string | undefined>;
 type ProbeConfig = {
@@ -33,6 +34,9 @@ function probeConfig(env: Env): ProbeConfig | null {
 
 const authorize: Authorize = async (c, nonce) => {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  // Function installed by migration 0064_omni_configuration_probe (service_role-only
+  // EXECUTE). It refuses while the global Kill Switch is on, so this probe fails closed
+  // with 403 until that switch is released; it never creates sessions, jobs or grants.
   const { data, error } = await supabaseAdmin.rpc("omni_link_configuration_authorize", {
     _client_id: c.clientId,
     _project_id: c.projectId,
@@ -142,16 +146,9 @@ export async function handleOmniLinkRequest(request: Request): Promise<Response>
   }
   if (input && typeof input === "object" && "action" in input && input.action === "configuration")
     return handleOmniConfiguration(request, raw);
-  if (
-    input &&
-    typeof input === "object" &&
-    "action" in input &&
-    ["safety", "permit.request", "permit.release"].includes(String(input.action))
-  ) {
-    const { handleExecutionPermit } = await import("./omni-execution.server");
-    return handleExecutionPermit(
-      new Request(request.url, { method: request.method, headers: request.headers, body: raw }),
-    );
+  if (input && typeof input === "object" && "action" in input && isPermitAction(input.action)) {
+    const { handleOmniPermit } = await import("./omni-permit.server");
+    return handleOmniPermit(request, raw, await resolvedLinkConfig());
   }
   if (
     input &&

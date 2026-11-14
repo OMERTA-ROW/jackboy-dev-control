@@ -1,12 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
+  CODE_DISABLE_TARGET,
   CODE_ENABLE_TARGET,
+  CODE_STOP_RELEASE_TARGET,
   HARD_CAP_TARGET,
   closedDayToReconcile,
   codeEnableBlockReason,
   codeEnableGates,
   enableRefusalText,
   parseSpendMeter,
+  stopReleaseBlockReason,
+  stopReleaseGates,
   type CodeEnableInput,
   type SpendMeter,
 } from "./code-safety";
@@ -49,9 +53,16 @@ describe("owner CODE on-switch gates", () => {
     expect(codeEnableGates(ready).every((g) => g.ok)).toBe(true);
   });
 
-  it("refuses unless CODE is currently off with the Emergency Stop on and nothing is running", () => {
-    expect(failing({ enabled: true })).toEqual(["stopped"]);
-    expect(failing({ killSwitch: false })).toEqual(["stopped"]);
+  it("treats the Kill Switch and the Emergency Stop as separate controls, not requirements", () => {
+    // Turning the saved CODE setting on never needs (or changes) the other two controls.
+    for (const killSwitch of [true, false]) for (const globalPaused of [true, false, null]) {
+      expect(failing({ killSwitch, globalPaused })).toEqual([]);
+    }
+    expect(codeEnableGates(ready).map((g) => g.id)).not.toContain("stopped");
+    expect(codeEnableGates(ready).map((g) => g.id)).not.toContain("global_pause");
+  });
+
+  it("refuses while anything is running or a stopped run is unconfirmed", () => {
     expect(failing({ activeRequestId: "r1" })).toEqual(["no_task"]);
     expect(failing({ activeRunId: 42 })).toEqual(["no_task"]);
     expect(failing({ cancellationStatus: "pending" })).toEqual(["cancellation"]);
@@ -76,11 +87,9 @@ describe("owner CODE on-switch gates", () => {
     expect(failing({ perTaskReserveUsd: null })).toEqual(["total_guard"]);
   });
 
-  it("needs a healthy live meter, global pause off, matching pins and the settings present", () => {
+  it("needs a healthy live meter, matching pins and the settings present", () => {
     expect(failing({ spendMeter: null })).toEqual(["meter"]);
     expect(failing({ spendMeter: { ...healthyMeter, ok: false, reasons: ["daily_limit"] } })).toEqual(["meter"]);
-    expect(failing({ globalPaused: true })).toEqual(["global_pause"]);
-    expect(failing({ globalPaused: null })).toEqual(["global_pause"]);
     expect(failing({ pinsMatch: false })).toEqual(["pins"]);
     expect(failing({ pinsMatch: null })).toEqual(["pins"]);
     expect(failing({ gatewayConfigured: false })).toEqual(["gateway"]);
@@ -88,9 +97,30 @@ describe("owner CODE on-switch gates", () => {
   });
 
   it("explains database refusals in plain words, and never reports an empty refusal as success", () => {
-    expect(enableRefusalText(["global_pause", "spend_meter"])).toBe("the global pause is on; the live spending meter is not healthy");
+    expect(enableRefusalText(["global_pause", "spend_meter"])).toBe("the Kill Switch is on; the live spending meter is not healthy");
     expect(enableRefusalText([])).toMatch(/refused/);
     expect(enableRefusalText(null)).toMatch(/refused/);
+  });
+});
+
+describe("Emergency Stop release requirements", () => {
+  const releaseFailing = (patch: Partial<CodeEnableInput>) =>
+    stopReleaseGates({ ...ready, ...patch }).filter((g) => !g.ok).map((g) => g.id);
+  it("does not depend on the CODE setting or the Kill Switch", () => {
+    for (const enabled of [true, false]) for (const globalPaused of [true, false, null]) {
+      expect(releaseFailing({ enabled, globalPaused })).toEqual([]);
+    }
+  });
+  it("never bypasses an emergency protection, the hard cap or the $10 guard", () => {
+    expect(releaseFailing({ activeRequestId: "r1" })).toEqual(["no_task"]);
+    expect(releaseFailing({ cancellationStatus: "pending" })).toEqual(["cancellation"]);
+    expect(releaseFailing({ consecutiveFailures: 2 })).toEqual(["failures"]);
+    expect(releaseFailing({ usageSpike: true })).toEqual(["spike"]);
+    expect(releaseFailing({ providerBudgetEnforced: false })).toEqual(["hard_cap"]);
+    expect(releaseFailing({ totalSpendGuard: null })).toEqual(["total_guard"]);
+    expect(releaseFailing({ totalSpendGuard: { enforced: false, limitUsd: 10, committedUsd: 0 } })).toEqual(["total_guard"]);
+    expect(stopReleaseBlockReason({ ...ready, usageSpike: true })).toMatch(/usage spike/);
+    expect(stopReleaseBlockReason(ready)).toBeNull();
   });
 });
 
@@ -140,5 +170,12 @@ describe("on-switch passkey", () => {
     expect(FRESH_ONLY_ACTIONS).toContain("code_enable");
     expect(recentEligible("code_enable", CODE_ENABLE_TARGET)).toBe(false);
     expect(CODE_ENABLE_TARGET).not.toBe(HARD_CAP_TARGET.mark);
+  });
+  it("binds on, off and stop release to different targets; release has its own fresh-only action", () => {
+    expect(new Set([CODE_ENABLE_TARGET, CODE_DISABLE_TARGET, CODE_STOP_RELEASE_TARGET]).size).toBe(3);
+    expect(mayRequest("code_stop_release", "owner")).toEqual({ ok: true });
+    expect(mayRequest("code_stop_release", "admin").ok).toBe(false);
+    expect(FRESH_ONLY_ACTIONS).toContain("code_stop_release");
+    expect(recentEligible("code_stop_release", CODE_STOP_RELEASE_TARGET)).toBe(false);
   });
 });

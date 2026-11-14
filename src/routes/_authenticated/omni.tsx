@@ -17,6 +17,7 @@ import {
 import { getOmniQueue, requestOmniJob } from "@/lib/passport.functions";
 import { OmniLinkPanel } from "@/components/OmniLinkPanel";
 import { OmniLinkValuesPanel } from "@/components/OmniLinkValuesPanel";
+import { OmniAutonomyPanel } from "@/components/OmniAutonomyPanel";
 
 export const Route = createFileRoute("/_authenticated/omni")({
   head: () => ({
@@ -60,6 +61,7 @@ function OmniPage() {
         title="OMNI Handoffs"
         subtitle="Jackboy researches and evaluates. OMNI builds, tests and ships — only after you approve."
       />
+      <OmniAutonomyPanel />
       <OmniLinkValuesPanel />
       <OmniLinkPanel />
       <GuidanceTip>

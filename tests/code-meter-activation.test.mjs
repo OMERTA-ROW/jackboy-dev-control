@@ -6,7 +6,9 @@ import { supabaseStubs, migrationFiles } from "./helpers/staging-pg.mjs";
 
 // In-memory PGlite only, synthetic IDs, no network, no provider calls. Replays the real applied
 // migration chain (including the applied $10 guard and hard-cap gate), then the PROPOSED, UNAPPLIED
-// staging/code-activation/0049 meter + activation gate.
+// staging/code-activation/0049 meter + activation gate. Since 0065_code_independent_controls the owner
+// switch only turns CODE on (enable_code_runtime -> set_code_enabled); releasing the Emergency Stop is the
+// separate release_code_emergency_stop action, and the Kill Switch is enforced at admission instead.
 
 const owner = "93a2e690-a179-4d08-bd68-a3a793fced11";
 const stranger = "00000000-0000-4000-8000-000000000009";
@@ -48,6 +50,7 @@ const controls = async (db) => (await one(db, "SELECT to_jsonb(r) AS c FROM publ
 const meter = async (db) => (await one(db, "SELECT public.code_spend_meter_status() AS s")).s;
 const refresh = async (db) => (await one(db, "SELECT public.refresh_code_spend_meter() AS s")).s;
 const enable = async (db, actor = owner) => (await one(db, "SELECT public.enable_code_runtime($1) AS r", [actor])).r;
+const release = async (db, actor = owner) => (await one(db, "SELECT public.release_code_emergency_stop($1) AS r", [actor])).r;
 const audits = async (db, action) =>
   (await one(db, "SELECT count(*)::int AS n FROM public.audit_logs WHERE action = $1", [action])).n;
 
@@ -119,7 +122,7 @@ test("staged 0049 refuses to install while CODE is on", async () => {
   const applied = (await db.query("SELECT to_regprocedure('public.code_spend_meter_status()') IS NOT NULL AS ok")).rows[0].ok;
   if (applied) {
     // Already installed: the gate it added now refuses the raw switch-on that the install check guarded against.
-    await assert.rejects(db.query("UPDATE public.code_runtime_controls SET enabled = true, kill_switch = false"), /enable_code_runtime/);
+    await assert.rejects(db.query("UPDATE public.code_runtime_controls SET enabled = true, kill_switch = false"), /set_code_enabled/);
     return;
   }
   await db.query("UPDATE public.code_runtime_controls SET enabled = true, kill_switch = false");
@@ -128,8 +131,8 @@ test("staged 0049 refuses to install while CODE is on", async () => {
 
 test("raw writes can never turn CODE on, release the stop, or stamp meter freshness", async () => {
   const db = await ready();
-  await assert.rejects(db.query("UPDATE public.code_runtime_controls SET enabled = true"), /enable_code_runtime/);
-  await assert.rejects(db.query("UPDATE public.code_runtime_controls SET kill_switch = false"), /enable_code_runtime/);
+  await assert.rejects(db.query("UPDATE public.code_runtime_controls SET enabled = true"), /set_code_enabled/);
+  await assert.rejects(db.query("UPDATE public.code_runtime_controls SET kill_switch = false"), /release_code_emergency_stop/);
   await assert.rejects(db.query("UPDATE public.code_runtime_controls SET provider_usage_at = now()"), /refresh_code_spend_meter/);
   await db.query("UPDATE public.code_runtime_controls SET provider_usage_at = NULL"); // clearing is fine
   const c = await controls(db);
@@ -221,7 +224,6 @@ test("OpenAI cross-check: closed days with gateway calls need a closed-day repor
 test("the owner switch refuses every failing gate, records why, and never changes CODE", async () => {
   const cases = [
     ["hard_cap_unverified", async () => { const db = await clone(metered); await db.query("UPDATE public.automation_policy SET paused = false"); return db; }],
-    ["global_pause", async () => { const db = await ready(); await db.query("UPDATE public.automation_policy SET paused = true"); return db; }],
     ["active_task", async () => { const db = await ready(); await request(db, 9); await db.query("UPDATE public.code_runtime_controls SET active_request_id = $1", [rid(9)]); return db; }],
     ["failure_stop", async () => { const db = await ready(); await db.query("UPDATE public.code_runtime_controls SET consecutive_failures = 2"); return db; }],
     ["usage_spike", async () => { const db = await ready(); await db.query("UPDATE public.code_runtime_controls SET usage_spike = true"); return db; }],
@@ -249,37 +251,60 @@ test("the owner switch refuses every failing gate, records why, and never change
     const c = await controls(db);
     assert.equal(c.enabled, false, reason);
     assert.equal(c.kill_switch, true, reason);
-    assert.equal(await audits(db, "code.runtime_enable_refused"), 1, reason);
-    assert.equal(await audits(db, "code.runtime_enabled"), 0, reason);
+    assert.equal(await audits(db, "code.enable_refused"), 1, reason);
+    assert.equal(await audits(db, "code.enabled_on"), 0, reason);
   }
   await assert.rejects(enable(await ready(), stranger), /Only the owner/);
+  // The Kill Switch is a separate control: it does not block saving CODE ON, it blocks every CODE start.
+  const paused = await ready();
+  await paused.query("UPDATE public.automation_policy SET paused = true");
+  assert.equal((await enable(paused)).ok, true);
+  assert.equal((await release(paused)).ok, true);
+  assert.equal((await refresh(paused)).ok, true);
+  assert.equal(await claim(paused, 7), false, "Kill Switch ON refuses the claim");
+  assert.equal((await one(paused, "SELECT paused FROM public.automation_policy")).paused, true);
 });
 
-test("when every gate passes the owner switch turns CODE on, clears the stale stop marker, and can be stopped again", async () => {
+test("when every gate passes the owner switch turns CODE on without releasing the stop; release is separate and can be stopped again", async () => {
   const db = await ready();
   await db.query("SELECT public.engage_code_kill_switch($1)", [owner]); // leaves stop_requested_at set
   assert.notEqual((await controls(db)).stop_requested_at, null);
   const r = await enable(db);
   assert.equal(r.ok, true, JSON.stringify(r.reasons));
-  const c = await controls(db);
+  let c = await controls(db);
+  assert.equal(c.enabled, true);
+  assert.equal(c.kill_switch, true, "turning CODE on never releases the Emergency Stop");
+  assert.equal(await audits(db, "code.enabled_on"), 1);
+  const again = await enable(db);
+  assert.equal(again.ok, true);
+  assert.equal(again.changed, false, "already on: nothing changes");
+  const released = await release(db);
+  assert.equal(released.ok, true, JSON.stringify(released.reasons));
+  c = await controls(db);
   assert.equal(c.enabled, true);
   assert.equal(c.kill_switch, false);
   assert.equal(c.stop_requested_at, null);
   assert.equal(c.cancellation_status, "not_needed");
   assert.equal(c.paused_reason, null);
-  assert.equal(await audits(db, "code.runtime_enabled"), 1);
-  const again = await enable(db);
-  assert.equal(again.ok, false);
-  assert.ok(again.reasons.includes("not_stopped"));
+  assert.equal(await audits(db, "code.emergency_stop_released"), 1);
   await db.query("SELECT public.engage_code_kill_switch($1)", [owner]); // stopping is never blocked
-  assert.equal((await controls(db)).kill_switch, true);
-  await assert.rejects(db.query("UPDATE public.code_runtime_controls SET kill_switch = false"), /enable_code_runtime/);
+  c = await controls(db);
+  assert.equal(c.kill_switch, true);
+  assert.equal(c.enabled, true, "engaging the stop keeps the saved CODE setting");
+  await assert.rejects(db.query("UPDATE public.code_runtime_controls SET kill_switch = false"), /release_code_emergency_stop/);
 });
 
 test("end to end (test database): a task starts only after enable AND a fresh meter, and its provider calls are admitted", async () => {
   const db = await ready();
   await db.query("SELECT public.engage_code_kill_switch($1)", [owner]);
   assert.equal((await enable(db)).ok, true);
+  assert.equal((await refresh(db)).ok, true);
+  assert.equal(await claim(db, 1), false, "Emergency Stop still engaged");
+  assert.equal((await release(db)).ok, true);
+  await db.query("BEGIN");
+  await db.query("SELECT set_config('jackboy.code_meter', 'refresh', true)");
+  await db.query("UPDATE public.code_runtime_controls SET provider_usage_at = NULL");
+  await db.query("COMMIT");
   assert.equal(await claim(db, 1), false, "no meter stamp yet");
   assert.equal((await refresh(db)).ok, true);
   assert.equal(await claim(db, 1), true);

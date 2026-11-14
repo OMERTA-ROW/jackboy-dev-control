@@ -1,5 +1,22 @@
 # Jackboy roadmap
 
+## Jackboy as OMNI's permission and Emergency Stop gate (Nov 14, 01:01 UTC)
+- [x] Signed permit actions on the OMNI link (request/renew ≤60 s, release, safety snapshot), owner passkey authorization on the OMNI page, Emergency Stop/Kill Switch/CODE off revoke permits in the same transaction. 17 isolated database tests + 11 app tests pass.
+- [x] Contract for the Mothership project written (docs/OMNI-PERMIT-CONTRACT.md).
+- [x] Installed the permit database change on the live database (0066, history row 73, 2026-11-14 03:06 UTC, SHA-256 ecd1da5f…b224, byte-identical to the reviewed script) with Kill Switch ON, CODE OFF, Emergency Stop engaged; OMNI page now shows "Permit service installed — Ready".
+- [x] Checklist labels: "not installed" vs "couldn't read" told apart; Step 9 line says when the Kill Switch blocks a new handshake.
+- [x] Mothership side built in its own project (snapshot 5784d280: permit client, PermitHolder halt/renew, safety snapshot, migration 0055); field-for-field compatible with Jackboy's replies. Not yet proven live (no OMNI executor; no signed permit exchanged).
+- [ ] Fresh Step 9 handshake — blocked: the System Kill Switch is ON (owner set it 02:53 UTC) and the database refuses handshakes while it is on. Owner decision only.
+- [ ] Publish the refined checklist labels — optional; live site already uses the installed permit service.
+- [ ] Owner clicks after install: Mothership Step 9 handshake → Jackboy OMNI page "Authorize OMNI autonomous work with passkey"; execution still needs Emergency Stop released + CODE on in Settings → Activation (owner only).
+
+## Three separate safety controls (Nov 13, 21:31 UTC)
+- [x] Settings → Activation shows System Kill Switch, CODE switch and CODE Emergency Stop separately, with live refresh, lock reasons and done/not-done messages. Safety state unchanged (Kill Switch on, Stop engaged, CODE off).
+- [x] Independent controls built (Nov 13, 22:43 UTC): separate CODE on/off and Emergency Stop release actions with their own passkeys and audit; CODE start checks the Kill Switch; Settings shows the saved CODE setting separately from "Can CODE run right now?". Staged database change tested (all 8 combinations, fail-closed). Production unchanged.
+- [x] Installed independent CODE safety controls on the live database (0065, history row 72, 2026-11-13 23:23 UTC) with CODE OFF and Emergency Stop engaged; nothing released or enabled.
+- [ ] Publish the updated Settings screens — needs separate owner approval (live site still runs the older screens).
+- [ ] Publish — waits on owner approval.
+
 ## Synchronization safety repair
 - Chat OMNI execution is disabled: typed text and a handshake do not replace project authorization and an exact-job passkey grant. Status reads remain available.
 - Guardian limit saves use a limit-only atomic RPC; Stop is never copied from a prior read. Migration 0059 requires separate production review and approval.

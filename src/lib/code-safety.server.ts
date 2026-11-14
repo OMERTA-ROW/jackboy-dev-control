@@ -48,6 +48,10 @@ export async function getCodeSafetyState(now = Date.now()): Promise<CodeSafetySt
   // Live gateway-ledger meter; absent until its reviewed migration is applied. Errors fail closed.
   const meterResult = await db.rpc("code_spend_meter_status");
   const spendMeter = parseSpendMeter(meterResult.error ? null : meterResult.data);
+  // System Kill Switch: read fresh for every check; unreadable counts as on (fail closed).
+  const policy = await db.from("automation_policy").select("paused").eq("id", 1).maybeSingle();
+  const globalPaused: boolean | null =
+    policy.error || !policy.data || typeof policy.data.paused !== "boolean" ? null : policy.data.paused;
   const sum = (rows: { cost_usd: number }[] | null) =>
     (rows ?? []).reduce((total, row) => total + Number(row.cost_usd), 0);
   const providerSpendTodayUsd = sum(today.data);
@@ -92,6 +96,7 @@ export async function getCodeSafetyState(now = Date.now()): Promise<CodeSafetySt
   }
 
   return {
+    globalPaused,
     enabled: spendPause ? false : data.enabled,
     killSwitch: spendPause ? true : data.kill_switch,
     allowedTargets: restrictCodeTargets(parseCodeTargets(data.allowed_targets), process.env["CODE_TARGETS"]),

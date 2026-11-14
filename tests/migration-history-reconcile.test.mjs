@@ -125,3 +125,50 @@ test("0060 is forward-only and preserves the reviewed 0059 SQL and timestamp", a
   assert.equal(current?.idx, 60);
   assert.ok(current.when > previous.when);
 });
+
+// Production recorded 0063_omni_handoff_v1 (history row 70, read 2026-11-13). The later
+// runner configuration check was renumbered to 0064 and must stay newer so it is not skipped.
+test("installed 0063 handoff keeps its bytes; runner check is 0064 and newer", async () => {
+  const handoff = journal.entries.find((e) => e.tag === "0063_omni_handoff_v1");
+  assert.ok(handoff, "journal lost 0063_omni_handoff_v1");
+  assert.equal(handoff.idx, 63);
+  assert.equal(handoff.when, 1794461154900);
+  assert.equal(
+    await sha("0063_omni_handoff_v1"),
+    "30c0378cd5255a82bf6bc0dc206739662b573ec395850cace5cb739e88696bfa",
+  );
+  const probe = journal.entries.find((e) => e.tag === "0064_omni_configuration_probe");
+  assert.ok(probe, "runner check missing from journal");
+  assert.equal(probe.idx, 64);
+  assert.ok(probe.when > handoff.when, "runner check would be skipped by the migrator");
+});
+
+// Production recorded 0065_code_independent_controls (history row 72, 2026-11-13 23:23 UTC) with the
+// reviewed script's exact bytes; its bytes and `when` must never change.
+test("installed 0065 independent CODE controls keeps its bytes and timestamp", async () => {
+  const controls = journal.entries.find((e) => e.tag === "0065_code_independent_controls");
+  assert.ok(controls, "journal lost 0065_code_independent_controls");
+  assert.equal(controls.idx, 65);
+  assert.equal(controls.when, 1794612192018);
+  assert.equal(
+    await sha("0065_code_independent_controls"),
+    "426073b4596ad5c796d20c4a7708e517b33cf480271f4a3aca6362bc9bb7e0d0",
+  );
+  const probe = journal.entries.find((e) => e.tag === "0064_omni_configuration_probe");
+  assert.ok(controls.when > probe.when, "0065 would be skipped by the migrator");
+});
+
+// Production recorded 0066_omni_execution_permits (history row 73, 2026-11-14 03:06 UTC) with the
+// reviewed script's exact bytes; its bytes and `when` must never change.
+test("installed 0066 OMNI execution permits keeps its bytes and timestamp", async () => {
+  const permits = journal.entries.find((e) => e.tag === "0066_omni_execution_permits");
+  assert.ok(permits, "journal lost 0066_omni_execution_permits");
+  assert.equal(permits.idx, 66);
+  assert.equal(permits.when, 1794625591706);
+  assert.equal(
+    await sha("0066_omni_execution_permits"),
+    "ecd1da5f7a76ea19a1828918123cecad1b2346f2f608cb64b24e7b02c854b224",
+  );
+  const controls = journal.entries.find((e) => e.tag === "0065_code_independent_controls");
+  assert.ok(permits.when > controls.when, "0066 would be skipped by the migrator");
+});

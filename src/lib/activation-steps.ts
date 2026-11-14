@@ -3,7 +3,7 @@ import type { CodeEnableGate } from "./code-safety";
 /** Ordered owner activation steps, built only from the server's on-switch gates.
  * This groups and orders what the server already checks; it never adds or relaxes a gate. */
 export type ActivationStepId =
-  "settings" | "pins" | "spending" | "hard_cap" | "clear" | "global_pause" | "turn_on";
+  "settings" | "pins" | "spending" | "hard_cap" | "clear" | "global_pause" | "release_stop" | "turn_on";
 export type ActivationStepStatus = "done" | "current" | "waiting";
 
 export type ActivationStep = {
@@ -45,53 +45,73 @@ const STEPS: { id: ActivationStepId; title: string; hint: string; gates: string[
     hint: "No running task, no failure stop, no usage spike, no unconfirmed stopped run.",
     gates: ["no_task", "failures", "spike", "cancellation"],
   },
+  // The last three are the three separate controls; their state comes from the live reads.
   {
     id: "global_pause",
     title: "Kill Switch off",
-    hint: "The Kill Switch pauses all Jackboy work. Turning it off needs your passkey.",
+    hint: "The Kill Switch pauses all Jackboy work. Turning it off needs your passkey and does not change CODE or the Emergency Stop.",
     gates: ["global_pause"],
+  },
+  {
+    id: "release_stop",
+    title: "Release the CODE Emergency Stop",
+    hint: "Needs a new passkey. It does not turn CODE on or change the Kill Switch.",
+    gates: ["stop_released"],
   },
   {
     id: "turn_on",
     title: "Turn CODE on",
-    hint: "Releases the CODE stop and turns CODE on. Needs a new passkey every time. Each run still needs your approval in GitHub.",
-    gates: ["stopped"],
+    hint: "Saves CODE as ON. Needs a new passkey. It does not release the Emergency Stop or change the Kill Switch. Each run still needs your approval in GitHub.",
+    gates: ["code_enabled"],
   },
 ];
 
-/** CODE counts as on only when it is enabled AND its stop is released. */
+/** CODE can run only when it is saved as ON AND its stop is released (and the Kill Switch is off). */
 export function codeIsOn(state: { enabled: boolean; killSwitch: boolean }): boolean {
   return state.enabled === true && state.killSwitch === false;
+}
+
+/** Live control states as gates, so the three control steps read the same way as the others. */
+function controlGates(state: { enabled: boolean; killSwitch: boolean }, globalPaused: boolean | null): CodeEnableGate[] {
+  return [
+    { id: "global_pause", label: "Kill Switch is off", ok: globalPaused === false, detail: globalPaused === null ? "Kill Switch state unreadable." : globalPaused ? "The Kill Switch is on." : "Off." },
+    { id: "stop_released", label: "CODE Emergency Stop released", ok: state.killSwitch === false, detail: state.killSwitch ? "The Emergency Stop is engaged." : "Released." },
+    { id: "code_enabled", label: "CODE saved as ON", ok: state.enabled === true, detail: state.enabled ? "Saved as ON." : "Saved as OFF." },
+  ];
 }
 
 export function activationSteps(
   gates: CodeEnableGate[],
   state: { enabled: boolean; killSwitch: boolean },
+  globalPaused: boolean | null = null,
 ): ActivationStep[] {
-  const byId = new Map(gates.map((gate) => [gate.id, gate]));
-  const on = codeIsOn(state);
+  // Control states always come from the live reads, never from a server gate with the same id.
+  const controls = controlGates(state, globalPaused);
+  const controlIds = new Set(controls.map((g) => g.id));
+  const byId = new Map([...gates.filter((g) => !controlIds.has(g.id)), ...controls].map((gate) => [gate.id, gate]));
   let blockedBefore = false;
   return STEPS.map((step) => {
     // A gate the server did not report counts as not passed: missing evidence never passes.
     const stepGates = step.gates.map(
       (id) => byId.get(id) ?? { id, label: id, ok: false, detail: "Not reported by the server." },
     );
-    const done = step.id === "turn_on" ? on : stepGates.every((gate) => gate.ok);
+    const done = stepGates.every((gate) => gate.ok);
     const status: ActivationStepStatus = done ? "done" : blockedBefore ? "waiting" : "current";
     if (!done) blockedBefore = true;
     return { id: step.id, title: step.title, hint: step.hint, status, gates: stepGates };
   });
 }
 
-/** Number of finished steps, for the "step N of 7" progress line. */
+/** Number of finished steps, for the "step N of 8" progress line. */
 export function activationProgress(steps: ActivationStep[]): {
   done: number;
   total: number;
   complete: boolean;
 } {
   const done = steps.filter((step) => step.status === "done").length;
-  const last = steps[steps.length - 1];
-  return { done, total: steps.length, complete: last?.id === "turn_on" && last.status === "done" };
+  // Complete only when every step is done: the three controls are independent, so the last one being
+  // done says nothing about the others.
+  return { done, total: steps.length, complete: steps.length > 0 && done === steps.length };
 }
 
 /** Plain-words fix for each server gate, shown when a guided step is blocked. Guidance only: it never
@@ -117,8 +137,8 @@ const GATE_FIX: Record<string, string> = {
   cancellation:
     'A stopped run is not yet confirmed finished. Use "Check status and retry cancellation" in CODE safety details below.',
   global_pause: "Press the button and confirm with your passkey.",
-  stopped:
-    "CODE is already on or its stop is released. Press Engage emergency stop to go back to a safe start.",
+  stop_released: "Press Release Emergency Stop and confirm with a new passkey.",
+  code_enabled: "Turn on the CODE switch and confirm with a new passkey.",
 };
 
 export function gateFix(id: string): string {
