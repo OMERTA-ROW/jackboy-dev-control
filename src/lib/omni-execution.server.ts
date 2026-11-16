@@ -83,11 +83,21 @@ export async function handleExecutionControl(
     inspect?: () => Promise<{ release: string; enabled: boolean; reviewedRelease: string | null }>;
     readiness?: () => Promise<void>;
     cancel?: typeof deliverOmniCancellations;
+    audit?: typeof auditRefusal;
   } = {},
 ) {
   const env = dependencies.env ?? process.env;
-  const plain = (status: number, error: string) =>
-    Response.json({ error }, { status, headers: { "Cache-Control": "no-store" } });
+  // Before authentication succeeds, refusals stay unsigned so the secret is never an oracle.
+  // After it, every refusal is a signed omni.link/v2 reply carrying the real reason.
+  let authed: { secret: string; nonce: string; operation: string; project: string } | null = null;
+  const plain = async (status: number, error: string) => {
+    if (!authed)
+      return Response.json({ error }, { status, headers: { "Cache-Control": "no-store" } });
+    await (dependencies.audit ?? auditRefusal)(authed.project, authed.operation, error).catch(
+      () => undefined,
+    );
+    return signedRefusal(authed.secret, authed.nonce, status, error);
+  };
   try {
     const url = linkRequestUrl(request, env);
     if (!url || url.pathname !== LINK_PATH || request.method !== "POST" || url.search)
@@ -117,6 +127,12 @@ export async function handleExecutionControl(
       !(await verifyRequest(secret, token, request.headers, raw))
     )
       return plain(401, "authentication_failed");
+    authed = {
+      secret,
+      nonce: request.headers.get("x-omni-nonce")!,
+      operation: input.operation,
+      project: input.projectId,
+    };
     if (
       input.audience === "executor" &&
       !["claim", "permission", "finish"].includes(input.operation)
@@ -223,6 +239,30 @@ export async function handleExecutionControl(
   } catch {
     return plain(503, "execution_control_unavailable");
   }
+}
+
+export async function signedRefusal(secret: string, nonce: string, status: number, error: string) {
+  const body = JSON.stringify({ contract: LINK_CONTRACT, requestNonce: nonce, error });
+  return new Response(body, {
+    status,
+    headers: {
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store",
+      "X-Omni-Proof": await hmacHex(secret, `${LINK_CONTRACT}\nresponse\n${nonce}\n${status}\n${body}`),
+    },
+  });
+}
+
+/** One audit row per refused authenticated execution-control call (operation and reason only). */
+async function auditRefusal(project: string, operation: string, reason: string) {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const db = (await import("./untyped-db")).untyped(supabaseAdmin);
+  await db.from("audit_logs").insert({
+    actor: null,
+    action: "omni.execution.refused",
+    detail: { project_id: project, operation, reason },
+    outcome: "refused",
+  });
 }
 
 export async function executorRequest(

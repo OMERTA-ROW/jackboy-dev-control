@@ -81,6 +81,7 @@ function dependencies() {
     })),
     verify: vi.fn(async () => ({ passed: true, release: "omni-bounded-plan-1" })),
     cancel: vi.fn(async () => ({ pending: 0, unavailable: 0 })),
+    audit: vi.fn(async () => {}),
   };
 }
 it("Step 10 inspects the signed runner configuration but starts nothing", async () => {
@@ -165,7 +166,7 @@ it("disarming persists first and an unconfirmed cancellation is an explicit fail
     "disarm",
     { clientId: "fixture" },
   );
-  expect(await response.json()).toEqual({ error: "cancellation_unverified" });
+  expect(await response.json()).toMatchObject({ error: "cancellation_unverified" });
 });
 it("nonce store failures refuse the request before any operation", async () => {
   const deps = dependencies();
@@ -359,3 +360,33 @@ it.each([
     }
   },
 );
+
+it("authenticated refusals are signed, carry the real reason and are audited", async () => {
+  const deps = dependencies();
+  deps.inspect.mockResolvedValueOnce({
+    release: "omni-bounded-plan-1",
+    enabled: false,
+    reviewedRelease: null,
+  } as never);
+  const req = await request("configure");
+  const nonce = req.headers.get("x-omni-nonce")!;
+  const response = await handleExecutionControl(req, deps);
+  expect(response.status).toBe(403);
+  const raw = await response.text();
+  expect(JSON.parse(raw)).toEqual({ contract: "omni.link/v2", requestNonce: nonce, error: "release_unreviewed" });
+  const { hmacHex } = await import("./omni-link");
+  expect(response.headers.get("X-Omni-Proof")).toBe(
+    await hmacHex(env.OMNI_LINK_HMAC_SECRET, `omni.link/v2\nresponse\n${nonce}\n403\n${raw}`),
+  );
+  expect(deps.audit).toHaveBeenCalledWith(project, "configure", "release_unreviewed");
+  expect(deps.store).not.toHaveBeenCalled();
+});
+it("failed authentication stays unsigned and unaudited", async () => {
+  const deps = dependencies();
+  const req = await request("configure");
+  req.headers.set("x-omni-client", "someone-else");
+  const response = await handleExecutionControl(req, deps);
+  expect(response.status).toBe(401);
+  expect(response.headers.get("X-Omni-Proof")).toBeNull();
+  expect(deps.audit).not.toHaveBeenCalled();
+});
