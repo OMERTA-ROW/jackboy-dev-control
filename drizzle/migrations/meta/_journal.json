@@ -533,6 +533,13 @@
       "when": 1794813808675,
       "tag": "0075_code_kill_switch_marker_check",
       "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "7",
+      "when": 1794816228702,
+      "tag": "0076_omni_stop_trigger_where_armed",
+      "breakpoints": true
     }
   ]
 }
