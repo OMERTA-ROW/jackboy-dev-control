@@ -519,6 +519,13 @@
       "when": 1794637880000,
       "tag": "0073_omni_idempotent_handshake",
       "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1794811880055,
+      "tag": "0074_code_kill_switch_marker",
+      "breakpoints": true
     }
   ]
 }
