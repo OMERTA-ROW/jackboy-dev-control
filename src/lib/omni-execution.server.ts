@@ -1,3 +1,4 @@
+import { isIP } from "node:net";
 import { z } from "zod";
 import { hmacHex, safeEqual } from "./omni-link";
 import { LINK_CONTRACT, LINK_PATH, UUID, linkRequestUrl, verifyRequest } from "./omni-session";
@@ -234,8 +235,25 @@ export async function executorRequest(
   const url = new URL(origin);
   const internalOrigin = "http://omni-autonomous-executor.railway.internal:8080";
   const isInternalExecutor = origin === internalOrigin || origin === `${internalOrigin}/`;
+  const hostname = url.hostname;
+  const labels = hostname.split(".");
+  const isStagingExecutor =
+    !!process.env["OMNI_EXECUTOR_STAGING_ORIGIN"] &&
+    origin === process.env["OMNI_EXECUTOR_STAGING_ORIGIN"] &&
+    origin === url.origin &&
+    url.protocol === "https:" &&
+    !url.port &&
+    !isIP(hostname) &&
+    hostname.length <= 253 &&
+    labels.length >= 2 &&
+    labels.every(
+      (label) =>
+        label.length > 0 && label.length <= 63 && /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(label),
+    ) &&
+    !labels.includes("localhost");
   if (
     (!isInternalExecutor &&
+      !isStagingExecutor &&
       (url.protocol !== "https:" || !url.hostname.endsWith(".up.railway.app"))) ||
     url.username ||
     url.password ||
