@@ -340,6 +340,10 @@ Only this origin is allowed over HTTP: other hosts, ports, paths, credentials,
 queries and fragments are refused. Existing Railway HTTPS origins remain
 compatible; common public-origin validation is unchanged. Private networking
 does not replace signed authentication or authorize deployment or activation.
+Optionally, staging may set `OMNI_EXECUTOR_STAGING_ORIGIN` to one canonical
+HTTPS DNS origin without a port, path or trailing slash. It is accepted only
+when it exactly equals `OMNI_EXECUTOR_ORIGIN`; unset or empty changes nothing.
+This exception does not enable execution or authorize deployment.
 
 The Jackboy adapter expects `POST /omni-autonomous/v1` with
 `{"operation":"<fixed operation>","args":{...}}`, Unix-seconds

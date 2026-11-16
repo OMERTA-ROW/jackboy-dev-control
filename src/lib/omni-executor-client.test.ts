@@ -52,6 +52,7 @@ it.each([
   "http://omni-autonomous-executor.railway.internal:8080",
   "http://omni-autonomous-executor.railway.internal:8080/",
   origin,
+  "https://executor-fixture.up.railway.app:8443",
 ])(
   "accepts the scoped executor origin %s with unchanged signed transport",
   async (executorOrigin) => {
@@ -97,6 +98,75 @@ it.each([
   await expect(executorRequest("inspect", {})).rejects.toThrow("Executor must use");
   expect(fetch).not.toHaveBeenCalled();
 });
+
+const stagingOrigin = "https://executor-staging.example.com";
+
+it("accepts only the exactly configured staging origin", async () => {
+  const fetch = signedReply(200);
+  vi.stubGlobal("fetch", fetch);
+  vi.stubEnv("OMNI_EXECUTOR_ORIGIN", stagingOrigin);
+  vi.stubEnv("OMNI_EXECUTOR_STAGING_ORIGIN", stagingOrigin);
+  vi.stubEnv("OMNI_EXECUTOR_CONTROL_SECRET", secret);
+  vi.stubEnv("OMNI_SANDBOX_ORIGIN", "");
+  vi.stubEnv("OMNI_REMOTE_RUNNER_ORIGIN", "");
+  await expect(executorRequest("cancel", {})).resolves.toEqual({ cancelled: true });
+  expect(String(fetch.mock.calls[0]?.[0])).toBe(`${stagingOrigin}/omni-autonomous/v1`);
+});
+
+it.each([undefined, "", "https://other.example.com", "https://sub.executor-staging.example.com"])(
+  "rejects the staging origin when the configured exception is %s",
+  async (exception) => {
+    const fetch = signedReply(200);
+    vi.stubGlobal("fetch", fetch);
+    vi.stubEnv("OMNI_EXECUTOR_ORIGIN", stagingOrigin);
+    vi.stubEnv("OMNI_EXECUTOR_STAGING_ORIGIN", exception);
+    vi.stubEnv("OMNI_EXECUTOR_CONTROL_SECRET", secret);
+    await expect(executorRequest("inspect", {})).rejects.toThrow();
+    expect(fetch).not.toHaveBeenCalled();
+  },
+);
+
+it.each([
+  "http://executor-staging.example.com",
+  "https://executor-staging.example.com:8443",
+  "https://executor-staging.example.com:443",
+  "https://executor-staging.example.com/",
+  "https://executor-staging.example.com/path",
+  "https://executor-staging.example.com?query=1",
+  "https://executor-staging.example.com#fragment",
+  "https://user:password@executor-staging.example.com",
+  "https://127.0.0.1",
+  "https://127.1",
+  "https://[::1]",
+  "https://localhost",
+  "https://foo.localhost",
+  "https://*.example.com",
+  "https://invalid-.example.com",
+  "https://executor-staging.example.com.",
+  "not a url",
+])("rejects invalid staging exception even when both settings match: %s", async (candidate) => {
+  const fetch = signedReply(200);
+  vi.stubGlobal("fetch", fetch);
+  vi.stubEnv("OMNI_EXECUTOR_ORIGIN", candidate);
+  vi.stubEnv("OMNI_EXECUTOR_STAGING_ORIGIN", candidate);
+  vi.stubEnv("OMNI_EXECUTOR_CONTROL_SECRET", secret);
+  await expect(executorRequest("inspect", {})).rejects.toThrow();
+  expect(fetch).not.toHaveBeenCalled();
+});
+
+it.each(["OMNI_SANDBOX_ORIGIN", "OMNI_REMOTE_RUNNER_ORIGIN"])(
+  "rejects staging executor sharing %s",
+  async (legacySetting) => {
+    const fetch = signedReply(200);
+    vi.stubGlobal("fetch", fetch);
+    vi.stubEnv("OMNI_EXECUTOR_ORIGIN", stagingOrigin);
+    vi.stubEnv("OMNI_EXECUTOR_STAGING_ORIGIN", stagingOrigin);
+    vi.stubEnv("OMNI_EXECUTOR_CONTROL_SECRET", secret);
+    vi.stubEnv(legacySetting, stagingOrigin);
+    await expect(executorRequest("inspect", {})).rejects.toThrow("Executor must not share");
+    expect(fetch).not.toHaveBeenCalled();
+  },
+);
 
 it.each(["OMNI_SANDBOX_ORIGIN", "OMNI_REMOTE_RUNNER_ORIGIN"])(
   "rejects private executor sharing %s",
