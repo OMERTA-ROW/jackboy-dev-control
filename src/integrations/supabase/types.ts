@@ -2457,6 +2457,36 @@ export type Database = {
           },
         ]
       }
+      omni_handshake_requests: {
+        Row: {
+          approval_expires_at: string
+          approval_id: string
+          client_id: string
+          expires_at: string
+          handshake_id: string
+          project_id: string
+          token_hash: string
+        }
+        Insert: {
+          approval_expires_at: string
+          approval_id: string
+          client_id: string
+          expires_at: string
+          handshake_id: string
+          project_id: string
+          token_hash: string
+        }
+        Update: {
+          approval_expires_at?: string
+          approval_id?: string
+          client_id?: string
+          expires_at?: string
+          handshake_id?: string
+          project_id?: string
+          token_hash?: string
+        }
+        Relationships: []
+      }
       omni_inbound_jobs: {
         Row: {
           approval_id: string
@@ -4340,6 +4370,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      omni_link_idempotent_handshake: { Args: { _a: Json }; Returns: Json }
       omni_link_live: { Args: never; Returns: boolean }
       omni_project_authorization_action: {
         Args: {

@@ -41,7 +41,7 @@ await db.exec(
 for (const migration of [
   "0071_omni_link_denial_reasons.sql",
   "0072_omni_execution_nonce_replay_window.sql",
-  "0073_omni_idempotent_handshake.sql",
+  "0077_omni_idempotent_handshake_forward.sql",
 ]) await db.exec(await readFile(join(root, "drizzle/migrations", migration), "utf8"));
 const project = "11111111-1111-4111-8111-111111111111",
   owner = "22222222-2222-4222-8222-222222222222",
