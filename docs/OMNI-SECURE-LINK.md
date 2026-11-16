@@ -258,6 +258,16 @@ Step 9 persists an authorized connection and verifies the signed safety reply.
 Step 10 checks CODE gateway/workflow identity/spending and live executor
 configuration, and requires a fresh recorded executor verification. It configures
 only: CODE remains off, OMNI remains disarmed and Emergency Stop stays unchanged.
+A Step 9 `connect` clears any earlier verification, so Mothership must call `verify`
+after Step 9 and less than 15 minutes before Step 10. Without it Step 10 is refused with a
+signed 409 `executor_verification_required` (previously a generic 503
+`execution_control_unavailable`). Other signed refusal reasons on this path:
+`code_configuration_not_ready` (409), `owner_authorization_required` (403),
+`connection_not_authorized` (409), `spend_enforcement_unverified` (409),
+`execution_blocked` (409); malformed requests get an unsigned 400 `invalid_request`.
+Failures that remain 503 carry a `stage` field (`nonce`, `approval`, `executor`,
+`verification`, `authority`, `cancellation`); the audit row stores the stage and a short
+redacted error.
 Arming is an independent owner action after the reviewed release and all existing
 CODE enable/passkey gates. Approval never queues or starts a plan.
 

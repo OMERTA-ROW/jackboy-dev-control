@@ -428,7 +428,9 @@ export async function assertCodeConfigurationReady() {
     input.spendMeter?.ok !== true ||
     input.totalSpendGuard?.enforced !== true
   ) {
-    throw new Error("CODE gateway, workflow identity or spending enforcement is not ready");
+    // Shared with the Step 10 classifier so an unmet gate is reported as not-ready, not an outage.
+    const { CODE_NOT_READY_MESSAGE } = await import("./omni-execution-refusal");
+    throw new Error(CODE_NOT_READY_MESSAGE);
   }
 }
 
