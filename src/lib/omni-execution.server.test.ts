@@ -157,6 +157,28 @@ it("authentication failures name the failing check only while the debug flag is 
   });
   expect(await result.json()).toEqual({ error: "authentication_failed", reason: "token_mismatch" });
 });
+it("503 names its stage and masks long tokens only while the debug flag is on", async () => {
+  const failing = async (flag: boolean) => {
+    const deps = dependencies();
+    return handleExecutionControl(await request("disarm", "mothership"), {
+      ...deps,
+      env: flag ? { ...env, OMNI_AUTH_REASON_DEBUG: "true" } : env,
+      store: vi.fn(async () => {
+        throw new Error(`Execution authority refused ${"A".repeat(40)}`);
+      }),
+    });
+  };
+  const off = await failing(false);
+  expect([off.status, await off.json()]).toEqual([503, { error: "execution_control_unavailable" }]);
+  const on = await failing(true);
+  expect([on.status, await on.json()]).toEqual([
+    503,
+    {
+      error: "execution_control_unavailable",
+      reason: "store: Execution authority refused [masked]",
+    },
+  ]);
+});
 it("runner failure or unreviewed release does not persist configuration", async () => {
   const deps = dependencies();
   deps.inspect.mockRejectedValueOnce(new Error("fixture credentials must never be returned"));

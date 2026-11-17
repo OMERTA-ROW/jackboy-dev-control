@@ -88,6 +88,7 @@ export async function handleExecutionControl(
   const env = dependencies.env ?? process.env;
   const plain = (status: number, error: string) =>
     Response.json({ error }, { status, headers: { "Cache-Control": "no-store" } });
+  let stage = "request";
   try {
     const url = linkRequestUrl(request, env);
     if (!url || url.pathname !== LINK_PATH || request.method !== "POST" || url.search)
@@ -144,7 +145,9 @@ export async function handleExecutionControl(
       ["claim", "permission", "finish"].includes(input.operation)
     )
       return plain(403, "project_or_action_denied");
+    stage = "nonce";
     await (dependencies.nonce ?? claimNonce)(client, request.headers.get("x-omni-nonce")!);
+    stage = "approval";
     const approval = dependencies.approval ?? (await loadEffectiveApproval(env));
     if (!UUID.test(approval.approvalId)) return plain(403, "approval_unavailable");
     const approvalExpiry = Date.parse(approval.expiresAt);
@@ -174,18 +177,21 @@ export async function handleExecutionControl(
     )
       return plain(403, "approval_expired");
     if (input.operation === "verify") {
+      stage = "verify";
       const verification = await (dependencies.verify ?? verifyExecutor)();
       args = { release: verification.release, passed: verification.passed };
     }
     if (input.operation === "arm" && input.args.release !== env["OMNI_AUTONOMY_REVIEWED_RELEASE"])
       return plain(403, "release_unreviewed");
     if (input.operation === "configure") {
+      stage = "readiness";
       await (
         dependencies.readiness ??
         (async () => (await import("./code-safety.functions")).assertCodeConfigurationReady())
       )();
     }
     if (input.operation === "configure" || input.operation === "arm") {
+      stage = "inspect";
       const executor = await (dependencies.inspect ?? inspectExecutor)();
       if (
         executor.release !== env["OMNI_AUTONOMY_REVIEWED_RELEASE"] ||
@@ -195,6 +201,7 @@ export async function handleExecutionControl(
         return plain(403, "release_unreviewed");
       args = { ...args, release: executor.release };
     }
+    stage = "store";
     const state = await (dependencies.store ?? store)(
       owner,
       input.projectId,
@@ -202,6 +209,7 @@ export async function handleExecutionControl(
       input.operation,
       { ...args, clientId: client },
     );
+    stage = "respond";
     if (["disarm", "unconfigure", "revoke"].includes(input.operation)) {
       const cancellation = await (dependencies.cancel ?? deliverOmniCancellations)();
       if (cancellation.unavailable) return plain(503, "cancellation_unverified");
@@ -237,8 +245,18 @@ export async function handleExecutionControl(
         },
       });
     }
-  } catch {
-    return plain(503, "execution_control_unavailable");
+  } catch (error) {
+    // Only while OMNI_AUTH_REASON_DEBUG is "true": name the stage and error text, with any long
+    // token-like run masked. Off by default; the default response is unchanged.
+    if (env["OMNI_AUTH_REASON_DEBUG"] !== "true")
+      return plain(503, "execution_control_unavailable");
+    const text = (error instanceof Error ? error.message : "non-error thrown")
+      .replace(/[A-Za-z0-9_-]{24,}/g, "[masked]")
+      .slice(0, 160);
+    return Response.json(
+      { error: "execution_control_unavailable", reason: `${stage}: ${text}` },
+      { status: 503, headers: { "Cache-Control": "no-store" } },
+    );
   }
 }
 
