@@ -106,17 +106,34 @@ export async function handleExecutionControl(
         : env["OMNI_LINK_BOOTSTRAP_KEY"];
     const client = env["OMNI_LINK_CLIENT_ID"] ?? "";
     const owner = env["OMNI_LINK_OWNER_ID"] ?? "";
-    if (
-      !secret ||
-      secret.length < 32 ||
-      !expectedToken ||
-      !UUID.test(owner) ||
-      request.headers.get("x-omni-client") !== client ||
-      input.projectId !== env["OMNI_LINK_PROJECT_ID"] ||
-      !safeEqual(token, expectedToken) ||
-      !(await verifyRequest(secret, token, request.headers, raw))
-    )
-      return plain(401, "authentication_failed");
+    // Same checks, same order, same short-circuit as before; only the name of the first failing
+    // check is kept so an operator can diagnose it. It carries no values.
+    const failure =
+      !secret || secret.length < 32
+        ? "secret_missing_or_short"
+        : !expectedToken
+          ? "token_not_configured"
+          : !UUID.test(owner)
+            ? "owner_id_invalid"
+            : request.headers.get("x-omni-client") !== client
+              ? "client_mismatch"
+              : input.projectId !== env["OMNI_LINK_PROJECT_ID"]
+                ? "project_mismatch"
+                : !safeEqual(token, expectedToken)
+                  ? "token_mismatch"
+                  : !(await verifyRequest(secret, token, request.headers, raw))
+                    ? "signature_mismatch"
+                    : null;
+    if (failure) {
+      // The reason is returned only while OMNI_AUTH_REASON_DEBUG is "true"; it is off by default.
+      return env["OMNI_AUTH_REASON_DEBUG"] === "true"
+        ? Response.json(
+            { error: "authentication_failed", reason: failure },
+            { status: 401, headers: { "Cache-Control": "no-store" } },
+          )
+        : plain(401, "authentication_failed");
+    }
+    if (!secret) return plain(401, "authentication_failed"); // unreachable; narrows the type
     if (
       input.audience === "executor" &&
       !["claim", "permission", "finish"].includes(input.operation)

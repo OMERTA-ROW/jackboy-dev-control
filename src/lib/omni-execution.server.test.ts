@@ -132,6 +132,31 @@ it("executor credentials cannot change controls and Mothership cannot claim exec
   expect((await handleExecutionControl(await request("claim"), deps)).status).toBe(403);
   expect(deps.store).not.toHaveBeenCalled();
 });
+it("authentication failures name the failing check only while the debug flag is on", async () => {
+  const wrongClient = async (flag: boolean) => {
+    const req = await request("verify", "executor");
+    req.headers.set("X-Omni-Client", "other");
+    const deps = dependencies();
+    return handleExecutionControl(req, {
+      ...deps,
+      env: flag ? { ...env, OMNI_AUTH_REASON_DEBUG: "true" } : env,
+    });
+  };
+  const off = await wrongClient(false);
+  expect([off.status, await off.json()]).toEqual([401, { error: "authentication_failed" }]);
+  const on = await wrongClient(true);
+  expect([on.status, await on.json()]).toEqual([
+    401,
+    { error: "authentication_failed", reason: "client_mismatch" },
+  ]);
+  const badToken = await request("verify", "executor");
+  badToken.headers.set("Authorization", `Bearer ${"x".repeat(32)}`);
+  const result = await handleExecutionControl(badToken, {
+    ...dependencies(),
+    env: { ...env, OMNI_AUTH_REASON_DEBUG: "true" },
+  });
+  expect(await result.json()).toEqual({ error: "authentication_failed", reason: "token_mismatch" });
+});
 it("runner failure or unreviewed release does not persist configuration", async () => {
   const deps = dependencies();
   deps.inspect.mockRejectedValueOnce(new Error("fixture credentials must never be returned"));
