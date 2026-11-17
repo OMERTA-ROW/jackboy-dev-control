@@ -15,7 +15,7 @@ env:
   OMNI_REPOSITORY: OMERTA-ROW/Omni
   OMNI_REF: a129adf2379514d0802e9ac8d8faba3784429129
   MOTHERSHIP_REPOSITORY: OMERTA-ROW/orbiting-minds-mothership
-  MOTHERSHIP_REF: ee2964f907753bad74c250dc73aeaa45422b0819
+  MOTHERSHIP_REF: bfd639cae06f66e9b7524584a3d424e9fb9a7dc7
 jobs:
   acceptance:
     runs-on: ubuntu-latest
