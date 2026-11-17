@@ -286,7 +286,7 @@ Blocked. Mothership's separate manual diagnostics retain their own policy; Jackb
 Stop does not release or rewrite any manual sandbox gate.
 
 The new service lives at Mothership `services/omni-autonomous/`, contract
-`omni.autonomous/v1`, release `omni-bounded-plan-1`, default disabled. It supports
+`omni.autonomous/v1`, release `omni-bounded-plan-2`, default disabled. It supports
 only bounded preauthorized argv plans, not model-driven agents, repositories,
 network, provider calls, deployment or shell expansion. Paid-provider cost is zero
 because provider calls are unsupported; infrastructure cost is not measured.
