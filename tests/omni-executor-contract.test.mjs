@@ -19,7 +19,7 @@ test(
       assert.fail("Contract validation must not create workspaces, permissions or subprocesses");
     };
     const executor = createExecutor(
-      { enabled: false, controlSecret, reviewedRelease: "omni-bounded-plan-1" },
+      { enabled: false, controlSecret, reviewedRelease: "omni-bounded-plan-2" },
       { run: prohibited, permission: prohibited, workspace: prohibited },
     );
     const originalFetch = globalThis.fetch;
@@ -30,9 +30,9 @@ test(
     };
     try {
       assert.deepEqual(await signedExecutorRequest(origin, controlSecret, "inspect", {}), {
-        release: "omni-bounded-plan-1",
+        release: "omni-bounded-plan-2",
         enabled: false,
-        reviewedRelease: "omni-bounded-plan-1",
+        reviewedRelease: "omni-bounded-plan-2",
       });
       assert.equal((await executor.handle(lastRequest.clone())).status, 409);
       const bad = lastRequest.clone();

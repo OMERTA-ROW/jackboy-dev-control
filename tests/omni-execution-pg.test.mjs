@@ -121,18 +121,18 @@ const connect = (db) =>
   });
 async function authorized(db, ttlMs = 50_000) {
   await connect(db);
-  await control(db, "verify", { passed: true, release: "omni-bounded-plan-1" });
-  await control(db, "configure", { release: "omni-bounded-plan-1" });
+  await control(db, "verify", { passed: true, release: "omni-bounded-plan-2" });
+  await control(db, "configure", { release: "omni-bounded-plan-2" });
   await setActivatedControls(
     db,
     "UPDATE public.code_runtime_controls SET enabled=true,kill_switch=false",
   );
-  await control(db, "arm", { release: "omni-bounded-plan-1" });
+  await control(db, "arm", { release: "omni-bounded-plan-2" });
   const args = {
     jobId: randomUUID(),
     planSha256: "a".repeat(64),
     expiresAt: new Date(Date.now() + ttlMs).toISOString(),
-    release: "omni-bounded-plan-1",
+    release: "omni-bounded-plan-2",
   };
   await control(db, "authorize", args);
   await control(db, "permit", { ...args, estimateUsd: 0.01 });
@@ -227,9 +227,9 @@ test(
       };
       await control(db, "connect", args);
       await control(db, "connect", args);
-      await assert.rejects(control(db, "configure", { release: "omni-bounded-plan-1" }));
-      await control(db, "verify", { passed: true, release: "omni-bounded-plan-1" });
-      const state = await control(db, "configure", { release: "omni-bounded-plan-1" });
+      await assert.rejects(control(db, "configure", { release: "omni-bounded-plan-2" }));
+      await control(db, "verify", { passed: true, release: "omni-bounded-plan-2" });
+      const state = await control(db, "configure", { release: "omni-bounded-plan-2" });
       assert.equal(state.connected, true);
       assert.equal(state.configured, true);
       assert.equal(state.armed, false);
@@ -238,7 +238,7 @@ test(
         (await db.query("SELECT enabled FROM public.code_runtime_controls")).rows[0].enabled,
         false,
       );
-      await assert.rejects(control(db, "arm", { release: "omni-bounded-plan-1" }));
+      await assert.rejects(control(db, "arm", { release: "omni-bounded-plan-2" }));
       await assert.rejects(
         db.exec(
           "SET ROLE authenticated; SELECT public.omni_execution_control(NULL,NULL,NULL,'safety','{}');",
@@ -326,7 +326,7 @@ test(
         first.jobId,
         first.planSha256,
       ]);
-      await control(db, "arm", { release: "omni-bounded-plan-1" });
+      await control(db, "arm", { release: "omni-bounded-plan-2" });
       const results = await Promise.allSettled([
         control(db, "authorize", { ...first, jobId: randomUUID() }),
         control(db, "authorize", { ...first, jobId: randomUUID() }),
@@ -335,7 +335,7 @@ test(
       await db.exec(
         "UPDATE public.omni_execution_connections SET verified_at=now()-interval '16 minutes',armed=false",
       );
-      await assert.rejects(control(db, "arm", { release: "omni-bounded-plan-1" }));
+      await assert.rejects(control(db, "arm", { release: "omni-bounded-plan-2" }));
     } finally {
       await db.close();
     }
@@ -561,7 +561,7 @@ test(
       assert.equal((await control(db, "safety")).cancellationPending, true);
       await assert.rejects(control(db, "lease", args), /owner authorization/);
       await assert.rejects(
-        control(db, "configure", { release: "omni-bounded-plan-1" }),
+        control(db, "configure", { release: "omni-bounded-plan-2" }),
         /owner authorization/,
       );
       await assert.rejects(control(db, "permit", { ...args, estimateUsd: 0.01 }));

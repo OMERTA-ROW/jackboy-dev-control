@@ -276,7 +276,7 @@ export async function executorRequest(
 async function inspectExecutor() {
   return z
     .object({
-      release: z.literal("omni-bounded-plan-1"),
+      release: z.literal("omni-bounded-plan-2"),
       enabled: z.boolean(),
       reviewedRelease: z.string().nullable(),
     })

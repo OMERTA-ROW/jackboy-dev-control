@@ -27,7 +27,7 @@ const env = {
   OMNI_LINK_BOOTSTRAP_KEY: "b".repeat(32),
   OMNI_EXECUTOR_PERMISSION_SECRET: "p".repeat(32),
   OMNI_EXECUTOR_PERMISSION_TOKEN: "t".repeat(32),
-  OMNI_AUTONOMY_REVIEWED_RELEASE: "omni-bounded-plan-1",
+  OMNI_AUTONOMY_REVIEWED_RELEASE: "omni-bounded-plan-2",
 };
 const approval = {
   approvalId: "33333333-3333-4333-8333-333333333333",
@@ -75,11 +75,11 @@ function dependencies() {
     })),
     readiness: vi.fn(async () => {}),
     inspect: vi.fn(async () => ({
-      release: "omni-bounded-plan-1",
+      release: "omni-bounded-plan-2",
       enabled: false,
-      reviewedRelease: "omni-bounded-plan-1",
+      reviewedRelease: "omni-bounded-plan-2",
     })),
-    verify: vi.fn(async () => ({ passed: true, release: "omni-bounded-plan-1" })),
+    verify: vi.fn(async () => ({ passed: true, release: "omni-bounded-plan-2" })),
     cancel: vi.fn(async () => ({ pending: 0, unavailable: 0 })),
   };
 }
@@ -95,7 +95,7 @@ it("Step 10 inspects the signed runner configuration but starts nothing", async 
     project,
     approval.approvalId,
     "configure",
-    { release: "omni-bounded-plan-1", clientId: "fixture" },
+    { release: "omni-bounded-plan-2", clientId: "fixture" },
   );
   expect(response.headers.get("X-Omni-Proof")).toMatch(/^[a-f0-9]{64}$/);
 });
