@@ -133,6 +133,7 @@ export async function handleExecutionControl(
           )
         : plain(401, "authentication_failed");
     }
+    if (!secret) return plain(401, "authentication_failed"); // unreachable; narrows the type
     if (
       input.audience === "executor" &&
       !["claim", "permission", "finish"].includes(input.operation)
