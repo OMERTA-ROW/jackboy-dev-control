@@ -1,7 +1,9 @@
 // Phone alerts runtime: finds what's waiting from real records, queues deduplicated alerts and sends them as
 // push notifications through Firebase Cloud Messaging (connector gateway). Rules live in owner-alerts.ts.
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { DEFAULT_ALERT_SETTINGS, MAX_SEND_ATTEMPTS, draftAlert, localDate, reminderFor, retryable, sendDecision, tokenIsDead, type AlertDraft, type AlertKind, type AlertSettings } from "./owner-alerts";
+import { DEFAULT_ALERT_SETTINGS, MAX_SEND_ATTEMPTS, draftAlert, localDate, reminderFor, resolvedAlertIds, retryable, sendDecision, tokenIsDead, type AlertDraft, type AlertKind, type AlertSettings } from "./owner-alerts";
+import { approvalCardLink } from "./action-approval";
+import { CODE_ACTION } from "./code";
 import { untyped } from "./untyped-db";
 
 const db = () => untyped(supabaseAdmin);
@@ -39,9 +41,19 @@ export async function waitingItems(): Promise<{ drafts: AlertDraft[]; complete: 
   let complete = true;
   try {
     const scan = await (await import("./code.server")).codeWaitingScan();
-    for (const p of scan.pending) drafts.push(draftAlert("passkey_needed", `code:${p.id}`, `CODE request waiting for your OK`, `${p.repo}: a CODE request is waiting for Allow or Deny in Jackboy.`, "/chat"));
-    for (const g of scan.githubWaiting) drafts.push(draftAlert("github_approval", `code:${g.id}`, `CODE run waiting for GitHub approval`, `${g.repo}: the run is paused until you approve it in GitHub.`, "/chat"));
-    for (const p of scan.prReady) drafts.push(draftAlert("pr_ready", `code:${p.id}`, `Draft PR ready to review`, `${p.repo}: a CODE run finished and its draft PR is ready.`, "/chat"));
+    // Each CODE alert opens that exact card (relative path with the request id only); the page itself never decides.
+    for (const p of scan.pending) drafts.push(draftAlert("passkey_needed", `code:${p.id}`, `CODE request waiting for your OK`, `${p.repo}: a CODE request is waiting for Allow or Deny in Jackboy.`, approvalCardLink(p.id)));
+    for (const g of scan.githubWaiting) drafts.push(draftAlert("github_approval", `code:${g.id}`, `CODE run waiting for GitHub approval`, `${g.repo}: the run is paused until you approve it in GitHub.`, approvalCardLink(g.id)));
+    for (const p of scan.prReady) drafts.push(draftAlert("pr_ready", `code:${p.id}`, `Draft PR ready to review`, `${p.repo}: a CODE run finished and its draft PR is ready.`, approvalCardLink(p.id)));
+  } catch { complete = false; }
+  try {
+    // Other approval cards (Code Foundry actions) that are still open.
+    const { data, error } = await supabaseAdmin.from("action_requests").select("id, action, resources").eq("status", "pending").neq("action", CODE_ACTION).gt("expires_at", new Date().toISOString()).limit(10);
+    if (error) throw error;
+    for (const r of data ?? []) {
+      const repo = (r.resources as { repo?: unknown } | null)?.repo;
+      drafts.push(draftAlert("passkey_needed", `action:${r.id}`, "Approval card waiting for you", `${typeof repo === "string" ? `${repo}: ` : ""}${r.action.replace(/_/g, " ")} is waiting for Allow or Deny.`, approvalCardLink(r.id)));
+    }
   } catch { complete = false; }
   try {
     const { data, error } = await supabaseAdmin.from("task_steps").select("id, why, tool").eq("status", "waiting").limit(10);
@@ -74,7 +86,15 @@ export async function collectAlerts() {
     .map((a) => reminderFor({ dedupeKey: a.dedupe_key, kind: a.kind, title: a.title, body: a.body, link: a.link, sentAt: a.sent_at, reminder: a.reminder }, waitingKeys.has(a.dedupe_key)))
     .filter((a): a is AlertDraft => a !== null);
   queued += await enqueueAlerts(reminders);
-  return { queued, complete };
+  // Decided/expired items: drop their still-unsent "waiting" alerts so nothing stale or a reminder goes out.
+  let resolved = 0;
+  const { data: unsent } = await db().from("owner_alert_outbox").select("id, dedupe_key, kind").eq("status", "pending").in("kind", ["passkey_needed", "github_approval"]).limit(100);
+  const ids = resolvedAlertIds(((unsent ?? []) as { id: string; dedupe_key: string; kind: AlertKind }[]).map((a) => ({ id: a.id, dedupeKey: a.dedupe_key, kind: a.kind })), waitingKeys, complete);
+  if (ids.length) {
+    const { data: done } = await db().from("owner_alert_outbox").update({ status: "skipped", last_error: "Resolved before sending: no longer waiting for you." }).in("id", ids).eq("status", "pending").select("id");
+    resolved = (done ?? []).length;
+  }
+  return { queued, resolved, complete };
 }
 
 type Device = { id: string; token: string };

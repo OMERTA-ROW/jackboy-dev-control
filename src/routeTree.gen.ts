@@ -53,6 +53,7 @@ import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as ApiCodeRouteImport } from './routes/api/code'
 import { Route as ApiSafetyStatusRouteImport } from './routes/api/safety-status'
 import { Route as ApiTranscribeRouteImport } from './routes/api/transcribe'
+import { Route as AuthenticatedApprovalsRequestIdRouteImport } from './routes/_authenticated/approvals.$requestId'
 import { Route as AuthenticatedChatIndexRouteImport } from './routes/_authenticated/chat.index'
 import { Route as AuthenticatedChatThreadIdRouteImport } from './routes/_authenticated/chat.$threadId'
 import { Route as AuthenticatedPassportAgentIdRouteImport } from './routes/_authenticated/passport.$agentId'
@@ -306,6 +307,12 @@ const ApiTranscribeRoute = ApiTranscribeRouteImport.update({
   path: '/api/transcribe',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedApprovalsRequestIdRoute =
+  AuthenticatedApprovalsRequestIdRouteImport.update({
+    id: '/approvals/$requestId',
+    path: '/approvals/$requestId',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedChatIndexRoute = AuthenticatedChatIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -505,6 +512,7 @@ export interface FileRoutesByFullPath {
   '/api/code': typeof ApiCodeRoute
   '/api/safety-status': typeof ApiSafetyStatusRoute
   '/api/transcribe': typeof ApiTranscribeRoute
+  '/approvals/$requestId': typeof AuthenticatedApprovalsRequestIdRoute
   '/chat/$threadId': typeof AuthenticatedChatThreadIdRoute
   '/passport/$agentId': typeof AuthenticatedPassportAgentIdRoute
   '/project/$id': typeof AuthenticatedProjectIdRoute
@@ -578,6 +586,7 @@ export interface FileRoutesByTo {
   '/api/safety-status': typeof ApiSafetyStatusRoute
   '/api/transcribe': typeof ApiTranscribeRoute
   '/': typeof AuthenticatedIndexRoute
+  '/approvals/$requestId': typeof AuthenticatedApprovalsRequestIdRoute
   '/chat/$threadId': typeof AuthenticatedChatThreadIdRoute
   '/passport/$agentId': typeof AuthenticatedPassportAgentIdRoute
   '/project/$id': typeof AuthenticatedProjectIdRoute
@@ -654,6 +663,7 @@ export interface FileRoutesById {
   '/api/safety-status': typeof ApiSafetyStatusRoute
   '/api/transcribe': typeof ApiTranscribeRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
+  '/_authenticated/approvals/$requestId': typeof AuthenticatedApprovalsRequestIdRoute
   '/_authenticated/chat/$threadId': typeof AuthenticatedChatThreadIdRoute
   '/_authenticated/passport/$agentId': typeof AuthenticatedPassportAgentIdRoute
   '/_authenticated/project/$id': typeof AuthenticatedProjectIdRoute
@@ -730,6 +740,7 @@ export interface FileRouteTypes {
     | '/api/code'
     | '/api/safety-status'
     | '/api/transcribe'
+    | '/approvals/$requestId'
     | '/chat/$threadId'
     | '/passport/$agentId'
     | '/project/$id'
@@ -803,6 +814,7 @@ export interface FileRouteTypes {
     | '/api/safety-status'
     | '/api/transcribe'
     | '/'
+    | '/approvals/$requestId'
     | '/chat/$threadId'
     | '/passport/$agentId'
     | '/project/$id'
@@ -878,6 +890,7 @@ export interface FileRouteTypes {
     | '/api/safety-status'
     | '/api/transcribe'
     | '/_authenticated/'
+    | '/_authenticated/approvals/$requestId'
     | '/_authenticated/chat/$threadId'
     | '/_authenticated/passport/$agentId'
     | '/_authenticated/project/$id'
@@ -1257,6 +1270,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiTranscribeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/approvals/$requestId': {
+      id: '/_authenticated/approvals/$requestId'
+      path: '/approvals/$requestId'
+      fullPath: '/approvals/$requestId'
+      preLoaderRoute: typeof AuthenticatedApprovalsRequestIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/chat/': {
       id: '/_authenticated/chat/'
       path: '/'
@@ -1511,6 +1531,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedUpdatesRoute: typeof AuthenticatedUpdatesRoute
   AuthenticatedWorkspaceRoute: typeof AuthenticatedWorkspaceRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
+  AuthenticatedApprovalsRequestIdRoute: typeof AuthenticatedApprovalsRequestIdRoute
   AuthenticatedPassportAgentIdRoute: typeof AuthenticatedPassportAgentIdRoute
   AuthenticatedProjectIdRoute: typeof AuthenticatedProjectIdRoute
 }
@@ -1550,6 +1571,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedUpdatesRoute: AuthenticatedUpdatesRoute,
   AuthenticatedWorkspaceRoute: AuthenticatedWorkspaceRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
+  AuthenticatedApprovalsRequestIdRoute: AuthenticatedApprovalsRequestIdRoute,
   AuthenticatedPassportAgentIdRoute: AuthenticatedPassportAgentIdRoute,
   AuthenticatedProjectIdRoute: AuthenticatedProjectIdRoute,
 }
