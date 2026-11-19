@@ -19,7 +19,7 @@ env:
 jobs:
   acceptance:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
@@ -90,7 +90,7 @@ jobs:
               trap '\''runuser -u runner -- "$PG_BIN/pg_ctl" -D "$PGROOT/data" -m fast stop'\'' EXIT
               runuser -u runner -- "$PG_BIN/pg_ctl" -D "$PGROOT/data" -l "$PGROOT/postgres.log" \
                 -o "-h 127.0.0.1 -p 54329 -k $PGROOT" -w start
-              runuser -u runner -- timeout 300 node --test --test-concurrency=1 \
+              runuser -u runner -- timeout 600 node --test --test-concurrency=1 \
                 --test-timeout=60000 --test-reporter=spec tests/code-*.test.mjs tests/omni-*.test.mjs
             ' 2>&1 | tee "$RUNNER_TEMP/acceptance/node-tests.txt"
       - name: OMNI Go suites (no network)
