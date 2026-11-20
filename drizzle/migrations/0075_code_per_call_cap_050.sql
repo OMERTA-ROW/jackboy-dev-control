@@ -1,15 +1,8 @@
--- STAGED ONLY — NOT APPLIED. Needs the owner's explicit approval before it becomes a forward
--- migration (next free number after the newest applied history row) and is installed.
---
--- Purpose: enforce the owner's $0.50 per-call limit inside the database, not only in the app.
--- Today admit_code_provider_call checks a call only against the task reservation ($1.00), so the
--- database would admit a single $0.51–$1.00 call if the app setting were ever raised.
---
--- This is the live production definition (read 2026-11-20) byte-for-byte except ONE added line:
+-- Owner-approved forward migration (Nov 20, 2026): enforce the $0.50 per-call CODE limit in the
+-- database. Live admit_code_provider_call (read 2026-11-20) byte-for-byte except ONE added line:
 --   OR p_ceiling_usd > 0.50
--- Owner, ACL (postgres, service_role EXECUTE only), SECURITY DEFINER and empty search_path are
--- unchanged. It does not touch any table, row, grant, setting, switch, Stop or permit.
-BEGIN;
+-- Owner, ACL (postgres + service_role EXECUTE only), SECURITY DEFINER and empty search_path are
+-- unchanged. No table, row, grant, setting, switch, Stop or permit is touched.
 CREATE OR REPLACE FUNCTION public.admit_code_provider_call(p_request_id uuid, p_run_id bigint, p_call_key text, p_model text, p_ceiling_usd numeric)
  RETURNS uuid
  LANGUAGE plpgsql
@@ -54,10 +47,15 @@ BEGIN
       'ceiling_usd',p_ceiling_usd),'admitted');
   RETURN call_id;
 END $function$;
+
 DO $check$
+DECLARE f oid := 'public.admit_code_provider_call(uuid,bigint,text,text,numeric)'::regprocedure;
 BEGIN
-  IF position('p_ceiling_usd > 0.50' IN (SELECT prosrc FROM pg_proc
-      WHERE oid = 'public.admit_code_provider_call(uuid,bigint,text,text,numeric)'::regprocedure)) = 0
+  IF position('p_ceiling_usd > 0.50' IN (SELECT prosrc FROM pg_proc WHERE oid = f)) = 0
   THEN RAISE EXCEPTION 'per-call $0.50 check is not installed'; END IF;
+  IF NOT (SELECT prosecdef FROM pg_proc WHERE oid = f)
+     OR has_function_privilege('authenticated', f, 'EXECUTE')
+     OR has_function_privilege('anon', f, 'EXECUTE')
+     OR NOT has_function_privilege('service_role', f, 'EXECUTE')
+  THEN RAISE EXCEPTION 'admit_code_provider_call security attributes changed'; END IF;
 END $check$;
-COMMIT;

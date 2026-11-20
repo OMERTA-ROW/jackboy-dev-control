@@ -18,3 +18,8 @@ SHA-256:
 f9385580c8fc6cd8bb532ce36dade9b65160cbdcb5f850e53950ee1d7debfdca  0075_code_kill_switch_marker_check.sql
 6953533f98d0bc610c0fa2266e7e6beaa2b4940f347b1d1754ddd025b9eff09a  0076_omni_stop_trigger_where_armed.sql
 45181a3ad9278d0d447cf9c3ad5a3125eae62695c8aaafbf420f3b3a35e092de  0077_omni_idempotent_handshake_forward.sql
+
+Note (Nov 20, 2026): the migration tool numbers new files from this folder's journal, so the next
+owner-approved change was recorded as `drizzle/migrations/0075_code_per_call_cap_050.sql` (live history
+row 84, newer than every row above). It shares only the number prefix with the live 0075 kept here;
+their contents and timestamps differ, and neither replays the other.
