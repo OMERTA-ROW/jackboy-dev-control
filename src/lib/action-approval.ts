@@ -35,3 +35,32 @@ export function coveredByTask(prior: { task_id: string | null; mode: string | nu
   return tier !== "critical" && prior.some((p) => p.task_id === taskId && p.mode === "task" && p.status === "allowed");
 }
 
+
+const REQUEST_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export function isRequestId(id: unknown): id is string {
+  return typeof id === "string" && REQUEST_ID.test(id);
+}
+/** Deep link to one approval card: a relative path holding only the request id — never a nonce, token or secret.
+ * Anything that isn't a plain request id falls back to the general Approvals page. */
+export function approvalCardLink(id: string): string {
+  return isRequestId(id) ? `/approvals/${id.toLowerCase()}` : "/updates";
+}
+
+export type CardRow = { status: string; expires_at: string; requested_by: string | null };
+export type CardView =
+  | { state: "invalid" }
+  | { state: "expired" }
+  | { state: "decided"; status: string }
+  | { state: "pending"; decideBlocked: string | null };
+/** What a deep link may show. Unknown cards and other accounts' cards look identical ("invalid").
+ * Viewing never decides anything; a pending card can be decided only through its existing decision path,
+ * and the Kill Switch (on or unreadable) keeps the decision buttons blocked. */
+export function approvalCardView(r: CardRow | null, userId: string, killSwitchReason: string | null, now = Date.now()): CardView {
+  if (!r || !userId || !r.requested_by || r.requested_by !== userId) return { state: "invalid" };
+  if (r.status === "pending" || r.status === "expired") {
+    const expires = Date.parse(r.expires_at);
+    if (r.status === "expired" || !Number.isFinite(expires) || expires <= now) return { state: "expired" };
+    return { state: "pending", decideBlocked: killSwitchReason };
+  }
+  return { state: "decided", status: r.status };
+}

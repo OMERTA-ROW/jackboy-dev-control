@@ -80,3 +80,12 @@ export function tokenIsDead(status: number, body: string): boolean {
 export function retryable(status: number): boolean {
   return status === 429 || status >= 500;
 }
+
+/** "Waiting for you" alerts still queued (not yet sent) whose item was decided, expired or vanished are resolved
+ * instead of being sent. Only when every source was read, so a read failure never drops a real alert. */
+export function resolvedAlertIds(queued: { id: string; dedupeKey: string; kind: AlertKind }[], waitingKeys: ReadonlySet<string>, complete: boolean): string[] {
+  if (!complete) return [];
+  return queued
+    .filter((a) => REMINDER_KINDS.includes(a.kind) && !waitingKeys.has(a.dedupeKey.replace(/:reminder$/, "")))
+    .map((a) => a.id);
+}

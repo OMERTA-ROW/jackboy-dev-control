@@ -4,6 +4,14 @@ import { hmacHex, safeEqual } from "./omni-link";
 import { LINK_CONTRACT, LINK_PATH, UUID, linkRequestUrl, verifyRequest } from "./omni-session";
 import { boundedBody, loadEffectiveApproval } from "./omni-session.server";
 import { omniFailureStopReason, type FailureHistory } from "./omni-failure-stop";
+import {
+  classifyAuthorityError,
+  classifyReadinessError,
+  executorVerificationFresh,
+  failureDetail,
+  type ExecutionStage,
+} from "./omni-execution-refusal";
+import { redact } from "./site-log";
 
 const controlInput = z
   .object({
@@ -61,9 +69,37 @@ const store: Store = async (owner, project, approval, operation, args) => {
     _op: operation,
     _a: args,
   });
-  if (result.error || !result.data) throw new Error("Execution authority refused");
+  if (result.error || !result.data)
+    throw new ExecutionAuthorityError(result.error?.message ?? "", result.error?.code ?? null);
   return result.data;
 };
+
+/** Carries the database's own refusal text so it can be classified and audited (never returned). */
+export class ExecutionAuthorityError extends Error {
+  constructor(
+    readonly dbMessage: string,
+    readonly code: string | null,
+  ) {
+    super(dbMessage ? `Execution authority refused: ${dbMessage}` : "Execution authority refused");
+    this.name = "ExecutionAuthorityError";
+  }
+}
+
+type ConnectionRow = { verifiedAt: string | null; executorRelease: string | null } | null;
+/** Read-only: the recorded executor verification for this project's connection. */
+async function readConnection(project: string): Promise<ConnectionRow> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const db = (await import("./untyped-db")).untyped(supabaseAdmin);
+  const { data, error } = await db
+    .from("omni_execution_connections")
+    .select("verified_at, executor_release")
+    .eq("project_id", project)
+    .maybeSingle();
+  if (error) throw new Error("Execution connection state unavailable");
+  return data
+    ? { verifiedAt: data.verified_at ?? null, executorRelease: data.executor_release ?? null }
+    : null;
+}
 
 /** Uses durable nonce authorization even for safety reads while the Kill Switch is engaged. */
 async function claimNonce(client: string, nonce: string) {
@@ -85,12 +121,32 @@ export async function handleExecutionControl(
     readiness?: () => Promise<void>;
     cancel?: typeof deliverOmniCancellations;
     failures?: (client: string, project: string) => Promise<FailureHistory>;
+    audit?: typeof auditRefusal;
+    connection?: (project: string) => Promise<ConnectionRow>;
+    now?: () => number;
   } = {},
 ) {
   const env = dependencies.env ?? process.env;
-  const plain = (status: number, error: string) =>
-    Response.json({ error }, { status, headers: { "Cache-Control": "no-store" } });
-  let stage = "request";
+  const now = dependencies.now ?? Date.now;
+  let stage: ExecutionStage = "request";
+  // Before authentication succeeds, refusals stay unsigned so the secret is never an oracle.
+  // After it, every refusal is a signed omni.link/v2 reply carrying the real reason.
+  let authed: { secret: string; nonce: string; operation: string; project: string } | null = null;
+  const plain = async (
+    status: number,
+    error: string,
+    diagnostic?: { stage: ExecutionStage; detail: ReturnType<typeof failureDetail> },
+  ) => {
+    if (!authed)
+      return Response.json({ error }, { status, headers: { "Cache-Control": "no-store" } });
+    const audit = dependencies.audit ?? auditRefusal;
+    await (
+      diagnostic
+        ? audit(authed.project, authed.operation, error, diagnostic)
+        : audit(authed.project, authed.operation, error)
+    ).catch(() => undefined);
+    return signedRefusal(authed.secret, authed.nonce, status, error, diagnostic?.stage);
+  };
   try {
     const url = linkRequestUrl(request, env);
     if (!url || url.pathname !== LINK_PATH || request.method !== "POST" || url.search)
@@ -137,6 +193,12 @@ export async function handleExecutionControl(
         : plain(401, "authentication_failed");
     }
     if (!secret) return plain(401, "authentication_failed"); // unreachable; narrows the type
+    authed = {
+      secret,
+      nonce: request.headers.get("x-omni-nonce")!,
+      operation: input.operation,
+      project: input.projectId,
+    };
     if (
       input.audience === "executor" &&
       !["claim", "permission", "finish"].includes(input.operation)
@@ -179,7 +241,7 @@ export async function handleExecutionControl(
     )
       return plain(403, "approval_expired");
     if (input.operation === "verify") {
-      stage = "verify";
+      stage = "executor";
       const verification = await (dependencies.verify ?? verifyExecutor)();
       args = { release: verification.release, passed: verification.passed };
     }
@@ -193,7 +255,7 @@ export async function handleExecutionControl(
       )();
     }
     if (input.operation === "configure" || input.operation === "arm") {
-      stage = "inspect";
+      stage = "executor";
       const executor = await (dependencies.inspect ?? inspectExecutor)();
       if (
         executor.release !== env["OMNI_AUTONOMY_REVIEWED_RELEASE"] ||
@@ -202,6 +264,14 @@ export async function handleExecutionControl(
       )
         return plain(403, "release_unreviewed");
       args = { ...args, release: executor.release };
+      if (input.operation === "configure") {
+        // Step 10 needs a fresh recorded verification of this exact release (connect clears it).
+        // The database enforces the same rule; checking here names the real reason.
+        stage = "verification";
+        const row = await (dependencies.connection ?? readConnection)(input.projectId);
+        if (!executorVerificationFresh(row, executor.release, now()))
+          return plain(409, "executor_verification_required");
+      }
     }
     if (input.operation === "authorize") {
       // Two-failure stop: no new bounded job after two failed jobs in a row since the owner's
@@ -214,7 +284,7 @@ export async function handleExecutionControl(
         return plain(403, stop);
       }
     }
-    stage = "store";
+    stage = "authority";
     const state = await (dependencies.store ?? store)(
       owner,
       input.projectId,
@@ -224,6 +294,7 @@ export async function handleExecutionControl(
     );
     stage = "respond";
     if (["disarm", "unconfigure", "revoke"].includes(input.operation)) {
+      stage = "cancellation";
       const cancellation = await (dependencies.cancel ?? deliverOmniCancellations)();
       if (cancellation.unavailable) return plain(503, "cancellation_unverified");
       const fresh = await (dependencies.store ?? store)(
@@ -258,19 +329,80 @@ export async function handleExecutionControl(
         },
       });
     }
-  } catch (error) {
-    // Only while OMNI_AUTH_REASON_DEBUG is "true": name the stage and error text, with any long
-    // token-like run masked. Off by default; the default response is unchanged.
-    if (env["OMNI_AUTH_REASON_DEBUG"] !== "true")
-      return plain(503, "execution_control_unavailable");
-    const text = (error instanceof Error ? error.message : "non-error thrown")
-      .replace(/[A-Za-z0-9_-]{24,}/g, "[masked]")
-      .slice(0, 160);
-    return Response.json(
-      { error: "execution_control_unavailable", reason: `${stage}: ${text}` },
-      { status: 503, headers: { "Cache-Control": "no-store" } },
-    );
+  } catch (failure) {
+    const detail = failureDetail(failure, redact);
+    // Nonsecret server-side trace so the failing stage is visible in the runtime logs.
+    console.error("[omni.execution] refused", stage, detail.name, detail.code ?? "no_code", detail.message);
+    if (!authed && stage === "request" && isMalformed(failure))
+      return plain(400, "invalid_request");
+    if (stage === "readiness") {
+      const refusal = classifyReadinessError(detail.message);
+      if (refusal) return plain(refusal.status, refusal.error, { stage, detail });
+    }
+    if (stage === "authority" && failure instanceof ExecutionAuthorityError) {
+      const refusal = classifyAuthorityError(failure.dbMessage);
+      if (refusal) return plain(refusal.status, refusal.error, { stage, detail });
+    }
+    // Only while OMNI_AUTH_REASON_DEBUG is "true": also return the stage and error text, with any
+    // long token-like run masked (unsigned, as before). Off by default.
+    if (env["OMNI_AUTH_REASON_DEBUG"] === "true") {
+      await plain(503, "execution_control_unavailable", { stage, detail });
+      const text = (failure instanceof Error ? failure.message : "non-error thrown")
+        .replace(/[A-Za-z0-9_-]{24,}/g, "[masked]")
+        .slice(0, 160);
+      return Response.json(
+        { error: "execution_control_unavailable", reason: `${stage}: ${text}` },
+        { status: 503, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+    return plain(503, "execution_control_unavailable", { stage, detail });
   }
+}
+
+function isMalformed(failure: unknown) {
+  return failure instanceof SyntaxError || failure instanceof z.ZodError;
+}
+
+export async function signedRefusal(
+  secret: string,
+  nonce: string,
+  status: number,
+  error: string,
+  stage?: ExecutionStage,
+) {
+  const body = JSON.stringify(
+    stage
+      ? { contract: LINK_CONTRACT, requestNonce: nonce, error, stage }
+      : { contract: LINK_CONTRACT, requestNonce: nonce, error },
+  );
+  return new Response(body, {
+    status,
+    headers: {
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store",
+      "X-Omni-Proof": await hmacHex(secret, `${LINK_CONTRACT}\nresponse\n${nonce}\n${status}\n${body}`),
+    },
+  });
+}
+
+/** One audit row per refused authenticated execution-control call. Failures also record the
+ * stage and a short redacted error so the real cause is traceable; nothing secret is stored. */
+async function auditRefusal(
+  project: string,
+  operation: string,
+  reason: string,
+  diagnostic?: { stage: ExecutionStage; detail: ReturnType<typeof failureDetail> },
+) {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const db = (await import("./untyped-db")).untyped(supabaseAdmin);
+  await db.from("audit_logs").insert({
+    actor: null,
+    action: "omni.execution.refused",
+    detail: diagnostic
+      ? { project_id: project, operation, reason, stage: diagnostic.stage, error: diagnostic.detail }
+      : { project_id: project, operation, reason },
+    outcome: "refused",
+  });
 }
 
 export async function executorRequest(

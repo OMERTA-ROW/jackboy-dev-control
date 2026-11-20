@@ -175,13 +175,15 @@ async function findRun(scope: CodeScope): Promise<Run | undefined> {
   }
   return undefined;
 }
-export async function getCode(id: string, userId: string): Promise<CodeCard> {
+/** `readOnly` (approval-card deep links) skips the run-id bookkeeping write and the acceptance audit insert;
+ * the chat card still performs both. Results are read from GitHub either way, never assumed. */
+export async function getCode(id: string, userId: string, opts: { readOnly?: boolean } = {}): Promise<CodeCard> {
   const r = await row(id, userId), s = r.resources as unknown as CodeScope;
   const card: CodeCard = { id: r.id, projectId: r.project_id!, repo: s.repo, instruction: s.instruction, status: r.status, expiresAt: r.expires_at, permissions: r.permissions, outcome: r.outcome, taskBudgetUsd: typeof s.taskBudgetUsd === "number" && Number.isFinite(s.taskBudgetUsd) ? s.taskBudgetUsd : null };
   if (r.status !== "allowed") return card;
   const run = await findRun(s);
   if (!run) return { ...card, outcome: "Awaiting GitHub run registration. If dispatch was interrupted, reconcile here before requesting another job." };
-  if (!s.runId) {
+  if (!s.runId && !opts.readOnly) {
     const persisted = await db.from("action_requests").update({ resources: { ...s, runId: run.id } as never }).eq("id", id).eq("action", CODE_ACTION).eq("requested_by", userId);
     if (persisted.error) throw new Error("CODE run was found but its durable run ID could not be saved. Refresh to reconcile.");
   }
@@ -254,16 +256,18 @@ export async function getCode(id: string, userId: string): Promise<CodeCard> {
       card.acceptance = acceptanceFilesCheck(files);
       if (!card.acceptance.ok) {
         card.outcome = `Acceptance test FAILED its docs-only check: ${card.acceptance.reasons.join(" ")} Close the draft PR without merging.`;
-        const logged = await db.from("audit_logs").insert({
-          actor: userId,
-          action: "code.acceptance_scope_violation",
-          detail: { request: id, reasons: card.acceptance.reasons } as never,
-          outcome: "denied",
-        });
-        if (logged.error)
-          throw new Error(
-            "Acceptance scope violation could not be audited; owner review is required.",
-          );
+        if (!opts.readOnly) {
+          const logged = await db.from("audit_logs").insert({
+            actor: userId,
+            action: "code.acceptance_scope_violation",
+            detail: { request: id, reasons: card.acceptance.reasons } as never,
+            outcome: "denied",
+          });
+          if (logged.error)
+            throw new Error(
+              "Acceptance scope violation could not be audited; owner review is required.",
+            );
+        }
       }
     }
   }

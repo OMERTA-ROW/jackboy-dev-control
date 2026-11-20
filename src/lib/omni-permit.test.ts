@@ -138,7 +138,11 @@ describe("signed permit actions", () => {
     const { req, raw } = await signed(reqBody());
     const res = await handleOmniPermit(req, raw, cfg, store, {});
     expect(res.status).toBe(503);
-    expect(await res.json()).toEqual({ error: "permit_service_unavailable" });
+    expect(await res.json()).toMatchObject({
+      contract: "omni.link/v2",
+      error: "permit_service_unavailable",
+    });
+    expect(res.headers.get("X-Omni-Proof")).toMatch(/^[a-f0-9]{64}$/);
   });
 
   it("refuses bad signatures, wrong client, stale timestamps, the bootstrap key, plain http and a disabled link", async () => {

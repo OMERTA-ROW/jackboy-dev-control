@@ -3,6 +3,7 @@
 // Jackboy answers with a nonce-bound proof, and active permits carry their own signature so OMNI
 // workers can verify them independently. Any store failure fails closed (no permit).
 import { hmacHex } from "./omni-link";
+import { signedRefusal } from "./omni-execution.server";
 import { digest, LINK_CONTRACT, LINK_PATH, linkRequestUrl, verifyRequest } from "./omni-session";
 import type { LinkConfig, StoreReply } from "./omni-session.server";
 import {
@@ -61,15 +62,17 @@ export async function handleOmniPermit(
     !(await verifyRequest(c.secret, token, request.headers, raw))
   )
     return plain(401, "authentication_failed");
+  const nonce = request.headers.get("x-omni-nonce")!;
+  // Authenticated refusals are signed so OMNI sees the real reason, not a contract mismatch.
+  const refuse = (status: number, error: string) => signedRefusal(c.secret, nonce, status, error);
   let input: unknown;
   try {
     input = JSON.parse(raw);
   } catch {
-    return plain(400, "invalid_request");
+    return refuse(400, "invalid_request");
   }
   const parsed = parsePermitInput(input, c.projectId);
-  if (!parsed.ok) return plain(parsed.error === "invalid_request" ? 400 : 403, parsed.error);
-  const nonce = request.headers.get("x-omni-nonce")!;
+  if (!parsed.ok) return refuse(parsed.error === "invalid_request" ? 400 : 403, parsed.error);
   const v = parsed.value;
   let out: StoreReply;
   try {
@@ -87,7 +90,7 @@ export async function handleOmniPermit(
         : {}),
     });
   } catch {
-    return plain(503, "permit_service_unavailable");
+    return refuse(503, "permit_service_unavailable");
   }
   const payload: Record<string, unknown> = { contract: LINK_CONTRACT, requestNonce: nonce, ...out };
   const permit = out["permit"] as Record<string, unknown> | null | undefined;

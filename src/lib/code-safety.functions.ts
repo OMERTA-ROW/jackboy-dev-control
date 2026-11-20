@@ -24,6 +24,7 @@ import {
   stopReleaseGates,
 } from "./code-safety";
 import type { OpenAICostRow } from "./openai-costs";
+import { redact } from "./site-log";
 
 const REPOSITORY = "OMERTA-ROW/jackboy-dev-control";
 
@@ -426,7 +427,9 @@ export async function assertCodeConfigurationReady() {
     input.spendMeter?.ok !== true ||
     input.totalSpendGuard?.enforced !== true
   ) {
-    throw new Error("CODE gateway, workflow identity or spending enforcement is not ready");
+    // Shared with the Step 10 classifier so an unmet gate is reported as not-ready, not an outage.
+    const { CODE_NOT_READY_MESSAGE } = await import("./omni-execution-refusal");
+    throw new Error(CODE_NOT_READY_MESSAGE);
   }
 }
 
@@ -522,9 +525,40 @@ export const setCodeEnabled = createServerFn({ method: "POST" })
     };
   });
 
+/** Short, redacted "code: message" for a database refusal (never secrets or setting values). */
+function dbErrorDetail(error: unknown): { code: string; message: string } {
+  const e = (error ?? {}) as { code?: unknown; message?: unknown };
+  const code = typeof e.code === "string" && e.code ? e.code.slice(0, 40) : "unknown";
+  const raw = typeof e.message === "string" && e.message ? e.message : "no result returned";
+  const message = redact(raw).replace(/\s+/g, " ").trim();
+  return { code, message: message.length > 200 ? `${message.slice(0, 199)}…` : message };
+}
+
+type StopReleaseStage = "independent_check" | "app_gate" | "rpc";
+
+/** Records a failed Emergency Stop release. A failed audit write never changes the outcome. */
+async function auditStopReleaseFailure(
+  db: ReturnType<typeof import("./untyped-db").untyped>,
+  actor: string,
+  stage: StopReleaseStage,
+  detail: Record<string, unknown>,
+) {
+  try {
+    await db.from("audit_logs").insert({
+      actor,
+      action: "code.emergency_stop_release_failed",
+      outcome: "blocked",
+      detail: { stage, ...detail },
+    });
+  } catch {
+    // Ignored on purpose: the release outcome stays exactly what it was.
+  }
+}
+
 /** Releases the CODE Emergency Stop only. Needs a NEW passkey for this exact action. Refused while any
  * emergency protection holds (running or unconfirmed task, two-failure stop, usage spike) or the hard
- * cap / $10 guard is not in place. Never turns CODE on and never changes the Kill Switch. */
+ * cap / $10 guard is not in place. Never turns CODE on and never changes the Kill Switch. The app-side
+ * checks run before the passkey is used, so a refusal there leaves the passkey unspent. */
 export const releaseCodeEmergencyStop = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(grantInput)
@@ -533,25 +567,41 @@ export const releaseCodeEmergencyStop = createServerFn({ method: "POST" })
     const db = (await import("./untyped-db")).untyped(
       (await import("@/integrations/supabase/client.server")).supabaseAdmin,
     );
-    if (!(await independentControlsInstalled(db))) throw new Error(NOT_INSTALLED);
+    if (!(await independentControlsInstalled(db))) {
+      await auditStopReleaseFailure(db, context.userId, "independent_check", {
+        reason: "code_independent_controls_installed() was not true",
+      });
+      throw new Error(NOT_INSTALLED);
+    }
+    const before = await readControls(db);
+    const blocked = stopReleaseBlockReason(await collectEnableInput());
+    if (blocked) {
+      await auditStopReleaseFailure(db, context.userId, "app_gate", { reason: blocked });
+      throw new Error(`The Emergency Stop was not released. ${blocked} Nothing changed.`);
+    }
     await (
       await import("./passkey.server")
     ).consumeGrant(data.grantId, context.userId, "code_stop_release", CODE_STOP_RELEASE_TARGET, {
       requireFresh: true,
     });
-    const before = await readControls(db);
-    const blocked = stopReleaseBlockReason(await collectEnableInput());
-    if (blocked)
-      throw new Error(`The Emergency Stop was not released. ${blocked} Nothing changed.`);
     const { data: result, error } = await db.rpc("release_code_emergency_stop", {
       p_actor: context.userId,
     });
-    if (error || !result)
-      throw new Error("The database refused to release the Emergency Stop; nothing changed.");
-    if (result.ok !== true)
+    if (error || !result) {
+      const detail = dbErrorDetail(error);
+      await auditStopReleaseFailure(db, context.userId, "rpc", {
+        error_code: detail.code,
+        error_message: detail.message,
+      });
       throw new Error(
-        `The Emergency Stop was not released: ${enableRefusalText(result.reasons)}. Nothing changed.`,
+        `The database refused to release the Emergency Stop (${detail.code}: ${detail.message}); nothing changed.`,
       );
+    }
+    if (result.ok !== true) {
+      const reasons = enableRefusalText(result.reasons);
+      await auditStopReleaseFailure(db, context.userId, "rpc", { reason: reasons });
+      throw new Error(`The Emergency Stop was not released: ${reasons}. Nothing changed.`);
+    }
     const after = await readControls(db);
     const ok = after.emergencyStop === false;
     return {

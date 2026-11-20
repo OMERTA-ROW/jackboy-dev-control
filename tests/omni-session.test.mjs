@@ -41,8 +41,14 @@ await db.exec(
 for (const migration of [
   "0071_omni_link_denial_reasons.sql",
   "0072_omni_execution_nonce_replay_window.sql",
-  "0073_omni_idempotent_handshake.sql",
 ]) await db.exec(await readFile(join(root, "drizzle/migrations", migration), "utf8"));
+// 0077 is installed live; its exact file is kept as a reference copy outside drizzle/migrations.
+await db.exec(
+  await readFile(
+    join(root, "staging/applied-migrations-0075-0077/0077_omni_idempotent_handshake_forward.sql"),
+    "utf8",
+  ),
+);
 const project = "11111111-1111-4111-8111-111111111111",
   owner = "22222222-2222-4222-8222-222222222222",
   approval = "33333333-3333-4333-8333-333333333333";
