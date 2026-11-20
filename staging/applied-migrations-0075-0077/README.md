@@ -23,3 +23,5 @@ Note (Nov 20, 2026): the migration tool numbers new files from this folder's jou
 owner-approved change was recorded as `drizzle/migrations/0075_code_per_call_cap_050.sql` (live history
 row 84, newer than every row above). It shares only the number prefix with the live 0075 kept here;
 their contents and timestamps differ, and neither replays the other.
+Likewise `drizzle/migrations/0076_demontech_owner_only_trigger.sql` (live history row 85, owner-approved
+Nov 20, 2026) shares only the number prefix with the live 0076 kept here.

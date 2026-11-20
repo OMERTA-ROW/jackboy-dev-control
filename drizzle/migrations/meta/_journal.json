@@ -533,6 +533,13 @@
       "when": 1795197294273,
       "tag": "0075_code_per_call_cap_050",
       "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "7",
+      "when": 1795204514500,
+      "tag": "0076_demontech_owner_only_trigger",
+      "breakpoints": true
     }
   ]
 }
