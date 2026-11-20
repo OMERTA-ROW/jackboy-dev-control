@@ -3,6 +3,7 @@ import { deliverOmniCancellations, handleExecutionControl } from "./omni-executi
 import { handleOmniPermit, type PermitStore } from "./omni-permit.server";
 import { hmacHex } from "./omni-link";
 import { digest, requestMessage } from "./omni-session";
+import type { FailureHistory } from "./omni-failure-stop";
 
 const cancellationMocks = vi.hoisted(() => ({
   pending: vi.fn(),
@@ -81,6 +82,7 @@ function dependencies() {
     })),
     verify: vi.fn(async () => ({ passed: true, release: "omni-bounded-plan-2" })),
     cancel: vi.fn(async () => ({ pending: 0, unavailable: 0 })),
+    failures: vi.fn(async () => ({ since: null, jobs: [] }) as FailureHistory),
   };
 }
 it("Step 10 inspects the signed runner configuration but starts nothing", async () => {
@@ -406,3 +408,62 @@ it.each([
     }
   },
 );
+
+const authorizeArgs = () => ({
+  jobId: "44444444-4444-4444-8444-444444444444",
+  planSha256: "a".repeat(64),
+  expiresAt: new Date(Date.now() + 30_000).toISOString(),
+  release: "omni-bounded-plan-2",
+});
+it("two failed OMNI jobs in a row block the next job before the database is asked", async () => {
+  const deps = dependencies();
+  deps.failures.mockResolvedValue({
+    since: null,
+    jobs: [
+      { state: "failed", finished_at: new Date(Date.now() - 60_000).toISOString() },
+      { state: "failed", finished_at: new Date(Date.now() - 120_000).toISOString() },
+    ],
+  });
+  const response = await handleExecutionControl(
+    await request("authorize", "mothership", authorizeArgs()),
+    deps,
+  );
+  expect(response.status).toBe(403);
+  expect(await response.json()).toEqual({ error: "failure_stop" });
+  expect(deps.failures).toHaveBeenCalledWith("fixture", project);
+  expect(deps.store).not.toHaveBeenCalled();
+});
+it("unreadable failure history blocks a new OMNI job (fail closed)", async () => {
+  const deps = dependencies();
+  deps.failures.mockResolvedValue(null);
+  const response = await handleExecutionControl(
+    await request("authorize", "mothership", authorizeArgs()),
+    deps,
+  );
+  expect(response.status).toBe(403);
+  expect(await response.json()).toEqual({ error: "failure_stop_unreadable" });
+  expect(deps.store).not.toHaveBeenCalled();
+});
+it("one failure still lets the database decide the next OMNI job", async () => {
+  const deps = dependencies();
+  deps.failures.mockResolvedValue({
+    since: null,
+    jobs: [{ state: "failed", finished_at: new Date(Date.now() - 60_000).toISOString() }],
+  });
+  const response = await handleExecutionControl(
+    await request("authorize", "mothership", authorizeArgs()),
+    deps,
+  );
+  expect(response.status).toBe(200);
+  expect(deps.store).toHaveBeenCalledOnce();
+});
+it("the failure stop never blocks safety reads, disarm or Stop-side cancellation", async () => {
+  for (const operation of ["safety", "disarm"]) {
+    const deps = dependencies();
+    deps.failures.mockResolvedValue(null);
+    const response = await handleExecutionControl(await request(operation), deps);
+    expect(response.status).toBe(200);
+    expect(deps.failures).not.toHaveBeenCalled();
+  }
+});
+

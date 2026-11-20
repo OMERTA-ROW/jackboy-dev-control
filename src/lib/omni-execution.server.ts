@@ -3,6 +3,7 @@ import { z } from "zod";
 import { hmacHex, safeEqual } from "./omni-link";
 import { LINK_CONTRACT, LINK_PATH, UUID, linkRequestUrl, verifyRequest } from "./omni-session";
 import { boundedBody, loadEffectiveApproval } from "./omni-session.server";
+import { omniFailureStopReason, type FailureHistory } from "./omni-failure-stop";
 
 const controlInput = z
   .object({
@@ -83,6 +84,7 @@ export async function handleExecutionControl(
     inspect?: () => Promise<{ release: string; enabled: boolean; reviewedRelease: string | null }>;
     readiness?: () => Promise<void>;
     cancel?: typeof deliverOmniCancellations;
+    failures?: (client: string, project: string) => Promise<FailureHistory>;
   } = {},
 ) {
   const env = dependencies.env ?? process.env;
@@ -200,6 +202,17 @@ export async function handleExecutionControl(
       )
         return plain(403, "release_unreviewed");
       args = { ...args, release: executor.release };
+    }
+    if (input.operation === "authorize") {
+      // Two-failure stop: no new bounded job after two failed jobs in a row since the owner's
+      // newest authorization. Unreadable history fails closed. Existing jobs are not touched.
+      stage = "failure_stop";
+      const history = await (dependencies.failures ?? readFailureHistory)(client, input.projectId);
+      const stop = omniFailureStopReason(history);
+      if (stop) {
+        if (!dependencies.failures) await auditFailureStop(owner, input.projectId, stop);
+        return plain(403, stop);
+      }
     }
     stage = "store";
     const state = await (dependencies.store ?? store)(
@@ -329,6 +342,50 @@ async function verifyExecutor() {
   return z
     .object({ passed: z.boolean(), release: z.string().regex(/^[A-Za-z0-9_.-]{1,80}$/) })
     .parse(await executorRequest("self-test", {}));
+}
+
+/** Newest owner authorization time and recent finished bounded jobs; any read error returns null. */
+async function readFailureHistory(client: string, project: string): Promise<FailureHistory> {
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const db = (await import("./untyped-db")).untyped(supabaseAdmin);
+    const auth = await db
+      .from("omni_autonomy_authorizations")
+      .select("created_at")
+      .eq("client_id", client)
+      .eq("project_id", project)
+      .order("created_at", { ascending: false })
+      .limit(1);
+    if (auth.error) return null;
+    const since = (auth.data?.[0]?.created_at as string | undefined) ?? null;
+    let query = db
+      .from("omni_execution_jobs")
+      .select("state,finished_at")
+      .eq("project_id", project)
+      .in("state", ["completed", "failed"]);
+    if (since) query = query.gt("finished_at", since);
+    const jobs = await query.order("finished_at", { ascending: false }).limit(20);
+    if (jobs.error || !Array.isArray(jobs.data)) return null;
+    return { since, jobs: jobs.data as { state: string; finished_at: string | null }[] };
+  } catch {
+    return null;
+  }
+}
+
+/** Best effort: an audit failure never changes the refusal. */
+async function auditFailureStop(owner: string, project: string, reason: string) {
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const db = (await import("./untyped-db")).untyped(supabaseAdmin);
+    await db.from("audit_logs").insert({
+      actor: UUID.test(owner) ? owner : null,
+      action: "omni.execution.failure_stop",
+      detail: { project_id: project, reason },
+      outcome: "blocked",
+    });
+  } catch {
+    /* audit is best effort */
+  }
 }
 
 /** Durable stop requests are committed before attempting network cancellation. */

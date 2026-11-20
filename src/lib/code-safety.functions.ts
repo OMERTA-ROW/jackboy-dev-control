@@ -344,10 +344,9 @@ export const testCodeProviderGateway = createServerFn({ method: "POST" })
 async function gatewaySettingsPresent(): Promise<boolean> {
   const { codeGatewayProviderKeyPresent } = await import("./code-gateway.server");
   if (!codeGatewayProviderKeyPresent()) return false;
-  const cap = Number(process.env["CODE_GATEWAY_PER_CALL_CAP_USD"]);
-  if (!Number.isFinite(cap) || cap <= 0 || cap > 5) return false;
+  const { parsePerCallCap, parsePriceTable } = await import("./code-gateway");
+  if (parsePerCallCap(process.env["CODE_GATEWAY_PER_CALL_CAP_USD"]) === null) return false;
   try {
-    const { parsePriceTable } = await import("./code-gateway");
     return Object.keys(parsePriceTable(process.env["CODE_GATEWAY_PRICES"])).length > 0;
   } catch {
     return false;

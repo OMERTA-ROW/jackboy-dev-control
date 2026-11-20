@@ -4,8 +4,10 @@ import { untyped } from "./untyped-db";
 import { CODE_ACTION, type CodeScope } from "./code";
 import { verifyGithubActionsToken, verifyWorkflowRun } from "./code-runner-auth.server";
 import {
+  CODE_PER_CALL_MAX_USD,
   GatewayError,
   createCodeGateway,
+  parsePerCallCap,
   parsePriceTable,
   type GatewayDeps,
   type Identity,
@@ -142,8 +144,8 @@ export function productionGatewayDeps(): GatewayDeps {
     providerKey: () => process.env[PROVIDER_KEY_ENV] || undefined,
     prices: () => parsePriceTable(process.env["CODE_GATEWAY_PRICES"]),
     perCallCapUsd: () => {
-      const cap = Number(process.env["CODE_GATEWAY_PER_CALL_CAP_USD"]);
-      if (!Number.isFinite(cap) || cap <= 0 || cap > 5) {
+      const cap = parsePerCallCap(process.env["CODE_GATEWAY_PER_CALL_CAP_USD"]);
+      if (cap === null) {
         throw new GatewayError(503, "CODE per-call spending cap is not configured.");
       }
       return cap;
@@ -169,11 +171,11 @@ export async function probeProviderAccess(): Promise<{ ok: boolean; reason: stri
     return { ok: false, reason: "CODE_GATEWAY_PRICES is not a valid price table." };
   }
   if (!models.length) return { ok: false, reason: "CODE_GATEWAY_PRICES lists no models." };
-  const cap = Number(process.env["CODE_GATEWAY_PER_CALL_CAP_USD"]);
-  if (!Number.isFinite(cap) || cap <= 0 || cap > 5)
+  const cap = parsePerCallCap(process.env["CODE_GATEWAY_PER_CALL_CAP_USD"]);
+  if (cap === null)
     return {
       ok: false,
-      reason: "CODE_GATEWAY_PER_CALL_CAP_USD is missing or outside $0–$5.",
+      reason: `CODE_GATEWAY_PER_CALL_CAP_USD is missing or outside $0–$${CODE_PER_CALL_MAX_USD.toFixed(2)}.`,
     };
   const model = models[0]!;
   try {
