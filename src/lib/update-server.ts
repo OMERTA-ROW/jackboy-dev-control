@@ -40,6 +40,23 @@ export function shouldRollback(c: HealthCounts, thresholdPercent: number, minRep
   return (c.failures / c.total) * 100 >= thresholdPercent;
 }
 
+/**
+ * Rollback evidence from enrolled update targets only (authenticated by their own bearer token).
+ * Rows must be newest first; each target counts once, by its newest healthy/failed report, so
+ * repeated reports from one target can't outvote the rest. Anonymous public health reports are
+ * never counted here: anyone holding the public client key can invent device ids.
+ */
+export function enrolledTargetHealth(rows: Array<{ target_id: string; phase: string }>): HealthCounts {
+  const latest = new Map<string, string>();
+  for (const r of rows) {
+    if (r.phase !== "healthy" && r.phase !== "failed") continue;
+    if (!latest.has(r.target_id)) latest.set(r.target_id, r.phase);
+  }
+  let failures = 0;
+  for (const phase of latest.values()) if (phase === "failed") failures++;
+  return { total: latest.size, failures };
+}
+
 export function nextRolloutPercent(current: number, step: number): number {
   return Math.min(100, current + Math.max(0, step));
 }

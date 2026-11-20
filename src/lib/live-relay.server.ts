@@ -5,6 +5,7 @@ import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 import { deriveBlockers } from "./blockers";
 import { ACTING_CHAT_POLICY } from "./chat-action";
+import { LIVE_PROTOCOL, liveTokenFromProtocols } from "./live-protocol";
 
 export type LiveConfig = {
   baseURL: string;
@@ -95,22 +96,45 @@ function workerSocket(socket: WorkerSocket): LiveSocket {
   };
 }
 
-export function handleLiveRequest(request: Request): Response {
+/**
+ * Verifies the signed-in owner from the upgrade request itself, before any socket is accepted.
+ * Returns the verified token, or a refusal response that reveals nothing about why.
+ */
+export async function authorizeLiveUpgrade(
+  request: Request,
+  verify: (token: string) => Promise<string> = verifyOwner,
+): Promise<{ token: string } | Response> {
+  const token = liveTokenFromProtocols(request.headers.get("sec-websocket-protocol"));
+  if (!token) return new Response("Sign in as the owner to use voice", { status: 401 });
+  try {
+    return { token: await verify(token) };
+  } catch {
+    return new Response("Sign in as the owner to use voice", { status: 401 });
+  }
+}
+
+export async function handleLiveRequest(request: Request): Promise<Response> {
   const waitUntil = (request as Request & Partial<LiveExecutionContext>).waitUntil;
   if (!waitUntil) return new Response("Live runtime unavailable", { status: 503 });
   const config = getLiveConfig();
   const rejected = validateLiveUpgrade(request);
   if (rejected) return rejected;
+  const auth = await authorizeLiveUpgrade(request);
+  if (auth instanceof Response) return auth;
   const pair = new WebSocketPair();
   pair[1].accept();
-  bindLiveConnection(workerSocket(pair[1]), config, { waitUntil }, async (url, headers, signal) => {
+  bindLiveConnection(workerSocket(pair[1]), config, { waitUntil }, auth.token, async (url, headers, signal) => {
     const response = await fetch(url, { headers: { ...headers, Upgrade: "websocket" }, signal });
     const socket = (response as Response & { webSocket?: WorkerSocket | null }).webSocket;
     if (!socket) throw await gatewayRejection(response);
     socket.accept();
     return workerSocket(socket);
   });
-  const response: ResponseInit & { webSocket: WebSocket } = { status: 101, webSocket: pair[0] };
+  const response: ResponseInit & { webSocket: WebSocket } = {
+    status: 101,
+    webSocket: pair[0],
+    headers: { "Sec-WebSocket-Protocol": LIVE_PROTOCOL },
+  };
   return new Response(null, response);
 }
 
@@ -347,6 +371,7 @@ export function bindLiveConnection(
   browser: LiveSocket,
   configuration: LiveConfig,
   execution: LiveExecutionContext,
+  verifiedToken: string,
   connect: LiveConnector,
 ): void {
   const config = { ...configuration };
@@ -645,10 +670,12 @@ export function bindLiveConnection(
     }
   }
 
-  async function startSession(sdp: string, token: unknown, context: unknown) {
+  async function startSession(sdp: string, context: unknown) {
     if (closing || browser.readyState !== 1) return;
     clearTimeout(startTimer);
-    ownerToken = await verifyOwner(token); // before any paid Gateway connection
+    // The socket was accepted only after this token passed the owner check; re-check it
+    // (role or session may have changed) before any paid Gateway connection.
+    ownerToken = await verifyOwner(verifiedToken);
     if (typeof context === "string" && context.trim()) backendMessages.push({ role: "user", content: `Earlier typed chat with Jackboy, for context only (not new requests):\n${context.slice(0, 6000)}` });
     if (closing || browser.readyState !== 1) return;
     startupTimer = setTimeout(() => {
@@ -701,7 +728,7 @@ export function bindLiveConnection(
         }
         starting = true;
         execution.waitUntil(
-          startSession(event.sdp, event.token, event.context).catch((error) => {
+          startSession(event.sdp, event.context).catch((error) => {
             if (!closing)
               emit({
                 type: "app.error",

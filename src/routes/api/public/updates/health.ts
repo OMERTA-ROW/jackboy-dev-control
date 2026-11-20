@@ -11,6 +11,7 @@ const body = z.object({
 });
 
 // Public: projects post health/error/crash reports. Device IDs are hashed; per-device rate limited; no PII stored beyond a short message.
+// These reports are unauthenticated (the client key is public), so they can only alert the owner and hold rollout growth — never roll back.
 export const Route = createFileRoute("/api/public/updates/health")({
   server: {
     handlers: {
@@ -34,8 +35,8 @@ export const Route = createFileRoute("/api/public/updates/health")({
         const { data: rel } = await supabaseAdmin.from("releases").select("id").eq("project_id", p.id).eq("channel", d.channel).eq("version", d.version).maybeSingle();
         const { error } = await supabaseAdmin.from("health_reports").insert({ project_id: p.id, release_id: rel?.id ?? null, version: d.version, channel: d.channel, device_hash, kind: d.kind, message: (d.message ?? "").slice(0, 500) });
         if (error) return s.json({ error: "store_failed" }, 500);
-        const rolledBack = rel && d.kind !== "ok" ? await s.evaluateRelease(rel.id) : false;
-        return s.json({ ok: true, rolled_back: rolledBack });
+        if (rel && d.kind !== "ok") await s.assessRelease(rel.id);
+        return s.json({ ok: true });
       },
     },
   },
