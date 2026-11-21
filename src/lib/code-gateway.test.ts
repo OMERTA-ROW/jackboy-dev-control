@@ -94,9 +94,9 @@ describe("pricing and ceilings", () => {
     const parsed = JSON.parse(p.body);
     expect(parsed.max_completion_tokens).toBe(10);
     expect(parsed.max_tokens).toBeUndefined();
-    expect(JSON.parse(prepareRequest("/responses", body(), prices, 0.5).body).max_output_tokens).toBe(
-      1000,
-    );
+    expect(
+      JSON.parse(prepareRequest("/responses", body(), prices, 0.5).body).max_output_tokens,
+    ).toBe(1000);
   });
   it("rejects requests whose cost cannot be bounded", () => {
     const bad: [string, string][] = [

@@ -215,7 +215,12 @@ describe("per-call limit setting above $0.50 fails closed (no external requests)
     vi.restoreAllMocks();
   });
   const prices = JSON.stringify({
-    "m-test": { inputPerMillionUsd: 1, outputPerMillionUsd: 4, maxInputTokens: 1000, maxOutputTokens: 100 },
+    "m-test": {
+      inputPerMillionUsd: 1,
+      outputPerMillionUsd: 4,
+      maxInputTokens: 1000,
+      maxOutputTokens: 100,
+    },
   });
   for (const cap of ["1", "5", "0.500001"]) {
     it(`setting ${cap}: no reservation, no provider call, probe reports blocked`, async () => {
@@ -240,4 +245,3 @@ describe("per-call limit setting above $0.50 fails closed (no external requests)
     expect(productionGatewayDeps().perCallCapUsd()).toBe(0.5);
   });
 });
-
