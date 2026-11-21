@@ -3,7 +3,7 @@ export const CODE_ACTION = "code_workflow";
 export const CODE_WORKFLOW = "code.yml";
 export const CODE_TTL = 15 * 60_000;
 export const CODE_PERMISSIONS = ["Read the selected repository", "Run Codex and tests in an isolated GitHub runner", "Write only a jackboy/code-* branch and open a draft PR", "No merge, deployment, permissions, credentials, or agent handoff"];
-export type CodeScope = { repo: string; ref: string; workflowSha: string; baseSha: string; instruction: string; sessionHash: string; correlation: string; operation: "dispatch" | "retry"; taskBudgetUsd?: number; runId?: number; lane?: "auto"; acceptance?: true };
+export type CodeScope = { repo: string; ref: string; workflowSha: string; baseSha: string; instruction: string; sessionHash: string; correlation: string; operation: "dispatch" | "retry"; taskBudgetUsd?: number; runId?: number; lane?: "auto"; acceptance?: true; targetRepo?: string; targetBaseSha?: string };
 export type CodeRunJob = { name: string; status: string; conclusion: string | null };
 export type CodeRunProgress = { completed: number; total: number; percent: number };
 export function codeRunProgress(jobs: CodeRunJob[]): CodeRunProgress | null {

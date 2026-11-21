@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canonicalJson, compareVersions, nextRolloutPercent, pickRelease, rolloutBucket, shouldRollback, signingKeys, signPayload, verifyPayload } from "./update-server";
+import { canonicalJson, compareVersions, enrolledTargetHealth, nextRolloutPercent, pickRelease, rolloutBucket, shouldRollback, signingKeys, signPayload, verifyPayload } from "./update-server";
 
 describe("update server rules", () => {
   it("orders semantic versions", () => {
@@ -25,6 +25,15 @@ describe("update server rules", () => {
     expect(shouldRollback({ total: 19, failures: 19 }, 5, 20)).toBe(false);
     expect(shouldRollback({ total: 20, failures: 1 }, 5, 20)).toBe(true);
     expect(shouldRollback({ total: 100, failures: 4 }, 5, 20)).toBe(false);
+  });
+  it("enrolled-target health counts each target once, by its newest report", () => {
+    // newest first: target a recovered, b failed twice, c only installed (ignored)
+    const rows = [
+      { target_id: "a", phase: "healthy" }, { target_id: "b", phase: "failed" }, { target_id: "c", phase: "installed" },
+      { target_id: "a", phase: "failed" }, { target_id: "b", phase: "failed" },
+    ];
+    expect(enrolledTargetHealth(rows)).toEqual({ total: 2, failures: 1 });
+    expect(enrolledTargetHealth([])).toEqual({ total: 0, failures: 0 });
   });
   it("rollout steps cap at 100", () => expect(nextRolloutPercent(90, 25)).toBe(100));
   it("signatures verify and detect tampering", async () => {

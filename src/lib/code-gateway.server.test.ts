@@ -29,6 +29,7 @@ vi.mock("./code-runner-auth.server", () => ({
 import {
   codeGatewayProviderKeyPresent,
   handleCodeProviderRequest,
+  probeProviderAccess,
   productionGatewayDeps,
 } from "./code-gateway.server";
 
@@ -205,5 +206,42 @@ describe("production gateway authorization wiring (no external requests)", () =>
       mocks.single.mockResolvedValueOnce({ data: controls, error: null });
       expect(await deps.isStopped({ requestId: id, runId: 7 })).toBe(true);
     }
+  });
+});
+
+describe("per-call limit setting above $0.50 fails closed (no external requests)", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+  const prices = JSON.stringify({
+    "m-test": {
+      inputPerMillionUsd: 1,
+      outputPerMillionUsd: 4,
+      maxInputTokens: 1000,
+      maxOutputTokens: 100,
+    },
+  });
+  for (const cap of ["1", "5", "0.500001"]) {
+    it(`setting ${cap}: no reservation, no provider call, probe reports blocked`, async () => {
+      vi.stubEnv("CODE_PROVIDER_API_KEY", "synthetic-server-only");
+      vi.stubEnv("CODE_GATEWAY_PRICES", prices);
+      vi.stubEnv("CODE_GATEWAY_PER_CALL_CAP_USD", cap);
+      const fetcher = vi.spyOn(globalThis, "fetch");
+      expect(() => productionGatewayDeps().perCallCapUsd()).toThrow(/not configured/);
+      const response = await handleCodeProviderRequest(
+        new Request(request(), { body: JSON.stringify({ model: "m-test", input: "x" }) }),
+      );
+      expect(response.status).toBe(503);
+      expect(mocks.rpc).not.toHaveBeenCalled();
+      const probe = await probeProviderAccess();
+      expect(probe.ok).toBe(false);
+      expect(probe.reason).toContain("$0.50");
+      expect(fetcher).not.toHaveBeenCalled();
+    });
+  }
+  it("setting 0.5 is accepted as the cap", () => {
+    vi.stubEnv("CODE_GATEWAY_PER_CALL_CAP_USD", "0.5");
+    expect(productionGatewayDeps().perCallCapUsd()).toBe(0.5);
   });
 });

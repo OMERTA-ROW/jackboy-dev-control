@@ -7,11 +7,19 @@ type Card = Awaited<ReturnType<typeof requestAction>>;
 const TIER: Record<string, string> = { routine: "text-success", controlled: "text-electric", critical: "text-destructive" };
 
 /** Precise approval card: action ID, target, permissions, diff/risk, expiry, Allow Once / Allow for This Task / Deny. */
-export function ApprovalCard({ taskId, onDone }: { taskId: string; onDone: (msg: string) => void }) {
+export function ApprovalCard({ taskId, action = "open_draft_pr", expectId, onDone }: { taskId: string; action?: "open_draft_pr" | "read_checks"; expectId?: string; onDone: (msg: string) => void }) {
   const req = useServerFn(requestAction), decide = useServerFn(decideAction), stepUp = useStepUp();
   const [card, setCard] = useState<Card | null>(null);
   const [err, setErr] = useState(""); const [busy, setBusy] = useState(false); const [left, setLeft] = useState(0);
-  const open = async () => { setErr(""); try { setCard(await req({ data: { taskId, action: "open_draft_pr" } })); } catch (e) { setErr((e as Error).message); } };
+  const open = async () => {
+    setErr("");
+    try {
+      const c = await req({ data: { taskId, action } });
+      // Deep links: only the exact card from the link may be decided here.
+      if (expectId && c.id !== expectId) { setErr("This link is no longer valid. Open Approvals to see the current card."); return; }
+      setCard(c);
+    } catch (e) { setErr((e as Error).message); }
+  };
   useEffect(() => {
     if (!card) return;
     const tick = () => setLeft(Math.max(0, Math.round((new Date(card.expires_at).getTime() - Date.now()) / 1000)));

@@ -187,7 +187,7 @@ test("admission fails closed without an authorised runtime", { skip: skipNoPg },
     await assert.rejects(admit(db, id, 0.1, { run: 8 }), /not authorised/);
     await assert.rejects(admit(db, randomUUID(), 0.1), /not authorised/);
     await assert.rejects(admit(db, id, 0), /invalid request|violates/);
-    await assert.rejects(admit(db, id, 6), /would be exceeded|violates/);
+    await assert.rejects(admit(db, id, 6), /invalid request|would be exceeded|violates/);
     assert.equal((await one(db, "SELECT count(*)::int n FROM public.code_provider_calls")).n, 0);
   } finally {
     await db.close();
@@ -278,7 +278,9 @@ test(
 test("an unknown outcome keeps the full ceiling reserved", { skip: skipNoPg }, async () => {
   const { db, id } = await setup({ reserved: 1 });
   try {
-    const cid = (await admit(db, id, 0.8)).rows[0].id;
+    // Calls are capped at $0.50 each (migration 0075_code_per_call_cap_050): fill the $1 job with two.
+    await admit(db, id, 0.5);
+    const cid = (await admit(db, id, 0.5)).rows[0].id;
     await assert.rejects(
       db.query("SELECT public.mark_code_provider_call_unknown($1, 'x')", [cid]),
       /dispatched call/,
@@ -286,7 +288,7 @@ test("an unknown outcome keeps the full ceiling reserved", { skip: skipNoPg }, a
     await db.query("SELECT public.dispatch_code_provider_call($1)", [cid]);
     await db.query("SELECT public.mark_code_provider_call_unknown($1, 'stream cut')", [cid]);
     assert.equal((await call(db, cid)).status, "unknown");
-    assert.equal(await holds(db, id), 0.8);
+    assert.equal(await holds(db, id), 1);
     await assert.rejects(admit(db, id, 0.3), /would be exceeded/);
     await assert.rejects(
       db.query("SELECT public.settle_code_provider_call($1, 0, null)", [cid]),

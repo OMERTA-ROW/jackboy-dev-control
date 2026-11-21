@@ -216,6 +216,41 @@ test(
   },
 );
 test(
+  "Step 10 after a reconnect needs a new executor verification (Nov 16 21:39 sequence)",
+  { skip: skipNoPg },
+  async () => {
+    const db = await fixture();
+    try {
+      // An earlier verified session, then Step 9 reconnects with a new operation id.
+      await connect(db);
+      await control(db, "verify", { passed: true, release: "omni-bounded-plan-1" });
+      await control(db, "revoke");
+      await connect(db);
+      const row = (
+        await db.query("SELECT verified_at, executor_release FROM public.omni_execution_connections")
+      ).rows[0];
+      assert.equal(row.verified_at, null);
+      assert.equal(row.executor_release, null);
+      // Configure straight after connect is refused by the database with this exact message,
+      // which Jackboy now reports as executor_verification_required instead of a 503.
+      await assert.rejects(control(db, "configure", { release: "omni-bounded-plan-1" }), (e) =>
+        String(e.message).startsWith("CODE spend enforcement is not verified"),
+      );
+      assert.equal(
+        (await db.query("SELECT configured FROM public.omni_execution_connections")).rows[0]
+          .configured,
+        false,
+      );
+      await control(db, "verify", { passed: true, release: "omni-bounded-plan-1" });
+      const state = await control(db, "configure", { release: "omni-bounded-plan-1" });
+      assert.equal(state.configured, true);
+      assert.equal(state.armed, false);
+    } finally {
+      await db.close();
+    }
+  },
+);
+test(
   "configuration is persisted without enabling CODE, OMNI, or releasing Stop",
   { skip: skipNoPg },
   async () => {

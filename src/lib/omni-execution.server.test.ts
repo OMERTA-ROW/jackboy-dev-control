@@ -1,8 +1,14 @@
-import { expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import {
+  CODE_NOT_READY_MESSAGE,
+  classifyAuthorityError,
+  executorVerificationFresh,
+} from "./omni-execution-refusal";
 import { deliverOmniCancellations, handleExecutionControl } from "./omni-execution.server";
 import { handleOmniPermit, type PermitStore } from "./omni-permit.server";
 import { hmacHex } from "./omni-link";
 import { digest, requestMessage } from "./omni-session";
+import type { FailureHistory } from "./omni-failure-stop";
 
 const cancellationMocks = vi.hoisted(() => ({
   pending: vi.fn(),
@@ -81,6 +87,12 @@ function dependencies() {
     })),
     verify: vi.fn(async () => ({ passed: true, release: "omni-bounded-plan-2" })),
     cancel: vi.fn(async () => ({ pending: 0, unavailable: 0 })),
+    failures: vi.fn(async () => ({ since: null, jobs: [] }) as FailureHistory),
+    audit: vi.fn(async (..._args: unknown[]) => {}),
+    connection: vi.fn(async (_project: string) => ({
+      verifiedAt: new Date(Date.now() - 60_000).toISOString(),
+      executorRelease: "omni-bounded-plan-2" as string | null,
+    })),
   };
 }
 it("Step 10 inspects the signed runner configuration but starts nothing", async () => {
@@ -169,13 +181,16 @@ it("503 names its stage and masks long tokens only while the debug flag is on", 
     });
   };
   const off = await failing(false);
-  expect([off.status, await off.json()]).toEqual([503, { error: "execution_control_unavailable" }]);
+  expect(off.status).toBe(503);
+  const offBody = await off.json();
+  expect(offBody).toMatchObject({ error: "execution_control_unavailable", stage: "authority" });
+  expect(offBody).not.toHaveProperty("reason");
   const on = await failing(true);
   expect([on.status, await on.json()]).toEqual([
     503,
     {
       error: "execution_control_unavailable",
-      reason: "store: Execution authority refused [masked]",
+      reason: "authority: Execution authority refused [masked]",
     },
   ]);
 });
@@ -212,7 +227,7 @@ it("disarming persists first and an unconfirmed cancellation is an explicit fail
     "disarm",
     { clientId: "fixture" },
   );
-  expect(await response.json()).toEqual({ error: "cancellation_unverified" });
+  expect(await response.json()).toMatchObject({ error: "cancellation_unverified" });
 });
 it("nonce store failures refuse the request before any operation", async () => {
   const deps = dependencies();
@@ -406,3 +421,214 @@ it.each([
     }
   },
 );
+
+const authorizeArgs = () => ({
+  jobId: "44444444-4444-4444-8444-444444444444",
+  planSha256: "a".repeat(64),
+  expiresAt: new Date(Date.now() + 30_000).toISOString(),
+  release: "omni-bounded-plan-2",
+});
+it("two failed OMNI jobs in a row block the next job before the database is asked", async () => {
+  const deps = dependencies();
+  deps.failures.mockResolvedValue({
+    since: null,
+    jobs: [
+      { state: "failed", finished_at: new Date(Date.now() - 60_000).toISOString() },
+      { state: "failed", finished_at: new Date(Date.now() - 120_000).toISOString() },
+    ],
+  });
+  const response = await handleExecutionControl(
+    await request("authorize", "mothership", authorizeArgs()),
+    deps,
+  );
+  expect(response.status).toBe(403);
+  expect(await response.json()).toMatchObject({ error: "failure_stop" });
+  expect(deps.failures).toHaveBeenCalledWith("fixture", project);
+  expect(deps.store).not.toHaveBeenCalled();
+});
+it("unreadable failure history blocks a new OMNI job (fail closed)", async () => {
+  const deps = dependencies();
+  deps.failures.mockResolvedValue(null);
+  const response = await handleExecutionControl(
+    await request("authorize", "mothership", authorizeArgs()),
+    deps,
+  );
+  expect(response.status).toBe(403);
+  expect(await response.json()).toMatchObject({ error: "failure_stop_unreadable" });
+  expect(deps.store).not.toHaveBeenCalled();
+});
+it("one failure still lets the database decide the next OMNI job", async () => {
+  const deps = dependencies();
+  deps.failures.mockResolvedValue({
+    since: null,
+    jobs: [{ state: "failed", finished_at: new Date(Date.now() - 60_000).toISOString() }],
+  });
+  const response = await handleExecutionControl(
+    await request("authorize", "mothership", authorizeArgs()),
+    deps,
+  );
+  expect(response.status).toBe(200);
+  expect(deps.store).toHaveBeenCalledOnce();
+});
+it("the failure stop never blocks safety reads, disarm or Stop-side cancellation", async () => {
+  for (const operation of ["safety", "disarm"]) {
+    const deps = dependencies();
+    deps.failures.mockResolvedValue(null);
+    const response = await handleExecutionControl(await request(operation), deps);
+    expect(response.status).toBe(200);
+    expect(deps.failures).not.toHaveBeenCalled();
+  }
+});
+
+
+it("authenticated refusals are signed, carry the real reason and are audited", async () => {
+  const deps = dependencies();
+  deps.inspect.mockResolvedValueOnce({
+    release: "omni-bounded-plan-1",
+    enabled: false,
+    reviewedRelease: null,
+  } as never);
+  const req = await request("configure");
+  const nonce = req.headers.get("x-omni-nonce")!;
+  const response = await handleExecutionControl(req, deps);
+  expect(response.status).toBe(403);
+  const raw = await response.text();
+  expect(JSON.parse(raw)).toEqual({ contract: "omni.link/v2", requestNonce: nonce, error: "release_unreviewed" });
+  const { hmacHex } = await import("./omni-link");
+  expect(response.headers.get("X-Omni-Proof")).toBe(
+    await hmacHex(env.OMNI_LINK_HMAC_SECRET, `omni.link/v2\nresponse\n${nonce}\n403\n${raw}`),
+  );
+  expect(deps.audit).toHaveBeenCalledWith(project, "configure", "release_unreviewed");
+  expect(deps.store).not.toHaveBeenCalled();
+});
+it("failed authentication stays unsigned and unaudited", async () => {
+  const deps = dependencies();
+  const req = await request("configure");
+  req.headers.set("x-omni-client", "someone-else");
+  const response = await handleExecutionControl(req, deps);
+  expect(response.status).toBe(401);
+  expect(response.headers.get("X-Omni-Proof")).toBeNull();
+  expect(deps.audit).not.toHaveBeenCalled();
+});
+
+describe("Step 10 names the real refusal instead of a generic 503", () => {
+  it("configure right after a reconnect (no verification) is a signed 409 and stores nothing", async () => {
+    const deps = dependencies();
+    deps.connection.mockResolvedValueOnce({ verifiedAt: null, executorRelease: null } as never);
+    const req = await request("configure");
+    const nonce = req.headers.get("x-omni-nonce")!;
+    const response = await handleExecutionControl(req, deps);
+    expect(response.status).toBe(409);
+    const raw = await response.text();
+    expect(JSON.parse(raw)).toEqual({
+      contract: "omni.link/v2",
+      requestNonce: nonce,
+      error: "executor_verification_required",
+    });
+    expect(response.headers.get("X-Omni-Proof")).toBe(
+      await hmacHex(env.OMNI_LINK_HMAC_SECRET, `omni.link/v2\nresponse\n${nonce}\n409\n${raw}`),
+    );
+    expect(deps.connection).toHaveBeenCalledWith(project);
+    expect(deps.store).not.toHaveBeenCalled();
+    expect(deps.audit).toHaveBeenCalledWith(project, "configure", "executor_verification_required");
+  });
+  it("a verification older than 15 minutes or for another release is refused the same way", async () => {
+    for (const row of [
+      { verifiedAt: new Date(Date.now() - 16 * 60_000).toISOString(), executorRelease: "omni-bounded-plan-1" },
+      { verifiedAt: new Date().toISOString(), executorRelease: "omni-bounded-plan-0" },
+    ]) {
+      const deps = dependencies();
+      deps.connection.mockResolvedValueOnce(row);
+      const response = await handleExecutionControl(await request("configure"), deps);
+      expect(response.status).toBe(409);
+      expect(await response.json()).toMatchObject({ error: "executor_verification_required" });
+      expect(deps.store).not.toHaveBeenCalled();
+    }
+  });
+  it("a database refusal is classified, signed with its stage and audited with a redacted detail", async () => {
+    const { ExecutionAuthorityError } = await import("./omni-execution.server");
+    const deps = dependencies();
+    deps.store.mockRejectedValueOnce(
+      new ExecutionAuthorityError("Fresh Jackboy owner authorization required", "P0001"),
+    );
+    const response = await handleExecutionControl(await request("configure"), deps);
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({
+      error: "owner_authorization_required",
+      stage: "authority",
+    });
+    expect(deps.audit).toHaveBeenCalledWith(
+      project,
+      "configure",
+      "owner_authorization_required",
+      expect.objectContaining({
+        stage: "authority",
+        detail: expect.objectContaining({ code: "P0001" }),
+      }),
+    );
+  });
+  it("an unknown database failure stays 503 but records the stage and never returns the message", async () => {
+    const { ExecutionAuthorityError } = await import("./omni-execution.server");
+    const deps = dependencies();
+    deps.store.mockRejectedValueOnce(
+      new ExecutionAuthorityError("lock timeout for Bearer abcdefghijklmnopqrstuv", "55P03"),
+    );
+    const response = await handleExecutionControl(await request("configure"), deps);
+    expect(response.status).toBe(503);
+    const raw = await response.text();
+    expect(JSON.parse(raw)).toMatchObject({
+      error: "execution_control_unavailable",
+      stage: "authority",
+    });
+    expect(raw).not.toContain("lock timeout");
+    const diagnostic = deps.audit.mock.calls[0]![3] as { detail: { message: string } };
+    expect(diagnostic.detail.message).toContain("lock timeout");
+    expect(diagnostic.detail.message).not.toContain("abcdefghijklmnopqrstuv");
+  });
+  it("unmet CODE readiness is a 409, not an outage", async () => {
+    const deps = dependencies();
+    deps.readiness.mockRejectedValueOnce(new Error(CODE_NOT_READY_MESSAGE));
+    const response = await handleExecutionControl(await request("configure"), deps);
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({
+      error: "code_configuration_not_ready",
+      stage: "readiness",
+    });
+    expect(deps.inspect).not.toHaveBeenCalled();
+    expect(deps.store).not.toHaveBeenCalled();
+  });
+  it("a malformed request is an unsigned 400 before authentication, not a 503", async () => {
+    const deps = dependencies();
+    const response = await handleExecutionControl(
+      new Request("https://jackboy.invalid/api/public/omni/link", { method: "POST", body: "{not json" }),
+      deps,
+    );
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "invalid_request" });
+    expect(response.headers.get("X-Omni-Proof")).toBeNull();
+    expect(deps.audit).not.toHaveBeenCalled();
+  });
+});
+
+describe("refusal rules", () => {
+  it("maps each known database refusal and leaves unknown ones as unavailable", () => {
+    expect(classifyAuthorityError("CODE spend enforcement is not verified")).toEqual({
+      status: 409,
+      error: "spend_enforcement_unverified",
+    });
+    expect(classifyAuthorityError("Connection is not authorized")?.error).toBe(
+      "connection_not_authorized",
+    );
+    expect(classifyAuthorityError("something else")).toBeNull();
+    expect(classifyAuthorityError(undefined)).toBeNull();
+  });
+  it("verification is fresh only inside 15 minutes and for the same release", () => {
+    const now = Date.parse("2026-11-16T21:39:18Z");
+    const at = (min: number) => new Date(now - min * 60_000).toISOString();
+    expect(executorVerificationFresh({ verifiedAt: at(14), executorRelease: "r1" }, "r1", now)).toBe(true);
+    expect(executorVerificationFresh({ verifiedAt: at(15), executorRelease: "r1" }, "r1", now)).toBe(false);
+    expect(executorVerificationFresh({ verifiedAt: at(1), executorRelease: "r0" }, "r1", now)).toBe(false);
+    expect(executorVerificationFresh({ verifiedAt: null, executorRelease: null }, "r1", now)).toBe(false);
+    expect(executorVerificationFresh(null, "r1", now)).toBe(false);
+  });
+});

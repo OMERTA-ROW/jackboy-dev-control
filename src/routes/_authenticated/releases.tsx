@@ -81,7 +81,7 @@ function Releases() {
           <label className="sm:col-span-2 grid gap-1 text-xs">Release notes<textarea className={input} rows={3} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></label>
           <label className="sm:col-span-2 grid gap-1 text-xs">Config (optional JSON shipped in the manifest)<textarea className={`${input} font-mono`} rows={3} placeholder='{"apiBase":"https://…"}' value={form.config} onChange={(e) => setForm({ ...form, config: e.target.value })} /></label>
           <label className="sm:col-span-2 grid gap-1 text-xs">Bundle file (optional, max 50 MB)<input type="file" className="text-xs" onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></label>
-          {([["rollout_percent", "Start at % of devices"], ["auto_step", "Auto-increase by % (0 = manual)"], ["step_hours", "…every N hours"], ["error_threshold", "Rollback if error rate ≥ %"], ["min_reports", "…after at least N reports"]] as const).map(([k, l]) => (
+          {([["rollout_percent", "Start at % of devices"], ["auto_step", "Auto-increase by % (0 = manual)"], ["step_hours", "…every N hours"], ["error_threshold", "Roll back if enrolled targets fail ≥ %"], ["min_reports", "…after at least N targets report"]] as const).map(([k, l]) => (
             <label key={k} className="grid gap-1 text-xs">{l}<input type="number" step={k === "error_threshold" ? "0.1" : "1"} className={input} value={form[k]} onChange={(e) => setForm({ ...form, [k]: Number(e.target.value) })} /></label>
           ))}
           <div className="sm:col-span-2"><button disabled={busy === "create"} className={btn}>{busy === "create" ? "Saving…" : "Save draft"}</button></div>
@@ -132,7 +132,7 @@ function ReleaseCard({ r, h, busy, act, publish, change, del }: { r: ReleaseRow;
       </div>
       {r.notes && <p className="mt-2 whitespace-pre-wrap text-muted-foreground">{r.notes}</p>}
       <p className="mt-2 text-xs text-muted-foreground">
-        Health (30d): {h ? `${h.failures}/${h.total} failed${rate ? ` (${rate}%)` : ""}` : "no reports"} · rollback at ≥{r.error_threshold}% after {r.min_reports} reports
+        Health (30d): {h ? `${h.failures}/${h.total} failed${rate ? ` (${rate}%)` : ""}` : "no reports"} · auto-rollback at ≥{r.error_threshold}% of enrolled targets (min {r.min_reports}); unverified device reports only alert you and hold the rollout
         {r.auto_step > 0 ? ` · +${r.auto_step}% every ${r.step_hours}h` : " · manual rollout"}
         {r.artifact_sha256 && ` · bundle sha256 ${r.artifact_sha256.slice(0, 12)}…`}
       </p>

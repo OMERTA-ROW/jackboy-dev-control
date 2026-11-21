@@ -7,6 +7,7 @@ import { RepositorySyncPanel } from "@/components/RepositorySync";
 import { CodeSafetyPanel } from "@/components/CodeSafetyPanel";
 import { CodeSitesList } from "@/components/CodeSiteCard";
 import { CodeLanePanel } from "@/components/CodeLanePanel";
+import { CodeRepoBlockPanel } from "@/components/CodeRepoBlockPanel";
 import { TaskSkipRules } from "@/components/TaskSkipRules";
 import { CapabilitiesPanel } from "@/components/CapabilitiesPanel";
 import { AutonomyStatusPanel } from "@/components/AutonomyStatusPanel";
@@ -88,6 +89,7 @@ function Settings() {
       <AutonomyStatusPanel />
       <GuardianPanel />
       <CodeSitesList />
+      <CodeRepoBlockPanel />
       <CodeLanePanel />
       <TaskSkipRules />
       <section aria-labelledby="guidelines" className="mb-6 rounded-lg border border-border bg-card p-4">

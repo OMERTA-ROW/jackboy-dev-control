@@ -5,6 +5,7 @@ import type { Plugin } from "vite";
 
 import WebSocket, { WebSocketServer } from "ws";
 
+import { LIVE_PROTOCOL } from "./src/lib/live-protocol";
 import type { LiveConnector, LiveSocket } from "./src/lib/live-relay.server";
 
 function liveSocket(socket: WebSocket): LiveSocket {
@@ -110,7 +111,12 @@ export function liveVoiceDev(): Plugin {
     configureServer(server) {
       const httpServer = server.httpServer;
       if (!httpServer) throw new Error("Live voice preview requires Vite's HTTP server");
-      const sockets = new WebSocketServer({ noServer: true, maxPayload: 2 * 1024 * 1024 });
+      const sockets = new WebSocketServer({
+        noServer: true,
+        maxPayload: 2 * 1024 * 1024,
+        // Echo only the protocol name, never the auth entry carrying the session token.
+        handleProtocols: (protocols) => (protocols.has(LIVE_PROTOCOL) ? LIVE_PROTOCOL : false),
+      });
       let disposed = false;
       const upgrade = (request: IncomingMessage, socket: Duplex, head: Buffer) => {
         if (request.url?.split("?", 1)[0] !== "/api/live") return;
@@ -123,8 +129,12 @@ export function liveVoiceDev(): Plugin {
               "/src/lib/live-relay.server.ts",
             )) as typeof import("./src/lib/live-relay.server");
             const config = relay.getLiveConfig();
-            const rejection = relay.validateLiveUpgrade(upgradeRequest(request), { allowMissingOrigin: true });
+            const upgradeReq = upgradeRequest(request);
+            const rejection = relay.validateLiveUpgrade(upgradeReq, { allowMissingOrigin: true });
             if (rejection) return rejectUpgrade(socket, rejection.status);
+            // Owner session is verified before the socket is upgraded, never after.
+            const auth = await relay.authorizeLiveUpgrade(upgradeReq);
+            if (auth instanceof Response) return rejectUpgrade(socket, auth.status);
             if (socket.destroyed) return;
             sockets.handleUpgrade(request, socket, head, (connection) => {
               const browser = liveSocket(connection);
@@ -136,6 +146,7 @@ export function liveVoiceDev(): Plugin {
                     void task.catch(() => browser.close(1011, "Voice processing failed"));
                   },
                 },
+                auth.token,
                 connectGateway,
               );
             });

@@ -16,9 +16,38 @@ export function isolationChecks(text) {
   const runsModel = (j) => /openai\/codex-action@/.test(body(j));
   const all = Object.entries(jobs);
   const publisher = jobs.draft_pr;
+  for (const name of ["prepare", "draft_pr"]) {
+    for (const step of jobs[name]?.steps ?? []) {
+      const prepare = name === "prepare";
+      if (
+        step.id === "target_token" &&
+        /^actions\/create-github-app-token@[a-f0-9]{40}$/.test(step.uses ?? "") &&
+        step.if ===
+          (prepare
+            ? "steps.claim.outputs.target_repo != ''"
+            : "needs.prepare.outputs.target_repo != ''") &&
+        step.with?.owner === "OMERTA-ROW" &&
+        step.with?.repositories ===
+          (prepare
+            ? "${{ steps.claim.outputs.target_name }}"
+            : "${{ needs.prepare.outputs.target_name }}") &&
+        step.with?.["permission-contents"] === (prepare ? "read" : "write") &&
+        (prepare
+          ? Object.keys(step.with).length === 5
+          : Object.keys(step.with).length === 6 &&
+            step.with["permission-pull-requests"] === "write")
+      ) {
+        if (step.with?.["app-id"] === "${{ secrets.CODE_APP_ID }}") delete step.with["app-id"];
+        if (step.with?.["private-key"] === "${{ secrets.CODE_APP_PRIVATE_KEY }}")
+          delete step.with["private-key"];
+      }
+    }
+  }
   return {
     "no provider secret on any runner":
-      !/secrets\.|OPENAI_API_KEY|ANTHROPIC_API_KEY|CODE_PROVIDER_API_KEY/.test(text),
+      !/secrets\s*(?:\.|\[)|OPENAI_API_KEY|ANTHROPIC_API_KEY|CODE_PROVIDER_API_KEY/i.test(
+        JSON.stringify(wf),
+      ),
     "provider reached only through the request-bound gateway":
       /\/api\/public\/code\/provider\/v1\/responses/.test(text) &&
       !/api\.openai\.com|api\.anthropic\.com/.test(text),
@@ -64,4 +93,19 @@ for (const [name, ok] of Object.entries(isolationChecks(active))) {
 test("checker rejects tests placed beside OIDC and the model", () => {
   const unsafe = active.replace("git add -N .", "bun run test\n          git add -N .");
   assert.equal(isolationChecks(unsafe)["tests/build run in a separate job from the model"], false);
+});
+test("checker rejects provider or misplaced App secrets", () => {
+  for (const unsafe of [
+    active.replace("secrets.CODE_APP_PRIVATE_KEY", "secrets.OPENAI_API_KEY"),
+    active.replace(
+      "git add -N .",
+      "echo '${{ secrets.CODE_APP_PRIVATE_KEY }}'\n          git add -N .",
+    ),
+    active.replace("git add -N .", "echo \"${{ secrets['OTHER'] }}\"\n          git add -N ."),
+    active.replace("id: target_token", "id: another_token"),
+    active.replace("permission-contents: read", "permission-contents: write"),
+    active.replace("repositories: ${{ steps.claim.outputs.target_name }}", "repositories: other"),
+  ]) {
+    assert.equal(isolationChecks(unsafe)["no provider secret on any runner"], false);
+  }
 });

@@ -291,3 +291,9 @@ The spoken acronym “NLOA” is unconfirmed in Notion. Do not infer a technical
 
 ## Owner request Nov 9
 - [x] Guardian section in Settings (status, protections, plain-language rules, recent allowed/blocked/flagged log, owner-only limits, Fleet/Automation/OMNI links) + Guardian entry in the Settings menu.
+
+## Restore lost fixes before publishing (Nov 20)
+- [x] Bring back the Nov 16 fixes (Emergency Stop error detail, signed refusals, Step 10 refusal reasons) and the Nov 19 approval-card links, merged with newer main changes.
+- [x] Already-approved cards show the recorded outcome first, not "no longer valid".
+- [x] Migrations 0075–0077: owner chose reference copies only (`staging/applied-migrations-0075-0077/`); nothing touched the database.
+- [ ] Publish — waits on the owner.

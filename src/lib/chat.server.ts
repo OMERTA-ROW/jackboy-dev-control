@@ -1,12 +1,13 @@
 // Server-only Jackboy chat: owner-verified, tool-calling agent over real project data.
 import { createOpenAI } from "@ai-sdk/openai";
-import { convertToModelMessages, stepCountIs, streamText, tool, type UIMessage } from "ai";
+import { convertToModelMessages, stepCountIs, streamText, tool } from "ai";
 import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { PRIVILEGED_TOOLS, decideTool } from "./voice-guard";
 import { createLovableAiGatewayRunIdFetch, getLovableAiGatewayRunId, withLovableAiGatewayRunIdHeader } from "./ai/run-id";
 import { ACTING_CHAT_POLICY } from "./chat-action";
+import { HISTORY_POLICY, sanitizeChatHistory } from "./chat-model-history";
 
 const MODEL = "openai/gpt-6-astra";
 
@@ -36,8 +37,11 @@ export async function handleChat(request: Request) {
   const userId = owner.userId;
   const key = process.env["LOVABLE_API_KEY"];
   if (!key) return Response.json({ error: "AI is not configured on the server." }, { status: 500 });
-  const body = (await request.json()) as { messages?: UIMessage[]; contextKey?: unknown };
-  if (!Array.isArray(body.messages) || body.messages.length > 200) return Response.json({ error: "Invalid messages." }, { status: 400 });
+  const raw = (await request.json().catch(() => null)) as { messages?: unknown; contextKey?: unknown } | null;
+  // Rebuild the history: only user/assistant text (plus user attachments) reaches the model.
+  const history = sanitizeChatHistory(raw?.messages);
+  if (!history.ok) return Response.json({ error: history.error }, { status: 400 });
+  const body = { messages: history.messages, contextKey: raw?.contextKey };
   // Context pivots read only stored notes; an unknown or removed context is refused, never guessed.
   const { loadContextBrief } = await import("./chat-context.server");
   const brief = await loadContextBrief(owner.sb, body.contextKey ?? "jackboy");
@@ -105,6 +109,7 @@ export async function handleChat(request: Request) {
     model: provider.responses(MODEL),
     instructions: [
       ACTING_CHAT_POLICY,
+      HISTORY_POLICY,
       "You are Jackboy, the owner's update and repair engineer: warm, witty, confident and a little cheeky — but concise. Drop the jokes entirely for security, failures, money and approvals. Never claim an action you did not perform; tool results are the only proof.",
       "If an operation actually fails with GitHub 403 or missing access, call authorizationHelp and name the permission and owner action in one short line. A status check discovering unused Actions write is not itself a failed operation: report the permission without extra tools. Do not repeat evidence links or add commentary. Never ask for tokens or approve access yourself.",
       "Use tools for every fact about projects, scans, repos and updates — never invent status, results, files, diffs, PRs or releases.",

@@ -14,7 +14,12 @@ const CODEX_STEP =
 const BUN_STEPS =
   /      - uses: oven-sh\/setup-bun@[0-9a-f]{40}\n        with:\n          bun-version: "[^"]+"\n/;
 const INSTALL_STEP =
-  "      - name: Install dependencies without lifecycle scripts\n        run: bun install --frozen-lockfile --ignore-scripts\n";
+  "      - name: Install dependencies without lifecycle scripts\n        if: needs.prepare.outputs.target_repo == ''\n        run: bun install --frozen-lockfile --ignore-scripts\n";
+const TARGET_READ_STEPS =
+  /      - name: Short-lived read token for the one approved target repository\n[\s\S]*?(?=      - name: Record approved base\n)/;
+const TARGET_PUBLISH_STEPS =
+  /      - name: Short-lived write token for the one approved target repository\n[\s\S]*?(?=      - name: Open a draft PR only\n)/;
+const TARGET_CLAIM = "          const targetRepo = claim.targetRepo ?? '';\n";
 
 const DETERMINISTIC_STEP = `      - name: Deterministic stand-in for the model step (no provider call)
         env:
@@ -42,6 +47,9 @@ export function deriveWorkflow(source, { githubOnly = false } = {}) {
     !BUN_STEPS.test(source) ||
     !gatewayStep.test(source) ||
     !source.includes(INSTALL_STEP) ||
+    !TARGET_READ_STEPS.test(source) ||
+    !TARGET_PUBLISH_STEPS.test(source) ||
+    !source.includes(TARGET_CLAIM) ||
     !source.includes('run: bash "$RUNNER_TEMP/code-validation.sh"') ||
     !source.includes("gh attestation verify")
   ) {
@@ -51,7 +59,14 @@ export function deriveWorkflow(source, { githubOnly = false } = {}) {
     .replace(CODEX_STEP, DETERMINISTIC_STEP)
     .replace(gatewayStep, "")
     .replace(BUN_STEPS, "")
-    .replace(INSTALL_STEP, "");
+    .replace(INSTALL_STEP, "")
+    .replace(TARGET_READ_STEPS, "")
+    .replace(TARGET_PUBLISH_STEPS, "")
+    .replace(
+      TARGET_CLAIM,
+      TARGET_CLAIM +
+        "          if (targetRepo !== '') throw new Error('Acceptance seed only supports its own repository.');\n",
+    );
   if (githubOnly) {
     out = out
       .replace(
@@ -71,8 +86,8 @@ export function deriveWorkflow(source, { githubOnly = false } = {}) {
       throw new Error("GitHub-only workflow still references the Jackboy backend.");
     }
   }
-  if (/OPENAI|codex-action|setup-bun|bun /.test(out)) {
-    throw new Error("Derived workflow still references a provider or Bun.");
+  if (/OPENAI|codex-action|setup-bun|bun |secrets\s*(?:\.|\[)|steps\.target_token/i.test(out)) {
+    throw new Error("Derived workflow still references a provider, Bun or target credential.");
   }
   return out;
 }

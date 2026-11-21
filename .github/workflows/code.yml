@@ -25,6 +25,9 @@ jobs:
       instruction: ${{ steps.claim.outputs.instruction }}
       artifact_id: ${{ steps.evidence.outputs.artifact-id }}
       patch_sha256: ${{ steps.capture.outputs.patch_sha256 }}
+      target_repo: ${{ steps.claim.outputs.target_repo }}
+      target_sha: ${{ steps.claim.outputs.target_sha }}
+      target_name: ${{ steps.claim.outputs.target_name }}
     steps:
       - name: Claim approved request
         id: claim
@@ -72,11 +75,34 @@ jobs:
             !claim.instruction.trim() ||
             claim.instruction.length > 4000
           ) throw new Error('CODE approval did not match this workflow run.');
+          // Central runner: another OMERTA-ROW repository approved by the server, or none (Jackboy itself).
+          const targetRepo = claim.targetRepo ?? '';
+          const targetSha = claim.targetSha ?? '';
+          if (targetRepo !== '' && (!/^OMERTA-ROW\/[A-Za-z0-9._-]{1,100}$/.test(targetRepo) || !/^[a-f0-9]{40}$/.test(targetSha) || targetRepo === process.env.GITHUB_REPOSITORY))
+            throw new Error('CODE target did not match the approved scope.');
           const delimiter = `CODE_INSTRUCTION_${randomUUID()}`;
-          appendFileSync(process.env.GITHUB_OUTPUT, `instruction<<${delimiter}\n${claim.instruction}\n${delimiter}\n`);
+          appendFileSync(process.env.GITHUB_OUTPUT, `instruction<<${delimiter}\n${claim.instruction}\n${delimiter}\ntarget_repo=${targetRepo}\ntarget_name=${targetRepo.split('/')[1] ?? ''}\ntarget_sha=${targetSha}\n`);
           NODE
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        if: steps.claim.outputs.target_repo == ''
         with:
+          persist-credentials: false
+      - name: Short-lived read token for the one approved target repository
+        id: target_token
+        if: steps.claim.outputs.target_repo != ''
+        uses: actions/create-github-app-token@67018539274d69449ef7c02e8e71183d1719ab42 # v2.1.4
+        with:
+          app-id: ${{ secrets.CODE_APP_ID }}
+          private-key: ${{ secrets.CODE_APP_PRIVATE_KEY }}
+          owner: OMERTA-ROW
+          repositories: ${{ steps.claim.outputs.target_name }}
+          permission-contents: read
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        if: steps.claim.outputs.target_repo != ''
+        with:
+          repository: ${{ steps.claim.outputs.target_repo }}
+          ref: ${{ steps.claim.outputs.target_sha }}
+          token: ${{ steps.target_token.outputs.token }}
           persist-credentials: false
       - name: Record approved base
         run: |
@@ -176,18 +202,28 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           EXPECTED_PATCH_SHA256: ${{ needs.prepare.outputs.patch_sha256 }}
+          TARGET_REPO: ${{ needs.prepare.outputs.target_repo }}
         run: |
           node scripts/code-evidence.mjs "$RUNNER_TEMP/code-model/code.patch" "$EXPECTED_PATCH_SHA256"
           gh attestation verify "$RUNNER_TEMP/code-model/code.patch" --repo "$GITHUB_REPOSITORY" \
             --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/code.yml" \
             --source-digest "$GITHUB_SHA" --signer-digest "$GITHUB_SHA" --source-ref "$GITHUB_REF" \
             --deny-self-hosted-runners
+          mkdir -p "$RUNNER_TEMP/code-validation"
+          if [ -n "$TARGET_REPO" ]; then
+            # Central target: no repository code runs here (sandbox quarantine). The patch path gate and apply
+            # check run against the target in the publishing job; the target's own CI runs on the draft PR.
+            echo "Central target $TARGET_REPO: evidence and provenance verified; repository code not executed." | tee "$RUNNER_TEMP/code-validation/summary.txt"
+            exit 0
+          fi
           cp scripts/code-validation.sh "$RUNNER_TEMP/code-validation.sh"
           node scripts/code-patch.mjs "$RUNNER_TEMP/code-model/code.patch"
           git apply --index "$RUNNER_TEMP/code-model/code.patch"
       - name: Install dependencies without lifecycle scripts
+        if: needs.prepare.outputs.target_repo == ''
         run: bun install --frozen-lockfile --ignore-scripts
       - name: Validate in a credential-free, networkless container
+        if: needs.prepare.outputs.target_repo == ''
         run: bash "$RUNNER_TEMP/code-validation.sh"
       - name: Preserve real validation logs
         if: always()
@@ -210,6 +246,7 @@ jobs:
     steps:
       - name: Claim independent publishing authorization
         env:
+          TARGET_REPO: ${{ needs.prepare.outputs.target_repo }}
           CODE_REQUEST: ${{ inputs.request_id }}
           CODE_RUNNER_AUTH_URL: ${{ vars.CODE_RUNNER_AUTH_URL }}
         run: |
@@ -244,6 +281,7 @@ jobs:
           if (!response.ok) throw new Error(`CODE publishing authorization failed (${response.status}).`);
           const claim = await response.json();
           if (claim.authorized !== true) throw new Error('CODE publishing approval was not granted.');
+          if ((claim.targetRepo ?? '') !== process.env.TARGET_REPO) throw new Error('CODE publishing target changed.');
           NODE
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
@@ -257,15 +295,53 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           EXPECTED_PATCH_SHA256: ${{ needs.prepare.outputs.patch_sha256 }}
+          TARGET_REPO: ${{ needs.prepare.outputs.target_repo }}
         run: |
           node scripts/code-evidence.mjs "$RUNNER_TEMP/code-evidence/code.patch" "$EXPECTED_PATCH_SHA256"
           gh attestation verify "$RUNNER_TEMP/code-evidence/code.patch" --repo "$GITHUB_REPOSITORY" \
             --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/code.yml" \
             --source-digest "$GITHUB_SHA" --signer-digest "$GITHUB_SHA" --source-ref "$GITHUB_REF" \
             --deny-self-hosted-runners
+          if [ -n "$TARGET_REPO" ]; then exit 0; fi
           node scripts/code-patch.mjs "$RUNNER_TEMP/code-evidence/code.patch"
           git apply --index "$RUNNER_TEMP/code-evidence/code.patch"
+      - name: Short-lived write token for the one approved target repository
+        id: target_token
+        if: needs.prepare.outputs.target_repo != ''
+        uses: actions/create-github-app-token@67018539274d69449ef7c02e8e71183d1719ab42 # v2.1.4
+        with:
+          app-id: ${{ secrets.CODE_APP_ID }}
+          private-key: ${{ secrets.CODE_APP_PRIVATE_KEY }}
+          owner: OMERTA-ROW
+          repositories: ${{ needs.prepare.outputs.target_name }}
+          permission-contents: write
+          permission-pull-requests: write
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        if: needs.prepare.outputs.target_repo != ''
+        with:
+          repository: ${{ needs.prepare.outputs.target_repo }}
+          ref: ${{ needs.prepare.outputs.target_sha }}
+          token: ${{ steps.target_token.outputs.token }}
+          path: target
+          persist-credentials: false
+      - name: Open a draft PR in the approved target repository only
+        if: needs.prepare.outputs.target_repo != ''
+        env:
+          GH_TOKEN: ${{ steps.target_token.outputs.token }}
+          CODE_REQUEST: ${{ inputs.request_id }}
+          TARGET_REPO: ${{ needs.prepare.outputs.target_repo }}
+        run: |
+          patch="$RUNNER_TEMP/code-evidence/code.patch"
+          cd target
+          node ../scripts/code-patch.mjs "$patch"
+          git apply --index "$patch"
+          branch="jackboy/code-$CODE_REQUEST"
+          git -c core.hooksPath=/dev/null -c user.name=Jackboy -c user.email=jackboy@users.noreply.github.com commit -m "CODE: scoped development task $CODE_REQUEST"
+          git -c core.hooksPath=/dev/null -c http.extraheader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)" push --no-verify "https://github.com/$TARGET_REPO.git" "HEAD:refs/heads/$branch"
+          printf '%s\n\n%s\n' "CODE prepared this change after a scoped owner approval, from the Jackboy CODE workflow run $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID (patch and model report are its artifacts)." "No merge or deployment was performed and no repository code was executed by CODE. This repository's own checks run on this PR. Merge only with a regular merge commit." > "$RUNNER_TEMP/code-pr.md"
+          gh pr create --repo "$TARGET_REPO" --base main --head "$branch" --draft --title "CODE: scoped development task $CODE_REQUEST" --body-file "$RUNNER_TEMP/code-pr.md"
       - name: Open a draft PR only
+        if: needs.prepare.outputs.target_repo == ''
         env:
           GH_TOKEN: ${{ github.token }}
           CODE_REQUEST: ${{ inputs.request_id }}

@@ -46,7 +46,7 @@ function harness(over: Partial<GatewayDeps> = {}, upstream?: GatewayDeps["upstre
     isStopped: async () => false,
     providerKey: () => "sk-test-key",
     prices: () => prices,
-    perCallCapUsd: () => 1,
+    perCallCapUsd: () => 0.5,
     upstream: upstreamFn,
     newKey: () => "k".repeat(16),
     ...over,
@@ -78,10 +78,10 @@ describe("pricing and ceilings", () => {
   });
   it("reserves the full verified input window and clamps the output", () => {
     expect(costUsd(prices["m-test"]!, 1, 1)).toBeGreaterThan(0);
-    const p = prepareRequest("/responses", body({ max_output_tokens: 5000 }), prices, 1);
+    const p = prepareRequest("/responses", body({ max_output_tokens: 5000 }), prices, 0.5);
     expect(JSON.parse(p.body).max_output_tokens).toBe(1000);
     expect(p.ceilingUsd).toBe(costUsd(prices["m-test"]!, 10000, 1000));
-    const larger = prepareRequest("/responses", body({ input: "x".repeat(10000) }), prices, 1);
+    const larger = prepareRequest("/responses", body({ input: "x".repeat(10000) }), prices, 0.5);
     expect(larger.ceilingUsd).toBe(p.ceilingUsd);
   });
   it("clamps every spelling of the output limit and defaults to the model cap", () => {
@@ -89,14 +89,14 @@ describe("pricing and ceilings", () => {
       "/chat/completions",
       JSON.stringify({ model: "m-test", messages: [], max_tokens: 10, max_completion_tokens: 50 }),
       prices,
-      1,
+      0.5,
     );
     const parsed = JSON.parse(p.body);
     expect(parsed.max_completion_tokens).toBe(10);
     expect(parsed.max_tokens).toBeUndefined();
-    expect(JSON.parse(prepareRequest("/responses", body(), prices, 1).body).max_output_tokens).toBe(
-      1000,
-    );
+    expect(
+      JSON.parse(prepareRequest("/responses", body(), prices, 0.5).body).max_output_tokens,
+    ).toBe(1000);
   });
   it("rejects requests whose cost cannot be bounded", () => {
     const bad: [string, string][] = [
@@ -112,17 +112,17 @@ describe("pricing and ceilings", () => {
       ["array", "[]"],
     ];
     for (const [, raw] of bad)
-      expect(() => prepareRequest("/responses", raw, prices, 1)).toThrow(GatewayError);
+      expect(() => prepareRequest("/responses", raw, prices, 0.5)).toThrow(GatewayError);
     expect(() =>
-      prepareRequest("/responses", body({ pad: "x".repeat(1_000_001) }), prices, 1),
+      prepareRequest("/responses", body({ pad: "x".repeat(1_000_001) }), prices, 0.5),
     ).toThrow(/size/);
-    expect(() => prepareRequest("/models", body(), prices, 1)).toThrow(/Unsupported/);
+    expect(() => prepareRequest("/models", body(), prices, 0.5)).toThrow(/Unsupported/);
   });
   it("enforces the per-call cap", () => {
     expect(() => prepareRequest("/responses", body(), prices, 0.000001)).toThrow(/ceiling/);
   });
   it("rejects invalid caps and hidden or server-stored context", () => {
-    for (const cap of [NaN, Infinity, 0, -1, 6]) {
+    for (const cap of [NaN, Infinity, 0, -1, 0.500001, 1, 5, 6]) {
       expect(() => prepareRequest("/responses", body(), prices, cap)).toThrow();
     }
     for (const extra of [
@@ -134,14 +134,14 @@ describe("pricing and ceilings", () => {
       { input: [{ type: "item_reference", id: "old" }] },
       { input: [{ type: "reasoning", encrypted_content: "opaque" }] },
     ]) {
-      expect(() => prepareRequest("/responses", body(extra), prices, 1)).toThrow();
+      expect(() => prepareRequest("/responses", body(extra), prices, 0.5)).toThrow();
     }
     expect(() =>
       prepareRequest(
         "/responses",
         '{"model":"m-test","input":[{"type":"input_image","image\\u005furl":"https://invalid"}]}',
         prices,
-        1,
+        0.5,
       ),
     ).toThrow();
   });

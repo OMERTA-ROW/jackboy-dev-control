@@ -67,7 +67,7 @@ export default {
         return handleRunnerRequest(request);
       }
       if (pathname === "/api/live") {
-        return handleLiveRequest(request);
+        return await handleLiveRequest(request);
       }
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);

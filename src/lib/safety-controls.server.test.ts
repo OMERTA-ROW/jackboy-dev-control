@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Server-side behaviour of the three controls, with the database replaced by a recorder.
-const f = vi.hoisted(() => ({ consume: vi.fn(), adminCalls: [] as string[], userCalls: [] as string[], codeStopError: null as unknown, installed: false }));
+const f = vi.hoisted(() => ({ consume: vi.fn(), adminCalls: [] as string[], userCalls: [] as string[], codeStopError: null as unknown, installed: false, audits: [] as Record<string, unknown>[], auditThrows: false, releaseReply: null as null | { data: unknown; error: unknown } }));
 vi.mock("@tanstack/react-start", () => ({ createServerFn: () => { const chain = { middleware: () => chain, inputValidator: () => chain, handler: (fn: unknown) => fn }; return chain; } }));
 vi.mock("@/integrations/supabase/auth-middleware", () => ({ requireSupabaseAuth: {} }));
 vi.mock("./passkey.server", () => ({ consumeGrant: f.consume }));
@@ -11,6 +11,12 @@ function table(name: string, calls: string[], row: Record<string, unknown>) {
   const q: Record<string, unknown> = {};
   for (const m of ["select", "eq"]) q[m] = () => q;
   q["update"] = () => { calls.push(`update:${name}`); return q; };
+  q["insert"] = async (rowIn: Record<string, unknown>) => {
+    if (name !== "audit_logs") { calls.push(`insert:${name}`); return { error: null }; }
+    if (f.auditThrows) throw new Error("audit store down");
+    f.audits.push(rowIn);
+    return { error: null };
+  };
   q["single"] = async () => ({ data: row, error: null });
   q["maybeSingle"] = async () => ({ data: row, error: null });
   (q as { then: unknown }).then = (res: (v: unknown) => unknown) => res({ data: null, error: null });
@@ -33,6 +39,7 @@ vi.mock("@/integrations/supabase/client.server", () => ({
       if (name === "code_independent_controls_installed") return { data: f.installed, error: null };
       if (name === "code_total_spend_guard_status") return { data: GUARD, error: null };
       if (name === "set_code_enabled") { c["enabled"] = args?.["p_enabled"]; return { data: { ok: true }, error: null }; }
+      if (name === "release_code_emergency_stop" && f.releaseReply) return f.releaseReply;
       if (name === "release_code_emergency_stop") { c["kill_switch"] = false; return { data: { ok: true }, error: null }; }
       return { data: null, error: null };
     },
@@ -58,6 +65,9 @@ beforeEach(() => {
   f.userCalls.length = 0;
   f.codeStopError = null;
   f.installed = false;
+  f.audits.length = 0;
+  f.auditThrows = false;
+  f.releaseReply = null;
   for (const [k, v] of Object.entries(START)) ROWS[k] = { ...v };
   f.consume.mockResolvedValue(undefined);
 });
@@ -124,6 +134,7 @@ describe("Kill Switch, CODE and Emergency Stop on the server", () => {
     await expect((releaseCodeEmergencyStop as unknown as Fn)({ data: GRANT, context: ctx() })).rejects.toThrow(/not installed yet/);
     expect(f.consume).not.toHaveBeenCalled();
     expect(writes()).toEqual([]);
+    expect(f.audits).toEqual([expect.objectContaining({ action: "code.emergency_stop_release_failed", outcome: "blocked", detail: expect.objectContaining({ stage: "independent_check" }) })]);
   });
 
   it("turning CODE off changes only the CODE setting, with the off passkey", async () => {
@@ -150,5 +161,51 @@ describe("Kill Switch, CODE and Emergency Stop on the server", () => {
     await expect((releaseCodeEmergencyStop as unknown as Fn)({ data: GRANT, context: ctx() })).rejects.toThrow(/usage spike/);
     expect(writes()).toEqual([]);
     expect(ROWS["code_runtime_controls"]!["kill_switch"]).toBe(true);
+    expect(f.consume).not.toHaveBeenCalled();
+    expect(f.audits).toHaveLength(1);
+    expect(f.audits[0]).toMatchObject({ action: "code.emergency_stop_release_failed", outcome: "blocked", detail: { stage: "app_gate" } });
+    expect(String((f.audits[0]!["detail"] as Record<string, unknown>)["reason"])).toMatch(/usage spike/);
+  });
+
+  it("a database refusal shows its real code and message, keeps 'nothing changed' and is audited after the passkey", async () => {
+    f.installed = true;
+    f.releaseReply = { data: null, error: { code: "42501", message: `permission denied for function release_code_emergency_stop ${"x".repeat(300)}` } };
+    const err = await (releaseCodeEmergencyStop as unknown as Fn)({ data: GRANT, context: ctx() }).catch((e: Error) => e);
+    expect(String(err)).toMatch(/\(42501: permission denied for function release_code_emergency_stop x+…\); nothing changed\./);
+    expect(f.consume).toHaveBeenCalledTimes(1);
+    expect(f.audits).toHaveLength(1);
+    const detail = f.audits[0]!["detail"] as Record<string, unknown>;
+    expect(detail).toMatchObject({ stage: "rpc", error_code: "42501" });
+    expect(String(detail["error_message"]).length).toBeLessThanOrEqual(200);
+  });
+
+  it("a database error never leaks keys or tokens into the message", async () => {
+    f.installed = true;
+    f.releaseReply = { data: null, error: { code: "XX000", message: "bad sb_secret_abcdefghijklmnop0123 and eyJabcdefghijk.eyJabcdefghijk.signature1" } };
+    const err = await (releaseCodeEmergencyStop as unknown as Fn)({ data: GRANT, context: ctx() }).catch((e: Error) => e);
+    expect(String(err)).not.toMatch(/sb_secret_abcdefghijklmnop0123|eyJabcdefghijk\.eyJ/);
+    expect(String(err)).toMatch(/XX000: bad \[redacted-key\]/);
+  });
+
+  it("an empty database answer is reported as such", async () => {
+    f.installed = true;
+    f.releaseReply = { data: null, error: null };
+    await expect((releaseCodeEmergencyStop as unknown as Fn)({ data: GRANT, context: ctx() })).rejects.toThrow(/\(unknown: no result returned\); nothing changed\./);
+  });
+
+  it("a failed audit write never changes the release outcome", async () => {
+    f.installed = true;
+    f.auditThrows = true;
+    ROWS["code_runtime_controls"]!["usage_spike"] = true;
+    await expect((releaseCodeEmergencyStop as unknown as Fn)({ data: GRANT, context: ctx() })).rejects.toThrow(/usage spike/);
+    ROWS["code_runtime_controls"]!["usage_spike"] = false;
+    f.releaseReply = { data: null, error: { code: "P0001", message: "refused" } };
+    await expect((releaseCodeEmergencyStop as unknown as Fn)({ data: GRANT, context: ctx() })).rejects.toThrow(/\(P0001: refused\); nothing changed/);
+  });
+
+  it("a successful release writes no failure audit", async () => {
+    f.installed = true;
+    await (releaseCodeEmergencyStop as unknown as Fn)({ data: GRANT, context: ctx() });
+    expect(f.audits).toEqual([]);
   });
 });

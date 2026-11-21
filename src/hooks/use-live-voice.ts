@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { liveProtocols } from "@/lib/live-protocol";
 
 export type LiveEvent = {
   type: string;
@@ -358,11 +359,13 @@ function createLiveVoice(options: LiveOptions) {
       if (!starting()) return;
       const sdp = connection.localDescription?.sdp;
       if (!sdp) throw new Error("Missing voice session offer");
-      socket = new WebSocket(options.url);
+      if (!options.token) throw new Error("Sign in as the owner to use voice.");
+      // The relay verifies this owner session before it accepts the connection.
+      socket = new WebSocket(options.url, liveProtocols(options.token));
       deadline = setTimeout(() => fail("Voice session did not start"), 50_000);
       socket.onopen = () => {
         if (!starting()) return release();
-        send({ type: "app.start", sdp, token: options.token, context: options.context });
+        send({ type: "app.start", sdp, context: options.context });
       };
       socket.onmessage = ({ data }) => {
         try {

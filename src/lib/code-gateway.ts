@@ -15,6 +15,17 @@ export type PriceTable = Record<string, ModelPrice>;
 export const GATEWAY_MAX_BODY_BYTES = 1_000_000;
 export const GATEWAY_UPSTREAM_TIMEOUT_MS = 10 * 60_000;
 export const GATEWAY_STOP_POLL_MS = 5_000;
+/** Owner rule: no single CODE provider call may reserve more than $0.50. The configured
+ * CODE_GATEWAY_PER_CALL_CAP_USD may be lower, never higher; anything else fails closed. */
+export const CODE_PER_CALL_MAX_USD = 0.5;
+
+/** Parses the configured per-call cap. Returns null (fail closed) unless it is a finite number in
+ * (0, CODE_PER_CALL_MAX_USD]. Blank, non-numeric and above-limit values are all refused. */
+export function parsePerCallCap(raw: string | undefined): number | null {
+  if (raw === undefined || raw.trim() === "") return null;
+  const cap = Number(raw);
+  return Number.isFinite(cap) && cap > 0 && cap <= CODE_PER_CALL_MAX_USD ? cap : null;
+}
 const PATHS = { "/responses": "responses", "/chat/completions": "chat" } as const;
 
 export class GatewayError extends Error {
@@ -107,7 +118,11 @@ export function prepareRequest(
     throw new GatewayError(403, "Model is not approved for CODE.");
   }
   const price = prices[model]!;
-  if (!Number.isFinite(perCallCapUsd) || perCallCapUsd <= 0 || perCallCapUsd > 5) {
+  if (
+    !Number.isFinite(perCallCapUsd) ||
+    perCallCapUsd <= 0 ||
+    perCallCapUsd > CODE_PER_CALL_MAX_USD
+  ) {
     throw new GatewayError(503, "Invalid per-call spending cap.");
   }
   if (
