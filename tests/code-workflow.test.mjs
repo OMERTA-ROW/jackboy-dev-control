@@ -8,9 +8,10 @@ const publisher = workflow.match(/^  draft_pr:\n([\s\S]*?)^  finish:/m)?.[1] ?? 
 const finish = workflow.match(/^  finish:\n([\s\S]*)$/m)?.[1] ?? "";
 
 test("CODE uses only request-bound Actions identity at the gateway, with no secret fallback", () => {
-  const targetToken = prepare.match(
-    /^      - name: Short-lived read token for the one approved target repository\n[\s\S]*?(?=^      - )/m,
-  )?.[0] ?? "";
+  const targetToken =
+    prepare.match(
+      /^      - name: Short-lived read token for the one approved target repository\n[\s\S]*?(?=^      - )/m,
+    )?.[0] ?? "";
   assert.match(
     targetToken,
     /^      - name: Short-lived read token for the one approved target repository\n        id: target_token\n        if: steps\.claim\.outputs\.target_repo != ''\n        uses: actions\/create-github-app-token@[a-f0-9]{40}[^\n]*\n        with:\n          app-id: \$\{\{ secrets\.CODE_APP_ID \}\}\n          private-key: \$\{\{ secrets\.CODE_APP_PRIVATE_KEY \}\}\n          owner: OMERTA-ROW\n          repositories: \$\{\{ steps\.claim\.outputs\.target_name \}\}\n          permission-contents: read\n$/,
