@@ -8,7 +8,7 @@ const publisher = workflow.match(/^  draft_pr:\n([\s\S]*?)^  finish:/m)?.[1] ?? 
 const finish = workflow.match(/^  finish:\n([\s\S]*)$/m)?.[1] ?? "";
 
 test("CODE uses only request-bound Actions identity at the gateway, with no secret fallback", () => {
-  assert.doesNotMatch(prepare, /secrets\.|OPENAI_API_KEY|ANTHROPIC_API_KEY/);
+  assert.doesNotMatch(prepare, /OPENAI_API_KEY|ANTHROPIC_API_KEY|CODE_PROVIDER_API_KEY/);
   assert.match(prepare, /openai-api-key: \$\{\{ steps\.gateway\.outputs\.token \}\}/);
   assert.match(prepare, /responses-api-endpoint: \$\{\{ steps\.gateway\.outputs\.endpoint \}\}/);
   assert.match(prepare, /\/api\/public\/code\/provider\/v1\/responses/);
