@@ -4,6 +4,7 @@ import { supabaseAdmin as db } from "@/integrations/supabase/client.server";
 import { CODE_ACTION, CODE_PERMISSIONS, CODE_TTL, CODE_WORKFLOW, codeApprovalError, codeLink, codeRunName, type CodeCard, type CodeScope } from "./code";
 import { codeSafetyBlockReason, getCodeSafetyState } from "./code-safety.server";
 import { codeTargetRefusal } from "./code-safety";
+import { CODE_RUNNER_REPO, isOrgRepo, orgTargetRefusal, type OrgRepoMeta } from "./code-org-scope";
 import { createCodeGithubHeaders } from "./code-github";
 import { redactTranscript } from "./voice-guard";
 import { untyped } from "./untyped-db";
@@ -32,22 +33,47 @@ async function project(id: string) {
   if (r.error || !r.data?.github_repo || !r.data.dev_enabled) throw new Error("CODE needs a linked repository with owner-enabled development for this project.");
   const p = r.data;
   const allowed = await targets();
-  const refusal = codeTargetRefusal(p.github_repo!, allowed);
+  // Org-wide scope: a repository without its own pin runs through the pinned Jackboy workflow (central runner).
+  const central = !Object.hasOwn(allowed, p.github_repo!) && p.github_repo !== CODE_RUNNER_REPO;
+  const runnerRepo = central ? CODE_RUNNER_REPO : p.github_repo!;
+  const refusal = codeTargetRefusal(runnerRepo, allowed);
   if (refusal) throw new Error(refusal);
-  const target = allowed[p.github_repo!]!;
+  let targetRepo: string | undefined, targetBaseSha: string | undefined;
+  if (central) {
+    const t = await centralTarget(p.github_repo!);
+    targetRepo = t.repo; targetBaseSha = t.baseSha;
+  }
+  const target = allowed[runnerRepo]!;
   // Re-measure the live gateway ledger first: only the meter can stamp the 5-minute freshness.
-  const safetyBlock = await codeSafetyBlockReason(p.github_repo!, Date.now(), { refreshMeter: true });
+  const safetyBlock = await codeSafetyBlockReason(runnerRepo, Date.now(), { refreshMeter: true });
   if (safetyBlock) throw new Error(safetyBlock);
   const taskBudgetUsd = (await getCodeSafetyState()).perTaskReserveUsd;
   if (taskBudgetUsd === null || !Number.isFinite(taskBudgetUsd) || taskBudgetUsd <= 0) {
     throw new Error("CODE is blocked because its per-task spend reservation is unavailable.");
   }
   const revision = await gh<{ sha: string }>(
-    p.github_repo!,
+    runnerRepo,
     `/commits/${encodeURIComponent(target.ref)}`,
   );
   if (!/^[a-f0-9]{40}$/.test(revision.sha)) throw new Error("CODE target revision could not be verified.");
-  return { id: p.id, repo: p.github_repo!, ...target, baseSha: revision.sha, taskBudgetUsd };
+  return { id: p.id, repo: runnerRepo, ...target, baseSha: revision.sha, taskBudgetUsd, ...(targetRepo ? { targetRepo, targetBaseSha } : {}) };
+}
+/** Reads the block list and the target's live GitHub facts; refuses anything outside the org rule. */
+export async function centralTarget(repo: string): Promise<{ repo: string; baseSha: string }> {
+  if (!isOrgRepo(repo)) throw new Error(orgTargetRefusal(repo, null, new Set())!);
+  const blocks = await db.from("code_repo_blocklist").select("repo");
+  if (blocks.error) throw new Error("CODE is blocked: the repository block list couldn't be read.");
+  const blocked = new Set((blocks.data ?? []).map((b) => b.repo));
+  let meta: OrgRepoMeta = null;
+  try {
+    const m = await gh<{ full_name: string; archived: boolean; default_branch: string }>(repo, "");
+    meta = { fullName: m.full_name, archived: m.archived, defaultBranch: m.default_branch };
+  } catch { meta = null; }
+  const refusal = orgTargetRefusal(repo, meta, blocked);
+  if (refusal) throw new Error(refusal);
+  const head = await gh<{ sha: string }>(repo, "/commits/main");
+  if (!/^[a-f0-9]{40}$/.test(head.sha)) throw new Error("CODE target revision could not be verified.");
+  return { repo, baseSha: head.sha };
 }
 async function verify(p: { repo: string; ref: string; workflowSha: string; baseSha?: string }) {
   const [file, workflow, repo] = await Promise.all([
@@ -132,14 +158,16 @@ export async function requestCode(
     operation: retry ? "retry" : "dispatch",
     taskBudgetUsd: p.taskBudgetUsd,
     ...(opts.acceptance ? { acceptance: true as const } : {}),
+    ...(p.targetRepo && p.targetBaseSha ? { targetRepo: p.targetRepo, targetBaseSha: p.targetBaseSha } : {}),
   };
+  if (scope.targetRepo && opts.acceptance) throw new Error("The acceptance test runs only on Jackboy itself.");
   await assertAcceptanceScope(scope, p.taskBudgetUsd);
   // Automatic lane: only when the owner switched it on for this site (passkey) and every low-risk rule holds.
   // Without the staged storage, autoLaneAllowed is false and every request stays in the reviewed lane.
   try {
     const lane = await import("./code-lane.server");
     // The acceptance test always stays in the reviewed lane.
-    if (!opts.acceptance && (await lane.autoLaneAllowed(p.repo))) {
+    if (!opts.acceptance && !scope.targetRepo && (await lane.autoLaneAllowed(p.repo))) {
       const { chooseLane, AUTO_HOLD_USD } = await import("./code-lane");
       const { getCodeSafetyState } = await import("./code-safety.server");
       const choice = chooseLane({
@@ -285,7 +313,9 @@ export async function decideCode(id: string, nonce: string, decision: "allow" | 
       p.repo !== scope.repo ||
       p.ref !== scope.ref ||
       p.workflowSha !== scope.workflowSha ||
-      p.baseSha !== scope.baseSha
+      p.baseSha !== scope.baseSha ||
+      p.targetRepo !== scope.targetRepo ||
+      p.targetBaseSha !== scope.targetBaseSha
     ) {
       throw new Error("CODE target changed. Request a new approval.");
     }

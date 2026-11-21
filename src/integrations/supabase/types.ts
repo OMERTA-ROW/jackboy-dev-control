@@ -778,6 +778,27 @@ export type Database = {
         }
         Relationships: []
       }
+      code_repo_blocklist: {
+        Row: {
+          blocked_by: string
+          created_at: string
+          reason: string
+          repo: string
+        }
+        Insert: {
+          blocked_by: string
+          created_at?: string
+          reason?: string
+          repo: string
+        }
+        Update: {
+          blocked_by?: string
+          created_at?: string
+          reason?: string
+          repo?: string
+        }
+        Relationships: []
+      }
       code_runtime_controls: {
         Row: {
           active_request_id: string | null
@@ -4456,6 +4477,15 @@ export type Database = {
       set_code_provider_hard_cap_verified: {
         Args: { p_actor: string; p_evidence: string; p_verified: boolean }
         Returns: Json
+      }
+      set_code_repo_block: {
+        Args: {
+          p_actor: string
+          p_blocked: boolean
+          p_reason: string
+          p_repo: string
+        }
+        Returns: undefined
       }
       set_guardian_limits: {
         Args: { _max_files: number; _max_lines: number; _tier: number }

@@ -1,4 +1,5 @@
 import { createPublicKey, verify as verifySignature, type JsonWebKey } from "node:crypto";
+import { CODE_RUNNER_REPO } from "./code-org-scope";
 import { supabaseAdmin as typedDb } from "@/integrations/supabase/client.server";
 import { untyped } from "./untyped-db";
 const db = untyped(typedDb);
@@ -269,6 +270,17 @@ export async function handleCodeRunnerClaim(request: Request): Promise<Response>
     ) {
       return reply({ error: "CODE approval is expired, revoked, or does not match." }, 403);
     }
+    // Central runner: re-check the org rule, block list and the approved target revision at every claim.
+    if (scope.targetRepo !== undefined) {
+      if (typeof scope.targetRepo !== "string" || !SHA.test(String(scope.targetBaseSha)) || scope.repo !== CODE_RUNNER_REPO)
+        return reply({ error: "CODE target scope is invalid." }, 403);
+      try {
+        const { centralTarget } = await import("./code.server");
+        await centralTarget(scope.targetRepo);
+      } catch (e) {
+        return reply({ error: (e as Error).message.slice(0, 200) }, 403);
+      }
+    }
     const controls = await getCodeSafetyState();
     const approvedTargets = controls.allowedTargets;
     const target = approvedTargets[scope.repo];
@@ -357,7 +369,7 @@ export async function handleCodeRunnerClaim(request: Request): Promise<Response>
     });
     if (claimError || !data?.length)
       return reply({ error: "CODE approval could not be claimed." }, 409);
-    if (body.stage === "publish") return reply({ authorized: true });
+    if (body.stage === "publish") return reply({ authorized: true, targetRepo: scope.targetRepo ?? null });
     const { data: slot, error: slotError } = await db.rpc("claim_code_runtime_slot", {
       p_request_id: body.requestId,
       p_repository: claims.repository,
@@ -373,6 +385,8 @@ export async function handleCodeRunnerClaim(request: Request): Promise<Response>
       operation: scope.operation,
       instruction: scope.instruction,
       revision: scope.baseSha,
+      targetRepo: scope.targetRepo ?? null,
+      targetSha: scope.targetBaseSha ?? null,
     });
   } catch {
     return reply({ error: "CODE runner authorization failed closed." }, 403);
