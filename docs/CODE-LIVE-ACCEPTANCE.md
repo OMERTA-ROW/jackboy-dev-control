@@ -35,6 +35,7 @@ The CODE runner authenticates to a Jackboy backend (`vars.CODE_RUNNER_AUTH_URL`)
 - Disposable repo `OMERTA-ROW/jackboy-code-acceptance-disposable` (private, suggested name), seeded by `scripts/live-acceptance-seed.mjs`.
 - A **separate staging Jackboy backend** with its own database, its own owner identity and passkey, and none of production's secrets. Needed only for the negative live gates.
 - The disposable workflow has no `secrets.*` reference and no model step (a deterministic stand-in writes a marker file). A unit test enforces this.
+- The seed supports only its own repository: it rejects cross-repository claims and omits the production target-token and target-publishing steps.
 
 Generate the seed locally (no network):
 

@@ -36,6 +36,11 @@ test("derived workflow keeps every production gate and removes only the paid mod
   }
   assert.equal(/secrets\./.test(derived), false, "no secret may be referenced");
   assert.equal(/openai|codex-action|setup-bun|\bbun /i.test(derived), false);
+  assert.match(
+    derived,
+    /if \(targetRepo !== ''\) throw new Error\('Acceptance seed only supports its own repository\.'\)/,
+  );
+  assert.doesNotMatch(derived, /create-github-app-token|steps\.target_token/);
   assert.doesNotMatch(derived, /steps\.gateway|\/code\/provider|name: Bind gateway/);
   assert.equal(/gh pr merge|--auto|workflow_run|schedule:|cron:/.test(derived), false);
   assert.match(derived, /workflow_dispatch:/);
@@ -57,6 +62,26 @@ test("derivation fails closed when production code.yml drifts", () => {
   );
   assert.throws(
     () => deriveWorkflow(prod.replace("bun install --frozen-lockfile", "bun install")),
+    /code\.yml changed/,
+  );
+  assert.throws(
+    () =>
+      deriveWorkflow(
+        prod.replace(
+          "Short-lived write token for the one approved target repository",
+          "Unknown target token",
+        ),
+      ),
+    /code\.yml changed/,
+  );
+  assert.throws(
+    () =>
+      deriveWorkflow(
+        prod.replace(
+          "const targetRepo = claim.targetRepo ?? '';",
+          "const targetRepo = claim.targetRepo;",
+        ),
+      ),
     /code\.yml changed/,
   );
 });
